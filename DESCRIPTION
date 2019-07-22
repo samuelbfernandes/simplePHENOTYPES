@@ -1,0 +1,19 @@
+Package: simplePHENOTYPES
+Type: Package
+Title: Simulation of Pleiotropy, Linkage and Epistasis phenotypes
+Version: 0.1.0
+Author: Samuel B. Fernandes
+Maintainer: Samuel Fernandes <samuelf@illinois.edu>
+Description: More about what it does (maybe more than one line)
+    Use four spaces when indenting paragraphs within the Description.
+License: GPL-2 | file LICENSE
+Encoding: UTF-8
+LazyData: true
+Depends: R (>= 3.2)
+Imports: 
+    data.table,
+    mvtnorm,
+    lqmm,
+    stats,
+    utils
+RoxygenNote: 6.1.1
