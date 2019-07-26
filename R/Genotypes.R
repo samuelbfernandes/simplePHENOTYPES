@@ -19,7 +19,8 @@
 #'
 #'-------------------------------------------------------------------------------
 `Genotypes` <-
-  function(file.path = NULL,
+  function(geno = NULL,
+           file.path = NULL,
            maf_cutoff = NULL,
            seed = 123,
            file.G = NULL,
@@ -32,6 +33,24 @@
            file.from = 1,
            file.to = 1) {
     #---------------------------------------------------------------------------
+    if(!is.null(geno)){
+      genotypes <- GAPIT.HapMap(
+        geno,
+        SNP.effect = SNP.effect,
+        SNP.impute = SNP.impute,
+        heading = T,
+        Create.indicator = Create.indicator,
+        Major.allele.zero = Major.allele.zero
+      )
+      
+      genotypesNum <- data.frame(genotypes$GI, cm = NA, t(genotypes$GD))
+
+      colnames(genotypesNum) <-
+        c("Snp", "allele", "chr", "pos", "cm", t(as.character(genotypes$GT)))
+     
+     return(genotypesNum)   
+    }
+
     count.filenum <- 0
     for (filenum in file.from:file.to) {
       if (!any(grepl(paste0(file.G, filenum, ".", file.Ext.G) , dir()))) {
