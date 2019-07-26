@@ -136,17 +136,6 @@
         Major.allele.zero = Major.allele.zero
       )
 
-      #print("Extracting snps for LD plot...")
-      #Extract SNPs for LD plot
-      if (!is.null(LD.chromosome) & !is.null(hm$GD)) {
-        index = (G[, 3] == LD.chromosome[1]) &
-          abs((as.numeric(G[, 4]) - as.numeric(LD.location[1])) <
-                (as.numeric(LD.range[1]) / 2))
-        GLD = G[index, ]
-      } else{
-        GLD = NULL
-      }
-
       #rm(G)
       #gc()
       print("hapmap called successfuly from fragment")
@@ -157,7 +146,6 @@
           GI = hm$GI,
           GT = hm$GT,
           linesRead = linesRead,
-          GLD = GLD,
           heading = heading,
           G = G
         )
@@ -225,8 +213,7 @@
           GD = NULL,
           GI = NULL,
           GT = NULL,
-          linesRead = NULL,
-          GLD = NULL
+          linesRead = NULL
         ))
 
       GT = GD[, 1]  #Extract infividual names
@@ -239,8 +226,7 @@
           GD = GD,
           GI = GI,
           GT = GT,
-          linesRead = linesRead,
-          GLD = NULL
+          linesRead = linesRead
         ))
 
       if (SNP.fraction < 1) {
@@ -254,8 +240,7 @@
           GD = GD[, sample],
           GI = GI[sample, ],
           GT = GT,
-          linesRead = linesRead,
-          GLD = NULL
+          linesRead = linesRead
         ))
       }
     } # end of the "EMMA"
