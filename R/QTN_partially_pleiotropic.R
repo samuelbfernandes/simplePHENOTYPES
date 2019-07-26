@@ -198,15 +198,15 @@
           c(
             paste0(
               "Chr_",
-              Add.pleiotropic.QTN.genotypic.info[, 3],
+              unlist(Add.pleiotropic.QTN.genotypic.info[, 3]),
               "_",
-              Add.pleiotropic.QTN.genotypic.info[, 4]
+              unlist(Add.pleiotropic.QTN.genotypic.info[, 4])
             ),
             paste0(
               "Chr_",
-              Add.specific.QTN.genotypic.info[[i]][, 3],
+              unlist(Add.specific.QTN.genotypic.info[[i]][, 3]),
               "_",
-              Add.specific.QTN.genotypic.info[[i]][, 4]
+              unlist(Add.specific.QTN.genotypic.info[[i]][, 4])
             )
           )
 
@@ -214,15 +214,15 @@
           c(
             paste0(
               "Chr_",
-              Epi.pleiotropic.QTN.genotypic.info[, 3],
+              unlist(Epi.pleiotropic.QTN.genotypic.info[, 3]),
               "_",
-              Epi.pleiotropic.QTN.genotypic.info[, 4]
+              unlist(Epi.pleiotropic.QTN.genotypic.info[, 4])
             ),
             paste0(
               "Chr_",
-              Epi.specific.QTN.genotypic.info[[i]][, 3],
+              unlist(Epi.specific.QTN.genotypic.info[[i]][, 3]),
               "_",
-              Epi.specific.QTN.genotypic.info[[i]][, 4]
+              unlist(Epi.specific.QTN.genotypic.info[[i]][, 4])
             )
           )
       }
@@ -251,15 +251,15 @@
           c(
             paste0(
               "Chr_",
-              Add.pleiotropic.QTN.genotypic.info[, 3],
+              unlist(Add.pleiotropic.QTN.genotypic.info[, 3]),
               "_",
-              Add.pleiotropic.QTN.genotypic.info[, 4]
+              unlist(Add.pleiotropic.QTN.genotypic.info[, 4])
             ),
             paste0(
               "Chr_",
-              Add.specific.QTN.genotypic.info[[i]][, 3],
+              unlist(Add.specific.QTN.genotypic.info[[i]][, 3]),
               "_",
-              Add.specific.QTN.genotypic.info[[i]][, 4]
+              unlist(Add.specific.QTN.genotypic.info[[i]][, 4])
             )
           )
       }

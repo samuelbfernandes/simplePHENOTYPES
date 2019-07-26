@@ -63,9 +63,9 @@
 
     colnames(additive.effect.trait.object) <-
       paste0("Chr_",
-             Add.QTN.genotypic.information[, 3],
+             unlist(Add.QTN.genotypic.information[, 3]),
              "_",
-             Add.QTN.genotypic.information[, 4])
+             unlist(Add.QTN.genotypic.information[, 4]))
 
     if ( !is.null(Epistatic.QTN.number) ){
     #Randomly select (without replacement) 2*k epistatic QTN, and assign an effect size
@@ -112,9 +112,9 @@
 
     colnames(epistatic.effect.trait.object) <-
       paste0("Chr_",
-             Epi.QTN.genotypic.information[, 3],
+             unlist(Epi.QTN.genotypic.information[, 3]),
              "_",
-             Epi.QTN.genotypic.information[, 4])
+             unlist(Epi.QTN.genotypic.information[, 4]))
     return(
       list(
         additive.effect.trait.object = list(additive.effect.trait.object),
