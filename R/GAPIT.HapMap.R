@@ -25,17 +25,17 @@
       SNP.impute
     ))
     if (heading) {
-      GT = t(G[1,-(1:11)])
-      GI = G[-1, c(1, 3, 4)]
+      GT = as.matrix(colnames(G)[-(1:11)])
+      GI = G[-1, c(1, 2, 3, 4)]
     } else{
       GT = NULL
-      GI = G[, c(1, 3, 4)]
+      GI = G[, c(1, 2, 3, 4)]
     }
 
     #Set column names
     if (heading)
       colnames(GT) = "taxa"
-    colnames(GI) = c("SNP", "Chromosome", "Position")
+    colnames(GI) = c("SNP", "allele", "Chromosome", "Position")
 
     #Initial GD
     GD = NULL
@@ -53,7 +53,7 @@
             Major.allele.zero = Major.allele.zero
           ))
       if (Create.indicator)
-        GD = t(G[-1,-(1:11)])
+        GD = colnames(G)[-(1:11)]
     } else{
       if (!Create.indicator)
         GD = apply(G[,-(1:11)], 1, function(one)
