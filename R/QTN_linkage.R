@@ -1,35 +1,33 @@
 #' Select SNPs to be assigned as QTNs
+#' @export
 #' @param genotypes = NULL,
 #' @param seed = NULL,
-#' @param overlap = NULL,
-#' @param overlapE = NULL,
-#' @param specific.QTN.number = NULL,
-#' @param specific.E.QTN.number = NULL,
-#' @param ntraits = NULL
-#' @export
+#' @param Additive.QTN.number = NULL,
+#' @param ld = NULL,
+#' @param gdsfile NULL
 #' @return Genotype of selected SNPs
-#' @author Alex lipka and Samuel Fernandes
+#' @author Samuel Fernandes
 
 #' Last update: Jul 22, 2019
 #'
 #'----------------------------- QTN_linkage ---------------------------------
-`QTN_linkage` <-
+QTN_linkage <-
   function(genotypes = NULL,
            seed = NULL,
            Additive.QTN.number = NULL,
-           Epistatic.QTN.number = NULL,
-           ld = NULL) {
+           ld = NULL,
+           gdsfile = NULL) {
     #---------------------------------------------------------------------------
-    #Randomly select (without replacement) k additive QTN, and assign an effect size
+    # Randomly select (without replacement) 
+    # k additive QTN, and assign an effect size
     if (!is.null(seed)) {
       set.seed(seed)
     }
-    
+    # First SNP at column 6
     vector.of.add.QTN <-
-      sample(1:nrow(genotypes), Additive.QTN.number, replace = FALSE)
-    
-    # open an example dataset (HapMap)
-    genofile <- snpgdsOpen("test.gds")
+      sample(6:nrow(genotypes), Additive.QTN.number, replace = FALSE)
+
+    genofile <- SNPRelate::snpgdsOpen(gdsfile)
     inf <- c()
     sup <- c()
     x <- 1
@@ -38,20 +36,21 @@
       i <- j + 1
       while (ldsup >= ld) {
         snp1 <-
-          read.gdsn(
-            index.gdsn(genofile, "genotype"),
+          gdsfmt::read.gdsn(
+            gdsfmt::index.gdsn(genofile, "genotype"),
             start = c(j, 1),
             count = c(1, -1)
           )
         snp2 <-
-          read.gdsn(
-            index.gdsn(genofile, "genotype"),
+          gdsfmt::read.gdsn(
+            gdsfmt::index.gdsn(genofile, "genotype"),
             start = c(i, 1),
             count = c(1, -1)
           )
-        ldsup <- abs(snpgdsLDpair(snp1, snp2, method = "composite"))
+        ldsup <-
+          abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = "composite"))
         if (is.nan(ldsup)) {
-          snpgdsClose(genofile)
+          SNPRelate::snpgdsClose(genofile)
           stop("Monomorphic SNPs are not accepted", call. = F)
         }
         i <- i + 1
@@ -62,15 +61,16 @@
       i2 <- j - 1
       while (ldinf >= ld) {
         snp3 <-
-          read.gdsn(
-            index.gdsn(genofile, "genotype"),
+          gdsfmt::read.gdsn(
+            gdsfmt::index.gdsn(genofile, "genotype"),
             start = c(i2, 1),
             count = c(1, -1)
           )
         
-        ldinf <- abs(snpgdsLDpair(snp1, snp3, method = "composite"))
+        ldinf <-
+          abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = "composite"))
         if (is.nan(ldinf)) {
-          snpgdsClose(genofile)
+          SNPRelate::snpgdsClose(genofile)
           stop("Monomorphic SNPs are not accepted", call. = F)
         }
         
@@ -80,32 +80,32 @@
       x <- x + 1
     }
     # close the genotype file
-    snpgdsClose(genofile)
+    SNPRelate::snpgdsClose(genofile)
     
-    Add.QTN.genotypic.informationSUP <- genotypes[sup,]
-    Add.QTN.genotypic.informationINF <- genotypes[inf,]
-    #Create an output file that gives the chromosome, bp, and additive effect of the effect sizes, as well as the seed
+    Add.QTN.genotypic.information.sup <- genotypes[sup, ]
+    Add.QTN.genotypic.information.inf <- genotypes[inf, ]
+    # Create an output file that gives the chromosome, bp, and additive effect of the effect sizes, as well as the seed
     write.table(
       ifelse(
         !is.null(seed),
         paste0("Here_is_the_seed_number: ", seed),
         "set.seed not assigned"
       ),
-      paste0("seed.number.for.",
-             Additive.QTN.number,
-             "Add.QTN",
-             ".txt"),
+      paste0("seed.number.for.", Additive.QTN.number,
+             "Add.QTN", ".txt"),
       row.names = FALSE,
       col.names = FALSE,
       sep = "\t",
       quote = FALSE
     )
     data.table::fwrite(
-      Add.QTN.genotypic.informationSUP,
+      Add.QTN.genotypic.information.sup,
       paste0(
         "Genotypic.information.for.",
         Additive.QTN.number,
-        "LD.",ld,".SUP.Additive.QTN",
+        "LD.",
+        ld,
+        ".SUP.Additive.QTN",
         ".txt"
       ),
       row.names = FALSE,
@@ -115,11 +115,13 @@
     )
     
     data.table::fwrite(
-      Add.QTN.genotypic.informationINF,
+      Add.QTN.genotypic.information.inf,
       paste0(
         "Genotypic.information.for.",
         Additive.QTN.number,
-        "LD.",ld,".INF.Additive.QTN",
+        "LD.",
+        ld,
+        ".INF.Additive.QTN",
         ".txt"
       ),
       row.names = FALSE,
@@ -127,34 +129,35 @@
       quote = FALSE,
       na = NA
     )
-    #Create a "base line" trait, which is basically just the additive effects;
-    #this is what we would see if the heritability of the simulated trait were 1
-    additive.effect.trait.objectSUP <-
-      t(Add.QTN.genotypic.informationSUP[,-c(1:5)])
+    # Create a 'base line' trait, which is basically just the additive effects; 
+    # this is what we would see if the heritability of the simulated
+    # trait were 1
+    additive.effect.trait.object.sup <-
+      t(Add.QTN.genotypic.information.sup[, -c(1:5)])
     
-    additive.effect.trait.objectINF <-
-      t(Add.QTN.genotypic.informationINF[,-c(1:5)])
+    additive.effect.trait.object.inf <-
+      t(Add.QTN.genotypic.information.inf[, -c(1:5)])
     
-    colnames(additive.effect.trait.objectSUP) <-
+    colnames(additive.effect.trait.object.sup) <-
       paste0(
         "Chr_",
-        unlist(Add.QTN.genotypic.informationSUP[, 3]),
+        unlist(Add.QTN.genotypic.information.sup[, 3]),
         "_",
-        unlist(Add.QTN.genotypic.informationSUP[, 4])
+        unlist(Add.QTN.genotypic.information.sup[, 4])
       )
     
-    colnames(additive.effect.trait.objectINF) <-
+    colnames(additive.effect.trait.object.inf) <-
       paste0(
         "Chr_",
-        unlist(Add.QTN.genotypic.informationINF[, 3]),
+        unlist(Add.QTN.genotypic.information.inf[, 3]),
         "_",
-        unlist(Add.QTN.genotypic.informationINF[, 4])
+        unlist(Add.QTN.genotypic.information.inf[, 4])
       )
     
     return(
       list(
-        additive.effect.trait.objectSUP = list(additive.effect.trait.objectSUP),
-        additive.effect.trait.objectINF = list(additive.effect.trait.objectINF)
+        additive.effect.trait.object.sup = additive.effect.trait.object.sup,
+        additive.effect.trait.object.inf = additive.effect.trait.object.inf
       )
     )
   }
