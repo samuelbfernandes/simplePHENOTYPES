@@ -13,10 +13,10 @@ create.simulated.data(genotypes = NULL, file.G = NULL,
   epistatic.effect = NULL, big.additive.QTN.effect = NULL,
   model = c("pleiotropic", "partially", "LD"), overlap = NULL,
   overlapE = NULL, specific.QTN.number = NULL,
-  specific.E.QTN.number = NULL, rep = NULL, ntraits = 1, h2 = NULL,
-  h2_MT = NULL, set.cor = TRUE, correlation = NULL, seed = NULL,
-  home.dir = getwd(), output.dir = NULL, format = "multi-file",
-  out.geno = FALSE)
+  specific.E.QTN.number = NULL, ld = 0.5, rep = NULL, ntraits = 1,
+  h2 = NULL, h2_MT = NULL, set.cor = TRUE, correlation = NULL,
+  seed = NULL, home.dir = getwd(), output.dir = NULL,
+  format = "multi-file", out.geno = "none", gdsfile = NULL)
 }
 \arguments{
 \item{genotypes}{jjj}
@@ -33,9 +33,9 @@ create.simulated.data(genotypes = NULL, file.G = NULL,
 
 \item{maf_cutoff}{= NULL,}
 
-\item{SNP.effect}{= "Add",}
+\item{SNP.effect}{= 'Add',}
 
-\item{SNP.impute}{= "Middle",}
+\item{SNP.impute}{= 'Middle',}
 
 \item{Create.indicator}{= FALSE,}
 
@@ -51,7 +51,7 @@ create.simulated.data(genotypes = NULL, file.G = NULL,
 
 \item{big.additive.QTN.effect}{= NULL,}
 
-\item{model}{= c("pleiotropic", "partially", "LD"),}
+\item{model}{= c('pleiotropic', 'partially', 'LD'),}
 
 \item{overlap}{= NULL,}
 
@@ -60,6 +60,8 @@ create.simulated.data(genotypes = NULL, file.G = NULL,
 \item{specific.QTN.number}{= NULL,}
 
 \item{specific.E.QTN.number}{= NULL,}
+
+\item{ld}{= 05,}
 
 \item{rep}{= NULL,}
 
@@ -79,9 +81,11 @@ create.simulated.data(genotypes = NULL, file.G = NULL,
 
 \item{output.dir}{= NULL,}
 
-\item{format}{= "multi-file",}
+\item{format}{= 'multi-file',}
 
-\item{out.geno}{= FALSE}
+\item{out.geno}{NULL = c("hapmap", "plink", "gds")}
+
+\item{gdsfile}{NULL}
 }
 \value{
 Numeric hapmap, selected QTNs, phenotypes for ntraits traits
@@ -91,11 +95,9 @@ Main function for simulation of ntraits phenotypes based on a SNP file
 }
 \author{
 Alex Lipka and Samuel Fernandes
-Last update: April 19, 2019
+Last update: Jul 22, 2019
 
 -------------------------------------------------------------------------------
-default for numericalization#
 -----------------------------------------------------------------------------
-Create a working directory for the output results:
-Set the working directory
+Createing and setting a working directory for the output results:
 }

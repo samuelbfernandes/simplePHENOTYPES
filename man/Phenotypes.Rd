@@ -20,7 +20,7 @@ Phenotypes(base.line.trait = NULL, h2 = NULL, rep = NULL,
 
 \item{h2_MT}{= NULL,}
 
-\item{format}{= "multi-file"}
+\item{format}{= 'multi-file'}
 }
 \value{
 Phenotypes for ntraits traits
@@ -30,7 +30,7 @@ Generate environmental effects based on a given heritability
 }
 \author{
 Alex lipka and Samuel Fernandes
-Last update: April 19, 2019
+Last update: Jul 22, 2019
 
 ----------------------------Phenotypes-----------------------------------------
 }

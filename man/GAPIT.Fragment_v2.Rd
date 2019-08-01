@@ -27,9 +27,9 @@ GAPIT.Fragment_v2(file.path = NULL, file.from = NULL, file.to = NULL,
 
 \item{SNP.fraction}{= 1,}
 
-\item{SNP.effect}{= "Add",}
+\item{SNP.effect}{= 'Add',}
 
-\item{SNP.impute}{= "Middle",}
+\item{SNP.impute}{= 'Middle',}
 
 \item{genoFormat}{= NULL,}
 
@@ -65,7 +65,7 @@ load SNPs on a (frag)ment in file (this is to replace sampler)
 }
 \author{
 Alex Lipka and Zhiwu Zhang (Modified by Samuel Fernandes)
-Last update: April 11, 2019
+Last update: Jul 22, 2019
 
 -------------------------------------------------------------------------------
 ---------------------------------------------------------------------------

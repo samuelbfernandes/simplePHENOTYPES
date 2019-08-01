@@ -13,9 +13,9 @@ GAPIT.Numericalization_v2(x, bit = NULL, effect = "Add",
 
 \item{bit}{= NULL,}
 
-\item{effect}{= "Add",}
+\item{effect}{= 'Add',}
 
-\item{impute}{= "None",}
+\item{impute}{= 'None',}
 
 \item{Create.indicator}{= FALSE,}
 
@@ -31,7 +31,7 @@ convert character SNP genotpe to numerical
 }
 \author{
 Feng Tian and Zhiwu Zhang (Modified by Samuel Fernandes)
-Last update: April 11, 2019
+Last update: Jul 22, 2019
 
 --------------------------Numericalization v2---------------------------------
 }

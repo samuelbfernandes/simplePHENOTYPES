@@ -38,7 +38,7 @@ Calculate genetic value based on QTN objects.
 }
 \author{
 Samuel Fernandes
-Last update: May 15, 2019
+Last update: Jul 22, 2019
 
 --------------------------------Base_line_multi_traits-------------------------
 ---------------------------------------------------------------------------

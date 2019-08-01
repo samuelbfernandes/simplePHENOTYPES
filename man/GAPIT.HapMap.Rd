@@ -11,9 +11,9 @@ GAPIT.HapMap(G, SNP.effect = "Add", SNP.impute = "Middle",
 \arguments{
 \item{G}{hhhh}
 
-\item{SNP.effect}{= "Add",}
+\item{SNP.effect}{= 'Add',}
 
-\item{SNP.impute}{= "Middle",}
+\item{SNP.impute}{= 'Middle',}
 
 \item{heading}{= TRUE,}
 

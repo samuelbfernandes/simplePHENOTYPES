@@ -24,5 +24,5 @@ Select SNPs to be assigned as QTNs.
 }
 \author{
 Alex lipka and Samuel Fernandes
-Last update: April 19, 2019
+Last update: Jul 22, 2019
 }

@@ -4,13 +4,15 @@
 \alias{Genotypes}
 \title{Generate a numeric (dosaje) HapMap file}
 \usage{
-Genotypes(file.path = NULL, maf_cutoff = NULL, seed = 123,
-  file.G = NULL, file.Ext.G = NULL, SNP.effect = "Add",
+Genotypes(geno = NULL, file.path = NULL, maf_cutoff = NULL,
+  seed = 123, file.G = NULL, file.Ext.G = NULL, SNP.effect = "Add",
   SNP.impute = "Middle", file.fragment = Inf,
   Create.indicator = FALSE, Major.allele.zero = FALSE, file.from = 1,
   file.to = 1)
 }
 \arguments{
+\item{geno}{= NULL,}
+
 \item{file.path}{= NULL,}
 
 \item{maf_cutoff}{= NULL,}
@@ -21,9 +23,9 @@ Genotypes(file.path = NULL, maf_cutoff = NULL, seed = 123,
 
 \item{file.Ext.G}{= NULL,}
 
-\item{SNP.effect}{= "Add",}
+\item{SNP.effect}{= 'Add',}
 
-\item{SNP.impute}{= "Middle",}
+\item{SNP.impute}{= 'Middle',}
 
 \item{file.fragment}{= Inf,}
 
@@ -43,7 +45,7 @@ Generate a numeric (dosaje) HapMap file
 }
 \author{
 Alex lipka and Samuel Fernandes
-Last update: April 19, 2019
+Last update: Jul 22, 2019
 
 -------------------------------------------------------------------------------
 }
