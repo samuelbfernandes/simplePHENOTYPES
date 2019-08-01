@@ -1,8 +1,8 @@
 #' convert character SNP genotpe to numerical (calling GAPIT.Numericalization_v2)
 #' @export
 #' @param G hhhh
-#' @param SNP.effect = "Add",
-#' @param SNP.impute = "Middle",
+#' @param SNP.effect = 'Add',
+#' @param SNP.impute = 'Middle',
 #' @param heading = TRUE,
 #' @param Create.indicator = FALSE,
 #' @param Major.allele.zero = FALSE
@@ -12,7 +12,7 @@
 #' Last update: May 30, 2011
 #'
 #' -------------------------------------------------------------------------------
-`GAPIT.HapMap` <-
+GAPIT.HapMap <-
   function(G,
            SNP.effect = "Add",
            SNP.impute = "Middle",
@@ -27,19 +27,19 @@
     if (heading) {
       GT = as.matrix(colnames(G)[-(1:11)])
       GI = G[-1, c(1, 2, 3, 4)]
-    } else{
+    } else {
       GT = NULL
       GI = G[, c(1, 2, 3, 4)]
     }
-
-    #Set column names
+    
+    # Set column names
     if (heading)
       colnames(GT) = "taxa"
     colnames(GI) = c("SNP", "allele", "Chromosome", "Position")
-
-    #Initial GD
+    
+    # Initial GD
     GD = NULL
-    #to determine number of bits of genotype
+    # to determine number of bits of genotype
     bit = nchar(as.character(G[2, 12]))
     print("Performing numericalization")
     if (heading) {
@@ -54,7 +54,7 @@
           ))
       if (Create.indicator)
         GD = colnames(G)[-(1:11)]
-    } else{
+    } else {
       if (!Create.indicator)
         GD = apply(G[,-(1:11)], 1, function(one)
           GAPIT.Numericalization_v2(
@@ -67,16 +67,15 @@
       if (Create.indicator)
         GD = t(G[,-(1:11)])
     }
-
-    #set GT and GI to NULL in case of null GD
+    
+    # set GT and GI to NULL in case of null GD
     if (is.null(GD)) {
       GT = NULL
       GI = NULL
     }
-
+    
     if (!Create.indicator) {
-      print(paste0("Succesfuly finished converting HapMap which has bits of ",
-                   bit))
+      print(paste0("Succesfuly finished converting HapMap which has bits of ", bit))
     }
     return(list(GT = GT, GD = GD, GI = GI))
-  }#end of GAPIT.HapMap function
+  }  #end of GAPIT.HapMap function

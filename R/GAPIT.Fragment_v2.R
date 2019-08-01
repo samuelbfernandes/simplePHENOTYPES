@@ -7,8 +7,8 @@
 #' @param file.Ext.G = NULL,
 #' @param seed = NULL,
 #' @param SNP.fraction = 1,
-#' @param SNP.effect = "Add",
-#' @param SNP.impute = "Middle",
+#' @param SNP.effect = 'Add',
+#' @param SNP.impute = 'Middle',
 #' @param genoFormat = NULL,
 #' @param file.GD = NULL,
 #' @param file.Ext.GD = NULL,
@@ -28,7 +28,7 @@
 #' Last update: Jul 22, 2019
 #'
 #'-------------------------------------------------------------------------------
-`GAPIT.Fragment_v2` <-
+GAPIT.Fragment_v2 <-
   function(file.path = NULL,
            file.from = NULL,
            file.to = NULL,
@@ -52,26 +52,27 @@
            Create.indicator = FALSE,
            Major.allele.zero = FALSE) {
     #'---------------------------------------------------------------------------
-    genoFormat = "hapmap"
+    genoFormat <- "hapmap"
     if (!is.null(file.GD) & is.null(file.G)) {
-      genoFormat = "EMMA"
+      genoFormat <- "EMMA"
     }
-
-    if (genoFormat == "hapmap") {
-      G = NULL
+    
+    if (genoFormat == "hapmap"){
+      G <- NULL
       if (frag == 1) {
-        skip.1 = 0
+        skip.1 <- 0
         G <-
           try(data.table::fread(
             paste0(file.path, file.G, file, ".", file.Ext.G),
             head = FALSE,
             skip = skip.1,
-            nrows = file.fragment + 1,
+            nrows = file.fragment +
+              1,
             na.strings = "NA",
             data.table = F
           ),
           silent = TRUE)
-      } else{
+      } else {
         skip.1 <- (frag - 1) * file.fragment + 1
         G <-
           try(data.table::fread(
@@ -82,9 +83,9 @@
           ),
           silent = TRUE)
       }
-
-      if (inherits(G, "try-error"))  {
-        G = NULL
+      
+      if (inherits(G, "try-error")) {
+        G <- NULL
         return(list(
           GD = NULL,
           GI = NULL,
@@ -95,39 +96,32 @@
         ))
       }
 
-      #print("Calling hapmap...")
-      heading = (frag == 1)
-
-      #Recording number of lineas read
+      heading <- (frag == 1)
+      
+      # Recording number of lineas read
       if (heading) {
-        n = nrow(G) - 1
-      } else{
-        n = nrow(G)
+        n <- nrow(G) - 1
+      } else {
+        n <- nrow(G)
       }
-
-      linesRead = n
-
-      #Sampling
-      if (SNP.fraction < 1) {
-        #print("Number of SNP in this pragment:")
-        #print(n)
-
-        #set.seed(seed+(file*1000)+frag)
+      
+      linesRead <- n
+      
+      # Sampling
+      if (SNP.fraction < 1){
         if (!is.null(seed)) {
           set.seed(seed)
         }
-        #mySample=sample(1:n,max(2,floor(n*as.numeric(as.vector(SNP.fraction)))))
-        mySample = sample(1:n, max(2, floor(n * SNP.fraction)))
-
-        #print(length(mySample))
+        mySample <- sample(1:n, max(2, floor(n * SNP.fraction)))
+        
         if (heading) {
-          G = G[c(1, (1 + mySample)), ]
-        } else{
-          G = G[mySample, ]
+          G <- G[c(1, (1 + mySample)), ]
+        } else {
+          G <- G[mySample, ]
         }
-      } #end of if(SNP.fraction<1)
-
-      hm = GAPIT.HapMap(
+      }  #end of if(SNP.fraction<1)
+      
+      hm <- GAPIT.HapMap(
         G,
         SNP.effect = SNP.effect,
         SNP.impute = SNP.impute,
@@ -135,31 +129,27 @@
         Create.indicator = Create.indicator,
         Major.allele.zero = Major.allele.zero
       )
-
-      #rm(G)
-      #gc()
+      
       print("hapmap called successfuly from fragment")
-
-      return(
-        list(
-          GD = hm$GD,
-          GI = hm$GI,
-          GT = hm$GT,
-          linesRead = linesRead,
-          heading = heading,
-          G = G
-        )
-      )
-
+      
+      return(list(
+        GD = hm$GD,
+        GI = hm$GI,
+        GT = hm$GT,
+        linesRead = linesRead,
+        heading = heading,
+        G = G
+      ))
+      
       print("ERROR: It should not get here!!!")
-    } #end of "hapmap"
-
-
-    if (genoFormat == "EMMA") {
-      #Initial GD
-      GD = NULL
+    }  #end of 'hapmap'
+    
+    
+    if (genoFormat == "EMMA"){
+      # Initial GD
+      GD <- NULL
       skip.1 <- (frag - 1) * file.fragment
-      #Skip the remaining columns
+      # Skip the remaining columns
       GD.temp <-
         try(data.table::fread(
           paste0(file.path, file.GD, file, ".", file.Ext.GD),
@@ -173,7 +163,7 @@
       rm(GD.temp)
       read.in <- min(file.fragment, (num.SNP - skip.1))
       skip.2 <- max((num.SNP - (skip.1 + read.in)), 0)
-
+      
       GD <-
         try(data.table::fread(
           paste0(file.path, file.GD, file, ".", file.Ext.GD),
@@ -186,7 +176,7 @@
             rep("numeric", read.in),
             rep("NULL", skip.2)
           )
-        ) ,
+        ),
         silent = TRUE)
       GI <-
         try(data.table::fread(
@@ -196,18 +186,18 @@
           data.table = F,
           skip = skip.1,
           nrows = file.fragment
-        ) ,
+        ),
         silent = TRUE)
-
-      if (inherits(GD, "try-error"))  {
-        GD = NULL
+      
+      if (inherits(GD, "try-error")) {
+        GD <- NULL
         print("File end reached for GD!!!")
       }
-      if (inherits(GI, "try-error"))  {
-        GI = NULL
+      if (inherits(GI, "try-error")) {
+        GI <- NULL
         print("File end reached for GI!!!")
       }
-
+      
       if (is.null(GD))
         return(list(
           GD = NULL,
@@ -215,12 +205,11 @@
           GT = NULL,
           linesRead = NULL
         ))
-
-      GT = GD[, 1]  #Extract infividual names
-
-      GD = GD[, -1] #Remove individual names
-      #print("Numerical file read sucesfuly from fragment")
-      linesRead = ncol(GD)
+      
+      GT <- GD[, 1]  #Extract infividual names
+      
+      GD <- GD[,-1]  #Remove individual names
+      linesRead <- ncol(GD)
       if (SNP.fraction == 1)
         return(list(
           GD = GD,
@@ -228,21 +217,20 @@
           GT = GT,
           linesRead = linesRead
         ))
-
+      
       if (SNP.fraction < 1) {
-        n = ncol(GD)
-        #set.seed(seed+file)
+        n <- ncol(GD)
         if (!is.null(seed)) {
           set.seed(seed)
         }
-        sample = sample(1:n, floor(n * SNP.fraction))
+        sample <- sample(1:n, floor(n * SNP.fraction))
         return(list(
           GD = GD[, sample],
-          GI = GI[sample, ],
+          GI = GI[sample,],
           GT = GT,
           linesRead = linesRead
         ))
       }
-    } # end of the "EMMA"
-    #print("fragment ended succesfully!")
-  }#End of GAPIT.Fragment_v2 function
+    }  # end of the 'EMMA'
+    # print('fragment ended succesfully!')
+  }  #End of GAPIT.Fragment_v2 function
