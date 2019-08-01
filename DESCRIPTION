@@ -15,5 +15,7 @@ Imports:
     mvtnorm,
     lqmm,
     stats,
-    utils
+    utils,
+    SNPRelate,
+    gdsfmt
 RoxygenNote: 6.1.1
