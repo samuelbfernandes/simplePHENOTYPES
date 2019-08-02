@@ -2,7 +2,7 @@
 % Please edit documentation in R/create.simulated.data.R
 \name{create.simulated.data}
 \alias{create.simulated.data}
-\title{Main function for simulation of ntraits phenotypes based on a SNP file}
+\title{Simulation of ntraits phenotypes based on a SNP file}
 \usage{
 create.simulated.data(genotypes = NULL, file.G = NULL,
   file.Ext.G = NULL, file.fragment = Inf, file.from = 1,
@@ -11,93 +11,127 @@ create.simulated.data(genotypes = NULL, file.G = NULL,
   Major.allele.zero = FALSE, Additive.QTN.number = NULL,
   Epistatic.QTN.number = NULL, additive.effect = NULL,
   epistatic.effect = NULL, big.additive.QTN.effect = NULL,
-  model = c("pleiotropic", "partially", "LD"), overlap = NULL,
-  overlapE = NULL, specific.QTN.number = NULL,
-  specific.E.QTN.number = NULL, ld = 0.5, rep = NULL, ntraits = 1,
-  h2 = NULL, h2_MT = NULL, set.cor = TRUE, correlation = NULL,
-  seed = NULL, home.dir = getwd(), output.dir = NULL,
-  format = "multi-file", out.geno = "none", gdsfile = NULL)
+  model = "pleiotropic", overlap = NULL, overlapE = NULL,
+  specific.QTN.number = NULL, specific.E.QTN.number = NULL, ld = 0.5,
+  rep = NULL, ntraits = 1, h2 = NULL, h2_MT = NULL,
+  set.cor = TRUE, correlation = NULL, seed = NULL,
+  home.dir = getwd(), output.dir = NULL, format = "multi-file",
+  out.geno = "none", gdsfile = NULL)
 }
 \arguments{
-\item{genotypes}{jjj}
+\item{genotypes}{A HapMap format dataset from which simulated data will
+be generated.}
 
-\item{file.G}{= NULL,}
+\item{file.G}{Optional file name (without the ".hmp.txt" extension).}
 
-\item{file.Ext.G}{= NULL,}
+\item{file.Ext.G}{Optional file extension.}
 
-\item{file.fragment}{= Inf,}
+\item{file.fragment}{Optional argument for loading only a subset of rows
+of the genotipic dataset.}
 
-\item{file.from}{= 1,}
+\item{file.from}{Option for files saved by chromosome
+(minimum chromosome number).}
 
-\item{file.to}{= 1,}
+\item{file.to}{Option for files saved by chromosome
+(maximum chromosome number).}
 
-\item{maf_cutoff}{= NULL,}
+\item{maf_cutoff}{Optional filter for minor allele frequency.}
 
-\item{SNP.effect}{= 'Add',}
+\item{SNP.effect}{Following GAPIT implementation. Default 'Add'.}
 
-\item{SNP.impute}{= 'Middle',}
+\item{SNP.impute}{Following GAPIT implementation. Default 'Middle'.}
 
-\item{Create.indicator}{= FALSE,}
+\item{Create.indicator}{Following GAPIT implementation. Default FALSE.}
 
-\item{Major.allele.zero}{= FALSE,}
+\item{Major.allele.zero}{Following GAPIT implementation. Default FALSE.}
 
-\item{Additive.QTN.number}{= NULL,}
+\item{Additive.QTN.number}{Number of additive quantitative trait nucleotide
+to be simulated.}
 
-\item{Epistatic.QTN.number}{= NULL,}
+\item{Epistatic.QTN.number}{Number of epistatic (additive x additive)
+quantitative trait nucleotide to be simulated.}
 
-\item{additive.effect}{= NULL,}
+\item{additive.effect}{Additive effect size to be simulated. Follows a
+geometric series.}
 
-\item{epistatic.effect}{= NULL,}
+\item{epistatic.effect}{Epistatic (additive x additive) effect size to be
+simulated. Follows a geometric series.}
 
-\item{big.additive.QTN.effect}{= NULL,}
+\item{big.additive.QTN.effect}{Additive effect size for one possible major
+effect quantitative trait nucleotide.}
 
-\item{model}{= c('pleiotropic', 'partially', 'LD'),}
+\item{model}{Genetic architecture to be simulated. Possible options are:
+'pleiotropic', for traits being controled by all the same QTNs;
+'partially', for traits being controled by pleiotropic and trait specific QTNs;
+'LD', for traits being exclusively controled QTNs in linkage disequilibrium.}
 
-\item{overlap}{= NULL,}
+\item{overlap}{Number of pleiotropic additive QTNs if model = 'partially'.}
 
-\item{overlapE}{= NULL,}
+\item{overlapE}{Number of pleiotropic epistatic QTNs if model = 'partially'.}
 
-\item{specific.QTN.number}{= NULL,}
+\item{specific.QTN.number}{Number of trait specific additive QTNs if
+model = 'partially'.}
 
-\item{specific.E.QTN.number}{= NULL,}
+\item{specific.E.QTN.number}{Number of trait specific epistatic QTNs if
+model = 'partially'.}
 
-\item{ld}{= 05,}
+\item{ld}{Linkage disequilibrium between selected marker two adjacent markers
+to be used as QTN. Default is ld = 05.}
 
-\item{rep}{= NULL,}
+\item{rep}{Number of experiments to be simulated.}
 
-\item{ntraits}{= 1,}
+\item{ntraits}{Number of traits to be simulated under pleitropic and
+partially pleiotropic models. The default for linkage disequilibrium models is two.}
 
-\item{h2}{= NULL,}
+\item{h2}{Heritability of target trait (if multiple traits are simulated).
+If a vector, the simulation will "loop" over it and generate one file for each
+combination of genetic settings.}
 
-\item{h2_MT}{= NULL,}
+\item{h2_MT}{Heritability of correlated traits (in case it should be different).
+than target trait. It should be length ntraits-1.}
 
-\item{set.cor}{= TRUE,}
+\item{set.cor}{Should correlation among traits be controled for? Default TRUE.}
 
-\item{correlation}{= NULL,}
+\item{correlation}{Trait correlation matrix to be simulated.
+To be used if set.cor = TRUE.}
 
-\item{seed}{= NULL,}
+\item{seed}{Value to be used by set.seed. If NULL (default),
+runif(1, 0, 10e5) will be used.}
 
-\item{home.dir}{= getwd(),}
+\item{home.dir}{Home directory. Default is current working directory.}
 
-\item{output.dir}{= NULL,}
+\item{output.dir}{Name to be used to create folder and save output files.}
 
-\item{format}{= 'multi-file',}
+\item{format}{Three options for saving outputs: 'multi-file'
+(default for multiple traits), saves one simulation setting in a separate file;
+'long', appends each experiment (rep) to the last one (by row); 'wide', saves
+experiments by column (default for single trait).}
 
-\item{out.geno}{NULL = c("hapmap", "plink", "gds")}
+\item{out.geno}{Saves numericalized genotype either as "hapmap", "plink" or "gds",}
 
-\item{gdsfile}{NULL}
+\item{gdsfile}{gds file (in case there is one already created) to be used
+with option model = "LD". Default is NULL.}
 }
 \value{
-Numeric hapmap, selected QTNs, phenotypes for ntraits traits
+Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits' traits.
 }
 \description{
-Main function for simulation of ntraits phenotypes based on a SNP file
+Simulation of ntraits phenotypes based on a SNP file
+}
+\examples{
+# Simulate 50 replications of a single phenotype.
+
+create.simulated.data(
+  genotypes = SNP55K_maize282,
+  Additive.QTN.number = 3,
+  additive.effect = c(0.1, 0.2),
+  big.additive.QTN.effect = 0.9,
+  rep = 50,
+  h2 = 0.7
+)
+
 }
 \author{
-Alex Lipka and Samuel Fernandes
-Last update: Jul 22, 2019
-
--------------------------------------------------------------------------------
------------------------------------------------------------------------------
-Createing and setting a working directory for the output results:
+Samuel Fernandes and Alexander Lipka
+Last update: Aug 2nd, 2019
 }

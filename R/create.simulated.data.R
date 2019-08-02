@@ -1,4 +1,4 @@
-#' Main function for simulation of ntraits phenotypes based on a SNP file
+#' Simulation of ntraits phenotypes based on a SNP file
 #' @export
 #' @import utils
 #' @import stats
@@ -6,46 +6,81 @@
 #' @importFrom SNPRelate snpgdsOpen snpgdsLDpair snpgdsClose snpgdsCreateGeno
 #' @importFrom gdsfmt read.gdsn index.gdsn
 #' @importFrom lqmm is.positive.definite make.positive.definite
-#' @param genotypes jjj
-#' @param file.G = NULL,
-#' @param file.Ext.G = NULL,
-#' @param file.fragment = Inf,
-#' @param file.from = 1,
-#' @param file.to = 1,
-#' @param maf_cutoff = NULL,
-#' @param SNP.effect = 'Add',
-#' @param SNP.impute = 'Middle',
-#' @param Create.indicator = FALSE,
-#' @param Major.allele.zero = FALSE,
-#' @param Additive.QTN.number = NULL,
-#' @param Epistatic.QTN.number = NULL,
-#' @param additive.effect = NULL,
-#' @param epistatic.effect = NULL,
-#' @param big.additive.QTN.effect = NULL,
-#' @param model = c('pleiotropic', 'partially', 'LD'),
-#' @param overlap = NULL,
-#' @param overlapE = NULL,
-#' @param specific.QTN.number = NULL,
-#' @param specific.E.QTN.number = NULL,
-#' @param ld = 05,
-#' @param rep = NULL,
-#' @param ntraits = 1,
-#' @param h2 = NULL,
-#' @param h2_MT = NULL,
-#' @param set.cor = TRUE,
-#' @param correlation = NULL,
-#' @param seed = NULL,
-#' @param home.dir = getwd(),
-#' @param output.dir = NULL,
-#' @param format = 'multi-file',
-#' @param out.geno NULL = c("hapmap", "plink", "gds")
-#' @param gdsfile NULL
-#' @return Numeric hapmap, selected QTNs, phenotypes for ntraits traits
-#' @author Alex Lipka and Samuel Fernandes
-
-#' Last update: Jul 22, 2019
+#' @param genotypes A HapMap format dataset from which simulated data will
+#' be generated.
+#' @param file.G Optional file name (without the ".hmp.txt" extension).
+#' @param file.Ext.G Optional file extension.
+#' @param file.fragment Optional argument for loading only a subset of rows
+#' of the genotipic dataset.
+#' @param file.from Option for files saved by chromosome
+#' (minimum chromosome number).
+#' @param file.to Option for files saved by chromosome
+#' (maximum chromosome number).
+#' @param maf_cutoff Optional filter for minor allele frequency.
+#' @param SNP.effect Following GAPIT implementation. Default 'Add'.
+#' @param SNP.impute Following GAPIT implementation. Default 'Middle'.
+#' @param Create.indicator Following GAPIT implementation. Default FALSE.
+#' @param Major.allele.zero Following GAPIT implementation. Default FALSE.
+#' @param Additive.QTN.number Number of additive quantitative trait nucleotide
+#' to be simulated.
+#' @param Epistatic.QTN.number Number of epistatic (additive x additive)
+#' quantitative trait nucleotide to be simulated.
+#' @param additive.effect Additive effect size to be simulated. Follows a
+#' geometric series.
+#' @param epistatic.effect Epistatic (additive x additive) effect size to be
+#' simulated. Follows a geometric series.
+#' @param big.additive.QTN.effect Additive effect size for one possible major
+#' effect quantitative trait nucleotide.
+#' @param model Genetic architecture to be simulated. Possible options are:
+#' 'pleiotropic', for traits being controled by all the same QTNs;
+#' 'partially', for traits being controled by pleiotropic and trait specific QTNs;
+#' 'LD', for traits being exclusively controled QTNs in linkage disequilibrium.
+#' @param overlap Number of pleiotropic additive QTNs if model = 'partially'.
+#' @param overlapE Number of pleiotropic epistatic QTNs if model = 'partially'.
+#' @param specific.QTN.number Number of trait specific additive QTNs if
+#' model = 'partially'.
+#' @param specific.E.QTN.number Number of trait specific epistatic QTNs if
+#' model = 'partially'.
+#' @param ld Linkage disequilibrium between selected marker two adjacent markers
+#' to be used as QTN. Default is ld = 05.
+#' @param rep Number of experiments to be simulated.
+#' @param ntraits Number of traits to be simulated under pleitropic and
+#' partially pleiotropic models. The default for linkage disequilibrium models is two.
+#' @param h2 Heritability of target trait (if multiple traits are simulated).
+#' If a vector, the simulation will "loop" over it and generate one file for each
+#' combination of genetic settings.
+#' @param h2_MT Heritability of correlated traits (in case it should be different).
+#' than target trait. It should be length ntraits-1.
+#' @param set.cor Should correlation among traits be controled for? Default TRUE.
+#' @param correlation Trait correlation matrix to be simulated.
+#' To be used if set.cor = TRUE.
+#' @param seed Value to be used by set.seed. If NULL (default),
+#' runif(1, 0, 10e5) will be used.
+#' @param home.dir Home directory. Default is current working directory.
+#' @param output.dir Name to be used to create folder and save output files.
+#' @param format Three options for saving outputs: 'multi-file'
+#' (default for multiple traits), saves one simulation setting in a separate file;
+#' 'long', appends each experiment (rep) to the last one (by row); 'wide', saves
+#' experiments by column (default for single trait).
+#' @param out.geno Saves numericalized genotype either as "hapmap", "plink" or "gds",
+#' @param gdsfile gds file (in case there is one already created) to be used
+#' with option model = "LD". Default is NULL.
+#' @return Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits' traits.
+#' @author Samuel Fernandes and Alexander Lipka
+#' Last update: Aug 2nd, 2019
+#' @examples
+#' # Simulate 50 replications of a single phenotype.
 #'
-#'-------------------------------------------------------------------------------
+#' create.simulated.data(
+#'   genotypes = SNP55K_maize282,
+#'   Additive.QTN.number = 3,
+#'   additive.effect = c(0.1, 0.2),
+#'   big.additive.QTN.effect = 0.9,
+#'   rep = 50,
+#'   h2 = 0.7
+#' )
+#'
+
 create.simulated.data <-
   function(genotypes = NULL,
            file.G = NULL,
@@ -63,7 +98,7 @@ create.simulated.data <-
            additive.effect = NULL,
            epistatic.effect = NULL,
            big.additive.QTN.effect = NULL,
-           model = c("pleiotropic", "partially", "LD"),
+           model = "pleiotropic",
            overlap = NULL,
            overlapE = NULL,
            specific.QTN.number = NULL,
@@ -81,7 +116,7 @@ create.simulated.data <-
            format = "multi-file",
            out.geno = "none",
            gdsfile = NULL) {
-    #' -----------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     .onAttach <- function(libname, pkgname) {
       packageStartupMessage("Welcome to the simplePHENOTYPES package :)")
     }
@@ -111,27 +146,35 @@ create.simulated.data <-
     
     if (model == "LD" ||
         out.geno == "plink" ||
-        out.geno == "gds"){
-      genotypes <- genotypes[!duplicated(genotypes$Snp),]
+        out.geno == "gds") {
+      genotypes <- genotypes[!duplicated(genotypes$Snp), ]
       # Create a gds file
-      if (is.null(gdsfile)) gdsfile <- "geno"
-      SNPRelate::snpgdsCreateGeno(paste0(gdsfile,".gds"), genmat = as.matrix(genotypes[,-c(1:5)]),
-                                  sample.id = colnames(genotypes)[-c(1:5)],
-                                  snp.id = genotypes$Snp,
-                                  snp.chromosome = genotypes$chr,
-                                  snp.position = genotypes$pos,
-                                  snp.allele = genotypes$allele, snpfirstdim=TRUE)
+      if (is.null(gdsfile))
+        gdsfile <- "geno"
+      SNPRelate::snpgdsCreateGeno(
+        paste0(gdsfile, ".gds"),
+        genmat = as.matrix(genotypes[, -c(1:5)]),
+        sample.id = colnames(genotypes)[-c(1:5)],
+        snp.id = genotypes$Snp,
+        snp.chromosome = genotypes$chr,
+        snp.position = genotypes$pos,
+        snp.allele = genotypes$allele,
+        snpfirstdim = TRUE
+      )
       gdsfile <- paste0(home.dir, "/", gdsfile, ".gds")
       print(paste0("GDS files saved at:", home.dir))
     }
     
-    #' Createing and setting a working directory for the output results:
+    if (is.null(seed))
+      seed <- round(runif(1, 0, 10e5))
+    
+    # Createing and setting a working directory for the output results
     if (!is.null(output.dir)) {
       tempdir <- paste0(home.dir, "/", output.dir)
       if (dir.exists(tempdir)) {
         j <- 1
-        while (dir.exists(tempdir)){
-          tempdir <- paste0(home.dir, "/", output.dir,"(",j, ")")
+        while (dir.exists(tempdir)) {
+          tempdir <- paste0(home.dir, "/", output.dir, "(", j, ")")
           j <- j + 1
         }
         message("Directory alredy exists! Creating ", tempdir)
@@ -143,6 +186,8 @@ create.simulated.data <-
         dir.create(path_out)
         setwd(path_out)
       }
+    } else {
+      path_out <- home.dir
     }
     
     sink("Log_Sim.txt", type = "output")
@@ -156,7 +201,8 @@ create.simulated.data <-
             model == "partially",
             "partially pleiotropic",
             ifelse(model == "LD", "Linkage Desiquilibrium",
-                   {stop("model used is not valid!", call. = F)
+                   {
+                     stop("model used is not valid!", call. = F)
                      closeAllConnections()
                    })
           )
@@ -215,29 +261,33 @@ create.simulated.data <-
       }
     }
     
-    if (!is.null(out.geno)){
-    if (out.geno == "numeric") {
-      data.table::fwrite(
-        genotypes,
-        paste0(ifelse(is.null(output.dir), "", "../"), file.G, "Numericalized_Genotypes.txt"),
-        row.names = FALSE,
-        sep = "\t",
-        quote = FALSE,
-        na = NA
-      )
-      print(paste0("Numeric Genotypes saved at:", home.dir))
-    } else if (out.geno == "plink") {
-      
-      # Open the GDS file
-      genofile <- SNPRelate::snpgdsOpen(gdsfile)
-      
-      snpset <- SNPRelate::snpgdsSelectSNP(genofile, missing.rate=0.95)
-      SNPRelate::snpgdsGDS2BED(genofile, bed.fn="geno", snp.id=snpset)
-      SNPRelate::snpgdsClose(genofile)
-  
+    if (!is.null(out.geno)) {
+      if (out.geno == "numeric") {
+        data.table::fwrite(
+          genotypes,
+          paste0(
+            ifelse(is.null(output.dir), "", "../"),
+            file.G,
+            "Numericalized_Genotypes.txt"
+          ),
+          row.names = FALSE,
+          sep = "\t",
+          quote = FALSE,
+          na = NA
+        )
+        print(paste0("Numeric Genotypes saved at:", home.dir))
+      } else if (out.geno == "plink") {
+        # Open the GDS file
+        genofile <- SNPRelate::snpgdsOpen(gdsfile)
+        
+        snpset <-
+          SNPRelate::snpgdsSelectSNP(genofile, missing.rate = 0.95)
+        SNPRelate::snpgdsGDS2BED(genofile, bed.fn = "geno", snp.id = snpset)
+        SNPRelate::snpgdsClose(genofile)
+        
         print(paste0("Plink files saved at:", home.dir))
       }
-  }
+    }
     if (ntraits > 1) {
       if (set.cor & !all(ntraits == dim(correlation))) {
         stop("ntraits and Correlation matrix do not match!", call. = F)
@@ -260,12 +310,12 @@ create.simulated.data <-
         } else {
           cat(
             paste(
-              "Heritability not assigned for all correlated traits! 
+              "Heritability not assigned for all correlated traits!
               \nSetting all traits with the same heritability (",
               h2[1],
               ")\n"
+              )
             )
-          )
           h2_MT <- rep(h2[1], (ntraits - 1))
         }
       }
@@ -331,7 +381,7 @@ create.simulated.data <-
         } else {
           cat(
             paste(
-              "Length additive.effect < ntraits! 
+              "Length additive.effect < ntraits!
               \nSetting all traits with the additive.effect = ",
               additive.effect[1],
               "\n"
@@ -358,7 +408,7 @@ create.simulated.data <-
         } else {
           cat(
             paste(
-              "Length epistatic.effect < ntraits! 
+              "Length epistatic.effect < ntraits!
               \nSetting all traits with the epistatic.effect = ",
               epistatic.effect[1],
               "\n"
@@ -387,7 +437,7 @@ create.simulated.data <-
         } else {
           cat(
             paste(
-              "Length big.additive.QTN.effect < ntraits! 
+              "Length big.additive.QTN.effect < ntraits!
               \nSetting all traits with the big.additive.QTN.effect = ",
               big.additive.QTN.effect[1],
               "\n"
@@ -462,7 +512,10 @@ create.simulated.data <-
       
       Genetic_value <-
         list(
-          base.line = cbind(Genetic_value_sup$base.line, Genetic_value_inf$base.line),
+          base.line = cbind(
+            Genetic_value_sup$base.line,
+            Genetic_value_inf$base.line
+          ),
           VA = c(Genetic_value_sup$VA, Genetic_value_inf$VA)
         )
       
@@ -513,5 +566,5 @@ create.simulated.data <-
     cat(paste("\n\nResults are saved at:", getwd()))
     closeAllConnections()
     file.show(paste0(path_out, "/Log_Sim.txt"))
-
-  }  #'end 'create.simluated.data()'
+    
+  }  # end 'create.simluated.data()'
