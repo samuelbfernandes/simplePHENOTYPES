@@ -31,10 +31,11 @@ QTN_linkage <-
     inf <- c()
     sup <- c()
     x <- 1
-    for (j in vector.of.add.QTN) {
+    for (k in 1:length(ld)){
+      for (j in vector.of.add.QTN) {
       ldsup <- 1
       i <- j + 1
-      while (ldsup >= ld) {
+      while (ldsup >= ld[k]) {
         snp1 <-
           gdsfmt::read.gdsn(
             gdsfmt::index.gdsn(genofile, "genotype"),
@@ -59,7 +60,7 @@ QTN_linkage <-
       
       ldinf <- 1
       i2 <- j - 1
-      while (ldinf >= ld) {
+      while (ldinf >= ld[k]) {
         snp3 <-
           gdsfmt::read.gdsn(
             gdsfmt::index.gdsn(genofile, "genotype"),
@@ -78,6 +79,7 @@ QTN_linkage <-
       }
       inf[x] <- i2
       x <- x + 1
+      }
     }
     # close the genotype file
     SNPRelate::snpgdsClose(genofile)
@@ -104,7 +106,7 @@ QTN_linkage <-
         "Genotypic.information.for.",
         Additive.QTN.number,
         "LD.",
-        ld,
+        paste(ld, collapse = "_"),
         ".SUP.Additive.QTN",
         ".txt"
       ),
@@ -120,7 +122,7 @@ QTN_linkage <-
         "Genotypic.information.for.",
         Additive.QTN.number,
         "LD.",
-        ld,
+        paste(ld, collapse = "_"),
         ".INF.Additive.QTN",
         ".txt"
       ),
