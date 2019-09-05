@@ -103,7 +103,7 @@ QTN_partially_pleiotropic <-
       # Randomly select (without replacement) 2*k epistatic QTN, 
       # and assign an effect size
       if (!is.null(seed)) {
-        set.seed(seed * seed)
+        set.seed(seed + seed)
       }
       
       vector.of.pleiotropic.epi.QTN <-
@@ -135,8 +135,8 @@ QTN_partially_pleiotropic <-
       sse <- c()
       for (i in 1:ntraits) {
         if (!is.null(seed)) {
-          sse[i] <- (seed + i) * seed
-          set.seed((seed + i) * seed)
+          sse[i] <- (seed + i) + seed
+          set.seed((seed + i) + seed)
         }
         vector.of.specific.epi.QTN[[i]] <-
           sample(snps, (2 * specific.E.QTN.number[i]), replace = FALSE)
@@ -164,7 +164,7 @@ QTN_partially_pleiotropic <-
       }
       
       write.table(
-        c(seed * seed, sse),
+        c(seed + seed, sse),
         paste0(
           "seed.number.for.",
           paste0(specific.E.QTN.number + overlapE, collapse = "_"),
