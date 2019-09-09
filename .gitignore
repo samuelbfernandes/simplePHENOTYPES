@@ -5,3 +5,6 @@
 .DS_Store
 simplePHENOTYPES.Rproj
 .Rbuildignore
+inst/doc
+doc
+Meta
