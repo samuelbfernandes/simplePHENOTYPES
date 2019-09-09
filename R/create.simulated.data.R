@@ -120,9 +120,10 @@ create.simulated.data <-
     .onAttach <- function(libname, pkgname) {
       packageStartupMessage("Welcome to the simplePHENOTYPES package :)")
     }
+    .onAttach()
     setwd(home.dir)
     on.exit(setwd(home.dir), add = TRUE)
-    
+
     if (is.null(genotypes) ||
         (class(unlist(genotypes[, 12])) != "numeric" &&
          class(unlist(genotypes[, 12])) != "integer")) {
@@ -143,28 +144,7 @@ create.simulated.data <-
           file.to = file.to
         )
     }
-    
-    if (model == "LD" ||
-        out.geno == "plink" ||
-        out.geno == "gds") {
-      genotypes <- genotypes[!duplicated(genotypes$Snp), ]
-      # Create a gds file
-      if (is.null(gdsfile))
-        gdsfile <- "geno"
-      SNPRelate::snpgdsCreateGeno(
-        paste0(gdsfile, ".gds"),
-        genmat = as.matrix(genotypes[, -c(1:5)]),
-        sample.id = colnames(genotypes)[-c(1:5)],
-        snp.id = genotypes$Snp,
-        snp.chromosome = genotypes$chr,
-        snp.position = genotypes$pos,
-        snp.allele = genotypes$allele,
-        snpfirstdim = TRUE
-      )
-      gdsfile <- paste0(home.dir, "/", gdsfile, ".gds")
-      print(paste0("GDS files saved at:", home.dir))
-    }
-    
+
     if (is.null(seed))
       seed <- round(runif(1, 0, 10e5))
     
@@ -190,9 +170,10 @@ create.simulated.data <-
       path_out <- home.dir
     }
     
-    sink("Log_Sim.txt", type = "output")
-    
-    if (ntraits > 1) {
+    zz <- file("Log_Sim.txt", "w")
+    sink(zz, type = "output")
+
+    if (ntraits > 1 | model == "LD") {
       mm <-
         ifelse(
           model == "pleiotropic",
@@ -203,15 +184,49 @@ create.simulated.data <-
             ifelse(model == "LD", "Linkage Desiquilibrium",
                    {
                      stop("model used is not valid!", call. = F)
-                     closeAllConnections()
+                     sink()
+                     close(zz)
                    })
           )
         )
-      
       cat(paste("Simulation of a", mm, "genetic model \n"))
     }
+    
+    if (model == "LD" ||
+        out.geno == "plink" ||
+        out.geno == "gds") {
+      
+      if (model == "LD") {
+        ntraits <- 2
+        if (length(ld) > Additive.QTN.number) {
+          message("Length of ld object > Additive.QTN.number. Using first ", Additive.QTN.number)
+          ld <- ld[1:Additive.QTN.number]
+        }
+        if (length(ld) > 1 & length(ld) < Additive.QTN.number) {
+          message("Length of ld object < Additive.QTN.number. Using ld[1]=", ld[1])
+          ld <- ld[1]
+        }
+      }
+      
+      genotypes <- genotypes[!duplicated(genotypes$Snp), ]
+      if (is.null(gdsfile))
+        gdsfile <- "geno"
+      SNPRelate::snpgdsCreateGeno(
+        paste0(gdsfile, ".gds"),
+        genmat = as.matrix(genotypes[, -c(1:5)]),
+        sample.id = colnames(genotypes)[-c(1:5)],
+        snp.id = genotypes$Snp,
+        snp.chromosome = genotypes$chr,
+        snp.position = genotypes$pos,
+        snp.allele = genotypes$allele,
+        snpfirstdim = TRUE
+      )
+      gdsfile <- paste0(home.dir, "/", gdsfile, ".gds")
+      cat(paste0("GDS files saved at:", home.dir, "\n"))
+    }
+    
     if (!is.null(genotypes)) {
-      cat("genotype object inputed form R")
+      cat("genotype object inputed form R \n")
     } else {
       cat(paste("genotype file:", file.G, "*", file.Ext.G))
     }
@@ -260,7 +275,9 @@ create.simulated.data <-
         }
       }
     }
-    
+
+    cat("Number of traits:", ntraits, "\n")
+      
     if (!is.null(out.geno)) {
       if (out.geno == "numeric") {
         data.table::fwrite(
@@ -285,13 +302,14 @@ create.simulated.data <-
         SNPRelate::snpgdsGDS2BED(genofile, bed.fn = "geno", snp.id = snpset)
         SNPRelate::snpgdsClose(genofile)
         
-        print(paste0("Plink files saved at:", home.dir))
+        cat(paste0("Plink files saved at:", home.dir, "\n"))
       }
     }
     if (ntraits > 1) {
       if (set.cor & !all(ntraits == dim(correlation))) {
         stop("ntraits and Correlation matrix do not match!", call. = F)
-        closeAllConnections()
+        sink()
+        close(zz)
       }
       
       if (ntraits != (length(h2_MT) + 1)) {
@@ -338,7 +356,8 @@ create.simulated.data <-
             specific.QTN.number[1:ntraits]
         } else {
           stop("Please set up [additive] specific.QTN.number", call. = F)
-          closeAllConnections()
+          sink()
+          close(zz)
         }
       }
       
@@ -361,7 +380,8 @@ create.simulated.data <-
             specific.E.QTN.number[1:ntraits]
         } else {
           stop("Please set up specific.E.QTN.number", call. = F)
-          closeAllConnections()
+          sink()
+          close(zz)
         }
       }
       
@@ -494,6 +514,7 @@ create.simulated.data <-
           big.additive.QTN.effect = big.additive.QTN.effect
         )
     } else if (!any(model != "LD")) {
+      cat("LD between SNP and QTN:", ld)
       Genetic_value_sup <-
         Base_line_single_trait(
           seed = seed,
@@ -564,7 +585,8 @@ create.simulated.data <-
       format = format
     )
     cat(paste("\n\nResults are saved at:", getwd()))
-    closeAllConnections()
+    sink()
+    close(zz)
     file.show(paste0(path_out, "/Log_Sim.txt"))
     
   }  # end 'create.simluated.data()'
