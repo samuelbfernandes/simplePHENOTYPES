@@ -1,7 +1,7 @@
 Package: simplePHENOTYPES
 Type: Package
 Title: Simulation of Pleiotropic, Linked and Epistatic PHENOTYPES
-Version: 0.1.0
+Version: 0.2.0
 Author: Samuel B Fernandes
 Maintainer: Samuel Fernandes <samuelf@illinois.edu>
 Description: Package for simulation of single and multi traits of various genetic settings.
