@@ -5,14 +5,14 @@
 \title{Select SNPs to be assigned as QTNs}
 \usage{
 QTN_linkage(genotypes = NULL, seed = NULL,
-  Additive.QTN.number = NULL, ld = NULL, gdsfile = NULL)
+  additive_QTN_number = NULL, ld = NULL, gdsfile = NULL)
 }
 \arguments{
 \item{genotypes}{= NULL,}
 
 \item{seed}{= NULL,}
 
-\item{Additive.QTN.number}{= NULL,}
+\item{additive_QTN_number}{= NULL,}
 
 \item{ld}{= NULL,}
 

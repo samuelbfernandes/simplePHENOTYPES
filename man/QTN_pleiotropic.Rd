@@ -5,16 +5,16 @@
 \title{Select SNPs to be assigned as QTNs.}
 \usage{
 QTN_pleiotropic(genotypes = NULL, seed = NULL,
-  Additive.QTN.number = NULL, Epistatic.QTN.number = NULL)
+  additive_QTN_number = NULL, epistatic_QTN_number = NULL)
 }
 \arguments{
 \item{genotypes}{= NULL,}
 
 \item{seed}{= NULL,}
 
-\item{Additive.QTN.number}{= NULL,}
+\item{additive_QTN_number}{= NULL,}
 
-\item{Epistatic.QTN.number}{= NULL}
+\item{epistatic_QTN_number}{= NULL}
 }
 \value{
 Genotype of selected SNPs

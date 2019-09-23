@@ -5,8 +5,8 @@
 \title{Select SNPs to be assigned as QTNs}
 \usage{
 QTN_partially_pleiotropic(genotypes = NULL, seed = NULL,
-  overlap = NULL, overlapE = NULL, specific.QTN.number = NULL,
-  specific.E.QTN.number = NULL, ntraits = NULL)
+  overlap = NULL, overlap_e = NULL, specific_QTN_number = NULL,
+  specific_e_QTN_number = NULL, ntraits = NULL)
 }
 \arguments{
 \item{genotypes}{= NULL,}
@@ -15,11 +15,11 @@ QTN_partially_pleiotropic(genotypes = NULL, seed = NULL,
 
 \item{overlap}{= NULL,}
 
-\item{overlapE}{= NULL,}
+\item{overlap_e}{= NULL,}
 
-\item{specific.QTN.number}{= NULL,}
+\item{specific_QTN_number}{= NULL,}
 
-\item{specific.E.QTN.number}{= NULL,}
+\item{specific_e_QTN_number}{= NULL,}
 
 \item{ntraits}{= NULL}
 }
