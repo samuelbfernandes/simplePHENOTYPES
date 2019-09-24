@@ -20,27 +20,33 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#"
 )
 ```
 This short tutorial presents some of the possible scenarios one would simulate, but it certainly does not explore all the possibilities. For more information on specific parameter input please check the help documentation (?create.simulated.data).
 
 # Installation
-In order to install simplePHENOTYPES you will need to install SNPRelate and gdsfmt (both from bioconductor), as well as lqmm and data.table (both from CRAN).  
+In order to install simplePHENOTYPES you will need to install SNPRelate and gdsfmt (both from Bioconductor), as well as lqmm and data.table (both from CRAN).  
 ```{r installation, results = "hide", eval = FALSE}
-install.packages("SNPRelate", repos = 'https://bioconductor.org/packages/3.6/bioc/')
-install.packages("gdsfmt", repos = 'https://bioconductor.org/packages/3.6/bioc/')
-install.packages('lqmm', repos='http://cran.us.r-project.org')
-install.packages('data.table', repos='http://cran.us.r-project.org')
+#IMPORTANT 1[space]2 is setting CRAN and Bioconductor as repositories
+setRepositories()
+1 2
+install.packages("gdsfmt")
+install.packages("SNPRelate")
+install.packages("lqmm")
+install.packages("data.table")
+install.packages("mvtnorm")
 # please replace [PATH] by your path to the simplePHENOTYPES_0.1.0.tar.gz file 
 # or install it using RStudio's menu option to install from Package Arquive File.
 install.packages("[PATH]/simplePHENOTYPES_0.1.0.tar.gz", repos = NULL, type = "source")
 ```
 
 # Load example dataset
-```{r load data, eval = FALSE}
+Note that the example dataset is alredy numericalized. HapMap format may also be used with options `file.G` and `file.Ext.G`.
+```{r load data}
 library(simplePHENOTYPES)
-data("SNP55K_maize282")
+data("SNP55K_maize282_maf04")
+SNP55K_maize282_maf04[1:8, 1:10]
 cor_matrix <- matrix(c(   1, 0.4, -0.5,
                         0.4,   1,  0.7,
                        -0.5, 0.7,    1 ), 3)
@@ -50,11 +56,11 @@ cor_matrix <- matrix(c(   1, 0.4, -0.5,
 Simulating 10 replications (experiments with the same genetic setting but varying the random residuals) of a single trait with a heritability of 0.7. A vector could be used to simulate different heritabilities. In this setting, the simulated trait is controlled by 1 big effect QTN (allelic effect of 0.9) and 2 small effect QTNs with additive effects following a geometric series starting with 0.2.
 Please see help files (?create.simulated.data) to check out default values being used.
 ```{r ST, eval = FALSE}
-create.simulated.data(
-  genotypes = SNP55K_maize282,
-  Additive.QTN.number = 3,
-  additive.effect = 0.2,
-  big.additive.QTN.effect = 0.9,
+create_simulated_data(
+  genotypes_object = SNP55K_maize282,
+  additive_QTN_number = 3,
+  additive_effect = 0.2,
+  big_additive_QTN_effect = 0.9,
   rep = 10,
   h2 = 0.7)
 ```
@@ -63,42 +69,42 @@ create.simulated.data(
 Simulating 2 traits `ntraits = 2` controlled by the same 3 additive QTN and the same "big" effect QTN with effect of 0.1. The other 2 QTNs have allelic effects of 0.04 and 0.2, respectively. Heritability for the target trait is 0.2 and 0.4 for the correlated trait. Each replication
 is being recorded in a different file `format = "multi-file"` in a folder named "Results". The correlation between traits is just an artifact of the different allelic effects. No attempt is being done on simulating specific correlation between traits.
 ```{r MT P, results = "hide", eval = FALSE}
-create.simulated.data(
-  genotypes = SNP55K_maize282,
-  Additive.QTN.number = 3,
-  big.additive.QTN.effect = 0.1,
+create_simulated_data(
+  genotypes_object = SNP55K_maize282,
+  additive_QTN_number = 3,
+  big_additive_QTN_effect = 0.1,
   h2 = 0.2,
   h2_MT = 0.4,
-  additive.effect = c(0.04,0.2),
-  set.cor = FALSE,
+  additive_effect = c(0.04,0.2),
+  set_cor = FALSE,
   ntraits = 2,
   rep = 10,
   format = "multi-file",
   model = "pleiotropic",
-  output.dir = "Results_Pleiotropic"
+  output_dir = "Results_Pleiotropic"
 )
 ```
 
 # Multiple Traits: Partially Pleiotropic Model
-Simulating 3 traits controlled by 7, 13 and 4 QTNs, respectively. The first of the 3 pleiotropic QTNs `overlap = 3` will have a big additive QTN effect of 0.9. All other  QTNs will have an allelic effect of 0.3 (recycled for all the traits since additive.effect < ntraits) being used for the geometric series. Correlation among traits is assigned to be equal to the cor_matrix object. Each replication will be appended in a unique file in a long format and with an additional column named "Rep". Results are saved at "Results_Partially" and no numeric 
+Simulating 3 traits controlled by 7, 13 and 4 QTNs, respectively. The first of the 3 pleiotropic QTNs `overlap = 3` will have a big additive QTN effect of 0.9. All other  QTNs will have an allelic effect of 0.3 (recycled for all the traits since additive_effect < ntraits) being used for the geometric series. Correlation among traits is assigned to be equal to the cor_matrix object. Each replication will be appended in a unique file in a long format and with an additional column named "Rep". Results are saved at "Results_Partially" and no numeric 
 marker dataset is being saved.
 ```{r MT PP, results = "hide", eval = FALSE}
-create.simulated.data(
-  genotypes = SNP55K_maize282,
+create_simulated_data(
+  genotypes_object = SNP55K_maize282,
   overlap = 3,
-  specific.QTN.number = c(4,10, 1),
-  big.additive.QTN.effect = 0.9,
+  specific_QTN_number = c(4,10, 1),
+  big_additive_QTN_effect = 0.9,
   h2 = 0.2,
   h2_MT = c(0.4, 0.8),
-  additive.effect = 0.3,
-  set.cor = TRUE,
+  additive_effect = 0.3,
+  set_cor = TRUE,
   ntraits = 3,
   correlation = cor_matrix,
   rep = 20,
-  output.dir = "Results_Partially",
+  output_dir = "Results_Partially",
   format = "long",
   model = "partially",
-  out.geno = "none"
+  out_geno = "none"
 )
 ```
 
@@ -108,18 +114,18 @@ Simulating 5 replications of 2 linked traits controlled by 3 additive QTNs with 
 at different columns of a single file. Plink fam, bim and bed files are also saved at Results_LD.
 
 ```{r MT LD, results = "hide", eval = FALSE}
-create.simulated.data(
-  genotypes = SNP55K_maize282,
-  Additive.QTN.number = 3,
-  big.additive.QTN.effect = 0.1,
+create_simulated_data(
+  genotypes_object = SNP55K_maize282,
+  additive_QTN_number = 3,
+  big_additive_QTN_effect = 0.1,
   h2 = 0.2,
-  additive.effect = 0.02,
+  additive_effect = 0.02,
   rep = 5,
   seed = 200,
   format = "wide",
   model = "LD",
-  output.dir = "Results_LD",
-  out.geno = "plink",
+  output_dir = "Results_LD",
+  out_geno = "plink",
   ld=0.8
 )
 ```
@@ -129,23 +135,41 @@ Simulating 3 traits controlled by 3 pleiotropic additive QTNs `overlap = 3`, 2 p
 4,10 and 1 additive trait-specific QTN and 2, 1 and 5 epistatic trait-specific QTNs, respectively. In this case, a numericalized
 HapMap file is being saved.
 ```{r MT PP E, results = "hide", eval = FALSE}
-create.simulated.data(
-  genotypes = SNP55K_maize282,
+create_simulated_data(
+  genotypes_object = SNP55K_maize282,
   overlap = 3,
-  overlapE = 2,
-  specific.QTN.number = c(4,10, 1),
-  specific.E.QTN.number = c(2,1, 5),
-  epistatic.effect = c(0.01, 0.4, 0.2),
-  additive.effect = c(0.3, 0.2, 0.5),
-  big.additive.QTN.effect = 0.9,
+  overlap_e = 2,
+  specific_QTN_number = c(4,10, 1),
+  specific_e_QTN_number = c(2,1, 5),
+  epistatic_effect = c(0.01, 0.4, 0.2),
+  additive_effect = c(0.3, 0.2, 0.5),
+  big_additive_QTN_effect = 0.9,
   h2 = 0.2,
   h2_MT = c(0.4, 0.8, 0.55),
-  set.cor = FALSE,
+  set_cor = FALSE,
   ntraits = 3,
   rep = 20,
-  output.dir = "Results_Partially_E",
+  output_dir = "Results_Partially_E",
   format = "multi-file",
   model = "partially",
-  out.geno = "hapmap"
+  out_geno = "hapmap"
 )
 ```
+
+# Using your own data
+If files are saved by chromosome, they may be readed from file using options `file.G`, `file.Ext.G`, `file.from` and `file.to`. For example, if your data is saved as "WGS_chrm_1.hmp.txt", ..., "WGS_chrm_10.hmp.txt", one would load it with the following code:
+```{r example, results = "hide", eval = FALSE}
+create_simulated_data(
+  genotypes_path = getwd()
+  additive_QTN_number = 3,
+  big_additive_QTN_effect = 0.1,
+  h2 = 0.2,
+  additive_effect = 0.02,
+  rep = 5,
+  seed = 200,
+  format = "multi-file",
+  model = "pleiotropic",
+  output_dir = "Results"
+)
+```
+

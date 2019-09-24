@@ -16,7 +16,8 @@ create_simulated_data(genotypes_object = NULL, genotypes_file = NULL,
   rep = NULL, ntraits = 1, h2 = NULL, h2_MT = NULL,
   set_cor = TRUE, correlation = NULL, seed = NULL,
   home_dir = getwd(), output_dir = NULL, format = "multi-file",
-  out_geno = "none", gdsfile = NULL)
+  out_geno = "none", gdsfile = NULL, constrains = list(maf_above =
+  NULL, maf_below = NULL))
 }
 \arguments{
 \item{genotypes_object}{A HapMap format dataset from which simulated data will
@@ -110,6 +111,8 @@ experiments by column (default for single trait).}
 
 \item{gdsfile}{gds file (in case there is one already created) to be used
 with option model = "LD". Default is NULL.}
+
+\item{constrains}{= list(maf_above = NULL, maf_below = NULL)}
 }
 \value{
 Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits' traits.
@@ -121,7 +124,7 @@ Simulation of ntraits phenotypes based on a SNP file
 # Simulate 50 replications of a single phenotype.
 
 create_simulated_data(
-  genotypes_object = SNP55K_maize282,
+  genotypes_object = SNP55K_maize282_maf04,
   additive_QTN_number = 3,
   additive_effect = c(0.1, 0.2),
   big_additive_QTN_effect = 0.9,
