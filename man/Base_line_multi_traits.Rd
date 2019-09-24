@@ -6,8 +6,8 @@
 \usage{
 base_line_multi_traits(additive_object = NULL, epistatic_object = NULL,
   additive_effect = NULL, epistatic_effect = NULL,
-  big_additive_QTN_effect = NULL, seed = seed, set_cor = TRUE,
-  ntraits = NULL, correlation = NULL, model = "pleiotropic")
+  big_additive_QTN_effect = NULL, seed = seed, ntraits = NULL,
+  correlation = NULL, model = "pleiotropic")
 }
 \arguments{
 \item{additive_object}{hhh}
@@ -21,8 +21,6 @@ base_line_multi_traits(additive_object = NULL, epistatic_object = NULL,
 \item{big_additive_QTN_effect}{jjj}
 
 \item{seed}{hhh}
-
-\item{set_cor}{hhh}
 
 \item{ntraits}{hhh}
 

@@ -14,10 +14,10 @@ create_simulated_data(genotypes_object = NULL, genotypes_file = NULL,
   model = "pleiotropic", overlap = NULL, overlap_e = NULL,
   specific_QTN_number = NULL, specific_e_QTN_number = NULL, ld = 0.5,
   rep = NULL, ntraits = 1, h2 = NULL, h2_MT = NULL,
-  set_cor = TRUE, correlation = NULL, seed = NULL,
-  home_dir = getwd(), output_dir = NULL, format = "multi-file",
-  out_geno = "none", gdsfile = NULL, constrains = list(maf_above =
-  NULL, maf_below = NULL))
+  correlation = NULL, seed = NULL, home_dir = getwd(),
+  output_dir = NULL, to_r = FALSE, format = "multi-file",
+  out_geno = "none", gdsfile = NULL, fam = NULL,
+  constrains = list(maf_above = NULL, maf_below = NULL))
 }
 \arguments{
 \item{genotypes_object}{A HapMap format dataset from which simulated data will
@@ -90,10 +90,7 @@ combination of genetic settings.}
 \item{h2_MT}{Heritability of correlated traits (in case it should be different).
 than target trait. It should be length ntraits-1.}
 
-\item{set_cor}{Should correlation among traits be controled for? Default TRUE.}
-
-\item{correlation}{Trait correlation matrix to be simulated.
-To be used if set_cor = TRUE.}
+\item{correlation}{Trait correlation matrix to be simulated.}
 
 \item{seed}{Value to be used by set.seed. If NULL (default),
 runif(1, 0, 10e5) will be used.}
@@ -101,6 +98,8 @@ runif(1, 0, 10e5) will be used.}
 \item{home_dir}{Home directory. Default is current working directory.}
 
 \item{output_dir}{Name to be used to create folder and save output files.}
+
+\item{to_r}{...}
 
 \item{format}{Three options for saving outputs: 'multi-file'
 (default for multiple traits), saves one simulation setting in a separate file;
@@ -111,6 +110,8 @@ experiments by column (default for single trait).}
 
 \item{gdsfile}{gds file (in case there is one already created) to be used
 with option model = "LD". Default is NULL.}
+
+\item{fam}{= NULL}
 
 \item{constrains}{= list(maf_above = NULL, maf_below = NULL)}
 }

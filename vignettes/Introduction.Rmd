@@ -38,7 +38,7 @@ install.packages("data.table")
 install.packages("mvtnorm")
 # please replace [PATH] by your path to the simplePHENOTYPES_0.1.0.tar.gz file 
 # or install it using RStudio's menu option to install from Package Arquive File.
-install.packages("[PATH]/simplePHENOTYPES_0.1.0.tar.gz", repos = NULL, type = "source")
+install.packages("[PATH]/simplePHENOTYPES_0.2.0.tar.gz", repos = NULL, type = "source")
 ```
 
 # Load example dataset
@@ -56,13 +56,14 @@ cor_matrix <- matrix(c(   1, 0.4, -0.5,
 Simulating 10 replications (experiments with the same genetic setting but varying the random residuals) of a single trait with a heritability of 0.7. A vector could be used to simulate different heritabilities. In this setting, the simulated trait is controlled by 1 big effect QTN (allelic effect of 0.9) and 2 small effect QTNs with additive effects following a geometric series starting with 0.2.
 Please see help files (?create.simulated.data) to check out default values being used.
 ```{r ST, eval = FALSE}
-create_simulated_data(
-  genotypes_object = SNP55K_maize282,
+simulation <- create_simulated_data(
+  genotypes_object = SNP55K_maize282_maf04,
   additive_QTN_number = 3,
   additive_effect = 0.2,
   big_additive_QTN_effect = 0.9,
   rep = 10,
-  h2 = 0.7)
+  h2 = 0.7, 
+  to_r = TRUE)
 ```
 
 # Multiple Traits: Pleiotropic Model
@@ -70,13 +71,12 @@ Simulating 2 traits `ntraits = 2` controlled by the same 3 additive QTN and the 
 is being recorded in a different file `format = "multi-file"` in a folder named "Results". The correlation between traits is just an artifact of the different allelic effects. No attempt is being done on simulating specific correlation between traits.
 ```{r MT P, results = "hide", eval = FALSE}
 create_simulated_data(
-  genotypes_object = SNP55K_maize282,
+  genotypes_object = SNP55K_maize282_maf04,
   additive_QTN_number = 3,
   big_additive_QTN_effect = 0.1,
   h2 = 0.2,
   h2_MT = 0.4,
   additive_effect = c(0.04,0.2),
-  set_cor = FALSE,
   ntraits = 2,
   rep = 10,
   format = "multi-file",
@@ -89,22 +89,22 @@ create_simulated_data(
 Simulating 3 traits controlled by 7, 13 and 4 QTNs, respectively. The first of the 3 pleiotropic QTNs `overlap = 3` will have a big additive QTN effect of 0.9. All other  QTNs will have an allelic effect of 0.3 (recycled for all the traits since additive_effect < ntraits) being used for the geometric series. Correlation among traits is assigned to be equal to the cor_matrix object. Each replication will be appended in a unique file in a long format and with an additional column named "Rep". Results are saved at "Results_Partially" and no numeric 
 marker dataset is being saved.
 ```{r MT PP, results = "hide", eval = FALSE}
-create_simulated_data(
-  genotypes_object = SNP55K_maize282,
+ sim_results <- create_simulated_data(
+  genotypes_object = SNP55K_maize282_maf04,
   overlap = 3,
   specific_QTN_number = c(4,10, 1),
   big_additive_QTN_effect = 0.9,
   h2 = 0.2,
   h2_MT = c(0.4, 0.8),
-  additive_effect = 0.3,
-  set_cor = TRUE,
+  additive_effect = c(0.3, 0.3, 0.3),
   ntraits = 3,
   correlation = cor_matrix,
   rep = 20,
   output_dir = "Results_Partially",
   format = "long",
   model = "partially",
-  out_geno = "none"
+  out_geno = "none",
+  to_r = TRUE
 )
 ```
 
@@ -115,7 +115,7 @@ at different columns of a single file. Plink fam, bim and bed files are also sav
 
 ```{r MT LD, results = "hide", eval = FALSE}
 create_simulated_data(
-  genotypes_object = SNP55K_maize282,
+  genotypes_object = SNP55K_maize282_maf04,
   additive_QTN_number = 3,
   big_additive_QTN_effect = 0.1,
   h2 = 0.2,
@@ -136,7 +136,7 @@ Simulating 3 traits controlled by 3 pleiotropic additive QTNs `overlap = 3`, 2 p
 HapMap file is being saved.
 ```{r MT PP E, results = "hide", eval = FALSE}
 create_simulated_data(
-  genotypes_object = SNP55K_maize282,
+  genotypes_object = SNP55K_maize282_maf04,
   overlap = 3,
   overlap_e = 2,
   specific_QTN_number = c(4,10, 1),
@@ -146,7 +146,6 @@ create_simulated_data(
   big_additive_QTN_effect = 0.9,
   h2 = 0.2,
   h2_MT = c(0.4, 0.8, 0.55),
-  set_cor = FALSE,
   ntraits = 3,
   rep = 20,
   output_dir = "Results_Partially_E",
@@ -157,17 +156,18 @@ create_simulated_data(
 ```
 
 # Using your own data
-If files are saved by chromosome, they may be readed from file using options `file.G`, `file.Ext.G`, `file.from` and `file.to`. For example, if your data is saved as "WGS_chrm_1.hmp.txt", ..., "WGS_chrm_10.hmp.txt", one would load it with the following code:
+If files are saved by chromosome, they may be readed from file using options . For example, if your data is saved as "WGS_chrm_1.hmp.txt", ..., "WGS_chrm_10.hmp.txt", one would load it with the following code:
 ```{r example, results = "hide", eval = FALSE}
 create_simulated_data(
-  genotypes_path = getwd()
+  genotypes_path = getwd(),
+  shared_name = "55k_hmp",
   additive_QTN_number = 3,
   big_additive_QTN_effect = 0.1,
   h2 = 0.2,
   additive_effect = 0.02,
   rep = 5,
   seed = 200,
-  format = "multi-file",
+  format = "gemma",
   model = "pleiotropic",
   output_dir = "Results"
 )
