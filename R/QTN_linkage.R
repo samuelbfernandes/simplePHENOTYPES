@@ -5,6 +5,7 @@
 #' @param additive_QTN_number = NULL,
 #' @param ld = NULL,
 #' @param gdsfile NULL
+#' @param constrains = list(maf_above = NULL, maf_below = NULL)
 #' @return Genotype of selected SNPs
 #' @author Samuel Fernandes
 #' Last update: Jul 22, 2019
@@ -15,16 +16,25 @@ QTN_linkage <-
            seed = NULL,
            additive_QTN_number = NULL,
            ld = NULL,
-           gdsfile = NULL) {
+           gdsfile = NULL,
+           constrains = list(maf_above = NULL,
+                             maf_below = NULL)) {
     #---------------------------------------------------------------------------
     # Randomly select (without replacement)
     # k additive QTN, and assign an effect size
     if (!is.null(seed)) {
       set.seed(seed)
     }
-    # First SNP at column 6
+    if (any(lengths(constrains)>0)) { 
+      index <- constrain(genotypes = genotypes, 
+                         maf_above = constrains$maf_above,
+                         maf_below = constrains$maf_below)
+    } else {
+      # First SNP at column 6
+      index <- 6:nrow(genotypes)
+    }
     vector_of_add_QTN <-
-      sample(6:nrow(genotypes), additive_QTN_number, replace = FALSE)
+      sample(index, additive_QTN_number, replace = FALSE)
     genofile <- SNPRelate::snpgdsOpen(gdsfile)
     inf <- c()
     sup <- c()

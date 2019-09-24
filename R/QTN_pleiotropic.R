@@ -4,6 +4,7 @@
 #' @param seed = NULL,
 #' @param additive_QTN_number = NULL,
 #' @param epistatic_QTN_number = NULL
+#' @param constrains = list(maf_above = NULL, maf_below = NULL)
 #' @return Genotype of selected SNPs
 #' @author Alex lipka and Samuel Fernandes
 #' Last update: Jul 22, 2019
@@ -13,16 +14,25 @@ QTN_pleiotropic <-
   function(genotypes = NULL,
            seed = NULL,
            additive_QTN_number = NULL,
-           epistatic_QTN_number = NULL) {
+           epistatic_QTN_number = NULL,
+           constrains = list(maf_above = NULL,
+                             maf_below = NULL)) {
     #---------------------------------------------------------------------------
     # Randomly select (without replacement) k additive QTN,
     # and assign an effect size
     if (!is.null(seed)) {
       set.seed(seed)
     }
-    # First SNP at column 6
+    if (any(lengths(constrains)>0)) { 
+      index <- constrain(genotypes = genotypes, 
+                         maf_above = constrains$maf_above,
+                         maf_below = constrains$maf_below)
+    } else {
+      # First SNP at column 6
+      index <- 6:nrow(genotypes)
+    }
     vector_of_add_QTN <-
-      sample(6:nrow(genotypes), additive_QTN_number, replace = FALSE)
+      sample(index, additive_QTN_number, replace = FALSE)
     add_QTN_genotypic_information <- genotypes[vector_of_add_QTN, ]
     # Create an output file that gives the chromosome, bp, and
     # additive effect of the effect sizes, as well as the seed
@@ -71,7 +81,7 @@ QTN_pleiotropic <-
         set.seed(seed * seed)
       }
       vector_of_epi_QTN <-
-        sample(6:nrow(genotypes), (2 * epistatic_QTN_number), replace = FALSE)
+        sample(index, (2 * epistatic_QTN_number), replace = FALSE)
       epi_QTN_genotypic_information <-
         genotypes[vector_of_epi_QTN, ]
       # Create an output file that gives the chromosome, bp, and

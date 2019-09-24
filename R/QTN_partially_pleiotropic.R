@@ -7,6 +7,7 @@
 #' @param specific_QTN_number = NULL,
 #' @param specific_e_QTN_number = NULL,
 #' @param ntraits = NULL
+#' @param constrains = list(maf_above = NULL, maf_below = NULL)
 #' @return Genotype of selected SNPs
 #' @author Alex lipka and Samuel Fernandes
 #' Last update: Jul 22, 2019
@@ -19,16 +20,25 @@ QTN_partially_pleiotropic <-
            overlap_e = NULL,
            specific_QTN_number = NULL,
            specific_e_QTN_number = NULL,
-           ntraits = NULL) {
+           ntraits = NULL,
+           constrains = list(maf_above = NULL,
+                             maf_below = NULL)) {
     #---------------------------------------------------------------------------
     # Randomly select (without replacement) k additive QTN, and
     # assign an effect size using data.table::fwrite from data.table package
     if (!is.null(seed)) {
       set.seed(seed)
     }
-    # First SNP at column 6
+    if (any(lengths(constrains)>0)) { 
+      index <- constrain(genotypes = genotypes, 
+                         maf_above = constrains$maf_above,
+                         maf_below = constrains$maf_below)
+    } else {
+      # First SNP at column 6
+      index <- 6:nrow(genotypes)
+    }
     vector_of_pleiotropic_add_QTN <-
-      sample(6:nrow(genotypes), overlap, replace = FALSE)
+      sample(index, overlap, replace = FALSE)
     add_pleiotropic_QTN_genotypic_info <-
       genotypes[vector_of_pleiotropic_add_QTN, ]
     data.table::fwrite(
@@ -45,7 +55,7 @@ QTN_partially_pleiotropic <-
       na = NA
     )
     snps <-
-      setdiff(6:nrow(genotypes), vector_of_pleiotropic_add_QTN)
+      setdiff(index, vector_of_pleiotropic_add_QTN)
     vector_of_specific_add_QTN <- list()
     add_specific_QTN_genotypic_info <- list()
     ss <- c()
@@ -97,7 +107,7 @@ QTN_partially_pleiotropic <-
         set.seed(seed + seed)
       }
       vector_of_pleiotropic_epi_QTN <-
-        sample(6:nrow(genotypes), (2 * overlap_e), replace = FALSE)
+        sample(index, (2 * overlap_e), replace = FALSE)
       epi_pleiotropic_QTN_genotypic_info <-
         genotypes[vector_of_pleiotropic_epi_QTN, ]
       # Create an output file that gives the chromosome, bp, and
@@ -115,8 +125,8 @@ QTN_partially_pleiotropic <-
         quote = FALSE,
         na = NA
       )
-      snpse <-
-        setdiff(6:nrow(genotypes), vector_of_pleiotropic_epi_QTN)
+      snps_e <-
+        setdiff(index, vector_of_pleiotropic_epi_QTN)
       vector_of_specific_epi_QTN <- list()
       epi_specific_QTN_genotypic_info <- list()
       sse <- c()
@@ -126,8 +136,8 @@ QTN_partially_pleiotropic <-
           set.seed( (seed + i) + seed)
         }
         vector_of_specific_epi_QTN[[i]] <-
-          sample(snps, (2 * specific_e_QTN_number[i]), replace = FALSE)
-        snps <- setdiff(snps, vector_of_specific_epi_QTN[[i]])
+          sample(snps_e, (2 * specific_e_QTN_number[i]), replace = FALSE)
+        snps_e <- setdiff(snps_e, vector_of_specific_epi_QTN[[i]])
         epi_specific_QTN_genotypic_info[[i]] <-
           genotypes[vector_of_specific_epi_QTN[[i]], ]
         data.table::fwrite(
