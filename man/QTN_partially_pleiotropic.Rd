@@ -6,7 +6,8 @@
 \usage{
 QTN_partially_pleiotropic(genotypes = NULL, seed = NULL,
   overlap = NULL, overlap_e = NULL, specific_QTN_number = NULL,
-  specific_e_QTN_number = NULL, ntraits = NULL)
+  specific_e_QTN_number = NULL, ntraits = NULL,
+  constrains = list(maf_above = NULL, maf_below = NULL))
 }
 \arguments{
 \item{genotypes}{= NULL,}
@@ -22,6 +23,8 @@ QTN_partially_pleiotropic(genotypes = NULL, seed = NULL,
 \item{specific_e_QTN_number}{= NULL,}
 
 \item{ntraits}{= NULL}
+
+\item{constrains}{= list(maf_above = NULL, maf_below = NULL)}
 }
 \value{
 Genotype of selected SNPs
