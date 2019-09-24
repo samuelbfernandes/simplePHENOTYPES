@@ -147,15 +147,14 @@ phenotypes <-
               apply(simulated_data[[x]][1:ntraits + 1], 2, var)
           })
           H2 <- apply(H2, 1, mean)
-          cat("Populational heritability: \n")
-          HH <- c(i, h2_MT)
-          names(HH) <- names(H2)
-          print(HH)
-          cat(paste(
-            "Sample heritability (Average of",
+          names(H2) <- NULL
+          #cat("Populational heritability: \n")
+          #HH <- c(i, h2_MT)
+          #names(HH) <- names(H2)
+          #print(HH)
+          cat("\nSample heritability (Average of",
             rep,
-            " replications): \n"
-          ))
+            " replications): \n")
           print(H2)
           if (format == "multi-file") {
             invisible(lapply(1:rep, function(x) {
@@ -287,13 +286,12 @@ phenotypes <-
           H2 <-
             mean(as.vector(var(base_line_trait)) /
                    apply(simulated_data[, 1:rep + 1], 2, var))
-          cat("\nPopulational heritability: \n")
-          print(i)
-          cat(paste(
-            "Sample heritability (Average of",
+          #cat("\n\nPopulational heritability: \n")
+          #print(i)
+          cat("\nSample heritability (Average of",
             rep,
             " replications): \n"
-          ))
+          )
           print(H2)
           # Output the m rep and the seed numbers, formatted for TASSEL
           write.table(

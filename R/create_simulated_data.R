@@ -63,6 +63,7 @@
 #' @param out_geno Saves numericalized genotype either as "hapmap", "plink" or "gds",
 #' @param gdsfile gds file (in case there is one already created) to be used
 #' with option model = "LD". Default is NULL.
+#' @param constrains = list(maf_above = NULL, maf_below = NULL)
 #' @return Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits' traits.
 #' @author Samuel Fernandes and Alexander Lipka
 #' Last update: Aug 2nd, 2019
@@ -70,7 +71,7 @@
 #' # Simulate 50 replications of a single phenotype.
 #'
 #' create_simulated_data(
-#'   genotypes_object = SNP55K_maize282,
+#'   genotypes_object = SNP55K_maize282_maf04,
 #'   additive_QTN_number = 3,
 #'   additive_effect = c(0.1, 0.2),
 #'   big_additive_QTN_effect = 0.9,
@@ -113,7 +114,9 @@ create_simulated_data <-
            output_dir = NULL,
            format = "multi-file",
            out_geno = "none",
-           gdsfile = NULL) {
+           gdsfile = NULL,
+           constrains = list(maf_above = NULL,
+                             maf_below = NULL)) {
     # -------------------------------------------------------------------------
     .onAttach <- function(libname, pkgname) {
       packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
@@ -178,39 +181,30 @@ create_simulated_data <-
                    })
           )
         )
-      cat(paste("Simulation of a", mm, "genetic model \n"))
+      cat("Simulation of a", mm, "genetic model \n")
     } else {
       cat("Simulation of a Single Trait genetic model \n")
       }
     if (model == "LD" ) ntraits <- 2
-    cat("Number of traits:", ntraits, "\n")
+    cat("\nSIMULATION PARAMETERS: \n\n")
+    cat("Number of traits:", ntraits)
       if (model == "pleiotropic" || model == "LD" || ntraits == 1 ) {
-        cat(
-          paste(
-            "\nNumber of additive QTNs:",
+        cat("\nNumber of additive QTNs:",
             additive_QTN_number,
             "\nNumber of epistatic QTNs:",
-            ifelse(is.null(epistatic_QTN_number), 0, epistatic_QTN_number ),
-            "\n"
+            ifelse(is.null(epistatic_QTN_number), 0, epistatic_QTN_number )
           )
-        )
       }
       if (model == "partially") {
         if (is.null(overlap_e) | is.null(specific_e_QTN_number)) {
-          cat(
-            paste(
-              "\nNumber of pleiotropic additive QTNs:",
+          cat("\nNumber of pleiotropic additive QTNs:",
               overlap,
               "\nNumber of trait specific additive QTNs:",
               paste(specific_QTN_number,
-                    collapse = ", "),
-              "\n"
+                    collapse = ", ")
             )
-          )
         } else {
-          cat(
-            paste(
-              "\nNumber of pleiotropic additive QTNs:",
+          cat("\nNumber of pleiotropic additive QTNs:",
               overlap,
               "\nNumber of trait specific additive QTNs:",
               paste(specific_QTN_number,
@@ -219,17 +213,30 @@ create_simulated_data <-
               overlap_e,
               "\nNumber of trait specific epistatic QTNs:",
               paste(specific_e_QTN_number,
-                    collapse = ", "),
-              "\n"
+                    collapse = ", ")
             )
-          )
         }
       }
+    if(ntraits == 1) {    
+      cat("\nPopulational Heritability:", h2)
+      cat("\nAdditive genetic effect:", additive_effect)
+      cat("\nBig effect Additive QTN:", big_additive_QTN_effect)
+      if (!is.null(epistatic_QTN_number)) {
+        cat("\nEpistatic genetic effect:", epistatic_effect)
+      }
+    } else {
+      cat("\nPopulational Heritability (Target trait):", h2)
+      cat("\nPopulational Heritability (Correlated traits):", 
+          ifelse(is.null(h2_MT),"NULL", h2_MT))
+      cat("\nAdditive genetic effects:", additive_effect)
+      cat("\nBig effect Additive QTN:", big_additive_QTN_effect)
+      if (!is.null(epistatic_QTN_number)) {
+        cat("\nEpistatic genetic effects:", epistatic_effect)
+      }
+    }
     if (model == "LD" ||
         out_geno == "plink" ||
         out_geno == "gds"){
-      if ( out_geno == "plink" || out_geno == "gds")
-        cat("Creating GDS files...\n")
       if (model == "LD") {
         if (length(ld) > additive_QTN_number) {
           message("Length of ld object > additive_QTN_number. Using first ",
@@ -242,7 +249,11 @@ create_simulated_data <-
           ld <- ld[1]
         }
       }
-      genotypes_object <- genotypes_object[!duplicated(genotypes_object$snp), ]
+      dup <- duplicated(genotypes_object$snp)
+      if(any(dup)){
+        message("Removing ", sum(dup), " for being duplicated!")
+        genotypes_object <- genotypes_object[!dup, ]      
+      }
       if (any(grepl("geno.gds", dir(home_dir)))){
         message("A file named geno.gds is already present in this folder")
         gdsfile <- "geno2"
@@ -265,31 +276,29 @@ create_simulated_data <-
       )
       gdsfmt::showfile.gds(closeall = TRUE)
       gdsfile <- paste0(home_dir, "/", gdsfile, ".gds")
-      cat(paste0("GDS files saved at:", home_dir, "\n"))
-    }
-    if (!is.null(out_geno)) {
-      if (out_geno == "numeric") {
-        data.table::fwrite(
-          genotypes_object,
-          paste0(
-            ifelse(is.null(output_dir), "", "../"),
-            "Numeric_SNP_File"
-          ),
-          row.names = FALSE,
-          sep = "\t",
-          quote = FALSE,
-          na = NA
-        )
-        print(paste0("Numeric Genotypes saved at:", home_dir))
-      } else if (out_geno == "plink") {
-        # Open the GDS file
+      if (out_geno == "gds") cat("GDS files saved at:", home_dir, "\n")
+      if (out_geno == "plink") {
         genofile <- SNPRelate::snpgdsOpen(gdsfile)
         snpset <-
-          SNPRelate::snpgdsSelectSNP(genofile, missing.rate = 0.95)
-        SNPRelate::snpgdsGDS2BED(genofile, bed.fn = "geno", snp.id = snpset)
+          SNPRelate::snpgdsSelectSNP(genofile, remove.monosnp=F, verbose=F)
+        SNPRelate::snpgdsGDS2BED(genofile, bed.fn = "geno", snp.id = snpset, verbose=F)
         SNPRelate::snpgdsClose(genofile)
-        cat(paste0("Plink files saved at:", home_dir, "\n"))
+        cat("\nPlink files saved at:", home_dir, "\n")
       }
+    }
+    if (out_geno == "numeric") {
+      data.table::fwrite(
+        genotypes_object,
+        paste0(
+          ifelse(is.null(output_dir), "", "../"),
+          "Numeric_SNP_File"
+        ),
+        row.names = FALSE,
+        sep = "\t",
+        quote = FALSE,
+        na = NA
+      )
+      print(paste0("Numeric Genotypes saved at:", home_dir))
     }
     if (ntraits > 1) {
       if (set_cor & !all(ntraits == dim(correlation))) {
@@ -299,26 +308,20 @@ create_simulated_data <-
       }
       if (ntraits != (length(h2_MT) + 1)) {
         if (length(h2_MT) > (ntraits - 1)) {
-          cat(
-            paste(
-              "Length of h2_MT > number of correlated traits! using the first",
+          cat("\n\nLength of h2_MT > number of correlated traits! using the first",
               ntraits - 1,
               "(",
               paste(h2_MT[1:(ntraits - 1)], collapse = ", "),
               ")",
               "values\n"
             )
-          )
           h2_MT <- h2_MT[1:(ntraits - 1)]
         } else {
-          cat(
-            paste(
-              "Heritability not assigned for all correlated traits!
-              \nSetting all traits with the same heritability (",
+          cat("\nHeritability not assigned for all correlated traits!",
+              "Setting all traits with the same heritability (",
               h2[1],
               ")\n"
               )
-            )
           h2_MT <- rep(h2[1], (ntraits - 1))
         }
       }
@@ -326,16 +329,13 @@ create_simulated_data <-
           !is.null(specific_QTN_number) &
           ntraits != length(specific_QTN_number)) {
         if (length(specific_QTN_number) > ntraits) {
-          cat(
-            paste(
-              "Length of additive_effect > ntraits! using the first",
+          cat("\nLength of additive_effect > ntraits! using the first",
               ntraits,
               "(",
               paste(specific_QTN_number[1:ntraits], collapse = ", "),
               ")",
               "values\n"
             )
-          )
           specific_QTN_number <-
             specific_QTN_number[1:ntraits]
         } else {
@@ -348,9 +348,7 @@ create_simulated_data <-
           !is.null(specific_e_QTN_number) &
           ntraits != length(specific_e_QTN_number)) {
         if (length(specific_e_QTN_number) > ntraits) {
-          cat(
-            paste(
-              "Length of specific_e_QTN_number > ntraits! using the first",
+          cat("\nLength of specific_e_QTN_number > ntraits! using the first",
               ntraits,
               "(",
               paste(specific_e_QTN_number[1:ntraits],
@@ -358,7 +356,6 @@ create_simulated_data <-
               ")",
               "values\n"
             )
-          )
           specific_e_QTN_number <-
             specific_e_QTN_number[1:ntraits]
         } else {
@@ -369,79 +366,61 @@ create_simulated_data <-
       }
       if (ntraits != length(additive_effect)) {
         if (length(additive_effect) > ntraits) {
-          cat(
-            paste(
-              "Length of additive_effect > ntraits! using the first",
+          cat("\nLength of additive_effect > ntraits! using the first",
               ntraits,
               "(",
               paste(additive_effect[1:ntraits], collapse = ", "),
               ")",
               "values\n"
             )
-          )
           additive_effect <- additive_effect[1:ntraits]
         } else {
-          cat(
-            paste(
-              "Length additive_effect < ntraits!
-              \nSetting all traits with the additive_effect = ",
+          cat("\nLength additive_effect < ntraits!",
+              "Setting all traits with the additive_effect = ",
               additive_effect[1],
               "\n"
             )
-          )
           additive_effect <- rep(additive_effect[1], ntraits)
         }
       }
       if (!is.null(epistatic_effect) &
           ntraits != length(epistatic_effect)) {
         if (length(epistatic_effect) > ntraits) {
-          cat(
-            paste(
-              "Length of epistatic_effect > ntraits! using the first",
+          cat("\nLength of epistatic_effect > ntraits! using the first",
               ntraits,
               "(",
               paste(epistatic_effect[1:ntraits], collapse = ", "),
               ")",
               "values\n"
             )
-          )
           epistatic_effect <- epistatic_effect[1:ntraits]
         } else {
-          cat(
-            paste(
-              "Length epistatic_effect < ntraits!
-              \nSetting all traits with the epistatic_effect = ",
+          cat("\nLength epistatic_effect < ntraits!",
+              "Setting all traits with the epistatic_effect = ",
               epistatic_effect[1],
               "\n"
             )
-          )
           epistatic_effect <-
             rep(epistatic_effect[1], ntraits)
         }
       }
       if (ntraits != length(big_additive_QTN_effect)) {
         if (length(big_additive_QTN_effect) > ntraits) {
-          cat(
-            paste(
-              "Length of big_additive_QTN_effect > ntraits! using the first",
+          cat("\nLength of big_additive_QTN_effect > ntraits! using the first",
               ntraits,
               "(",
               paste(big_additive_QTN_effect[1:ntraits],
                     collapse = ", "),
               ")",
               "values\n"
-            )
           )
           big_additive_QTN_effect <-
             big_additive_QTN_effect[1:ntraits]
         } else {
-          cat(
-            paste(
-              "Length big_additive_QTN_effect < ntraits!
-              \nSetting all traits with the big_additive_QTN_effect = ",
+          cat("\nLength big_additive_QTN_effect < ntraits!",
+              "Setting all traits with the big_additive_QTN_effect = ",
               big_additive_QTN_effect[1],
               "\n"
-            )
           )
           big_additive_QTN_effect <-
             rep(big_additive_QTN_effect[1], ntraits)
@@ -455,7 +434,8 @@ create_simulated_data <-
           genotypes = genotypes_object,
           seed = seed,
           additive_QTN_number = additive_QTN_number,
-          epistatic_QTN_number = epistatic_QTN_number
+          epistatic_QTN_number = epistatic_QTN_number,
+          constrains = constrains
         )
     }
     if (ntraits > 1 & !any(model != "partially")) {
@@ -467,7 +447,8 @@ create_simulated_data <-
           overlap_e = overlap_e,
           specific_QTN_number = specific_QTN_number,
           specific_e_QTN_number = specific_e_QTN_number,
-          ntraits = ntraits
+          ntraits = ntraits,
+          constrains = constrains
         )
     }
     if (ntraits > 1 & !any(model != "LD")) {
@@ -477,7 +458,8 @@ create_simulated_data <-
           seed = seed,
           additive_QTN_number = additive_QTN_number,
           ld = ld,
-          gdsfile = gdsfile
+          gdsfile = gdsfile,
+          constrains = constrains
         )
     }
     if (ntraits == 1) {
@@ -508,7 +490,7 @@ create_simulated_data <-
         )
       genetic_value <-
         list(
-          base.line = cbind(
+          base_line = cbind(
             genetic_value_sup$base_line,
             genetic_value_inf$base_line
           ),
@@ -554,7 +536,7 @@ create_simulated_data <-
       h2_MT = h2_MT,
       format = format
     )
-    cat(paste("\n\nResults are saved at:", getwd()))
+    cat("\n\nResults are saved at:", getwd())
     sink()
     close(zz)
     file.show(paste0(path_out, "/Log_Sim.txt"))
