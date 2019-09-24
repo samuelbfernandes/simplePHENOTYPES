@@ -6,7 +6,6 @@
 #' @param epistatic_effect kkkk
 #' @param big_additive_QTN_effect jjj
 #' @param seed hhh
-#' @param set_cor hhh
 #' @param ntraits hhh
 #' @param correlation hhh
 #' @param model hhh
@@ -22,12 +21,11 @@ base_line_multi_traits <-
            epistatic_effect = NULL,
            big_additive_QTN_effect = NULL,
            seed = seed,
-           set_cor = TRUE,
            ntraits = NULL,
            correlation = NULL,
            model = "pleiotropic") {
   #'---------------------------------------------------------------------------
-    if (set_cor) {
+    if (!is.null(correlation)) {
       if (model == "pleiotropic") {
         genetic_value <-
           base_line_single_trait(
@@ -54,8 +52,7 @@ base_line_multi_traits <-
         #' coloring transformation
         #' approximation to make it positive definite
         if (!lqmm::is.positive.definite(correlation)) {
-          cat("Correlation matrix not positive definite!
-              Using make.positive.definite \n")
+          cat("Correlation matrix not positive definite! Using make.positive.definite \n")
           correlation <-
             lqmm::make.positive.definite(correlation)
         }
