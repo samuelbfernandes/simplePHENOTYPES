@@ -1,15 +1,16 @@
 **simplePHENOTYPES**
----
+===========
 ## Simulation of Pleiotropic, Linked and Epistatic PHENOTYPES
 
-author: Samuel B Fernandes
-date: Sep 25, 2019
+Authors: Samuel B Fernandes and Alexander E Lipka
 
-=========
+Date: Sep 25, 2019
 
-This short tutorial presents some of the possible scenarios one would simulate, but it certainly does not explore all the possibilities. For more information on specific parameter input please check the help documentation (?create_phenotypes).
+____
 
-=========
+This short tutorial presents some of the possible scenarios one would simulate, but it certainly does not explore all the possibilities. For more information on specific parameter input please check the help documentation (```?create_phenotypes```).
+
+____
 
 ### Installation
 In order to install simplePHENOTYPES you will need to install SNPRelate and gdsfmt (both from Bioconductor), as well as lqmm and data.table (both from CRAN).  
@@ -33,7 +34,7 @@ install.packages("mvtnorm")
 # or install it using RStudio's menu option to install from Package Arquive File.
 install.packages("[PATH]/simplePHENOTYPES_0.2.0.tar.gz", repos = NULL, type = "source")
 ```
-=========
+____
 
 ### Load example dataset
 Note that the example dataset is alredy numericalized. HapMap format may also be used with options  ```genotypes_object```, ```genotypes_file``` or ```genotypes_path```.
@@ -45,7 +46,7 @@ cor_matrix <- matrix(c(   1, 0.4, -0.5,
                         0.4,   1,  0.7,
                        -0.5, 0.7,    1 ), 3)
 ```
-=========
+____
 
 ### Single Trait
 Simulating 10 replications (experiments with the same genetic setting but varying the random residuals) of a single trait with a heritability of 0.7. A vector could also be used to simulate different heritabilities. In this setting, the simulated trait is controlled by 1 big effect QTN (allelic effect of 0.9) and 2 small effect QTNs with additive effects following a geometric series starting with 0.2.
@@ -59,7 +60,7 @@ create_phenotypes(
   rep = 10,
   h2 = 0.7)
 ```
-=========
+____
 
 ### Multiple Traits: Pleiotropic Model
 Simulating 2 traits ```ntraits = 2``` controlled by the same 3 additive QTN and the same "big" effect QTN with effect of 0.3. The other 2 QTNs have allelic effects of 0.04 and 0.2, respectively. Heritability for the target trait is 0.2 and 0.4 for the correlated trait. Each replication is being recorded in a different file ```output_format = "multi-file"``` in a folder named "Results". The correlation between traits is just an artifact of the different allelic effects. No attempt is being done on simulating specific correlation between traits.
@@ -78,7 +79,7 @@ create_phenotypes(
   output_dir = "Results_Pleiotropic"
 )
 ```
-=========
+____
 
 ### Multiple Traits: Partially Pleiotropic Model
 Simulating 3 traits controlled by 7, 13 and 4 QTNs, respectively. The first of the 3 pleiotropic QTNs ```overlap = 3``` will have a big additive QTN effect of 0.9. All other QTNs will have an allelic effect of 0.3 being used for the geometric series. Correlation among traits is assigned to be equal to the cor_matrix object. Each replication will be appended in a unique file in a long format and with an additional column named "Rep". Results will be saved at "Results_Partially". In this example, the genotype file will be saved as numeric.
@@ -101,7 +102,7 @@ Simulating 3 traits controlled by 7, 13 and 4 QTNs, respectively. The first of t
   to_r = TRUE
 )
 ```
-=========
+____
 
 ### Multiple Traits: Linkage Dissequilibrium Model
 Simulating 5 replications of 2 (current default is for 2 traits with the LD model) linked traits controlled by 3 additive QTNs with a big effect of 0.1 and a geometric series starting from 0.02. Starting seed number is 200 and output phenotypes are saved
@@ -123,7 +124,7 @@ create_phenotypes(
   ld=0.8
 )
 ```
-=========
+____
 
 ### Multiple Traits: Partially Pleiotropic Model with Epistatic effects
 Simulating 3 traits controlled by 3 pleiotropic additive QTNs ```overlap = 3```, 2 pleiotropic epistatic QTNs ```overlapE = 2```,
@@ -147,7 +148,7 @@ create_phenotypes(
   model = "partially"
 )
 ```
-=========
+____
 
 ### Using your own data
 If files are saved by chromosome, they may be readed from file using options ```genotypes_path``` (consider having all marker data files in a separated folder). If multiple files are saved on the same folder as the marker data, the parameter ```shared_name``` might be used to select only marker data. For example, if your data is saved as "WGS_chrm_1.hmp.txt", ..., "WGS_chrm_10.hmp.txt", one would use ```shared_name = "WGS_chrm_"``` (it simply uses regex to select files).
@@ -166,10 +167,11 @@ create_phenotypes(
   output_dir = "Results"
 )
 ```
-=========
+____
 
 ### Contact
 Questions, suggestions, and bug reports are welcome and appreciated.
-- **Authors:** Samuel B Fernandes and Alexander E Lipka
-- **Contact:** samuelf@illinois.edu
-- **Institution:** [*University of Illinois at Urbana-Champaign*]
+
+**Contact:** samuelf@illinois.edu
+
+**Institution:** [*University of Illinois at Urbana-Champaign*]
