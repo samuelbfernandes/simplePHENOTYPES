@@ -6,7 +6,7 @@
 #' @param seed = NULL,
 #' @param ntraits = NULL,
 #' @param h2_MT = NULL,
-#' @param format = 'multi-file'
+#' @param output_format = 'multi-file'
 #' @param fam = NULL
 #' @param to_r = FALSE
 #' @return Phenotypes for ntraits traits
@@ -21,12 +21,12 @@ phenotypes <-
            seed = NULL,
            ntraits = NULL,
            h2_MT = NULL,
-           format = "multi-file",
+           output_format = "multi-file",
            fam = NULL,
            to_r = FALSE) {
     #---------------------------------------------------------------------------
     if (ntraits > 1) {
-      if (format == "multi-file") {
+      if (output_format == "multi-file") {
         # Create a working directory for the output results:
         dir.create("Phenotypes")
         # Set the working directory
@@ -63,7 +63,7 @@ phenotypes <-
                              ntraits)
               )
           }
-          if (format == "multi-file") {
+          if (output_format == "multi-file") {
             invisible(lapply(1:rep, function(x) {
               data.table::fwrite(
                 simulated_data[[x]][- (ntraits + 2)],
@@ -74,7 +74,7 @@ phenotypes <-
                 na = NA
               )
             }))
-          } else if (format == "long") {
+          } else if (output_format == "long") {
             temp_simulated_data <- do.call(rbind, simulated_data)
             data.table::fwrite(
               temp_simulated_data,
@@ -84,7 +84,7 @@ phenotypes <-
               quote = FALSE,
               na = NA
             )
-          } else if (format == "gemma") {
+          } else if (output_format == "gemma") {
             invisible(lapply(1:rep, function(x) {
               temp_fam <-  merge(fam, simulated_data[[x]][- (ntraits + 2)], 
                                  by.x = "V1", by.y = "<Taxa>", sort = FALSE)
@@ -116,7 +116,7 @@ phenotypes <-
           write.table(
             ss,
             ifelse(
-              format == "multi-file",
+              output_format == "multi-file",
               paste0(
                 "../seed_number_for_",
                 rep,
@@ -174,7 +174,7 @@ phenotypes <-
               rep,
               " replications): \n")
           print(H2)
-          if (format == "multi-file") {
+          if (output_format == "multi-file") {
             invisible(lapply(1:rep, function(x) {
               data.table::fwrite(
                 simulated_data[[x]][- (ntraits + 2)],
@@ -185,7 +185,7 @@ phenotypes <-
                 na = NA
               )
             }))
-          } else if (format == "long") {
+          } else if (output_format == "long") {
             temp_simulated_data <- do.call(rbind, simulated_data)
             data.table::fwrite(
               temp_simulated_data,
@@ -195,7 +195,7 @@ phenotypes <-
               quote = FALSE,
               na = NA
             )
-          } else if (format == "gemma") {
+          } else if (output_format == "gemma") {
             invisible(lapply(1:rep, function(x) {
               temp_fam <-  merge(fam, simulated_data[[x]][- (ntraits + 2)], 
                                  by.x = "V1", by.y = "<Taxa>", sort = FALSE)
@@ -227,7 +227,7 @@ phenotypes <-
           write.table(
             ss,
             ifelse(
-              format == "multi-file",
+              output_format == "multi-file",
               paste0(
                 "../seed_number_for_",
                 rep,
@@ -287,7 +287,7 @@ phenotypes <-
             quote = FALSE
           )
           
-          if (format == "multi-file") {
+          if (output_format == "multi-file") {
             invisible(apply(as.matrix(1:rep), 1,function(x) {
               data.table::fwrite(
                 simulated_data[, c(1, x + 1)],
@@ -298,7 +298,7 @@ phenotypes <-
                 na = NA
               )
             }))
-          } else if (format == "long") {
+          } else if (output_format == "long") {
             temp <- simulated_data[, 1:2]
             colnames(temp) <- c("<Taxa>","Pheno")
             for(x in 2:rep) {
@@ -315,7 +315,7 @@ phenotypes <-
               quote = FALSE,
               na = NA
             )
-          } else if (format == "gemma") {
+          } else if (output_format == "gemma") {
             temp_fam <- merge(fam, simulated_data, 
                               by.x = "V1", by.y = "<Taxa>", sort = FALSE)
             data.table::fwrite(
@@ -383,7 +383,7 @@ phenotypes <-
             sep = "\t",
             quote = FALSE
           )
-          if (format == "multi-file") {
+          if (output_format == "multi-file") {
             invisible(apply(as.matrix(1:rep), 1,function(x) {
               data.table::fwrite(
                 simulated_data[, c(1, x + 1)],
@@ -394,7 +394,7 @@ phenotypes <-
                 na = NA
               )
             }))
-          } else if (format == "long") {
+          } else if (output_format == "long") {
             temp <- simulated_data[, 1:2]
             colnames(temp) <- c("<Taxa>","Pheno")
             for(x in 2:rep) {
@@ -411,7 +411,7 @@ phenotypes <-
               quote = FALSE,
               na = NA
             )
-          } else if (format == "gemma") {
+          } else if (output_format == "gemma") {
             temp_fam <- merge(fam, simulated_data, 
                               by.x = "V1", by.y = "<Taxa>", sort = FALSE)
             data.table::fwrite(
