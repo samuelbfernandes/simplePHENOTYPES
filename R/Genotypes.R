@@ -3,7 +3,6 @@
 #' @param genotypes_object = NULL,
 #' @param genotypes_file = NULL,
 #' @param input_format = "hapmap",
-#' @param skip = 0,
 #' @param nrows = Inf,
 #' @param na_string = "NA",
 #' @param shared_name = NULL,
@@ -22,7 +21,6 @@ genotypes <-
            genotypes_file = NULL,
            genotypes_path = NULL,
            input_format = "hapmap",
-           skip = 0,
            nrows = Inf,
            na_string = "NA",
            shared_name = NULL,
@@ -36,7 +34,6 @@ genotypes <-
       genotypes_file = genotypes_file,
       genotypes_path = genotypes_path,
       input_format = input_format,
-      skip = skip,
       nrows = nrows,
       na_string = na_string,
       shared_name = shared_name
