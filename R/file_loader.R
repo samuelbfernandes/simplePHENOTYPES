@@ -4,7 +4,6 @@
 #' @param genotypes_file = NULL,
 #' @param genotypes_path = NULL,
 #' @param input_format = "hapmap",
-#' @param skip = 0,
 #' @param nrows = Inf,
 #' @param na_string = "NA",
 #' @param shared_name = NULL,
@@ -20,7 +19,6 @@ file_loader <-
            genotypes_file = NULL,
            genotypes_path = NULL,
            input_format = "hapmap",
-           skip = 0,
            nrows = Inf,
            na_string = "NA",
            shared_name = NULL,
@@ -73,7 +71,7 @@ file_loader <-
           try(data.table::fread(
             file = genotypes_file,
             head = TRUE,
-            skip = skip,
+            skip = 0,
             nrows = nrows,
             na.strings = na_string,
             data.table = F
@@ -94,7 +92,7 @@ file_loader <-
             try(data.table::fread(
               file = i,
               head = TRUE,
-              skip = skip,
+              skip = 0,
               nrows = nrows,
               na.strings = na_string,
               data.table = F
