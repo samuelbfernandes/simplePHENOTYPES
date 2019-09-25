@@ -34,10 +34,10 @@ setRepositories()
 ##On Windows please include the following:
 #options(download.file.method = "libcurl")
 
-#Install from bitbucket:
-devtools::install_bitbucket("fernandessb/simplephenotypes", auth_user = "fernandessb", password = "RhtNaUHY66VdLESMRLCD",
-                            build_vignettes = TRUE, dependencies = TRUE)
+#Installing from bitbucket:
+devtools::install_bitbucket("fernandessb/simplephenotypes", auth_user = "fernandessb", password = "RhtNaUHY66VdLESMRLCD", build_vignettes = TRUE, dependencies = TRUE)
 
+#Installing from source package:
 install.packages("gdsfmt")
 install.packages("SNPRelate")
 install.packages("lqmm")
