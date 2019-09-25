@@ -6,16 +6,21 @@
 #' @importFrom SNPRelate snpgdsOpen snpgdsLDpair snpgdsClose snpgdsCreateGeno
 #' @importFrom gdsfmt read.gdsn index.gdsn
 #' @importFrom lqmm is.positive.definite make.positive.definite
-#' @param genotypes_object A HapMap format dataset from which simulated data will
-#' be generated.
-#' @param genotypes_file = NULL,
-#' @param input_format = "hapmap",
-#' @param skip = 0,
-#' @param nrows = Inf,
-#' @param na_string = "NA",
-#' @param shared_name = NULL,
-#' @param genotypes_path = NULL,
-#' @param maf_cutoff Optional filter for minor allele frequency.
+#' @param genotypes_object Marker data set loaded as an R object 
+#' (currently accepting either HapMap or numericalized files). 
+#' Only one of `genotypes_object`, `genotypes_file` or `genotypes_path` should be used.
+#' @param genotypes_file Name of a marker data set to be read from file.
+#' @param genotypes_path Path to a folder with multiple marker data set files 
+#' (e.g. separated by chromosome).
+#' @param input_format Currently only "hapmap" is implemented.
+#' @param nrows Please see data.table::fread for details.
+#' @param na_string Sets missing data as "NA".
+#' @param shared_name If files are saved by chromosome and in a folder with 
+#' other files, a portion of the name may be used to match files 
+#' (e.g. shared_name = "Chr" for files Chr1.hmp.txt, ..., Chr10.hmp.txt).
+#' @param maf_cutoff Optional filter for minor allele frequency 
+#' (The dataset will be filtered. Not to be confunded with the constrain option
+#' which will only filter possible QTNs).
 #' @param SNP_effect Following GAPIT implementation. Default 'Add'.
 #' @param SNP_impute Following GAPIT implementation. Default 'Middle'.
 #' @param major_allele_zero Following GAPIT implementation. Default FALSE.
@@ -42,6 +47,8 @@
 #' @param ld Linkage disequilibrium between selected marker two adjacent markers
 #' to be used as QTN. Default is ld = 05.
 #' @param rep Number of experiments to be simulated.
+#' @param rep_by Simulate same QTNs but with different residuals ('residuals'). 
+#' Simulate each replication with different QTNs (Defalut 'QTN').
 #' @param ntraits Number of traits to be simulated under pleitropic and
 #' partially pleiotropic models. The default for linkage disequilibrium models is two.
 #' @param h2 Heritability of target trait (if multiple traits are simulated).
@@ -49,42 +56,47 @@
 #' combination of genetic settings.
 #' @param h2_MT Heritability of correlated traits (in case it should be different).
 #' than target trait. It should be length ntraits-1.
-#' @param correlation Trait correlation matrix to be simulated.
+#' @param correlation Trait correlation matrix to be simulated. 
+#' Should have nrow == ncol == ntraits.
 #' @param seed Value to be used by set.seed. If NULL (default),
 #' runif(1, 0, 10e5) will be used.
 #' @param home_dir Home directory. Default is current working directory.
 #' @param output_dir Name to be used to create folder and save output files.
-#' @param to_r ...
-#' @param format Three options for saving outputs: 'multi-file'
+#' @param to_r Option for saving simulated results to R in addition to saving to file. 
+#' If TRUE, results need to be assinged to an R object (see vign).
+#' @param output_format Four options for saving outputs: 'multi-file'
 #' (default for multiple traits), saves one simulation setting in a separate file;
 #' 'long', appends each experiment (rep) to the last one (by row); 'wide', saves
-#' experiments by column (default for single trait).
-#' @param out_geno Saves numericalized genotype either as "hapmap", "plink" or "gds",
+#' experiments by column (default for single trait) and 'gemma', saves .fam files 
+#' to be used by gemma with plink bed files (renaming .fam file might be necessary).
+#' @param out_geno Saves numericalized genotype either as "numeric", "plink" or "gds".
+#' Default is NULL.
 #' @param gdsfile gds file (in case there is one already created) to be used
 #' with option model = "LD". Default is NULL.
-#' @param constrains = list(maf_above = NULL, maf_below = NULL)
-#' @param fam = NULL
+#' @param constrains Set constrains for QTN selection. 
+#' Currently only minor allelic frequency is implemented. 
+#' Eiter one or both of the following options may be non-null: 'list(maf_above = NULL, maf_below = NULL)'.
 #' @return Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits' traits.
 #' @author Samuel Fernandes and Alexander Lipka
 #' Last update: Aug 2nd, 2019
 #' @examples
 #' # Simulate 50 replications of a single phenotype.
 #'
-#' create_simulated_data(
+#' pheno <- create_phenotypes(
 #'   genotypes_object = SNP55K_maize282_maf04,
 #'   additive_QTN_number = 3,
 #'   additive_effect = c(0.1, 0.2),
 #'   big_additive_QTN_effect = 0.9,
 #'   rep = 50,
-#'   h2 = 0.7
+#'   h2 = 0.7,
+#'   to_r = TRUE
 #' )
 #'
-create_simulated_data <-
+create_phenotypes <-
   function(genotypes_object = NULL,
            genotypes_file = NULL,
            genotypes_path = NULL,
            input_format = "hapmap",
-           skip = 0,
            nrows = Inf,
            na_string = "NA",
            shared_name = NULL,
@@ -104,6 +116,7 @@ create_simulated_data <-
            specific_e_QTN_number = NULL,
            ld = 0.5,
            rep = NULL,
+           rep_by = "QTN",
            ntraits = 1,
            h2 = NULL,
            h2_MT = NULL,
@@ -112,17 +125,17 @@ create_simulated_data <-
            home_dir = getwd(),
            output_dir = NULL,
            to_r = FALSE,
-           format = "multi-file",
-           out_geno = "none",
+           output_format = "multi-file",
+           out_geno = NULL,
            gdsfile = NULL,
-           fam = NULL,
            constrains = list(maf_above = NULL,
                              maf_below = NULL)) {
     # -------------------------------------------------------------------------
-    .onAttach <- function(libname, pkgname) {
+    .onAttach <- function(libname, simplePHENOTYPES) {
       packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
     }
     .onAttach()
+    if (is.null(out_geno)) out_geno <- "none"
     if (model == "LD" ) {
       ntraits <- 2
       if (length(additive_effect) != 2)
@@ -183,7 +196,6 @@ create_simulated_data <-
                   genotypes_path = genotypes_path,
                   genotypes_file = genotypes_file,
                   input_format = input_format,
-                  skip = skip,
                   nrows = nrows,
                   na_string = na_string,
                   shared_name = shared_name,
@@ -267,7 +279,7 @@ create_simulated_data <-
       if (!is.null(epistatic_QTN_number)) {
         cat("\nEpistatic genetic effect:", epistatic_effect)
       }
-      cat(paste0("\nOutput file format: \'", format, "\'\n"))
+      cat(paste0("\nOutput file format: \'", output_format, "\'\n"))
     } else {
       cat("\nPopulational Heritability (Target trait):", h2)
       cat("\nPopulational Heritability (Correlated traits):", 
@@ -277,12 +289,12 @@ create_simulated_data <-
       if (!is.null(epistatic_QTN_number)) {
         cat("\nEpistatic genetic effects:", epistatic_effect)
       }
-      cat(paste0("\nOutput file format: \'", format, "\'\n"))
+      cat(paste0("\nOutput file format: \'", output_format, "\'\n"))
     }
     if (model == "LD" ||
         out_geno == "plink" ||
         out_geno == "gds" ||
-        format == "gemma"){
+        output_format == "gemma"){
       if (model == "LD") {
         if (length(ld) > additive_QTN_number) {
           message("Length of ld object > additive_QTN_number. Using first ",
@@ -324,8 +336,7 @@ create_simulated_data <-
       gdsfile <- paste0(home_dir, "/", gdsfile, ".gds")
       if (out_geno == "gds") cat("GDS files saved at:", home_dir, "\n")
       if (out_geno == "plink" ||
-          (format == "gemma" &&
-           is.null(fam))) {
+          output_format == "gemma") {
         genofile <- SNPRelate::snpgdsOpen(gdsfile)
         snpset <-
           SNPRelate::snpgdsSelectSNP(genofile, remove.monosnp=F, verbose=F)
@@ -334,8 +345,7 @@ create_simulated_data <-
         cat("\nPlink bed files saved at:", home_dir, "\n")
       }
     }
-    if (format == "gemma" &&
-        is.null(fam) ) {
+    if (output_format == "gemma") {
       fam <- data.table::fread("geno.fam", drop = 6)
       fam$V1 <- fam$V2
     }
@@ -502,7 +512,7 @@ create_simulated_data <-
       rep = rep,
       ntraits = ntraits,
       h2_MT = h2_MT,
-      format = format,
+      output_format = output_format,
       fam = fam,
       to_r = to_r
     )
