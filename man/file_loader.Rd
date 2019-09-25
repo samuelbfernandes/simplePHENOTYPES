@@ -5,10 +5,9 @@
 \title{...}
 \usage{
 file_loader(genotypes_object = NULL, genotypes_file = NULL,
-  genotypes_path = NULL, input_format = "hapmap", skip = 0,
-  nrows = Inf, na_string = "NA", shared_name = NULL,
-  SNP_impute = "Middle", SNP_effect = "Add",
-  major_allele_zero = FALSE)
+  genotypes_path = NULL, input_format = "hapmap", nrows = Inf,
+  na_string = "NA", shared_name = NULL, SNP_impute = "Middle",
+  SNP_effect = "Add", major_allele_zero = FALSE)
 }
 \arguments{
 \item{genotypes_object}{= NULL,}
@@ -18,8 +17,6 @@ file_loader(genotypes_object = NULL, genotypes_file = NULL,
 \item{genotypes_path}{= NULL,}
 
 \item{input_format}{= "hapmap",}
-
-\item{skip}{= 0,}
 
 \item{nrows}{= Inf,}
 

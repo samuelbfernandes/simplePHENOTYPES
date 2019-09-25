@@ -5,9 +5,9 @@
 \title{Generate a numeric (dosaje) HapMap file}
 \usage{
 genotypes(genotypes_object = NULL, genotypes_file = NULL,
-  genotypes_path = NULL, input_format = "hapmap", skip = 0,
-  nrows = Inf, na_string = "NA", shared_name = NULL,
-  maf_cutoff = NULL, SNP_effect = "Add", SNP_impute = "Middle",
+  genotypes_path = NULL, input_format = "hapmap", nrows = Inf,
+  na_string = "NA", shared_name = NULL, maf_cutoff = NULL,
+  SNP_effect = "Add", SNP_impute = "Middle",
   major_allele_zero = FALSE)
 }
 \arguments{
@@ -18,8 +18,6 @@ genotypes(genotypes_object = NULL, genotypes_file = NULL,
 \item{genotypes_path}{= NULL,}
 
 \item{input_format}{= "hapmap",}
-
-\item{skip}{= 0,}
 
 \item{nrows}{= Inf,}
 
