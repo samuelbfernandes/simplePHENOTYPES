@@ -8,7 +8,7 @@ output:
     theme: spacelab
     highlight: textmate
     df_print: tibble
-author: Samuel B Fernandes
+author: Samuel B Fernandes and Alexander E Lipka
 date: Sep 25, 2019
 
 vignette: >
