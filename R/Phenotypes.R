@@ -301,11 +301,13 @@ phenotypes <-
           } else if (output_format == "long") {
             temp <- simulated_data[, 1:2]
             colnames(temp) <- c("<Taxa>","Pheno")
+            if (rep > 1) {
             for(x in 2:rep) {
               temp2 <- simulated_data[, c(1, x + 1)]
               colnames(temp2) <- c("<Taxa>","Pheno")
               temp <- rbind(temp, temp2 )
             }
+          }
             temp$reps <- rep(1:rep, each = nrow(base_line_trait))
             data.table::fwrite(
               temp,
@@ -366,7 +368,7 @@ phenotypes <-
           }
           H2 <-
             mean(as.vector(var(base_line_trait)) /
-                   apply(simulated_data[, 1:rep + 1], 2, var))
+                   apply(as.matrix(simulated_data[, 1:rep + 1]), 2, var))
           #cat("\n\nPopulational heritability: \n")
           #print(i)
           cat("\nSample heritability (Average of",
@@ -397,10 +399,12 @@ phenotypes <-
           } else if (output_format == "long") {
             temp <- simulated_data[, 1:2]
             colnames(temp) <- c("<Taxa>","Pheno")
-            for(x in 2:rep) {
-              temp2 <- simulated_data[, c(1, x + 1)]
-              colnames(temp2) <- c("<Taxa>","Pheno")
-              temp <- rbind(temp, temp2 )
+            if (rep > 1) {
+              for(x in 2:rep) {
+                temp2 <- simulated_data[, c(1, x + 1)]
+                colnames(temp2) <- c("<Taxa>","Pheno")
+                temp <- rbind(temp, temp2 )
+              }
             }
             temp$reps <- rep(1:rep, each = nrow(base_line_trait))
             data.table::fwrite(
