@@ -16,7 +16,7 @@ create_phenotypes(genotypes_object = NULL, genotypes_file = NULL,
   rep = NULL, rep_by = "QTN", ntraits = 1, h2 = NULL,
   h2_MT = NULL, correlation = NULL, seed = NULL,
   home_dir = getwd(), output_dir = NULL, to_r = FALSE,
-  output_format = "multi-file", out_geno = NULL, gdsfile = NULL,
+  output_format = "long", out_geno = NULL, gdsfile = NULL,
   constrains = list(maf_above = NULL, maf_below = NULL))
 }
 \arguments{
@@ -110,9 +110,9 @@ runif(1, 0, 10e5) will be used.}
 \item{to_r}{Option for saving simulated results to R in addition to saving to file. 
 If TRUE, results need to be assinged to an R object (see vign).}
 
-\item{output_format}{Four options for saving outputs: 'multi-file'
-(default for multiple traits), saves one simulation setting in a separate file;
-'long', appends each experiment (rep) to the last one (by row); 'wide', saves
+\item{output_format}{Four options for saving outputs: 'multi-file', 
+saves one simulation setting in a separate file;
+'long' (default for multiple traits), appends each experiment (rep) to the last one (by row); 'wide', saves
 experiments by column (default for single trait) and 'gemma', saves .fam files 
 to be used by gemma with plink bed files (renaming .fam file might be necessary).}
 
