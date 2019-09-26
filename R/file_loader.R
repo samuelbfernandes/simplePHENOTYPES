@@ -79,9 +79,10 @@ file_loader <-
           silent = TRUE)
       } else {
         if (is.null(shared_name)) {
-          files <- dir(genotypes_path)
+          files <- paste0(genotypes_path,"/", dir(genotypes_path))
         } else{
-          files <- dir(genotypes_path)[grepl(shared_name, dir(genotypes_path))]
+          files <- paste0(genotypes_path,"/", 
+                          dir(genotypes_path)[grepl(shared_name, dir(genotypes_path))])
         }
         cat("Reading the following HapMap files: \n")
         cat( files, sep = "\n")
