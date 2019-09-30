@@ -23,7 +23,7 @@ knitr::opts_chunk$set(
   comment = "#"
 )
 ```
-This short tutorial presents some of the possible scenarios one would simulate, but it certainly does not explore all the possibilities. For more information on specific parameter input please check the help documentation (?create_phenotypes).
+This short tutorial presents some of the possible genetic architectures that one could simulate, but it certainly does not explore all the possibilities. For more information on specific input parameters, please check the help documentation (?create_phenotypes).
 
 # Installation
 In order to install simplePHENOTYPES you will need to install SNPRelate and gdsfmt (both from Bioconductor), as well as lqmm and data.table (both from CRAN).  
@@ -31,7 +31,7 @@ In order to install simplePHENOTYPES you will need to install SNPRelate and gdsf
 #IMPORTANT 1[space]2 is setting CRAN and Bioconductor as repositories
 setRepositories()
 1 2
-##On Windows please include the following:
+##On Windows please uncomment and run the line below:
 #options(download.file.method = "libcurl")
 
 #Installing from bitbucket:
