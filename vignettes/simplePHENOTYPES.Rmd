@@ -34,10 +34,10 @@ setRepositories()
 ##On Windows please uncomment and run the line below:
 #options(download.file.method = "libcurl")
 
-#Installing from bitbucket:
+#Option 1: Installing from bitbucket:
 devtools::install_bitbucket("fernandessb/simplephenotypes", auth_user = "fernandessb", password = "RhtNaUHY66VdLESMRLCD", build_vignettes = TRUE, dependencies = TRUE)
 
-#Installing from source package:
+#Option 2: Installing from source package:
 install.packages("gdsfmt")
 install.packages("SNPRelate")
 install.packages("lqmm")
@@ -48,7 +48,7 @@ install.packages("mvtnorm")
 install.packages("[PATH]/simplePHENOTYPES_0.2.0.tar.gz", repos = NULL, type = "source")
 ```
 
-# Load example dataset
+# Load sample dataset
 Note that the example dataset is alredy numericalized. HapMap format may also be used with options  `genotypes_object`, `genotypes_file` or `genotypes_path`.
 ```{r load data}
 library(simplePHENOTYPES)
@@ -60,8 +60,8 @@ cor_matrix <- matrix(c(   1, 0.4, -0.5,
 ```
 
 # Single Trait
-Simulating 10 replications (experiments with the same genetic setting but varying the random residuals) of a single trait with a heritability of 0.7. A vector could also be used to simulate different heritabilities. In this setting, the simulated trait is controlled by 1 big effect QTN (allelic effect of 0.9) and 2 small effect QTNs with additive effects following a geometric series starting with 0.2.
-Please see help files (?create_phenotypes) to check out default values being used.
+Simulating ten replicates of a single trait with a heritability of 0.7. In this setting, the simulated trait is controlled by one large-effect QTN (additive effect of 0.9) and two small effect QTNs with additive effects following a geometric series starting with 0.2; thus the effect size of the first of these two QTNs is 0.2, and the effect size of the second is 0.2^2.
+Please see help files (?create_phenotypes) to see which default values being used.
 ```{r ST, eval = FALSE}
 create_phenotypes(
   genotypes_object = SNP55K_maize282_maf04,
@@ -73,7 +73,7 @@ create_phenotypes(
 ```
 
 # Multiple Traits: Pleiotropic Model
-Simulating 2 traits `ntraits = 2` controlled by the same 3 additive QTN and the same "big" effect QTN with effect of 0.3. The other 2 QTNs have allelic effects of 0.04 and 0.2, respectively. Heritability for the target trait is 0.2 and 0.4 for the correlated trait. Each replication is being recorded in a different file `output_format = "multi-file"` in a folder named "Results". The correlation between traits is just an artifact of the different allelic effects. No attempt is being done on simulating specific correlation between traits.
+Simulating two traits `ntraits = 2` controlled by the same three additive QTN. One of these traits is a "target" trait, while the other is a correlated trait of lesser importance. The effect size of the largest-effect QTN is 0.3, while the other two QTNs have additive effect siszes of 0.04 and 0.2, respectively. Heritability for the target trait is 0.2, while the heritability of the correlated trait is 0.4. Each replication is being recorded in a different file (`output_format = "multi-file"`) in a folder named "Results_Pleotropic". The correlation between traits is not specified by the user; instead the observed correlation is an artifact the pleiotropic effects produced by the QTN.
 ```{r MT P, results = "hide", eval = FALSE}
 create_phenotypes(
   genotypes_object = SNP55K_maize282_maf04,
@@ -91,7 +91,7 @@ create_phenotypes(
 ```
 
 # Multiple Traits: Partially Pleiotropic Model
-Simulating 3 traits controlled by 7, 13 and 4 QTNs, respectively. The first of the 3 pleiotropic QTNs `overlap = 3` will have a big additive QTN effect of 0.9. All other QTNs will have an allelic effect of 0.3 being used for the geometric series. Correlation among traits is assigned to be equal to the cor_matrix object. Each replication will be appended in a unique file in a long format and with an additional column named "Rep". Results will be saved at "Results_Partially". In this example, the genotype file will be saved as numeric.
+Simulating 20 replicates of three traits, which are respectively controlled by seven, 13 and four QTNs. The first of the three pleiotropic QTNs (`overlap = 3`) will have a large additive QTN effect of 0.9. All other QTNs will have additive effects that follow a geometric series, where the effect size of the i^th QTN has an effect size of 0.3^i. Correlation among traits is assigned to be equal to the cor_matrix object, which was described in "Load sample dataset". All 20 replicates of thesee three simulated traits will be saved in one file, specifically in a long format and with an additional column named "Rep". Results will be saved in a directory called "Results_Partially". In this example, the genotype file will be saved in numeric format.
 ```{r MT PP, results = "hide", eval = FALSE}
  sim_results <- create_phenotypes(
   genotypes_object = SNP55K_maize282_maf04,
@@ -114,8 +114,7 @@ Simulating 3 traits controlled by 7, 13 and 4 QTNs, respectively. The first of t
 
 
 # Multiple Traits: Linkage Dissequilibrium Model
-Simulating 5 replications of 2 (current default is for 2 traits with the LD model) linked traits controlled by 3 additive QTNs with a big effect of 0.1 and a geometric series starting from 0.02. Starting seed number is 200 and output phenotypes are saved
-at different columns of a single file. Plink fam, bim and bed files are also saved at Results_LD.
+Simulating five replicates of two linked traits controlled by three additive QTNs. For each QTN, a marker is first selected, and then two separate markers that have an r^2 of at most 0.8 with the selected marker will the respective QTNs of the two traits. The largest additive effect size of a pair of QTNs selected in this manner will be 0.1,and then the other QTN pairs will have additive effects that follow a geometric series, where the effect size of the i^th QTN has an effect size of 0.02^i. Starting seed number is 200 and output phenotypes are saved in one file, but in a "wide" format with each replicate of two traits being added as additional columns. Plink fam, bim and bed files are also saved at Results_LD.
 
 ```{r MT LD, results = "hide", eval = FALSE}
 create_phenotypes(
@@ -135,8 +134,7 @@ create_phenotypes(
 ```
 
 # Multiple Traits: Partially Pleiotropic Model with Epistatic effects
-Simulating 3 traits controlled by 3 pleiotropic additive QTNs `overlap = 3`, 2 pleiotropic epistatic QTNs `overlapE = 2`,
-4, 10 and 1 additive trait-specific QTN and 2, 1 and 5 epistatic trait-specific QTNs, respectively. Results will be saved as ".fam" files used as gemma input.
+Simulating 20 replciates of three traits. These traits are controlled by three pleiotropic additive QTNs (`overlap = 3`); two pleiotropic epistatic QTNs (`overlapE = 2`); four, ten and one additive trait-specific QTN (`specific_QTN_number = c(4,10, 1)`);  and two, one and five epistatic trait-specific QTNs (`specific_e_QTN_number = c(2,1, 5)`). Results will be saved as ".fam" files used as gemma input; thus each replicate trait that is simulated will have its own unique output file.
 ```{r MT PP E, results = "hide", eval = FALSE}
 create_phenotypes(
   genotypes_object = SNP55K_maize282_maf04,
@@ -158,7 +156,7 @@ create_phenotypes(
 ```
 
 # Using your own data
-If files are saved by chromosome, they may be readed from file using options `genotypes_path` (consider having all marker data files in a separated folder). If multiple files are saved on the same folder as the marker data, the parameter `shared_name` might be used to select only marker data. For example, if your data is saved as "WGS_chrm_1.hmp.txt", ..., "WGS_chrm_10.hmp.txt", one would use `shared_name = "WGS_chrm_"` (it simply uses regex to select files).
+If files are saved by chromosome, they can be read directly into create_phenotypes using options `genotypes_path` (recommendation: consider having all marker data files in a separate folder). If multiple files are saved on the same folder as the marker data, the parameter `shared_name` might be used to select only marker data. For example, if your data is saved as "WGS_chrm_1.hmp.txt", ..., "WGS_chrm_10.hmp.txt", one would use `shared_name = "WGS_chrm_"` .
 ```{r example, results = "hide", eval = FALSE}
 create_phenotypes(
   genotypes_path = getwd(),
