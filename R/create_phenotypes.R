@@ -49,13 +49,14 @@
 #' @param rep Number of experiments to be simulated.
 #' @param rep_by Simulate same QTNs but with different residuals ('residuals'). 
 #' Simulate each replication with different QTNs (Defalut 'QTN').
+#' @param export_gt if genotypes of selected QTNs should be exported.
 #' @param ntraits Number of traits to be simulated under pleitropic and
 #' partially pleiotropic models. The default for linkage disequilibrium models is two.
-#' @param h2 Heritability of target trait (if multiple traits are simulated).
+#' @param h2 Heritability of trait 1 (possible the target trait) if multiple traits are simulated.
 #' If a vector, the simulation will "loop" over it and generate one file for each
 #' combination of genetic settings.
 #' @param h2_MT Heritability of correlated traits (in case it should be different).
-#' than target trait. It should be length ntraits-1.
+#' It should be length ntraits-1.
 #' @param correlation Trait correlation matrix to be simulated. 
 #' Should have nrow == ncol == ntraits.
 #' @param seed Value to be used by set.seed. If NULL (default),
@@ -85,9 +86,9 @@
 #' pheno <- create_phenotypes(
 #'   genotypes_object = SNP55K_maize282_maf04,
 #'   additive_QTN_number = 3,
-#'   additive_effect = c(0.1, 0.2),
+#'   additive_effect = 0.1,
 #'   big_additive_QTN_effect = 0.9,
-#'   rep = 50,
+#'   rep = 10,
 #'   h2 = 0.7,
 #'   to_r = TRUE
 #' )
@@ -117,6 +118,7 @@ create_phenotypes <-
            ld = 0.5,
            rep = NULL,
            rep_by = "QTN",
+           export_gt = FALSE,
            ntraits = 1,
            h2 = NULL,
            h2_MT = NULL,
@@ -149,23 +151,31 @@ create_phenotypes <-
           ifelse(
             model == "partially",
             "Partially Pleiotropic",
-            ifelse(model == "LD", "Linkage Desiquilibrium", {
+            ifelse(model == "LD", "Linkage Disequilibrium", {
               stop("The genetic model used is not valid! 
                    Please choose one of: \'pleiotropic\', \'partially\' or \'LD\' ", call. = F)
             })
           )
         )
-      if (!is.null(correlation) && !all(ntraits == dim(correlation))) {
+      if (!is.null(correlation) & !all(ntraits == dim(correlation))) {
         stop("ntraits do not match with dim of correlation matrix!", call. = F)
       }
       if (model == "partially"){
-        if  (is.null(specific_QTN_number) |
-             ntraits != length(specific_QTN_number)) {
+        if  (!is.null(specific_QTN_number) |
+             !is.null(overlap)) {
+          if (any(is.null(specific_QTN_number),
+                  is.null(overlap)))
+            stop("For Partially Pleiotropic additive model, both \'overlap\' and \'specific_QTN_number\' must be provided!", call. = F)
+          if (ntraits != length(specific_QTN_number)) 
           stop("Parameter [additive] \'specific_QTN_number\' should have length == \'ntraits\'", call. = F)
         }
-        if (!is.null(specific_e_QTN_number) & ntraits != length(specific_e_QTN_number)) {
-          if (length(specific_e_QTN_number) > ntraits) {
-            stop("Length of \'specific_e_QTN_number\' should have length == \'ntraits\'", call. = F)
+        if (!is.null(specific_e_QTN_number) |
+            !is.null(overlap_e)) {
+          if (any(is.null(specific_e_QTN_number),
+              is.null(overlap_e))) 
+            stop("For Partially Pleiotropic epistatic model, both \'overlap_e\' and \'specific_e_QTN_number\' must be provided!", call. = F)
+          if (ntraits != length(specific_e_QTN_number)) {
+            stop("Parameter \'specific_e_QTN_number\' should have length == \'ntraits\'", call. = F)
           }
         }
       }
@@ -173,12 +183,13 @@ create_phenotypes <-
           ntraits != length(epistatic_effect)) {
         stop("Parameter \'epistatic_effect\' should have length == \'ntraits\'", call. = F)
       }
-      if (ntraits != length(additive_effect)) {
-        stop("Parameter \'additive_effect\' should have length == \'ntraits\'", call. = F)
+      if (ntraits != length(additive_effect) |
+          ntraits != length(big_additive_QTN_effect) ) {
+        stop("Parameters \'additive_effect\' and \'big_additive_QTN_effect\' should have length == \'ntraits\'", call. = F)
       }
-      if (model == "partially" ||
+      if (model == "partially" |
           model == "pleiotropic"){
-        if (is.null(correlation) &&
+        if (is.null(correlation) &
             var(additive_effect) == 0) {
           stop("In order to simulate correlated traits, please provide either a 
                correlation matrix or different genetic effects.", call. = F)
@@ -187,9 +198,9 @@ create_phenotypes <-
     }
     setwd(home_dir)
     on.exit(setwd(home_dir), add = TRUE)
-    if (!is.null(genotypes_path) ||
-        !is.null(genotypes_file) ||
-        (class(unlist(genotypes_object[, 12])) != "numeric" &&
+    if (!is.null(genotypes_path) |
+        !is.null(genotypes_file) |
+        (class(unlist(genotypes_object[, 12])) != "numeric" &
          class(unlist(genotypes_object[, 12])) != "integer")) {
       genotypes_object <-
         genotypes(genotypes_object = genotypes_object,
@@ -230,20 +241,20 @@ create_phenotypes <-
     sink(zz, type = "output")
     if (ntraits > 1) {
       if (!is.null(epistatic_QTN_number)) {
-        cat("Simulation of a", mm, ", Additive and Epistatic genetic model \n") 
+        cat("Simulation of a", mm, ", Additive and Epistatic Genetic Model \n") 
       } else{
-        cat("Simulation of a", mm, "Additive genetic model \n") 
+        cat("Simulation of a", mm, "Additive Genetic Model \n") 
       }
     } else {
       if (!is.null(epistatic_QTN_number)) {
-        cat("Simulation of a Single Trait, Additive and Epistatic genetic model \n") 
+        cat("Simulation of a Single Trait, Additive and Epistatic Genetic Model \n") 
       } else {
-        cat("Simulation of a Single Trait Additive genetic model \n") 
+        cat("Simulation of a Single Trait Additive Genetic Model \n") 
       }
     }
     cat("\nSIMULATION PARAMETERS: \n\n")
     cat("Number of traits:", ntraits)
-    if (model == "pleiotropic" || model == "LD" || ntraits == 1 ) {
+    if (model == "pleiotropic" | model == "LD" | ntraits == 1 ) {
       cat("\nNumber of additive QTNs:",
           additive_QTN_number,
           "\nNumber of epistatic QTNs:",
@@ -273,7 +284,7 @@ create_phenotypes <-
       }
     }
     if(ntraits == 1) {
-      cat("\nPopulational Heritability:", h2)
+      cat("\nPopulation Heritability:", h2)
       cat("\nAdditive genetic effect:", additive_effect)
       cat("\nBig effect Additive QTN:", big_additive_QTN_effect)
       if (!is.null(epistatic_QTN_number)) {
@@ -281,9 +292,12 @@ create_phenotypes <-
       }
       cat(paste0("\nOutput file format: \'", output_format, "\'\n"))
     } else {
-      cat("\nPopulational Heritability (Target trait):", h2)
-      cat("\nPopulational Heritability (Correlated traits):", 
-          ifelse(is.null(h2_MT),"NULL", h2_MT))
+      cat("\nPopulation Heritability (Trait 1):", h2)
+      if(is.null(h2_MT)) {
+        cat("\nPopulation Heritability (Correlated traits): NULL")
+      } else {
+        cat("\nPopulation Heritability (Correlated traits):", h2_MT)
+        }
       cat("\nAdditive genetic effects:", additive_effect)
       cat("\nBig effect Additive QTN:", big_additive_QTN_effect)
       if (!is.null(epistatic_QTN_number)) {
@@ -291,9 +305,9 @@ create_phenotypes <-
       }
       cat(paste0("\nOutput file format: \'", output_format, "\'\n"))
     }
-    if (model == "LD" ||
-        out_geno == "plink" ||
-        out_geno == "gds" ||
+    if (model == "LD" |
+        out_geno == "plink" |
+        out_geno == "gds" |
         output_format == "gemma"){
       if (model == "LD") {
         if (length(ld) > additive_QTN_number) {
@@ -335,7 +349,7 @@ create_phenotypes <-
       gdsfmt::showfile.gds(closeall = TRUE)
       gdsfile <- paste0(home_dir, "/", gdsfile, ".gds")
       if (out_geno == "gds") cat("GDS files saved at:", home_dir, "\n")
-      if (out_geno == "plink" ||
+      if (out_geno == "plink" |
           output_format == "gemma") {
         genofile <- SNPRelate::snpgdsOpen(gdsfile)
         snpset <-
@@ -414,7 +428,10 @@ create_phenotypes <-
           seed = seed,
           additive_QTN_number = additive_QTN_number,
           epistatic_QTN_number = epistatic_QTN_number,
-          constrains = constrains
+          constrains = constrains,
+          rep = rep,
+          rep_by = rep_by,
+          export_gt = export_gt
         )
     }
     if (ntraits > 1 & !any(model != "partially")) {
@@ -427,7 +444,10 @@ create_phenotypes <-
           specific_QTN_number = specific_QTN_number,
           specific_e_QTN_number = specific_e_QTN_number,
           ntraits = ntraits,
-          constrains = constrains
+          constrains = constrains,
+          rep = rep,
+          rep_by = rep_by,
+          export_gt = export_gt
         )
     }
     if (ntraits > 1 & !any(model != "LD")) {
@@ -438,7 +458,10 @@ create_phenotypes <-
           additive_QTN_number = additive_QTN_number,
           ld = ld,
           gdsfile = gdsfile,
-          constrains = constrains
+          constrains = constrains,
+          rep = rep,
+          rep_by = rep_by,
+          export_gt = export_gt
         )
     }
     if (ntraits == 1) {
@@ -449,34 +472,10 @@ create_phenotypes <-
           epistatic_object = QTN$epistatic_effect_trait_object,
           additive_effect = additive_effect,
           epistatic_effect = epistatic_effect,
-          big_additive_QTN_effect = big_additive_QTN_effect
+          big_additive_QTN_effect = big_additive_QTN_effect,
+          rep = rep,
+          rep_by = rep_by
         )
-    } else if (!any(model != "LD")) {
-      cat("LD between SNP and QTN:", ld, "\n")
-      genetic_value_sup <-
-        base_line_single_trait(
-          seed = seed,
-          additive_object = QTN$additive_effect_trait_object_sup,
-          additive_effect = additive_effect,
-          big_additive_QTN_effect = big_additive_QTN_effect
-        )
-      genetic_value_inf <-
-        base_line_single_trait(
-          seed = seed,
-          additive_object = QTN$additive_effect_trait_object_inf,
-          additive_effect = additive_effect,
-          big_additive_QTN_effect = big_additive_QTN_effect
-        )
-      genetic_value <-
-        list(
-          base_line = cbind(
-            genetic_value_sup$base_line,
-            genetic_value_inf$base_line
-          ),
-          VA = c(genetic_value_sup$VA, genetic_value_inf$VA)
-        )
-      cat("\nGenetic Correlation \n")
-      print(cor(genetic_value$base_line)[1, 2])
     } else {
       genetic_value <-
         base_line_multi_traits(
@@ -487,34 +486,44 @@ create_phenotypes <-
           epistatic_object = QTN$epistatic_effect_trait_object,
           additive_effect = additive_effect,
           epistatic_effect = epistatic_effect,
-          big_additive_QTN_effect = big_additive_QTN_effect
+          big_additive_QTN_effect = big_additive_QTN_effect,
+          rep = rep,
+          rep_by = rep_by,
+          model = model
         )
+      #tirar a media das correlacoes quando rep_by = "QTN"
+      
       if (!is.null(correlation)) {
-        cat("Populational Correlation \n")
-        colnames(correlation) <-
-          c("Target", c(paste0("Trait_", 2:ntraits)))
-        rownames(correlation) <-
-          c("Target", c(paste0("Trait_", 2:ntraits)))
+        cat("Population Correlation \n")
+        colnames(correlation) <- paste0("Trait_", 1:ntraits)
+        rownames(correlation) <- paste0("Trait_", 1:ntraits)
         print(correlation)
       }
-      cat("\nSample Correlation \n")
-      sample_cor <- genetic_value$sample_cor
-      colnames(sample_cor) <-
-        c("Target", c(paste0("Trait_", 2:ntraits)))
-      rownames(sample_cor) <-
-        c("Target", c(paste0("Trait_", 2:ntraits)))
-      print(sample_cor)
+      if (rep_by == "QTN") {
+        sample_cor <- matrix(0, ntraits, ntraits)
+        for(v in 1:rep) {
+          sample_cor <- (sample_cor + genetic_value[[v]]$sample_cor)
+        }
+        sample_cor <- sample_cor/rep
+      } else {
+        sample_cor <- genetic_value[[1]]$sample_cor
+      }
+        cat("\nSample Correlation \n")
+        colnames(sample_cor) <- paste0("Trait_", 1:ntraits)
+        rownames(sample_cor) <- paste0("Trait_", 1:ntraits)
+        print(sample_cor)
     }
     results <- phenotypes(
       seed = seed,
-      base_line_trait = genetic_value$base_line,
+      base_line_trait = genetic_value,
       h2 = h2,
       rep = rep,
       ntraits = ntraits,
       h2_MT = h2_MT,
       output_format = output_format,
       fam = fam,
-      to_r = to_r
+      to_r = to_r,
+      rep_by = rep_by
     )
     cat("\n\nResults are saved at:", getwd())
     sink()
