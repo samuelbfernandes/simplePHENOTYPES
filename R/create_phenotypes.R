@@ -55,8 +55,6 @@
 #' @param h2 Heritability of trait 1 (possible the target trait) if multiple traits are simulated.
 #' If a vector, the simulation will "loop" over it and generate one file for each
 #' combination of genetic settings.
-#' @param h2_MT Heritability of correlated traits (in case it should be different).
-#' It should be length ntraits-1.
 #' @param correlation Trait correlation matrix to be simulated. 
 #' Should have nrow == ncol == ntraits.
 #' @param seed Value to be used by set.seed. If NULL (default),
@@ -121,7 +119,6 @@ create_phenotypes <-
            export_gt = FALSE,
            ntraits = 1,
            h2 = NULL,
-           h2_MT = NULL,
            correlation = NULL,
            seed = NULL,
            home_dir = getwd(),
@@ -140,10 +137,32 @@ create_phenotypes <-
     if (is.null(out_geno)) out_geno <- "none"
     if (model == "LD" ) {
       ntraits <- 2
-      if (length(additive_effect) != 2)
-        additive_effect <- c(additive_effect[1], additive_effect[1])
+      if (length(h2) == 1) h2 <- cbind(h2, h2)
+      if (length(h2) > 2) h2 <- matrix(h2, ncol = 1 )
+      if (is.matrix(h2)){
+        if (ncol(h2)>2) 
+          stop("In the LD model the parameter \'h2\' should two columns, one for each trait!", call. = F)
+        if (ncol(h2) ==1 ) h2 <- cbind(h2, h2)
+      }
+      if (length(big_additive_QTN_effect)!= 2 |
+          length(additive_effect)!= 2) {
+        stop("In the LD model, parameters \'additive_effect\' and \'big_additive_QTN_effect\' should have length == 2", call. = F)
+      }
     }
+    if (is.vector(h2)) {
+      if(ntraits > 1){
+        h2 <- matrix(h2, nrow = 1)
+      } else {
+        h2 <- matrix(h2, ncol = 1)
+      }
+    }
+    if (rep_by != "QTN" &
+        rep_by != "experiment")
+      stop("Parameter \'rep_by\' should be either \'QTN\' or \'experiment\'!", call. = F)
     if (ntraits > 1) {
+      if (ntraits != ncol(h2)) {
+        stop("Parameter \'h2\' should have length == \'ntraits\'", call. = F)
+      }
       mm <-
         ifelse(
           model == "pleiotropic",
@@ -167,12 +186,12 @@ create_phenotypes <-
                   is.null(overlap)))
             stop("For Partially Pleiotropic additive model, both \'overlap\' and \'specific_QTN_number\' must be provided!", call. = F)
           if (ntraits != length(specific_QTN_number)) 
-          stop("Parameter [additive] \'specific_QTN_number\' should have length == \'ntraits\'", call. = F)
+            stop("Parameter [additive] \'specific_QTN_number\' should have length == \'ntraits\'", call. = F)
         }
         if (!is.null(specific_e_QTN_number) |
             !is.null(overlap_e)) {
           if (any(is.null(specific_e_QTN_number),
-              is.null(overlap_e))) 
+                  is.null(overlap_e))) 
             stop("For Partially Pleiotropic epistatic model, both \'overlap_e\' and \'specific_e_QTN_number\' must be provided!", call. = F)
           if (ntraits != length(specific_e_QTN_number)) {
             stop("Parameter \'specific_e_QTN_number\' should have length == \'ntraits\'", call. = F)
@@ -292,12 +311,13 @@ create_phenotypes <-
       }
       cat(paste0("\nOutput file format: \'", output_format, "\'\n"))
     } else {
-      cat("\nPopulation Heritability (Trait 1):", h2)
-      if(is.null(h2_MT)) {
-        cat("\nPopulation Heritability (Correlated traits): NULL")
+      if(nrow(h2) > 1){
+        cat("\nPopulation Heritability:")
+        colnames(h2) <- paste0("Trait_", 1:ntraits)
+        print(h2)
       } else {
-        cat("\nPopulation Heritability (Correlated traits):", h2_MT)
-        }
+        cat("\nPopulation Heritability", paste0("(Traits 1:", ntraits,", respectively)") , h2)
+      }
       cat("\nAdditive genetic effects:", additive_effect)
       cat("\nBig effect Additive QTN:", big_additive_QTN_effect)
       if (!is.null(epistatic_QTN_number)) {
@@ -378,25 +398,6 @@ create_phenotypes <-
       print(paste0("Numeric Genotypes saved at:", home_dir))
     }
     if (ntraits > 1) {
-      if (ntraits != (length(h2_MT) + 1)) {
-        if (length(h2_MT) > (ntraits - 1)) {
-          cat("\n\nLength of h2_MT > number of correlated traits! using the first",
-              ntraits - 1,
-              "(",
-              paste(h2_MT[1:(ntraits - 1)], collapse = ", "),
-              ")",
-              "values\n"
-          )
-          h2_MT <- h2_MT[1:(ntraits - 1)]
-        } else {
-          cat("\nHeritability not assigned for all correlated traits!",
-              "Setting all traits with the same heritability (",
-              h2[1],
-              ")\n"
-          )
-          h2_MT <- rep(h2[1], (ntraits - 1))
-        }
-      }
       if (ntraits != length(big_additive_QTN_effect)) {
         if (length(big_additive_QTN_effect) > ntraits) {
           cat("\nLength of big_additive_QTN_effect > ntraits! using the first",
@@ -508,10 +509,10 @@ create_phenotypes <-
       } else {
         sample_cor <- genetic_value[[1]]$sample_cor
       }
-        cat("\nSample Correlation \n")
-        colnames(sample_cor) <- paste0("Trait_", 1:ntraits)
-        rownames(sample_cor) <- paste0("Trait_", 1:ntraits)
-        print(sample_cor)
+      cat("\nSample Correlation \n")
+      colnames(sample_cor) <- paste0("Trait_", 1:ntraits)
+      rownames(sample_cor) <- paste0("Trait_", 1:ntraits)
+      print(sample_cor)
     }
     results <- phenotypes(
       seed = seed,
@@ -519,7 +520,6 @@ create_phenotypes <-
       h2 = h2,
       rep = rep,
       ntraits = ntraits,
-      h2_MT = h2_MT,
       output_format = output_format,
       fam = fam,
       to_r = to_r,
@@ -532,5 +532,5 @@ create_phenotypes <-
     if (out_geno != "gds") {
       unlink(gdsfile, force = TRUE)
     }
-    return(results)
+    if(to_r) return(results)
   }
