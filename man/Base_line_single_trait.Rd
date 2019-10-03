@@ -6,7 +6,8 @@
 \usage{
 base_line_single_trait(additive_object = NULL, epistatic_object = NULL,
   additive_effect = NULL, epistatic_effect = NULL,
-  big_additive_QTN_effect = NULL, seed = NULL)
+  big_additive_QTN_effect = NULL, seed = NULL, rep = NULL,
+  rep_by = "experiment", ntraits = 1)
 }
 \arguments{
 \item{additive_object}{hhh}
@@ -20,6 +21,12 @@ base_line_single_trait(additive_object = NULL, epistatic_object = NULL,
 \item{big_additive_QTN_effect}{hhh}
 
 \item{seed}{hhh}
+
+\item{rep}{= NULL,}
+
+\item{rep_by}{= NULL,}
+
+\item{ntraits}{= NULL}
 }
 \value{
 A vector of Genetic values
@@ -33,5 +40,6 @@ Last update: Jul 22, 2019
 
 -----------------------------Base_line_single_trait----------------------------
 --------------------------------------------------------------------------
+make base_line_trait additive_component and epistatic_component
 make base_line_trait additive_component and epistatic_component
 }

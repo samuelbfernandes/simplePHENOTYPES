@@ -7,7 +7,7 @@
 base_line_multi_traits(additive_object = NULL, epistatic_object = NULL,
   additive_effect = NULL, epistatic_effect = NULL,
   big_additive_QTN_effect = NULL, seed = seed, ntraits = NULL,
-  correlation = NULL, model = "pleiotropic")
+  correlation = NULL, model = NULL, rep = NULL, rep_by = NULL)
 }
 \arguments{
 \item{additive_object}{hhh}
@@ -27,6 +27,10 @@ base_line_multi_traits(additive_object = NULL, epistatic_object = NULL,
 \item{correlation}{hhh}
 
 \item{model}{hhh}
+
+\item{rep}{= 1,}
+
+\item{rep_by}{= 'QTN',}
 }
 \value{
 A matrix of Genetic values for multiple traits

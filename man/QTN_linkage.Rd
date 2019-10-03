@@ -6,7 +6,8 @@
 \usage{
 QTN_linkage(genotypes = NULL, seed = NULL,
   additive_QTN_number = NULL, ld = NULL, gdsfile = NULL,
-  constrains = list(maf_above = NULL, maf_below = NULL))
+  constrains = list(maf_above = NULL, maf_below = NULL), rep = NULL,
+  rep_by = NULL, export_gt = NULL)
 }
 \arguments{
 \item{genotypes}{= NULL,}
@@ -20,6 +21,12 @@ QTN_linkage(genotypes = NULL, seed = NULL,
 \item{gdsfile}{NULL}
 
 \item{constrains}{= list(maf_above = NULL, maf_below = NULL)}
+
+\item{rep}{= 1,}
+
+\item{rep_by}{= 'QTN',}
+
+\item{export_gt}{= FALSE}
 }
 \value{
 Genotype of selected SNPs

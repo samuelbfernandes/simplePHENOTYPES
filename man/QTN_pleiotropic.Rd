@@ -6,7 +6,8 @@
 \usage{
 QTN_pleiotropic(genotypes = NULL, seed = NULL,
   additive_QTN_number = NULL, epistatic_QTN_number = NULL,
-  constrains = list(maf_above = NULL, maf_below = NULL))
+  constrains = list(maf_above = NULL, maf_below = NULL), rep = NULL,
+  rep_by = NULL, export_gt = NULL)
 }
 \arguments{
 \item{genotypes}{= NULL,}
@@ -18,6 +19,12 @@ QTN_pleiotropic(genotypes = NULL, seed = NULL,
 \item{epistatic_QTN_number}{= NULL}
 
 \item{constrains}{= list(maf_above = NULL, maf_below = NULL)}
+
+\item{rep}{= 1,}
+
+\item{rep_by}{= 'QTN',}
+
+\item{export_gt}{= FALSE}
 }
 \value{
 Genotype of selected SNPs

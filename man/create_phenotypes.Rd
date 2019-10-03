@@ -13,8 +13,8 @@ create_phenotypes(genotypes_object = NULL, genotypes_file = NULL,
   epistatic_effect = NULL, big_additive_QTN_effect = NULL,
   model = "pleiotropic", overlap = NULL, overlap_e = NULL,
   specific_QTN_number = NULL, specific_e_QTN_number = NULL, ld = 0.5,
-  rep = NULL, rep_by = "QTN", ntraits = 1, h2 = NULL,
-  h2_MT = NULL, correlation = NULL, seed = NULL,
+  rep = NULL, rep_by = "QTN", export_gt = FALSE, ntraits = 1,
+  h2 = NULL, h2_MT = NULL, correlation = NULL, seed = NULL,
   home_dir = getwd(), output_dir = NULL, to_r = FALSE,
   output_format = "long", out_geno = NULL, gdsfile = NULL,
   constrains = list(maf_above = NULL, maf_below = NULL))
@@ -87,15 +87,17 @@ to be used as QTN. Default is ld = 05.}
 \item{rep_by}{Simulate same QTNs but with different residuals ('residuals'). 
 Simulate each replication with different QTNs (Defalut 'QTN').}
 
+\item{export_gt}{if genotypes of selected QTNs should be exported.}
+
 \item{ntraits}{Number of traits to be simulated under pleitropic and
 partially pleiotropic models. The default for linkage disequilibrium models is two.}
 
-\item{h2}{Heritability of target trait (if multiple traits are simulated).
+\item{h2}{Heritability of trait 1 (possible the target trait) if multiple traits are simulated.
 If a vector, the simulation will "loop" over it and generate one file for each
 combination of genetic settings.}
 
 \item{h2_MT}{Heritability of correlated traits (in case it should be different).
-than target trait. It should be length ntraits-1.}
+It should be length ntraits-1.}
 
 \item{correlation}{Trait correlation matrix to be simulated. 
 Should have nrow == ncol == ntraits.}
@@ -138,9 +140,9 @@ Simulation of ntraits phenotypes based on a SNP file
 pheno <- create_phenotypes(
   genotypes_object = SNP55K_maize282_maf04,
   additive_QTN_number = 3,
-  additive_effect = c(0.1, 0.2),
+  additive_effect = 0.1,
   big_additive_QTN_effect = 0.9,
-  rep = 50,
+  rep = 10,
   h2 = 0.7,
   to_r = TRUE
 )
