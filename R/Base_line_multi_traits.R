@@ -9,6 +9,8 @@
 #' @param ntraits hhh
 #' @param correlation hhh
 #' @param model hhh
+#' @param rep = 1,
+#' @param rep_by = 'QTN',
 #' @return A matrix of Genetic values for multiple traits
 #' @author Samuel Fernandes
 #' Last update: Jul 22, 2019
@@ -23,168 +25,210 @@ base_line_multi_traits <-
            seed = seed,
            ntraits = NULL,
            correlation = NULL,
-           model = "pleiotropic") {
-  #'---------------------------------------------------------------------------
-    if (!is.null(correlation)) {
-      if (model == "pleiotropic") {
-        genetic_value <-
-          base_line_single_trait(
-            additive_object = additive_object[[1]],
-            epistatic_object = epistatic_object[[1]],
-            additive_effect = additive_effect[1],
-            epistatic_effect = epistatic_effect[1],
-            big_additive_QTN_effect = big_additive_QTN_effect[1],
-            seed = seed
-          )
-        n <- nrow(genetic_value$base_line)
-        varg <- var(genetic_value$base_line)
-        traits <- matrix(NA, n, ncol = ntraits)
-        traits[, 1] <- genetic_value$base_line$additive_effect
-        for (i in 2:ntraits) {
-          traits[, i] <-
-            genetic_value$base_line$additive_effect +
-            rnorm(n, 0, sqrt(varg * 0.01))
-        }
-        genetic_s <- apply(traits, 2, scale)
-        #' whiting transformation
-        L <- t(chol(cov(genetic_s)))
-        G_white <- t(solve(L) %*% t(genetic_s))
-        #' coloring transformation
-        #' approximation to make it positive definite
-        if (!lqmm::is.positive.definite(correlation)) {
-          cat("Correlation matrix not positive definite! Using make.positive.definite \n")
-          correlation <-
-            lqmm::make.positive.definite(correlation)
-        }
-        L <- t(chol(correlation))
-        traits <- t(L %*% t(G_white))
-        rownames(traits) <- rownames(additive_object[[1]])
-        #' bring it back to the original scale
-        cor_original_trait <- c()
-        for (i in 1:ncol(traits)) {
-          traits[, i] <-
-            (traits[, i] * sd(genetic_value$base_line$additive_effect)) +
-            mean(genetic_value$base_line$additive_effect)
-          cor_original_trait[i] <-
-            cor(traits[, i], genetic_value$base_line$additive_effect)
-        }
-        sample_cor <- cor(traits)
-        results <- if (!is.null(epistatic_object)) {
-          list(
-            base_line = traits,
-            VA = c(genetic_value$VA),
-            VE = c(genetic_value$VE),
-            sample_cor = sample_cor
-          )
+           model = NULL,
+           rep = NULL,
+           rep_by = NULL) {
+    #'---------------------------------------------------------------------------
+     if (rep_by != 'QTN'){ rep <- 1}
+      results <- vector("list", rep)
+      for(z in 1:rep){
+        if (!is.null(correlation) & model != "LD") {
+          if (model == "pleiotropic") {
+            genetic_value <-
+              matrix(NA, nrow(additive_object[[z]]), ncol = ntraits)
+            VA <- c()
+            VE <- c()
+            for (j in 1:ntraits) {
+              trait_temp <-
+                base_line_single_trait(
+                  additive_object = additive_object[[z]],
+                  epistatic_object = epistatic_object[[z]],
+                  additive_effect = additive_effect[j],
+                  epistatic_effect = epistatic_effect[j],
+                  big_additive_QTN_effect = big_additive_QTN_effect[j],
+                  seed = seed,
+                  ntraits = ntraits
+                )
+              genetic_value[, j] <-
+                trait_temp$base_line$additive_effect
+              VA[j] <- trait_temp$VA
+              if (!is.null(epistatic_object)) {
+                VE[j] <- trait_temp$VE
+              }
+            }
+            if(var(additive_effect)==0){
+              n <- nrow(genetic_value)
+              #add a noise (1% of VG) to make
+              for (i in 2:ntraits) {
+                genetic_value[, i] <-
+                  genetic_value[, i] +
+                  rnorm(n, 0, sqrt(var(genetic_value[,i]) * 0.01))
+              }
+            }
+            sdg <- apply(genetic_value, 2, sd)
+            meang <- apply(genetic_value, 2, mean)
+            genetic_s <- apply(genetic_value, 2, scale)
+            #' whiting transformation
+            L <- t(chol(cov(genetic_s)))
+            G_white <- t(solve(L) %*% t(genetic_s))
+            #' coloring transformation
+            #' approximation to make it positive definite
+            if (!lqmm::is.positive.definite(correlation)) {
+              cat("Correlation matrix not positive definite! Using make.positive.definite \n")
+              correlation <-
+                lqmm::make.positive.definite(correlation)
+            }
+            L <- t(chol(correlation))
+            traits <- t(L %*% t(G_white))
+            rownames(traits) <- rownames(additive_object[[z]])
+            #' bring it back to the original scale
+            cor_original_trait <- c()
+            for (i in 1:ncol(traits)) {
+              traits[, i] <-
+                traits[, i] * sdg[i] + meang[i]
+              cor_original_trait[i] <-
+                cor(traits[, i], genetic_value[,i])
+            }
+            sample_cor <- cor(traits)
+            results[[z]] <- if (!is.null(epistatic_object)) {
+              list(
+                base_line = traits,
+                VA = VA,
+                VE = VE,
+                sample_cor = sample_cor
+              )
+            } else {
+              list(
+                base_line = traits,
+                VA = VA,
+                sample_cor = sample_cor
+              )
+            }
+          } else {
+            genetic_value <-
+              matrix(NA, nrow(additive_object[[z]][[1]]), ncol = ntraits)
+            VA <- c()
+            VE <- c()
+            for (j in 1:ntraits) {
+              trait_temp <-
+                base_line_single_trait(
+                  additive_object = additive_object[[z]][[j]],
+                  epistatic_object = epistatic_object[[z]][[j]],
+                  additive_effect = additive_effect[j],
+                  epistatic_effect = epistatic_effect[j],
+                  big_additive_QTN_effect = big_additive_QTN_effect[j],
+                  seed = seed,
+                  ntraits = ntraits
+                )
+              genetic_value[, j] <-
+                trait_temp$base_line$additive_effect
+              VA[j] <- trait_temp$VA
+              if (!is.null(epistatic_object)) {
+                VE[j] <- trait_temp$VE
+              }
+            }
+            sdg <- apply(genetic_value, 2, sd)
+            meang <- apply(genetic_value, 2, mean)
+            genetic_s <- apply(genetic_value, 2, scale)
+            #' whiting transformation
+            L <- t(chol(cov(genetic_s)))
+            G_white <- t(solve(L) %*% t(genetic_s))
+            #' coloring transformation
+            if (!lqmm::is.positive.definite(correlation)) {
+              cat(
+                "Correlation matrix not positive definite!
+              \nUsing lqmm::make.positive.definite \n"
+              )
+              correlation <-
+                lqmm::make.positive.definite(correlation)
+            }
+            L <- t(chol(correlation))
+            traits <- t(L %*% t(G_white))
+            rownames(traits) <- rownames(additive_object[[z]][[1]])
+            #' bring it back to the original scale
+            cor_original_trait <- c()
+            for (i in 1:ntraits) {
+              traits[, i] <- (traits[, i] * sdg[i]) + meang[i]
+              cor_original_trait[i] <-
+                cor(traits[, i], genetic_value[, i])
+            }
+            sample_cor <- cor(traits)
+            results[[z]] <- if (!is.null(epistatic_object)) {
+              list(
+                base_line = traits,
+                VA = VA,
+                VE = VE,
+                sample_cor = sample_cor,
+                cor_original_trait = cor_original_trait
+              )
+            } else {
+              list(
+                base_line = traits,
+                VA = VA,
+                sample_cor = sample_cor,
+                cor_original_trait = cor_original_trait
+              )
+            }
+
+          }
         } else {
-          list(
-            base_line = traits,
-            VA = c(genetic_value$VA),
-            sample_cor = sample_cor
-          )
-        }
-        return(results)
-      } else {
-        genetic_value <-
-          matrix(NA, nrow(additive_object[[1]]), ncol = ntraits)
-        VA <- c()
-        VE <- c()
-        for (j in 1:ntraits) {
-          trait_temp <-
-            base_line_single_trait(
-              additive_object = additive_object[[j]],
-              epistatic_object = epistatic_object[[j]],
-              additive_effect = additive_effect[j],
-              epistatic_effect = epistatic_effect[j],
-              big_additive_QTN_effect = big_additive_QTN_effect[j],
-              seed = seed
+          VA <- c()
+          VE <- c()
+          if (model == "pleiotropic") {
+            traits <- matrix(NA, nrow(additive_object[[z]]), ncol = ntraits)
+            for (i in 1:ntraits) {
+              trait_temp <-
+                base_line_single_trait(
+                  additive_object = additive_object[[z]],
+                  epistatic_object = epistatic_object[[z]],
+                  additive_effect = additive_effect[i],
+                  epistatic_effect = epistatic_effect[i],
+                  big_additive_QTN_effect = big_additive_QTN_effect[i],
+                  seed = seed,
+                  ntraits = ntraits
+                )
+              traits[, i] <- trait_temp$base_line[, 1]
+              VA[i] <- trait_temp$VA
+              if (!is.null(epistatic_object)) {
+                VE[i] <- trait_temp$VE
+              }
+            }
+            rownames(traits) <- rownames(additive_object[[1]])
+          } else {
+            traits <- matrix(NA, nrow(additive_object[[z]][[1]]), ncol = ntraits)
+            for (i in 1:ntraits) {
+              trait_temp <-
+                base_line_single_trait(
+                  additive_object = additive_object[[z]][[i]],
+                  epistatic_object = epistatic_object[[z]][[i]],
+                  additive_effect = additive_effect[i],
+                  epistatic_effect = epistatic_effect[i],
+                  big_additive_QTN_effect = big_additive_QTN_effect[i],
+                  seed = seed,
+                  ntraits = ntraits
+                )
+              traits[, i] <- trait_temp$base_line[, 1]
+              VA[i] <- trait_temp$VA
+              if (!is.null(epistatic_object)) {
+                VE[i] <- trait_temp$VE
+              }
+            }
+            rownames(traits) <- rownames(additive_object[[z]][[1]]) 
+          }
+          sample_cor <- cor(traits)
+          results[[z]] <- if (!is.null(epistatic_object)) {
+            list(
+              base_line = traits,
+              VA = VA,
+              VE = VE,
+              sample_cor = sample_cor
             )
-          genetic_value[, j] <-
-            trait_temp$base_line$additive_effect
-          VA[j] <- trait_temp$VA
-          if (!is.null(epistatic_object)) {
-            VE[j] <- trait_temp$VE
+          } else {
+            list(base_line = traits,
+                 VA = VA,
+                 sample_cor = sample_cor)
           }
         }
-        sdg <- apply(genetic_value, 2, sd)
-        meang <- apply(genetic_value, 2, mean)
-        genetic_s <- apply(genetic_value, 2, scale)
-        #' whiting transformation
-        L <- t(chol(cov(genetic_s)))
-        G_white <- t(solve(L) %*% t(genetic_s))
-        #' coloring transformation
-        if (!lqmm::is.positive.definite(correlation)) {
-          cat(
-            "Correlation matrix not positive definite!
-            \nUsing lqmm::make.positive.definite \n"
-          )
-          correlation <-
-            lqmm::make.positive.definite(correlation)
-        }
-        L <- t(chol(correlation))
-        traits <- t(L %*% t(G_white))
-        rownames(traits) <- rownames(additive_object[[1]])
-        #' bring it back to the original scale
-        cor_original_trait <- c()
-        for (i in 1:ncol(traits)) {
-          traits[, i] <- (traits[, i] * sdg[i]) + meang[i]
-          cor_original_trait[i] <-
-            cor(traits[, i], genetic_value[, i])
-        }
-        sample_cor <- cor(traits)
-        results <- if (!is.null(epistatic_object)) {
-          list(
-            base_line = traits,
-            VA = VA,
-            VE = VE,
-            sample_cor = sample_cor,
-            cor_original_trait = cor_original_trait
-          )
-        } else {
-          list(
-            base_line = traits,
-            VA = VA,
-            sample_cor = sample_cor,
-            cor_original_trait = cor_original_trait
-          )
-        }
-        return(results)
-      }
-    } else {
-      traits <- matrix(NA, nrow(additive_object[[1]]), ncol = ntraits)
-      VA <- c()
-      VE <- c()
-      for (i in 1:ntraits) {
-        ifelse(model == "pleiotropic", j <- 1, j <- i)
-        trait_temp <-
-          base_line_single_trait(
-            additive_object = additive_object[[j]],
-            epistatic_object = epistatic_object[[j]],
-            additive_effect = additive_effect[i],
-            epistatic_effect = epistatic_effect[i],
-            big_additive_QTN_effect = big_additive_QTN_effect[i],
-            seed = seed
-          )
-        traits[, i] <- trait_temp$base_line[, 1]
-        VA[i] <- trait_temp$VA
-        if (!is.null(epistatic_object)) {
-          VE[i] <- trait_temp$VE
-        }
-      }
-      rownames(traits) <- rownames(additive_object[[1]])
-      sample_cor <- cor(traits)
-      results <- if (!is.null(epistatic_object)) {
-        list(
-          base_line = traits,
-          VA = VA,
-          VE = VE,
-          sample_cor = sample_cor
-        )
-      } else {
-        list(base_line = traits,
-             VA = VA,
-             sample_cor = sample_cor)
       }
       return(results)
-    }
   }
