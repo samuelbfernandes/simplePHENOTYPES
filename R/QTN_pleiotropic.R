@@ -5,6 +5,9 @@
 #' @param additive_QTN_number = NULL,
 #' @param epistatic_QTN_number = NULL
 #' @param constrains = list(maf_above = NULL, maf_below = NULL)
+#' @param rep = 1,
+#' @param rep_by = 'QTN',
+#' @param export_gt = FALSE
 #' @return Genotype of selected SNPs
 #' @author Alex lipka and Samuel Fernandes
 #' Last update: Jul 22, 2019
@@ -16,99 +19,89 @@ QTN_pleiotropic <-
            additive_QTN_number = NULL,
            epistatic_QTN_number = NULL,
            constrains = list(maf_above = NULL,
-                             maf_below = NULL)) {
+                             maf_below = NULL),
+           rep = NULL,
+           rep_by = NULL,
+           export_gt = NULL) {
     #---------------------------------------------------------------------------
-    # Randomly select (without replacement) k additive QTN,
-    # and assign an effect size
-    if (!is.null(seed)) {
-      set.seed(seed)
-    }
-    if (any(lengths(constrains)>0)) { 
+    if (any(lengths(constrains)>0)) {
       index <- constrain(genotypes = genotypes, 
                          maf_above = constrains$maf_above,
                          maf_below = constrains$maf_below)
     } else {
       # First SNP at column 6
       index <- 6:nrow(genotypes)
-    }
-    vector_of_add_QTN <-
-      sample(index, additive_QTN_number, replace = FALSE)
-    add_QTN_genotypic_information <- genotypes[vector_of_add_QTN, ]
-    # Create an output file that gives the chromosome, bp, and
-    # additive effect of the effect sizes, as well as the seed
-    write.table(
-      ifelse(
-        !is.null(seed),
-        paste0("Here_is_the_seed_number: ", seed),
-        "set.seed not assigned"
-      ),
-      paste0("seed_number_for_", additive_QTN_number,
-             "Add_QTN", ".txt"),
-      row.names = FALSE,
-      col.names = FALSE,
-      sep = "\t",
-      quote = FALSE
-    )
-    data.table::fwrite(
-      add_QTN_genotypic_information,
-      paste0(
-        "Genotypic_information_for_",
-        additive_QTN_number,
-        "_Additive_QTN",
-        ".txt"
-      ),
-      row.names = FALSE,
-      sep = "\t",
-      quote = FALSE,
-      na = NA
-    )
-    # Create a 'base line' trait, which is basically just the additive effects;
-    # this is what we would see if the heritability of the simulated
-    # trait were 1
-    additive_effect_trait_object <-
-      t(add_QTN_genotypic_information[, -c(1:5)])
-    colnames(additive_effect_trait_object) <-
-      paste0(
-        "Chr_",
-        unlist(add_QTN_genotypic_information[, 3]),
-        "_",
-        unlist(add_QTN_genotypic_information[, 4])
-      )
-    if (!is.null(epistatic_QTN_number)){
-      # Randomly select (without replacement) 2*k epistatic QTN, and
-      # assign an effect size
-      if (!is.null(seed)) {
-        set.seed(seed * seed)
+    }    
+    if (rep_by != 'QTN'){rep <- 1}
+      add_QTN_genotypic_information <- vector("list", rep)
+      epi_QTN_genotypic_information <- vector("list", rep)
+      additive_effect_trait_object <- vector("list", rep)
+      epistatic_effect_trait_object <- vector("list", rep)
+      for (i in 1:rep) {
+        if (!is.null(seed)) {
+          set.seed(seed + i)
+        }
+        vector_of_add_QTN <-
+          sample(index, additive_QTN_number, replace = FALSE)
+        add_QTN_genotypic_information[[i]] <- 
+          as.data.frame(genotypes[vector_of_add_QTN, ])
+        additive_effect_trait_object[[i]] <-
+          t(add_QTN_genotypic_information[[i]][, -c(1:5)])
+        colnames(additive_effect_trait_object[[i]]) <-
+          paste0(
+            "Chr_",
+            unlist(add_QTN_genotypic_information[[i]][, 3]),
+            "_",
+            unlist(add_QTN_genotypic_information[[i]][, 4])
+          )
+        if (!is.null(epistatic_QTN_number)){
+          if (!is.null(seed)) {
+            set.seed(seed * seed +i)
+          }
+          vector_of_epi_QTN <-
+            sample(index, (2 * epistatic_QTN_number), replace = FALSE)
+          epi_QTN_genotypic_information[[i]] <-
+            as.data.frame(genotypes[vector_of_epi_QTN, ])
+          
+          epistatic_effect_trait_object[[i]] <-
+            t(epi_QTN_genotypic_information[[i]][, -c(1:5)])
+          colnames(epistatic_effect_trait_object[[i]]) <-
+            paste0(
+              "Chr_",
+              unlist(epi_QTN_genotypic_information[[i]][, 3]),
+              "_",
+              unlist(epi_QTN_genotypic_information[[i]][, 4])
+            )
+        }
       }
-      vector_of_epi_QTN <-
-        sample(index, (2 * epistatic_QTN_number), replace = FALSE)
-      epi_QTN_genotypic_information <-
-        genotypes[vector_of_epi_QTN, ]
-      # Create an output file that gives the chromosome, bp, and
-      # additive effect of the effect sizes, as well as the seed
+      add_QTN_genotypic_information <- 
+        do.call(rbind, add_QTN_genotypic_information)
+      add_QTN_genotypic_information <- 
+        data.frame(rep = rep(1:rep, each=additive_QTN_number),
+                   add_QTN_genotypic_information)
+      if(!export_gt){
+        add_QTN_genotypic_information <- add_QTN_genotypic_information[,1:5]
+      }
+      if (!is.null(seed)) {
+        s <- as.matrix(seed+1:rep)
+      } else {
+        s <- "set.seed not assigned"
+      }
       write.table(
-        ifelse(
-          !is.null(seed),
-          paste0("Here_is_the_seed_number: ", seed * seed),
-          "set.seed not assigned"
-        ),
-        paste0(
-          "seed_number_for_",
-          epistatic_QTN_number,
-          "Epi_QTN",
-          ".txt"
-        ),
+        s,
+        paste0("seed_number_for_",rep,"_reps_and_", additive_QTN_number,
+               "_Add_QTN", ".txt"),
         row.names = FALSE,
         col.names = FALSE,
         sep = "\t",
         quote = FALSE
       )
       data.table::fwrite(
-        epi_QTN_genotypic_information,
+        add_QTN_genotypic_information,
         paste0(
-          "Genotypic_information_for_",
-          epistatic_QTN_number,
-          "_Epistatic_QTN",
+          "Genotypic_information_for_",rep, "_reps_and_",
+          additive_QTN_number,
+          "_Additive_QTN",
           ".txt"
         ),
         row.names = FALSE,
@@ -116,24 +109,56 @@ QTN_pleiotropic <-
         quote = FALSE,
         na = NA
       )
-      epistatic_effect_trait_object <-
-        t(epi_QTN_genotypic_information[, -c(1:5)])
-      colnames(epistatic_effect_trait_object) <-
-        paste0(
-          "Chr_",
-          unlist(epi_QTN_genotypic_information[, 3]),
-          "_",
-          unlist(epi_QTN_genotypic_information[, 4])
+      if (!is.null(epistatic_QTN_number)){
+        epi_QTN_genotypic_information <- 
+          do.call(rbind, epi_QTN_genotypic_information)
+        epi_QTN_genotypic_information <- 
+          data.frame(rep = rep(rep(1:rep, each=epistatic_QTN_number), each=2),
+                     epi_QTN_genotypic_information)
+        
+        if(!export_gt){
+          epi_QTN_genotypic_information <- epi_QTN_genotypic_information[,1:5]
+        }
+        if (!is.null(seed)) {
+          ss <- as.matrix((seed * seed)+1:rep)
+        } else {
+          ss <- "set.seed not assigned"
+        }
+        write.table(
+          ss,
+          paste0(
+            "seed_number_for_",rep, "_reps_and_",
+            epistatic_QTN_number,
+            "Epi_QTN",
+            ".txt"
+          ),
+          row.names = FALSE,
+          col.names = FALSE,
+          sep = "\t",
+          quote = FALSE
         )
-      return(
-        list(
-          additive_effect_trait_object = list(additive_effect_trait_object),
-          epistatic_effect_trait_object = list(epistatic_effect_trait_object)
+        data.table::fwrite(
+          epi_QTN_genotypic_information,
+          paste0(
+            "Genotypic_information_for_",
+            epistatic_QTN_number,
+            "_Epistatic_QTN",
+            ".txt"
+          ),
+          row.names = FALSE,
+          sep = "\t",
+          quote = FALSE,
+          na = NA
         )
-      )
-    } else {
-      return(list(
-        additive_effect_trait_object = list(additive_effect_trait_object)
-      ))
-    }
+        return(
+          list(
+            additive_effect_trait_object = additive_effect_trait_object,
+            epistatic_effect_trait_object = epistatic_effect_trait_object
+          )
+        )
+      } else {
+        return(list(
+          additive_effect_trait_object = additive_effect_trait_object
+        ))
+      }
   }
