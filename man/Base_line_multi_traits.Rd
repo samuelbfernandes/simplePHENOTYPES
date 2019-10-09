@@ -4,21 +4,30 @@
 \alias{base_line_multi_traits}
 \title{Calculate genetic value based on QTN objects.}
 \usage{
-base_line_multi_traits(additive_object = NULL, epistatic_object = NULL,
-  additive_effect = NULL, epistatic_effect = NULL,
-  big_additive_QTN_effect = NULL, seed = seed, ntraits = NULL,
-  correlation = NULL, model = NULL, rep = NULL, rep_by = NULL)
+base_line_multi_traits(additive_object = NULL, dominance_object = NULL,
+  epistatic_object = NULL, additive_effect = NULL,
+  dominance_effect = NULL, epistatic_effect = NULL,
+  big_additive_QTN_effect = NULL, big_dominance_QTN_effect = NULL,
+  seed = seed, ntraits = NULL, correlation = NULL,
+  architecture = NULL, rep = NULL, rep_by = NULL, add = NULL,
+  dom = NULL, epi = NULL, sim_method = NULL)
 }
 \arguments{
 \item{additive_object}{hhh}
+
+\item{dominance_object}{hhh}
 
 \item{epistatic_object}{hhh}
 
 \item{additive_effect}{hhh}
 
+\item{dominance_effect}{= NULL,}
+
 \item{epistatic_effect}{kkkk}
 
 \item{big_additive_QTN_effect}{jjj}
+
+\item{big_dominance_QTN_effect}{= null}
 
 \item{seed}{hhh}
 
@@ -26,11 +35,19 @@ base_line_multi_traits(additive_object = NULL, epistatic_object = NULL,
 
 \item{correlation}{hhh}
 
-\item{model}{hhh}
+\item{architecture}{hhh}
 
 \item{rep}{= 1,}
 
 \item{rep_by}{= 'QTN',}
+
+\item{add}{= NULL,}
+
+\item{dom}{= NULL,}
+
+\item{epi}{= NULL}
+
+\item{sim_method}{= NULL,}
 }
 \value{
 A matrix of Genetic values for multiple traits

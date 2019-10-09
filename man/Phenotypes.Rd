@@ -5,8 +5,8 @@
 \title{Generate environmental effects based on a given heritability}
 \usage{
 phenotypes(base_line_trait = NULL, h2 = NULL, rep = NULL,
-  seed = NULL, ntraits = NULL, h2_MT = NULL, output_format = NULL,
-  fam = NULL, to_r = NULL, rep_by = NULL)
+  seed = NULL, ntraits = NULL, output_format = NULL, fam = NULL,
+  to_r = NULL, rep_by = NULL)
 }
 \arguments{
 \item{base_line_trait}{= NULL,}
@@ -18,8 +18,6 @@ phenotypes(base_line_trait = NULL, h2 = NULL, rep = NULL,
 \item{seed}{= NULL,}
 
 \item{ntraits}{= NULL,}
-
-\item{h2_MT}{= NULL,}
 
 \item{output_format}{= 'multi-file'}
 

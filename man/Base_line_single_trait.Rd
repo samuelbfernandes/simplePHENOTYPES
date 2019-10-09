@@ -4,21 +4,29 @@
 \alias{base_line_single_trait}
 \title{Calculate genetic value based on QTN objects.}
 \usage{
-base_line_single_trait(additive_object = NULL, epistatic_object = NULL,
-  additive_effect = NULL, epistatic_effect = NULL,
-  big_additive_QTN_effect = NULL, seed = NULL, rep = NULL,
-  rep_by = "experiment", ntraits = 1)
+base_line_single_trait(additive_object = NULL, dominance_object = NULL,
+  epistatic_object = NULL, additive_effect = NULL,
+  dominance_effect = NULL, epistatic_effect = NULL,
+  big_additive_QTN_effect = NULL, big_dominance_QTN_effect = NULL,
+  seed = NULL, rep = NULL, rep_by = "experiment", ntraits = 1,
+  add = NULL, dom = NULL, epi = NULL, sim_method = NULL)
 }
 \arguments{
 \item{additive_object}{hhh}
+
+\item{dominance_object}{hhh}
 
 \item{epistatic_object}{hhh}
 
 \item{additive_effect}{hhh}
 
+\item{dominance_effect}{= NULL,}
+
 \item{epistatic_effect}{hhh}
 
 \item{big_additive_QTN_effect}{hhh}
+
+\item{big_dominance_QTN_effect}{= null}
 
 \item{seed}{hhh}
 
@@ -27,6 +35,14 @@ base_line_single_trait(additive_object = NULL, epistatic_object = NULL,
 \item{rep_by}{= NULL,}
 
 \item{ntraits}{= NULL}
+
+\item{add}{= NULL,}
+
+\item{dom}{= NULL,}
+
+\item{epi}{= NULL}
+
+\item{sim_method}{= NULL,}
 }
 \value{
 A vector of Genetic values
@@ -40,6 +56,4 @@ Last update: Jul 22, 2019
 
 -----------------------------Base_line_single_trait----------------------------
 --------------------------------------------------------------------------
-make base_line_trait additive_component and epistatic_component
-make base_line_trait additive_component and epistatic_component
 }
