@@ -7,7 +7,6 @@
 #' @param dominance_effect = NULL,
 #' @param epistatic_effect kkkk
 #' @param big_additive_QTN_effect jjj
-#' @param big_dominance_QTN_effect = null
 #' @param seed hhh
 #' @param ntraits hhh
 #' @param correlation hhh
@@ -31,7 +30,6 @@ base_line_multi_traits <-
            dominance_effect = NULL,
            epistatic_effect = NULL,
            big_additive_QTN_effect = NULL,
-           big_dominance_QTN_effect = NULL,
            seed = seed,
            ntraits = NULL,
            correlation = NULL,
@@ -74,7 +72,6 @@ base_line_multi_traits <-
                 dominance_effect = dominance_effect[,j],
                 epistatic_effect = epistatic_effect[,j],
                 big_additive_QTN_effect = big_additive_QTN_effect[j],
-                big_dominance_QTN_effect = big_dominance_QTN_effect[j],
                 seed = seed,
                 ntraits = ntraits,
                 add = add,
@@ -189,7 +186,6 @@ base_line_multi_traits <-
                 dominance_effect = dominance_effect[,j],
                 epistatic_effect = epistatic_effect[,j],
                 big_additive_QTN_effect = big_additive_QTN_effect[j],
-                big_dominance_QTN_effect = big_dominance_QTN_effect[j],
                 seed = seed,
                 ntraits = ntraits,
                 add = add,
@@ -311,7 +307,6 @@ base_line_multi_traits <-
                 dominance_effect = dominance_effect[,i],
                 epistatic_effect = epistatic_effect[,i],
                 big_additive_QTN_effect = big_additive_QTN_effect[i],
-                big_dominance_QTN_effect = big_dominance_QTN_effect[i],
                 seed = seed,
                 ntraits = ntraits,
                 add = add,
@@ -346,7 +341,6 @@ base_line_multi_traits <-
                 dominance_effect = dominance_effect[,i],
                 epistatic_effect = epistatic_effect[,i],
                 big_additive_QTN_effect = big_additive_QTN_effect[i],
-                big_dominance_QTN_effect = big_dominance_QTN_effect[i],
                 seed = seed,
                 ntraits = ntraits,
                 add = add,

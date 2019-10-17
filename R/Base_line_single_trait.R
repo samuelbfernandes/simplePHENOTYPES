@@ -7,7 +7,6 @@
 #' @param dominance_effect = NULL,
 #' @param epistatic_effect hhh
 #' @param big_additive_QTN_effect hhh
-#' @param big_dominance_QTN_effect = null
 #' @param seed hhh
 #' @param rep = NULL,
 #' @param rep_by = NULL,
@@ -30,7 +29,6 @@ base_line_single_trait <-
            dominance_effect = NULL,
            epistatic_effect = NULL,
            big_additive_QTN_effect = NULL,
-           big_dominance_QTN_effect = NULL,
            seed = NULL,
            rep = NULL,
            rep_by = "experiment",
@@ -52,7 +50,6 @@ base_line_single_trait <-
                                 dom_effect = dominance_effect,
                                 epi_effect = epistatic_effect,
                                 big_add_QTN_effect = big_additive_QTN_effect,
-                                big_dom_QTN_effect = big_dominance_QTN_effect,
                                 sim_method = sim_method,
                                 add = add,
                                 dom = dom,
@@ -68,7 +65,6 @@ base_line_single_trait <-
                          dom_effect = dominance_effect,
                          epi_effect = epistatic_effect,
                          big_add_QTN_effect = big_additive_QTN_effect,
-                         big_dom_QTN_effect = big_dominance_QTN_effect,
                          sim_method = sim_method,
                          add = add,
                          dom = dom,

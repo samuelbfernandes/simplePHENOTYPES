@@ -53,7 +53,7 @@
 #' @param ld Linkage disequilibrium between selected marker two adjacent markers
 #' to be used as QTN. Default is ld = 05.
 #' @param rep Number of experiments to be simulated.
-#' @param rep_by If rep_by = "QTN" (default), at each replication it selects a differet set of SNPs to be the QTNs. 
+#' @param vary_QTN TRUE or FALSE ... If rep_by = "QTN" (default), at each replication it selects a differet set of SNPs to be the QTNs. 
 #' If rep_by = "experiment", the same set of QTNs are used to generate phenotypes on the "rep" replications.
 #' @param export_gt If TRUE genotypes of selected QTNs will be saved at file. If FALSE (default), only the QTN information will be saved.
 #' @param ntraits Number of traits to be simulated under pleitropic,
@@ -86,7 +86,6 @@
 #' as well as any combination of those models such as "AE", "DE" or "ADE".
 #' @param sim_method Either "geometric" or "user".
 #' @param dominance_effect ...
-#' @param big_dominance_QTN_effect ...
 #' Eiter one or both of the following options may be non-null: 'list(maf_above = NULL, maf_below = NULL)'.
 #' @return Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits' traits.
 #' @author Samuel Fernandes and Alexander Lipka
@@ -115,14 +114,17 @@ create_phenotypes <-
            SNP_effect = "Add",
            SNP_impute = "Middle",
            major_allele_zero = FALSE,
+           model = NULL,
            additive_QTN_number = NULL,
            dominance_QTN_number = NULL,
            epistatic_QTN_number = NULL,
+           sim_method = "geometric",
            additive_effect = NULL,
            dominance_effect = NULL,
            epistatic_effect = NULL,
+           same_add_dom_QTN = TRUE,
+           average_degree_of_dom = NULL,
            big_additive_QTN_effect = NULL,
-           big_dominance_QTN_effect = NULL,
            architecture = "pleiotropic",
            overlap = NULL,
            overlap_e = NULL,
@@ -130,7 +132,7 @@ create_phenotypes <-
            specific_e_QTN_number = NULL,
            ld = 0.5,
            rep = NULL,
-           rep_by = "QTN",
+           vary_QTN = TRUE,
            export_gt = FALSE,
            ntraits = 1,
            h2 = NULL,
@@ -143,14 +145,24 @@ create_phenotypes <-
            out_geno = NULL,
            gdsfile = NULL,
            constrains = list(maf_above = NULL,
-                             maf_below = NULL),
-           sim_method = "geometric",
-           model = "A" ) {
+                             maf_below = NULL)) {
     # -------------------------------------------------------------------------
     .onAttach <- function(libname, simplePHENOTYPES) {
       packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
     }
     .onAttach()
+    
+    if(vary_QTN) {rep_by <-  "QTN"} else {rep_by <- "experiment"}
+    
+    if (!is.null(model)){
+      if (!(grepl("A", model) |
+          grepl("D", model) |
+          grepl("E", model))) {
+        
+      }
+    }else{
+      stop("Please assign a \'model\' parameter. Options:\'A\', \'D\', \'E\' or combinations such as \'ADE\'.", call. = F)
+    }
     if (grepl("A", model)) { add <- TRUE } else {add <- FALSE  }
     if (grepl("D", model)) { dom <- TRUE } else {dom <- FALSE  }
     if (grepl("E", model)) { epi <- TRUE } else {epi <- FALSE  }
@@ -182,17 +194,10 @@ create_phenotypes <-
         }
         if (dom){
           if (is.matrix(dominance_effect)) {
-            if (is.null(big_dominance_QTN_effect)) {
               if (nrow(dominance_effect) != dominance_QTN_number |
                   ncol(dominance_effect) != ntraits){
                 stop("Please provide an \'dominance_effect\' matrix of nrow = \'dominance_QTN_number\' and ncol = \'ntraits\'.", call. = F)
               }
-            } else {
-              if (nrow(dominance_effect) != (dominance_QTN_number-1) |
-                  ncol(dominance_effect) != ntraits){
-                stop("Please provide an \'dominance_effect\' matrix of nrow = (\'dominance_QTN_number\'- 1) and ncol = \'ntraits\'.", call. = F)
-              }
-            }
           } else {
             stop("Please provide an \'dominance_effect\' matrix of nrow = \'dominance_QTN_number\' and ncol = \'ntraits\'.", call. = F)
           }
@@ -495,7 +500,6 @@ create_phenotypes <-
         colnames(dominance_effect) <- paste0("Trait_", 1:ntraits)
         cat("\nDominance genetic effect:\n")
         print(dominance_effect)
-        cat("\nBig effect Dominance QTN:", big_dominance_QTN_effect)
       }
       if (epi) {
         colnames(epistatic_effect) <- paste0("Trait_", 1:ntraits)
@@ -522,7 +526,6 @@ create_phenotypes <-
         colnames(dominance_effect) <- paste0("Trait_", 1:ntraits)
         cat("\nDominance genetic effects:\n")
         print(dominance_effect)
-        cat("\nBig effect Dominance QTN:", big_dominance_QTN_effect)
       }
       if (epi) {
         colnames(epistatic_effect) <- paste0("Trait_", 1:ntraits)
@@ -636,46 +639,135 @@ create_phenotypes <-
         )
     }
     if (ntraits == 1) {
-      genetic_value <-
-        base_line_single_trait(
-          seed = seed,
-          additive_object = QTN$additive_effect_trait_object,
-          dominance_object = QTN$dominance_effect_trait_object,
-          epistatic_object = QTN$epistatic_effect_trait_object,
-          additive_effect = additive_effect,
-          dominance_effect = dominance_effect,
-          epistatic_effect = epistatic_effect,
-          big_additive_QTN_effect = big_additive_QTN_effect,
-          big_dominance_QTN_effect = big_dominance_QTN_effect,
-          rep = rep,
-          rep_by = rep_by,
-          add = add,
-          dom = dom,
-          epi = epi,
-          sim_method = sim_method
-        )
+      if (dom) {
+        if (same_add_dom_QTN) {
+          genetic_value <-
+            base_line_single_trait(
+              seed = seed,
+              additive_object = QTN$additive_effect_trait_object,
+              dominance_object = QTN$additive_effect_trait_object,
+              epistatic_object = QTN$epistatic_effect_trait_object,
+              additive_effect = additive_effect,
+              dominance_effect = dominance_effect,
+              epistatic_effect = epistatic_effect,
+              big_additive_QTN_effect = big_additive_QTN_effect,
+              rep = rep,
+              rep_by = rep_by,
+              add = add,
+              dom = dom,
+              epi = epi,
+              sim_method = sim_method
+            )
+        }else{
+          genetic_value <-
+            base_line_single_trait(
+              seed = seed,
+              additive_object = QTN$additive_effect_trait_object,
+              dominance_object = QTN$dominance_effect_trait_object,
+              epistatic_object = QTN$epistatic_effect_trait_object,
+              additive_effect = additive_effect,
+              dominance_effect = dominance_effect,
+              epistatic_effect = epistatic_effect,
+              big_additive_QTN_effect = big_additive_QTN_effect,
+              rep = rep,
+              rep_by = rep_by,
+              add = add,
+              dom = dom,
+              epi = epi,
+              sim_method = sim_method
+            )
+        }
+      } else {
+        genetic_value <-
+          base_line_single_trait(
+            seed = seed,
+            additive_object = QTN$additive_effect_trait_object,
+            epistatic_object = QTN$epistatic_effect_trait_object,
+            additive_effect = additive_effect,
+            epistatic_effect = epistatic_effect,
+            big_additive_QTN_effect = big_additive_QTN_effect,
+            rep = rep,
+            rep_by = rep_by,
+            add = add,
+            dom = dom,
+            epi = epi,
+            sim_method = sim_method
+          )
+      }
     } else {
-      genetic_value <-
-        base_line_multi_traits(
-          seed = seed,
-          ntraits = ntraits,
-          correlation = correlation,
-          additive_object = QTN$additive_effect_trait_object,
-          dominance_object = QTN$dominance_effect_trait_object,
-          epistatic_object = QTN$epistatic_effect_trait_object,
-          additive_effect = additive_effect,
-          dominance_effect = dominance_effect,
-          epistatic_effect = epistatic_effect,
-          big_additive_QTN_effect = big_additive_QTN_effect,
-          big_dominance_QTN_effect = big_dominance_QTN_effect,
-          rep = rep,
-          rep_by = rep_by,
-          architecture = architecture,
-          add = add,
-          dom = dom,
-          epi = epi,
-          sim_method = sim_method
-        )
+      if(dom){
+        #including same_add_dom_QTN
+        if(same_add_dom_QTN){
+          genetic_value <-
+            base_line_multi_traits(
+              seed = seed,
+              ntraits = ntraits,
+              correlation = correlation,
+              additive_object = QTN$additive_effect_trait_object,
+              dominance_object = QTN$additive_effect_trait_object,
+              epistatic_object = QTN$epistatic_effect_trait_object,
+              additive_effect = additive_effect,
+              dominance_effect = dominance_effect,
+              epistatic_effect = epistatic_effect,
+              big_additive_QTN_effect = big_additive_QTN_effect,
+              rep = rep,
+              rep_by = rep_by,
+              architecture = architecture,
+              add = add,
+              dom = dom,
+              epi = epi,
+              sim_method = sim_method
+            )
+        }else{
+          genetic_value <-
+            base_line_multi_traits(
+              seed = seed,
+              ntraits = ntraits,
+              correlation = correlation,
+              additive_object = QTN$additive_effect_trait_object,
+              dominance_object = QTN$dominance_effect_trait_object,
+              epistatic_object = QTN$epistatic_effect_trait_object,
+              additive_effect = additive_effect,
+              dominance_effect = dominance_effect,
+              epistatic_effect = epistatic_effect,
+              big_additive_QTN_effect = big_additive_QTN_effect,
+              rep = rep,
+              rep_by = rep_by,
+              architecture = architecture,
+              add = add,
+              dom = dom,
+              epi = epi,
+              sim_method = sim_method
+            )
+        }
+      }else{
+        genetic_value <-
+          base_line_multi_traits(
+            seed = seed,
+            ntraits = ntraits,
+            correlation = correlation,
+            additive_object = QTN$additive_effect_trait_object,
+            epistatic_object = QTN$epistatic_effect_trait_object,
+            additive_effect = additive_effect,
+            epistatic_effect = epistatic_effect,
+            big_additive_QTN_effect = big_additive_QTN_effect,
+            rep = rep,
+            rep_by = rep_by,
+            architecture = architecture,
+            add = add,
+            dom = dom,
+            epi = epi,
+            sim_method = sim_method
+          )
+      }
+      
+      
+
+      
+      
+      
+      
+      
       if (!is.null(correlation)) {
         cat("Population Correlation \n")
         colnames(correlation) <- paste0("Trait_", 1:ntraits)

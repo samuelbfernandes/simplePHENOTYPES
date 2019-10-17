@@ -7,7 +7,6 @@
 #' @param dom_effect = NULL,
 #' @param epi_effect = NULL,
 #' @param big_add_QTN_effect = NULL,
-#' @param big_dom_QTN_effect null
 #' @param sim_method = NULL,
 #' @param add = NULL,
 #' @param dom = NULL,
@@ -26,7 +25,6 @@ genetic_effect <-
            dom_effect = NULL,
            epi_effect = NULL,
            big_add_QTN_effect = NULL,
-           big_dom_QTN_effect = NULL,
            sim_method = NULL,
            add = NULL,
            dom = NULL,
@@ -86,27 +84,16 @@ genetic_effect <-
         colnames(epi_component) <- "epistatic_effect"
         epi_genetic_variance <- var(epi_component)
       }
-      
-      # TODO implement dominance
-      # if (dom == TRUE) {
-      #   if (!is.null(big_dom_QTN_effect)) {
-      #       dom_component[dom_object[, 1] > 0, 1]  <-  big_dom_QTN_effect
-      #     if (domnumber >= 2){
-      #       for (i in 2:dnumber) {
-      #         dom_component[dom_object[, i] > 0, 1] <- 
-      #           dom_component[dom_object[, i] > 0, 1] + dom_effect ^ (i - 1)
-      #       }
-      #     }
-      #   } else {
-      #     for (i in 1:dnumber) {
-      #       dom_component[dom_object[, i] > 0, 1] <- 
-      #         dom_component[dom_object[, i] > 0, 1] + dom_effect ^ (i - 1)
-      #     }
-      #   }
-      #   rownames(dom_component) <- rownames
-      #   colnames(dom_component) <- "dominance_effect"
+      # TODO dominance
+      if (dom == TRUE) {
+          for (i in 1:dnumber) {
+            dom_component[dom_object[, i] > 0, 1] <-
+              dom_component[dom_object[, i] > 0, 1] + dom_effect ^ (i - 1)
+          }
+        rownames(dom_component) <- rownames
+        colnames(dom_component) <- "dominance_effect"
          dom_genetic_variance <- var(dom_component)
-      # }
+       }
       base_line_trait <- add_component + dom_component + epi_component 
     } else {
       if (add == TRUE) {
@@ -149,29 +136,16 @@ genetic_effect <-
       }
       
       #TODO implement dominance model
-      # if (dom == TRUE) {
-      #   if (!is.null(big_dom_QTN_effect)) {
-      #     dom_component <-
-      #       dom_component +
-      #       (dom_object[, 1] * (big_dom_QTN_effect))
-      #     if (dnumber >= 2){
-      #       for (i in 2:dnumber) {
-      #         dom_component <- 
-      #           dom_component + 
-      #           (dom_object[, i] * dom_effect[i - 1])
-      #       }
-      #     }
-      #   } else {
-      #     # for (i in 1:dnumber) {
-      #     #   dom_component <- 
-      #     #     dom_component + 
-      #     #     (dom_object[, i] * (dom_effect ^ (i)))
-      #     # }
-      #   }
-      #   rownames(dom_component) <- rownames
-      #   colnames(dom_component) <- "epistatic_effect"
+      if (dom == TRUE) {
+          # for (i in 1:dnumber) {
+          #   dom_component <-
+          #     dom_component +
+          #     (dom_object[, i] * (dom_effect ^ (i)))
+          # }
+        rownames(dom_component) <- rownames
+        colnames(dom_component) <- "epistatic_effect"
       dom_genetic_variance <- var(dom_component)
-      # }
+       }
       base_line_trait <- add_component + dom_component + epi_component 
     }
     if (add == TRUE & dom == TRUE & epi == TRUE) {
