@@ -5,21 +5,27 @@
 \title{Select SNPs to be assigned as QTNs}
 \usage{
 QTN_partially_pleiotropic(genotypes = NULL, seed = NULL,
-  overlap = NULL, overlap_e = NULL, specific_QTN_number = NULL,
+  overlap_a = NULL, overlap_d = NULL, overlap_e = NULL,
+  specific_a_QTN_number = NULL, specific_d_QTN_number = NULL,
   specific_e_QTN_number = NULL, ntraits = NULL,
   constrains = list(maf_above = NULL, maf_below = NULL), rep = NULL,
-  rep_by = NULL, export_gt = NULL)
+  rep_by = NULL, export_gt = NULL, same_add_dom_QTN = NULL,
+  add = NULL, dom = NULL, epi = NULL)
 }
 \arguments{
 \item{genotypes}{= NULL,}
 
 \item{seed}{= NULL,}
 
-\item{overlap}{= NULL,}
+\item{overlap_a}{= NULL,}
+
+\item{overlap_d}{= NULL,}
 
 \item{overlap_e}{= NULL,}
 
-\item{specific_QTN_number}{= NULL,}
+\item{specific_a_QTN_number}{= NULL,}
+
+\item{specific_d_QTN_number}{= NULL,}
 
 \item{specific_e_QTN_number}{= NULL,}
 
@@ -32,6 +38,14 @@ QTN_partially_pleiotropic(genotypes = NULL, seed = NULL,
 \item{rep_by}{= 'QTN',}
 
 \item{export_gt}{= FALSE}
+
+\item{same_add_dom_QTN}{= NULL,}
+
+\item{add}{null}
+
+\item{dom}{= NULL,}
+
+\item{epi}{= NULL}
 }
 \value{
 Genotype of selected SNPs

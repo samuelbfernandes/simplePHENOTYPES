@@ -7,18 +7,19 @@
 create_phenotypes(genotypes_object = NULL, genotypes_file = NULL,
   genotypes_path = NULL, nrows = Inf, na_string = "NA",
   shared_name = NULL, maf_cutoff = NULL, SNP_effect = "Add",
-  SNP_impute = "Middle", major_allele_zero = FALSE,
+  SNP_impute = "Middle", major_allele_zero = FALSE, model = NULL,
   additive_QTN_number = NULL, dominance_QTN_number = NULL,
-  epistatic_QTN_number = NULL, additive_effect = NULL,
-  dominance_effect = NULL, epistatic_effect = NULL,
-  big_additive_QTN_effect = NULL, big_dominance_QTN_effect = NULL,
-  architecture = "pleiotropic", overlap = NULL, overlap_e = NULL,
-  specific_QTN_number = NULL, specific_e_QTN_number = NULL, ld = 0.5,
-  rep = NULL, rep_by = "QTN", export_gt = FALSE, ntraits = 1,
-  h2 = NULL, correlation = NULL, seed = NULL, home_dir = getwd(),
-  output_dir = NULL, to_r = FALSE, output_format = "long",
-  out_geno = NULL, gdsfile = NULL, constrains = list(maf_above =
-  NULL, maf_below = NULL), sim_method = "geometric", model = "A")
+  epistatic_QTN_number = NULL, sim_method = "geometric",
+  additive_effect = NULL, dominance_effect = NULL,
+  epistatic_effect = NULL, same_add_dom_QTN = TRUE,
+  average_degree_of_dom = NULL, big_additive_QTN_effect = NULL,
+  architecture = "pleiotropic", overlap_a = NULL, overlap_e = NULL,
+  specific_a_QTN_number = NULL, specific_e_QTN_number = NULL,
+  ld = 0.5, rep = NULL, vary_QTN = TRUE, export_gt = FALSE,
+  ntraits = 1, h2 = NULL, correlation = NULL, seed = NULL,
+  home_dir = getwd(), output_dir = NULL, to_r = FALSE,
+  output_format = "long", out_geno = NULL, gdsfile = NULL,
+  constrains = list(maf_above = NULL, maf_below = NULL))
 }
 \arguments{
 \item{genotypes_object}{Marker dataset loaded as an R object.
@@ -48,6 +49,9 @@ which will only filter possible QTNs).}
 
 \item{major_allele_zero}{Following GAPIT implementation. Default FALSE.}
 
+\item{model}{Options: "A" (additive), "D" (dominance), "E" (epistatic) 
+as well as any combination of those models such as "AE", "DE" or "ADE".}
+
 \item{additive_QTN_number}{Number of additive quantitative trait nucleotide
 to be simulated.}
 
@@ -56,6 +60,8 @@ to be simulated.}
 
 \item{epistatic_QTN_number}{Number of epistatic (additive x additive)
 quantitative trait nucleotide to be simulated.}
+
+\item{sim_method}{Either "geometric" or "user".}
 
 \item{additive_effect}{Additive effect size to be simulated. If `ntraits` > 1, 
 additive_effect should have length equals to `ntraits`. For multiple QTNs a
@@ -69,11 +75,13 @@ effect of the n^th QTN is 0.5^n.}
 simulated. Follows a geometric series similar to the additive_effect. If `ntraits` > 1, 
 epistatic_effect should have length equals to `ntraits`.}
 
+\item{same_add_dom_QTN}{...}
+
+\item{average_degree_of_dom}{...
+Eiter one or both of the following options may be non-null: 'list(maf_above = NULL, maf_below = NULL)'.}
+
 \item{big_additive_QTN_effect}{Additive effect size for one possible major
 effect QTN. If `ntraits` > 1, big_additive_QTN_effect should have length equals `ntraits`.}
-
-\item{big_dominance_QTN_effect}{...
-Eiter one or both of the following options may be non-null: 'list(maf_above = NULL, maf_below = NULL)'.}
 
 \item{architecture}{Genetic architecture to be simulated. Should be provided if `ntraits` > 1. Possible options are:
 'pleiotropic', for traits being controled by the same QTNs;
@@ -81,11 +89,11 @@ Eiter one or both of the following options may be non-null: 'list(maf_above = NU
 'LD', for traits being exclusively controled QTNs in linkage disequilibrium (controled by parameter `ld`). 
 Currently the only option for `architecture = "LD"` is `ntraits = 2`.}
 
-\item{overlap}{Number of pleiotropic additive QTNs if architecture = 'partially'.}
+\item{overlap_a}{Number of pleiotropic additive QTNs if architecture = 'partially'.}
 
 \item{overlap_e}{Number of pleiotropic epistatic QTNs if architecture = 'partially'.}
 
-\item{specific_QTN_number}{Number of trait specific additive QTNs if
+\item{specific_a_QTN_number}{Number of trait specific additive QTNs if
 architecture = 'partially'. It should have length equals to `ntraits`.}
 
 \item{specific_e_QTN_number}{Number of trait specific epistatic QTNs if
@@ -96,7 +104,7 @@ to be used as QTN. Default is ld = 05.}
 
 \item{rep}{Number of experiments to be simulated.}
 
-\item{rep_by}{If rep_by = "QTN" (default), at each replication it selects a differet set of SNPs to be the QTNs. 
+\item{vary_QTN}{TRUE or FALSE ... If rep_by = "QTN" (default), at each replication it selects a differet set of SNPs to be the QTNs. 
 If rep_by = "experiment", the same set of QTNs are used to generate phenotypes on the "rep" replications.}
 
 \item{export_gt}{If TRUE genotypes of selected QTNs will be saved at file. If FALSE (default), only the QTN information will be saved.}
@@ -137,11 +145,6 @@ with option architecture = "LD". Default is NULL.}
 
 \item{constrains}{Set constrains for QTN selection. 
 Currently only minor allelic frequency is implemented.}
-
-\item{sim_method}{Either "geometric" or "user".}
-
-\item{model}{Options: "A" (additive), "D" (dominance), "E" (epistatic) 
-as well as any combination of those models such as "AE", "DE" or "ADE".}
 }
 \value{
 Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits' traits.
@@ -159,7 +162,8 @@ pheno <- create_phenotypes(
   big_additive_QTN_effect = 0.9,
   rep = 10,
   h2 = 0.7,
-  to_r = TRUE
+  to_r = TRUE,
+  model = "A"
 )
 
 }

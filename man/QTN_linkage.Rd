@@ -5,9 +5,10 @@
 \title{Select SNPs to be assigned as QTNs}
 \usage{
 QTN_linkage(genotypes = NULL, seed = NULL,
-  additive_QTN_number = NULL, ld = NULL, gdsfile = NULL,
-  constrains = list(maf_above = NULL, maf_below = NULL), rep = NULL,
-  rep_by = NULL, export_gt = NULL)
+  additive_QTN_number = NULL, dominance_QTN_number = NULL, ld = NULL,
+  gdsfile = NULL, constrains = list(maf_above = NULL, maf_below =
+  NULL), rep = NULL, rep_by = NULL, export_gt = NULL,
+  same_add_dom_QTN = NULL, add = NULL, dom = NULL)
 }
 \arguments{
 \item{genotypes}{= NULL,}
@@ -15,6 +16,8 @@ QTN_linkage(genotypes = NULL, seed = NULL,
 \item{seed}{= NULL,}
 
 \item{additive_QTN_number}{= NULL,}
+
+\item{dominance_QTN_number}{= NULL,}
 
 \item{ld}{= NULL,}
 
@@ -27,6 +30,12 @@ QTN_linkage(genotypes = NULL, seed = NULL,
 \item{rep_by}{= 'QTN',}
 
 \item{export_gt}{= FALSE}
+
+\item{same_add_dom_QTN}{= NULL,}
+
+\item{add}{= NULL,}
+
+\item{dom}{= NULL,}
 }
 \value{
 Genotype of selected SNPs
