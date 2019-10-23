@@ -84,7 +84,6 @@ genetic_effect <-
         colnames(epi_component) <- "epistatic_effect"
         epi_genetic_variance <- var(epi_component)
       }
-      # TODO dominance
       if (dom == TRUE) {
           for (i in 1:dnumber) {
             dom_component[dom_object[, i] > 0, 1] <-
@@ -134,17 +133,14 @@ genetic_effect <-
         colnames(epi_component) <- "epistatic_effect"
         epi_genetic_variance <- var(epi_component)
       }
-      
-      #TODO implement dominance model
       if (dom == TRUE) {
-          # for (i in 1:dnumber) {
-          #   dom_component <-
-          #     dom_component +
-          #     (dom_object[, i] * (dom_effect ^ (i)))
-          # }
+        for (i in 1:dnumber) {
+          dom_component[dom_object[, i] > 0, 1] <-
+            dom_component[dom_object[, i] > 0, 1] + dom_effect[i]
+        }
         rownames(dom_component) <- rownames
-        colnames(dom_component) <- "epistatic_effect"
-      dom_genetic_variance <- var(dom_component)
+        colnames(dom_component) <- "dominance_effect"
+        dom_genetic_variance <- var(dom_component)
        }
       base_line_trait <- add_component + dom_component + epi_component 
     }
