@@ -4,6 +4,9 @@
 #' @param dominance_object hhh
 #' @param epistatic_object hhh
 #' @param additive_effect hhh
+#' @param additive_QTN_number = NULL,
+#' @param dominance_QTN_number = NULL,
+#' @param epistatic_QTN_number = NULL,
 #' @param dominance_effect = NULL,
 #' @param epistatic_effect kkkk
 #' @param big_additive_QTN_effect jjj
@@ -26,6 +29,9 @@ base_line_multi_traits <-
   function(additive_object = NULL,
            dominance_object = NULL,
            epistatic_object = NULL,
+           additive_QTN_number = NULL,
+           dominance_QTN_number = NULL,
+           epistatic_QTN_number = NULL,
            additive_effect = NULL,
            dominance_effect = NULL,
            epistatic_effect = NULL,
@@ -41,6 +47,11 @@ base_line_multi_traits <-
            epi = NULL,
            sim_method = NULL) {
     #'---------------------------------------------------------------------------
+      traits <- NULL
+      VA <- NULL
+      VD <- NULL
+      VE <- NULL
+      sample_cor = NULL
     if (rep_by != 'QTN'){ rep <- 1}
     results <- vector("list", rep)
     for(z in 1:rep){
@@ -68,6 +79,9 @@ base_line_multi_traits <-
                 additive_object = additive_object[[z]],
                 dominance_object = dominance_object[[z]],
                 epistatic_object = epistatic_object[[z]],
+                additive_QTN_number = additive_QTN_number,
+                dominance_QTN_number = dominance_QTN_number,
+                epistatic_QTN_number = epistatic_QTN_number,
                 additive_effect = additive_effect[,j],
                 dominance_effect = dominance_effect[,j],
                 epistatic_effect = epistatic_effect[,j],
@@ -110,55 +124,13 @@ base_line_multi_traits <-
               cor(traits[, i], genetic_value[,i])
           }
           sample_cor <- cor(traits)
-          results[[z]] <- 
-            if (add == TRUE & dom == TRUE & epi == TRUE) {
-              list(
-                base_line = traits,
-                VA = VA,
-                VE = VE,
-                VD = VD,
-                sample_cor = sample_cor
-              )
-            } else if (add == TRUE & epi == TRUE){
-              list(
-                base_line = traits,
-                VA = VA,
-                VE = VE,
-                sample_cor = sample_cor
-              )
-            } else if (add == TRUE & dom == TRUE){
-              list(
-                base_line = traits,
-                VA = VA,
-                VD = VD,
-                sample_cor = sample_cor
-              )
-            } else if (dom == TRUE & epi == TRUE){
-              list(
-                base_line = traits,
-                VE = VE,
-                VD = VD,
-                sample_cor = sample_cor
-              )
-            } else if (add == TRUE){
-              list(
-                base_line = traits,
-                VA = VA,
-                sample_cor = sample_cor
-              )
-            } else if (dom == TRUE){
-              list(
-                base_line = traits,
-                VD = VD,
-                sample_cor = sample_cor
-              )
-            } else if (epi == TRUE){
-              list(
-                base_line = traits,
-                VE = VE,
-                sample_cor = sample_cor
-              )
-            }
+          results[[z]] <- list(
+            base_line = traits,
+            VA = VA,
+            VE = VE,
+            VD = VD,
+            sample_cor = sample_cor
+          )
         } else {
           if (add) {
             genetic_value <-
@@ -182,6 +154,9 @@ base_line_multi_traits <-
                 additive_object = additive_object[[z]][[j]],
                 dominance_object = dominance_object[[z]][[j]],
                 epistatic_object = epistatic_object[[z]][[j]],
+                additive_QTN_number = additive_QTN_number,
+                dominance_QTN_number = dominance_QTN_number,
+                epistatic_QTN_number = epistatic_QTN_number,
                 additive_effect = additive_effect[,j],
                 dominance_effect = dominance_effect[,j],
                 epistatic_effect = epistatic_effect[,j],
@@ -226,62 +201,15 @@ base_line_multi_traits <-
           }
           sample_cor <- cor(traits)
           results[[z]] <- 
-            if (add == TRUE & dom == TRUE & epi == TRUE) {
-              list(
-                base_line = traits,
-                VA = VA,
-                VD = VD,
-                VE = VE,
-                sample_cor = sample_cor,
-                cor_original_trait = cor_original_trait
-              )
-            } else if (add == TRUE & epi == TRUE){
-              list(
-                base_line = traits,
-                VA = VA,
-                VE = VE,
-                sample_cor = sample_cor,
-                cor_original_trait = cor_original_trait
-              )
-            } else if (add == TRUE & dom == TRUE){
-              list(
-                base_line = traits,
-                VA = VA,
-                VD = VD,
-                sample_cor = sample_cor,
-                cor_original_trait = cor_original_trait
-              )
-            } else if (dom == TRUE & epi == TRUE){
-              list(
-                base_line = traits,
-                VD = VD,
-                VE = VE,
-                sample_cor = sample_cor,
-                cor_original_trait = cor_original_trait
-              )
-            } else if (add == TRUE){
-              list(
-                base_line = traits,
-                VA = VA,
-                sample_cor = sample_cor,
-                cor_original_trait = cor_original_trait
-              )
-            } else if (dom == TRUE){
-              list(
-                base_line = traits,
-                VD = VD,
-                sample_cor = sample_cor,
-                cor_original_trait = cor_original_trait
-              )
-            } else if (epi == TRUE){
-              list(
-                base_line = traits,
-                VD = VD,
-                sample_cor = sample_cor,
-                cor_original_trait = cor_original_trait
-              )
-            }
-        }
+            list(
+              base_line = traits,
+              VA = VA,
+              VD = VD,
+              VE = VE,
+              sample_cor = sample_cor,
+              cor_original_trait = cor_original_trait
+            )
+         }
       } else {
         VA <- c()
         VE <- c()
@@ -303,6 +231,9 @@ base_line_multi_traits <-
                 additive_object = additive_object[[z]],
                 dominance_object = dominance_object[[z]],
                 epistatic_object = epistatic_object[[z]],
+                additive_QTN_number = additive_QTN_number,
+                dominance_QTN_number = dominance_QTN_number,
+                epistatic_QTN_number = epistatic_QTN_number,
                 additive_effect = additive_effect[,i],
                 dominance_effect = dominance_effect[,i],
                 epistatic_effect = epistatic_effect[,i],
@@ -337,6 +268,9 @@ base_line_multi_traits <-
                 additive_object = additive_object[[z]][[i]],
                 dominance_object = dominance_object[[z]][[i]],
                 epistatic_object = epistatic_object[[z]][[i]],
+                additive_QTN_number = additive_QTN_number,
+                dominance_QTN_number = dominance_QTN_number,
+                epistatic_QTN_number = epistatic_QTN_number,
                 additive_effect = additive_effect[,i],
                 dominance_effect = dominance_effect[,i],
                 epistatic_effect = epistatic_effect[,i],
@@ -356,53 +290,13 @@ base_line_multi_traits <-
           rownames(traits) <- rownames
         }
         sample_cor <- cor(traits)
-        results[[z]] <- 
-          if (add == TRUE & dom == TRUE & epi == TRUE) {
-            list(
-              base_line = traits,
-              VA = VA,
-              VD = VD,
-              VE = VE,
-              sample_cor = sample_cor
-            )
-          } else if (add == TRUE & epi == TRUE){
-            list(
-              base_line = traits,
-              VA = VA,
-              VE = VE,
-              sample_cor = sample_cor
-            )
-          } else if (add == TRUE & dom == TRUE){
-            list(
-              base_line = traits,
-              VA = VA,
-              VD = VD,
-              sample_cor = sample_cor
-            )
-          } else if (dom == TRUE & epi == TRUE){
-            list(
-              base_line = traits,
-              VD = VD,
-              VE = VE,
-              sample_cor = sample_cor
-            )
-          } else if (add == TRUE){
-            list(base_line = traits,
-                 VA = VA,
-                 sample_cor = sample_cor)
-          } else if (dom == TRUE){
-            list(
-              base_line = traits,
-              VD = VD,
-              sample_cor = sample_cor
-            )
-          } else if (epi == TRUE){
-            list(
-              base_line = traits,
-              VE = VE,
-              sample_cor = sample_cor
-            )
-          }
+        results[[z]] <- list(
+          base_line = traits,
+          VA = VA,
+          VD = VD,
+          VE = VE,
+          sample_cor = sample_cor
+        )
       }
     }
     return(results)
