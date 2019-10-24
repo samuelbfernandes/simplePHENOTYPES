@@ -65,7 +65,8 @@ create_phenotypes(
   additive_effect = 0.2,
   big_additive_QTN_effect = 0.9,
   rep = 10,
-  h2 = 0.7)
+  h2 = 0.7,
+  model = "A")
 ```
 
 # Multiple Traits: Pleiotropic Architecture
@@ -79,14 +80,17 @@ Simulating three traits `ntraits = 3` controlled by the same three additive QTN.
     additive_effect = c(0.04,0.2,0.1),
     ntraits = 3,
     rep = 10,
-    rep_by = "experiment",
+    vary_QTN = FALSE,
     output_format = "multi-file",
     architecture = "pleiotropic",
     output_dir = "Results_Pleiotropic",
     to_r = T,
-    seed = 10
+    seed = 10,
+    model = "A"
   )
-  
+```
+
+```{r MT P2, results = "hide", eval = FALSE}
  users_geometric <- matrix(c(0.04, 0.2, 0.1,
                             0.0016, 0.04, 0.01,
                             6.4e-05, 0.008, 0.001), nrow= 3, byrow = T)
@@ -99,13 +103,14 @@ Simulating three traits `ntraits = 3` controlled by the same three additive QTN.
    additive_effect = users_geometric,
    ntraits = 3,
    rep = 10,
-   rep_by = "experiment",
+   vary_QTN = FALSE,
    output_format = "multi-file",
    architecture = "pleiotropic",
    output_dir = "Results_Pleiotropic",
    to_r = T,
    sim_method = "user",
-   seed = 10
+   seed = 10,
+    model = "A"
  )
  
  all.equal(test1, test2)
@@ -120,8 +125,8 @@ cor_matrix <- matrix(c(   1, 0.4, -0.5,
 
 sim_results <- create_phenotypes(
   genotypes_object = SNP55K_maize282_maf04,
-  overlap = 3,
-  specific_QTN_number = c(4, 10, 1),
+  overlap_a = 3,
+  specific_a_QTN_number = c(4, 10, 1),
   big_additive_QTN_effect = c(0.9, 0.9, 0.9),
   h2 = c(0.2, 0.4, 0.8),
   additive_effect = c(0.3, 0.3, 0.3),
@@ -132,7 +137,8 @@ sim_results <- create_phenotypes(
   output_format = "long",
   architecture = "partially",
   out_geno = "numeric",
-  to_r = TRUE
+  to_r = TRUE,
+  model = "A"
 )
 ```
 
@@ -153,7 +159,8 @@ create_phenotypes(
   architecture = "LD",
   output_dir = "Results_LD",
   out_geno = "plink",
-  ld=0.8
+  ld=0.8,
+  model = "A"
 )
 ```
 
@@ -193,7 +200,8 @@ create_phenotypes(
   rep = 5,
   seed = 200,
   output_format = "gemma",
-  output_dir = "Results"
+  output_dir = "Results",
+  model = "A"
 )
 ```
 

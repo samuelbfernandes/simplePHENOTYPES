@@ -5,12 +5,13 @@
 \title{Calculate genetic value based on QTN objects.}
 \usage{
 base_line_multi_traits(additive_object = NULL, dominance_object = NULL,
-  epistatic_object = NULL, additive_effect = NULL,
-  dominance_effect = NULL, epistatic_effect = NULL,
-  big_additive_QTN_effect = NULL, seed = seed, ntraits = NULL,
-  correlation = NULL, architecture = NULL, rep = NULL,
-  rep_by = NULL, add = NULL, dom = NULL, epi = NULL,
-  sim_method = NULL)
+  epistatic_object = NULL, additive_QTN_number = NULL,
+  dominance_QTN_number = NULL, epistatic_QTN_number = NULL,
+  additive_effect = NULL, dominance_effect = NULL,
+  epistatic_effect = NULL, big_additive_QTN_effect = NULL,
+  seed = seed, ntraits = NULL, correlation = NULL,
+  architecture = NULL, rep = NULL, rep_by = NULL, add = NULL,
+  dom = NULL, epi = NULL, sim_method = NULL)
 }
 \arguments{
 \item{additive_object}{hhh}
@@ -18,6 +19,12 @@ base_line_multi_traits(additive_object = NULL, dominance_object = NULL,
 \item{dominance_object}{hhh}
 
 \item{epistatic_object}{hhh}
+
+\item{additive_QTN_number}{= NULL,}
+
+\item{dominance_QTN_number}{= NULL,}
+
+\item{epistatic_QTN_number}{= NULL,}
 
 \item{additive_effect}{hhh}
 

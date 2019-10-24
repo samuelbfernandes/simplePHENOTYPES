@@ -12,9 +12,10 @@ create_phenotypes(genotypes_object = NULL, genotypes_file = NULL,
   epistatic_QTN_number = NULL, sim_method = "geometric",
   additive_effect = NULL, dominance_effect = NULL,
   epistatic_effect = NULL, same_add_dom_QTN = TRUE,
-  average_degree_of_dom = NULL, big_additive_QTN_effect = NULL,
-  architecture = "pleiotropic", overlap_a = NULL, overlap_e = NULL,
-  specific_a_QTN_number = NULL, specific_e_QTN_number = NULL,
+  degree_of_dominance = NULL, big_additive_QTN_effect = NULL,
+  architecture = "pleiotropic", overlap_a = NULL, overlap_d = NULL,
+  overlap_e = NULL, specific_a_QTN_number = NULL,
+  specific_d_QTN_number = NULL, specific_e_QTN_number = NULL,
   ld = 0.5, rep = NULL, vary_QTN = TRUE, export_gt = FALSE,
   ntraits = 1, h2 = NULL, correlation = NULL, seed = NULL,
   home_dir = getwd(), output_dir = NULL, to_r = FALSE,
@@ -77,7 +78,7 @@ epistatic_effect should have length equals to `ntraits`.}
 
 \item{same_add_dom_QTN}{...}
 
-\item{average_degree_of_dom}{...
+\item{degree_of_dominance}{...
 Eiter one or both of the following options may be non-null: 'list(maf_above = NULL, maf_below = NULL)'.}
 
 \item{big_additive_QTN_effect}{Additive effect size for one possible major
@@ -91,9 +92,14 @@ Currently the only option for `architecture = "LD"` is `ntraits = 2`.}
 
 \item{overlap_a}{Number of pleiotropic additive QTNs if architecture = 'partially'.}
 
+\item{overlap_d}{Number of pleiotropic dominance QTNs if architecture = 'partially'.}
+
 \item{overlap_e}{Number of pleiotropic epistatic QTNs if architecture = 'partially'.}
 
 \item{specific_a_QTN_number}{Number of trait specific additive QTNs if
+architecture = 'partially'. It should have length equals to `ntraits`.}
+
+\item{specific_d_QTN_number}{Number of trait specific dominance QTNs if
 architecture = 'partially'. It should have length equals to `ntraits`.}
 
 \item{specific_e_QTN_number}{Number of trait specific epistatic QTNs if
