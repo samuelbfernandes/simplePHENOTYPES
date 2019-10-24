@@ -3,6 +3,9 @@
 #' @param additive_object hhh
 #' @param dominance_object hhh
 #' @param epistatic_object hhh
+#' @param additive_QTN_number = NULL,
+#' @param dominance_QTN_number = NULL,
+#' @param epistatic_QTN_number = NULL,
 #' @param additive_effect hhh
 #' @param dominance_effect = NULL,
 #' @param epistatic_effect hhh
@@ -25,6 +28,9 @@ base_line_single_trait <-
   function(additive_object = NULL,
            dominance_object = NULL,
            epistatic_object = NULL,
+           additive_QTN_number = NULL,
+           dominance_QTN_number = NULL,
+           epistatic_QTN_number = NULL,
            additive_effect = NULL,
            dominance_effect = NULL,
            epistatic_effect = NULL,
@@ -46,6 +52,9 @@ base_line_single_trait <-
       results <- genetic_effect(add_object = additive_object,
                                 dom_object = dominance_object,
                                 epi_object = epistatic_object,
+                                additive_QTN_number = additive_QTN_number,
+                                dominance_QTN_number = dominance_QTN_number,
+                                epistatic_QTN_number = epistatic_QTN_number,
                                 add_effect = additive_effect,
                                 dom_effect = dominance_effect,
                                 epi_effect = epistatic_effect,
@@ -61,6 +70,9 @@ base_line_single_trait <-
           genetic_effect(add_object = additive_object[[z]],
                          dom_object = dominance_object[[z]],
                          epi_object = epistatic_object[[z]],
+                         additive_QTN_number = additive_QTN_number,
+                         dominance_QTN_number = dominance_QTN_number,
+                         epistatic_QTN_number = epistatic_QTN_number,
                          add_effect = additive_effect,
                          dom_effect = dominance_effect,
                          epi_effect = epistatic_effect,
