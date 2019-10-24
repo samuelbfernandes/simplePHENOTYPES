@@ -44,9 +44,12 @@
 #' 'partially', for traits being controled by pleiotropic and trait specific QTNs;
 #' 'LD', for traits being exclusively controled QTNs in linkage disequilibrium (controled by parameter `ld`). 
 #' Currently the only option for `architecture = "LD"` is `ntraits = 2`.
-#' @param overlap Number of pleiotropic additive QTNs if architecture = 'partially'.
+#' @param overlap_a Number of pleiotropic additive QTNs if architecture = 'partially'.
+#' @param overlap_d Number of pleiotropic dominance QTNs if architecture = 'partially'.
 #' @param overlap_e Number of pleiotropic epistatic QTNs if architecture = 'partially'.
-#' @param specific_QTN_number Number of trait specific additive QTNs if
+#' @param specific_a_QTN_number Number of trait specific additive QTNs if
+#' architecture = 'partially'. It should have length equals to `ntraits`.
+#' @param specific_d_QTN_number Number of trait specific dominance QTNs if
 #' architecture = 'partially'. It should have length equals to `ntraits`.
 #' @param specific_e_QTN_number Number of trait specific epistatic QTNs if
 #' architecture = 'partially'. It should have length equals to `ntraits`.
@@ -86,6 +89,8 @@
 #' as well as any combination of those models such as "AE", "DE" or "ADE".
 #' @param sim_method Either "geometric" or "user".
 #' @param dominance_effect ...
+#' @param same_add_dom_QTN ...
+#' @param degree_of_dominance ...
 #' Eiter one or both of the following options may be non-null: 'list(maf_above = NULL, maf_below = NULL)'.
 #' @return Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits' traits.
 #' @author Samuel Fernandes and Alexander Lipka
@@ -100,7 +105,8 @@
 #'   big_additive_QTN_effect = 0.9,
 #'   rep = 10,
 #'   h2 = 0.7,
-#'   to_r = TRUE
+#'   to_r = TRUE,
+#'   model = "A"
 #' )
 #'
 create_phenotypes <-
@@ -123,12 +129,14 @@ create_phenotypes <-
            dominance_effect = NULL,
            epistatic_effect = NULL,
            same_add_dom_QTN = TRUE,
-           average_degree_of_dom = NULL,
+           degree_of_dominance = NULL,
            big_additive_QTN_effect = NULL,
            architecture = "pleiotropic",
-           overlap = NULL,
+           overlap_a = NULL,
+           overlap_d = NULL,
            overlap_e = NULL,
-           specific_QTN_number = NULL,
+           specific_a_QTN_number = NULL,
+           specific_d_QTN_number = NULL,
            specific_e_QTN_number = NULL,
            ld = 0.5,
            rep = NULL,
@@ -147,44 +155,71 @@ create_phenotypes <-
            constrains = list(maf_above = NULL,
                              maf_below = NULL)) {
     # -------------------------------------------------------------------------
+    #TODO:
+    # list all set.seed values 
+    
     .onAttach <- function(libname, simplePHENOTYPES) {
       packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
     }
     .onAttach()
-    
-    if(vary_QTN) {rep_by <-  "QTN"} else {rep_by <- "experiment"}
-    
-    if (!is.null(model)){
-      if (!(grepl("A", model) |
-          grepl("D", model) |
-          grepl("E", model))) {
-        
-      }
-    }else{
-      stop("Please assign a \'model\' parameter. Options:\'A\', \'D\', \'E\' or combinations such as \'ADE\'.", call. = F)
-    }
     if (grepl("A", model)) { add <- TRUE } else {add <- FALSE  }
     if (grepl("D", model)) { dom <- TRUE } else {dom <- FALSE  }
     if (grepl("E", model)) { epi <- TRUE } else {epi <- FALSE  }
-    if (grepl("E", model) &
-        is.null(epistatic_QTN_number) &
-        is.null(overlap_e) &
-        is.null(specific_e_QTN_number))
-      stop("In order to simulate an epistatic model, please provide either \'epistatic_QTN_number\' or \'overlap_e\' and \'specific_e_QTN_number\'.", call. = F)
-    if (is.null(out_geno)) out_geno <- "none"
     if (architecture == "LD" ) ntraits <- 2
-    if (sim_method != "geometric") {
-      if (ntraits > 1){
+    if (is.null(out_geno)) out_geno <- "none"
+    if (vary_QTN) {rep_by <-  "QTN"} else {rep_by <- "experiment"}
+    if (is.vector(h2)) {
+      if(ntraits > 1){
+        h2 <- matrix(h2, nrow = 1)
+      } else {
+        h2 <- matrix(h2, ncol = 1)
+      }
+    }
+    colnames(h2) <- paste0("Trait_", 1:ntraits)
+    # if (add) if (is.matrix(additive_effect)) {
+    #   additive_effect <-
+    #   split(additive_effect, rep(1:ncol(additive_effect), each = nrow(additive_effect)))
+    # }
+    # if (dom) if (is.matrix(dominance_effect)) {
+    #   dominance_effect <-
+    #     split(dominance_effect, rep(1:ncol(dominance_effect), each = nrow(dominance_effect)))
+    # }
+    # if (epi) if (is.matrix(epistatic_effect)) {
+    #   epistatic_effect <-
+    #     split(epistatic_effect, rep(1:ncol(epistatic_effect), each = nrow(epistatic_effect)))
+    # }
+    # if (dom & same_add_dom_QTN & !is.null(degree_of_dominance) & is.null(dominance_effect)) { 
+    #   dominance_effect <- lapply(additive_effect, function(x) x * degree_of_dominance)
+    # }
+
+    
+    
+    
+    
+    if (sum(c(!is.null(genotypes_object), !is.null(genotypes_file), !is.null(genotypes_path))) != 1) {
+      stop("Please provide one of `genotypes_object`, `genotypes_file` or `genotypes_path`.", call. = F)
+    }
+    if (!is.null(model)){
+      if (!(grepl("A", model) | grepl("D", model) | grepl("E", model))) {
+        stop("Please assign a \'model\'. Options:\'A\', \'D\', \'E\' or combinations such as \'ADE\'.", call. = F)
+      }
+    }else{
+      stop("Please assign a \'model\'. Options:\'A\', \'D\', \'E\' or combinations such as \'ADE\'.", call. = F)
+    }
+    if (sim_method != "geometric" & sim_method != "user") {
+      stop("Parameter \'sim_method\' should be either \'geometric\' or \'user\'!", call. = F)
+    }
+
+    if (ntraits > 1) {
+      if (sim_method != "geometric") {
         if (add){
           if (is.matrix(additive_effect)) {
             if (is.null(big_additive_QTN_effect)) {
-              if (nrow(additive_effect) != additive_QTN_number |
-                  ncol(additive_effect) != ntraits){
+              if (nrow(additive_effect) != additive_QTN_number | ncol(additive_effect) != ntraits){
                 stop("Please provide an \'additive_effect\' matrix of nrow = \'additive_QTN_number\' and ncol = \'ntraits\'.", call. = F)
               }
             } else {
-              if (nrow(additive_effect) != (additive_QTN_number-1) |
-                  ncol(additive_effect) != ntraits){
+              if (nrow(additive_effect) != (additive_QTN_number-1) | ncol(additive_effect) != ntraits){
                 stop("Please provide an \'additive_effect\' matrix of nrow = (\'additive_QTN_number\'- 1) and ncol = \'ntraits\'.", call. = F)
               }
             }
@@ -194,108 +229,149 @@ create_phenotypes <-
         }
         if (dom){
           if (is.matrix(dominance_effect)) {
-              if (nrow(dominance_effect) != dominance_QTN_number |
-                  ncol(dominance_effect) != ntraits){
-                stop("Please provide an \'dominance_effect\' matrix of nrow = \'dominance_QTN_number\' and ncol = \'ntraits\'.", call. = F)
-              }
+            if (nrow(dominance_effect) != dominance_QTN_number | ncol(dominance_effect) != ntraits){
+              stop("Please provide an \'dominance_effect\' matrix of nrow = \'dominance_QTN_number\' and ncol = \'ntraits\'.", call. = F)
+            }
           } else {
             stop("Please provide an \'dominance_effect\' matrix of nrow = \'dominance_QTN_number\' and ncol = \'ntraits\'.", call. = F)
           }
         }
         if (epi){
           if (is.matrix(epistatic_effect)) {
-            if (nrow(epistatic_effect) != epistatic_QTN_number |
-                ncol(epistatic_effect) != ntraits){
+            if (nrow(epistatic_effect) != epistatic_QTN_number | ncol(epistatic_effect) != ntraits){
               stop("Please provide an \'epistatic_effect\' matrix of nrow = \'epistatic_QTN_number\' and ncol = \'ntraits\'.", call. = F)
             }
           } else {
             stop("Please provide an \'epistatic_effect\' matrix of nrow = \'epistatic_QTN_number\' and ncol = \'ntraits\'.", call. = F)
           }
         }
-      } else {
-        if (add){
-          if (is.vector(additive_effect) |
-              is.matrix(additive_effect)) {
-            additive_effect <- matrix(additive_effect, ncol = 1)
-          }
-          if(nrow(additive_effect) > additive_QTN_number)
-            stop("Please provide an \'additive_effect\' object of nrow/length = \'additive_QTN_number\'.", call. = F)
+      }
+      
+      if (!is.null(correlation) & !all(ntraits == dim(correlation))) {
+        stop("ntraits do not match with dim of correlation matrix!", call. = F)
+      }
+      if (architecture == "LD") {
+        if (ncol(h2) > 2) {
+          stop("For the LD architecture, \'h2\' should have two columns, one for each trait!", call. = F) 
         }
-        if (dom){
-          if (is.vector(dominance_effect) |
-              is.matrix(dominance_effect)) {
-            dominance_effect <- matrix(dominance_effect, ncol = 1)
-          }
-          if(nrow(dominance_effect) > dominance_QTN_number)
-            stop("Please provide a \'dominance_effect\' object of nrow/length  = \'dominance_QTN_number\'.", call. = F)
-        }
-        if (epi){
-          if (is.vector(epistatic_effect) |
-              is.matrix(epistatic_effect)) {
-            epistatic_effect <- matrix(epistatic_effect, ncol = 1)
-          }
-          if(nrow(epistatic_effect) > epistatic_QTN_number)
-            stop("Please provide an \'epistatic_effect\' object of nrow/length = \'epistatic_QTN_number\'.", call. = F)
-        }
+        if (ncol(h2) ==1 ) {h2 <- cbind(h2, h2)}
+        # if (length(big_additive_QTN_effect)!= 2 |
+        #     ncol(additive_effect)!= 2) {
+        #   stop("For the LD architecture, parameters \'additive_effect\' and \'big_additive_QTN_effect\' should have length/ncol = 2.", call. = F)
+        # }
       }
-    } else {
-      if (add){
-        if (is.vector(additive_effect) |
-            is.matrix(additive_effect)) {
-          additive_effect <- matrix(additive_effect, nrow = 1)
-        }
-        if(ncol(additive_effect) != ntraits)
-          stop("sim_method = \'geometric\' requires an \'additive_effect\' object of ncol/length = \'ntraits\'.", call. = F)
-      }
-      if (dom){
-        if (is.vector(dominance_effect) |
-            is.matrix(dominance_effect)) {
-          dominance_effect <- matrix(dominance_effect, nrow = 1)
-        }
-        if(ncol(dominance_effect) != ntraits)
-          stop("sim_method = \'geometric\' requires a \'dominance_effect\' object of ncol/length  = \'ntraits\'.", call. = F)
-      }
-      if (epi){
-        if (is.vector(epistatic_effect) |
-            is.matrix(epistatic_effect)) {
-          epistatic_effect <- matrix(epistatic_effect, nrow = 1)
-        }
-        if(ncol(epistatic_effect) > ntraits)
-          stop("sim_method = \'geometric\' requires an \'epistatic_effect\' object of ncol/length = \'ntraits\'.", call. = F)
-      }
-    }
-    if (architecture == "LD" ) {
-      if (length(h2) == 1) h2 <- cbind(h2, h2)
-      if (length(h2) > 2) h2 <- matrix(h2, ncol = 1 )
-      if (is.matrix(h2)){
-        if (ncol(h2)>2) 
-          stop("In the LD architecture the parameter \'h2\' should two columns, one for each trait!", call. = F)
-        if (ncol(h2) ==1 ) h2 <- cbind(h2, h2)
-      }
-      if (length(big_additive_QTN_effect)!= 2 |
-          ncol(additive_effect)!= 2) {
-        stop("In the LD architecture, parameters \'additive_effect\' and \'big_additive_QTN_effect\' should have length/ncol = 2", call. = F)
-      }
-    }
-    if (is.vector(h2)) {
-      if(ntraits > 1){
-        h2 <- matrix(h2, nrow = 1)
-      } else {
-        h2 <- matrix(h2, ncol = 1)
-      }
-    }
-    colnames(h2) <- paste0("Trait_", 1:ntraits)
-    if (rep_by != "QTN" & rep_by != "experiment")
-      stop("Parameter \'rep_by\' should be either \'QTN\' or \'experiment\'!", call. = F)
-    if (sim_method != "geometric" & sim_method != "user")
-      stop("Parameter \'sim_method\' should be either \'geometric\' or \'user\'!", call. = F)
-    if (sum(c(!is.null(genotypes_object),
-              !is.null(genotypes_file),
-              !is.null(genotypes_path))) > 1)
-      stop("Only one of `genotypes_object`, `genotypes_file` or `genotypes_path` should be provided!", call. = F)
-    if (ntraits > 1) {
       if (ntraits != ncol(h2)) {
-        stop("Parameter \'h2\' should have length/ncol = \'ntraits\'", call. = F)
+        stop("Parameter \'h2\' should have length/ncol = \'ntraits\'.", call. = F)
+      }
+      if (architecture == "partially"){
+        if (sim_method == "geometric") {
+          if (add) {
+            temp_add <- matrix(additive_effect, ncol = ntraits)
+            a_qtns <- specific_a_QTN_number + overlap_a
+            additive_effect <- vector("list", ntraits)
+            for(i in 1:ntraits){
+              additive_effect[[i]] <- rep(temp_add[, i], a_qtns[i]) ^ (1:a_qtns[i])
+            }
+          }
+          if (dom) {
+            temp_dom <- matrix(dominance_effect, ncol = ntraits)
+            d_qtns <- specific_d_QTN_number + overlap_d
+            dominance_effect <- vector("list", ntraits)
+            for(i in 1:ntraits){
+              dominance_effect[[i]] <- rep(temp_dom[, i], d_qtns[i]) ^ (1:d_qtns[i])
+            }
+          }
+          if (epi) {
+            temp_epi <- matrix(epistatic_effect, ncol = ntraits)
+            e_qtns <- specific_a_QTN_number + overlap_a
+            epistatic_effect <- vector("list", ntraits)
+            for(i in 1:ntraits){
+              epistatic_effect[[i]] <- rep(temp_epi[, i], e_qtns[i]) ^ (1:e_qtns[i])
+            }
+          }
+        }
+        if (add) {
+          if (is.null(specific_a_QTN_number) | is.null(overlap_a)) {
+            stop("For Partially Pleiotropic additive architecture, both \'overlap_a\' and \'specific_a_QTN_number\' must be provided!", call. = F)
+          }
+          if (ntraits != length(specific_a_QTN_number)) {
+            stop("Parameter \'specific_a_QTN_number\' should have length = \'ntraits\'.", call. = F) 
+          }
+        }
+        if (dom) {
+          if (same_add_dom_QTN) { 
+            if (!add) {
+              stop("\'same_add_dom_QTN\' is only valid if model includes \'A\'.", call. = F)   
+            }
+          } else if (is.null(overlap_d) | is.null(specific_d_QTN_number)) {
+            stop("Please provide \'overlap_d\' and \'specific_d_QTN_number\'.", call. = F)  
+          }
+        }
+        if (epi) {
+          if (is.null(specific_e_QTN_number) | is.null(overlap_e)) {
+            stop("For Partially Pleiotropic epistatic architecture, both \'overlap_e\' and \'specific_e_QTN_number\' must be provided!", call. = F)
+          }
+          if (ntraits != length(specific_e_QTN_number)) {
+            stop("Parameter \'specific_e_QTN_number\' should have length = \'ntraits\'", call. = F)
+          }
+        }
+      } else {
+        if (sim_method == "geometric") {
+          if (add) {
+            temp_add <- matrix(additive_effect, ncol = ntraits)
+            additive_effect <- matrix(NA, additive_QTN_number, ntraits)
+            for(i in 1:ntraits){
+              additive_effect[, i] <- rep(temp_add[, i], additive_QTN_number) ^ (1:additive_QTN_number)
+            }
+          }
+          if (dom) {
+            temp_dom <- matrix(dominance_effect, ncol = ntraits)
+            dominance_effect <- matrix(NA, dominance_QTN_number, ntraits)
+            for(i in 1:ntraits){
+              dominance_effect[,i] <- rep(temp_dom[i], dominance_QTN_number) ** (1:dominance_QTN_number)
+            }
+          }
+          if (epi) {
+            temp_epi <- matrix(epistatic_effect, ncol = ntraits)
+            epistatic_effect <- matrix(NA, epistatic_QTN_number, ntraits)
+            for(i in 1:ntraits){
+              epistatic_effect[,i] <- rep(temp_epi[i], epistatic_QTN_number) ** (1:epistatic_QTN_number)
+            }
+          }
+        }
+        if (add) {
+          if (is.null(additive_QTN_number)) {
+            stop("Please provide a valid \'additive_QTN_number\'.", call. = F)
+          }
+        }
+        if (dom) {
+          if (is.null(dominance_QTN_number)) {
+            stop("Please provide a valid \'dominance_QTN_number\'.", call. = F)
+          }
+          if (same_add_dom_QTN) {
+            if (!add) {
+              stop("\'same_add_dom_QTN\' is only valid if \'additive_QTN_number\' is not NULL.", call. = F)  
+            }
+          }
+        }
+        if (epi) {
+          if (is.null(epistatic_QTN_number)) {
+            stop("Please provide a valid \'epistatic_QTN_number\'.", call. = F)
+          }
+        }
+      }
+      
+      if (architecture == "partially" | architecture == "pleiotropic"){
+        if (is.null(correlation)) {
+          if (!is.null(additive_effect)) {a_var <- all(apply(additive_effect, 1, var) == 0)}
+          if (!is.null(dominance_effect)) {d_var <- all(apply(dominance_effect, 1, var) == 0)}
+          if (!is.null(epistatic_effect)) {e_var <- all(apply(epistatic_effect, 1, var) == 0)}
+          w <- c()
+          if (exists("a_var")) w <- a_var
+          if (exists("d_var")) w <- c(w, d_var)
+          if (exists("e_var")) w <- c(w, e_var) 
+          if (all(w)) warning("If \'correlation = NULL\', allelic effect must be different to generate different correlated traits!")
+        }
       }
       mm <-
         ifelse(
@@ -310,83 +386,58 @@ create_phenotypes <-
             })
           )
         )
-      if (!is.null(correlation) & !all(ntraits == dim(correlation))) {
-        stop("ntraits do not match with dim of correlation matrix!", call. = F)
-      }
-      if (architecture == "partially"){
-        if  (!is.null(specific_QTN_number) |
-             !is.null(overlap)) {
-          if (any(is.null(specific_QTN_number),
-                  is.null(overlap)))
-            stop("For Partially Pleiotropic additive architecture, both \'overlap\' and \'specific_QTN_number\' must be provided!", call. = F)
-          if (ntraits != length(specific_QTN_number)) 
-            stop("Parameter [additive] \'specific_QTN_number\' should have length = \'ntraits\'", call. = F)
+    }  else  if (sim_method != "geometric"){
+      if (add){
+        if (is.vector(additive_effect) | is.matrix(additive_effect)) {
+          additive_effect <- matrix(additive_effect, ncol = 1)
         }
-        if (!is.null(specific_e_QTN_number) |
-            !is.null(overlap_e)) {
-          if (any(is.null(specific_e_QTN_number),
-                  is.null(overlap_e))) 
-            stop("For Partially Pleiotropic epistatic architecture, both \'overlap_e\' and \'specific_e_QTN_number\' must be provided!", call. = F)
-          if (ntraits != length(specific_e_QTN_number)) {
-            stop("Parameter \'specific_e_QTN_number\' should have length = \'ntraits\'", call. = F)
-          }
+        if(nrow(additive_effect) > additive_QTN_number)
+          stop("Please provide an \'additive_effect\' object of nrow/length = \'additive_QTN_number\'.", call. = F)
+      }
+      if (dom){
+        if (is.vector(dominance_effect) | is.matrix(dominance_effect)) {
+          dominance_effect <- matrix(dominance_effect, ncol = 1)
+        }
+        if(nrow(dominance_effect) > dominance_QTN_number)
+          stop("Please provide a \'dominance_effect\' object of nrow/length  = \'dominance_QTN_number\'.", call. = F)
+      }
+      if (epi){
+        if (is.vector(epistatic_effect) | is.matrix(epistatic_effect)) {
+          epistatic_effect <- matrix(epistatic_effect, ncol = 1)
+        }
+        if(nrow(epistatic_effect) > epistatic_QTN_number)
+          stop("Please provide an \'epistatic_effect\' object of nrow/length = \'epistatic_QTN_number\'.", call. = F)
+      }
+    } else  if (sim_method == "geometric") {
+      if (add) {
+        temp_add <- matrix(additive_effect, ncol = ntraits)
+        additive_effect <- matrix(NA, additive_QTN_number, ntraits)
+        for(i in 1:ntraits){
+          additive_effect[, i] <- rep(temp_add[, i], additive_QTN_number) ^ (1:additive_QTN_number)
         }
       }
-      if (!is.null(epistatic_effect) &
-          ntraits != length(epistatic_effect)) {
-        stop("Parameter \'epistatic_effect\' should have length = \'ntraits\'", call. = F)
+      if (dom) {
+        temp_dom <- matrix(dominance_effect, ncol = ntraits)
+        dominance_effect <- matrix(NA, dominance_QTN_number, ntraits)
+        for(i in 1:ntraits){
+          dominance_effect[,i] <- rep(temp_dom[i], dominance_QTN_number) ** (1:dominance_QTN_number)
+        }
       }
-      # if (ntraits != length(additive_effect) |
-      #     ntraits != length(big_additive_QTN_effect) ) {
-      #   stop("Parameters \'additive_effect\' and \'big_additive_QTN_effect\' should have length = \'ntraits\'", call. = F)
-      # }
-      if (ntraits > 1 & 
-          (architecture == "partially" |
-          architecture == "pleiotropic")){
-        if (is.null(correlation)) {
-          if (add == TRUE & dom == TRUE & epi == TRUE) {
-            if (var(additive_effect[1,]) == 0 &
-                var(dominance_effect[1,]) == 0 &
-                var(epistatic_effect[1,]) == 0)
-              stop("In order to simulate correlated traits, please provide either a 
-                   correlation matrix or different genetic effects (\'additive_effect\', \'dominance_effect\', \'epistatic_effect\').", call. = F)
-          } else if (add == TRUE & epi == TRUE){
-            if (var(additive_effect[1,]) == 0 &
-                var(epistatic_effect[1,]) == 0)
-              stop("In order to simulate correlated traits, please provide either a 
-                   correlation matrix or different genetic effects (\'additive_effect\', \'epistatic_effect\').", call. = F)
-          } else if (add == TRUE & dom == TRUE){
-            if (var(additive_effect[1,]) == 0 &
-                var(dominance_effect[1,]) == 0)
-              stop("In order to simulate correlated traits, please provide either a 
-                   correlation matrix or different genetic effects (\'additive_effect\', \'dominance_effect\').", call. = F)
-          } else if (dom == TRUE & epi == TRUE){
-            if (var(dominance_effect[1,]) == 0 &
-                var(epistatic_effect[1,]) == 0)
-              stop("In order to simulate correlated traits, please provide either a 
-                   correlation matrix or different genetic effects (\'dominance_effect\', \'epistatic_effect\').", call. = F)
-          } else if (add == TRUE){
-            if (var(additive_effect[1,]) == 0)
-              stop("In order to simulate correlated traits, please provide either a 
-                   correlation matrix or different genetic effects (\'additive_effect\').", call. = F)
-          } else if (dom == TRUE){
-            if (var(dominance_effect[1,]) == 0)
-              stop("In order to simulate correlated traits, please provide either a 
-                   correlation matrix or different genetic effects (\'dominance_effect\').", call. = F)
-          } else if (epi == TRUE){
-            if (var(epistatic_effect[1,]) == 0)
-              stop("In order to simulate correlated traits, please provide either a 
-                   correlation matrix or different genetic effects (\'epistatic_effect\').", call. = F)
-          }
+      if (epi) {
+        temp_epi <- matrix(epistatic_effect, ncol = ntraits)
+        epistatic_effect <- matrix(NA, epistatic_QTN_number, ntraits)
+        for(i in 1:ntraits){
+          epistatic_effect[,i] <- rep(temp_epi[i], epistatic_QTN_number) ** (1:epistatic_QTN_number)
         }
       }
     }
+    
+    
     #TODO VCF and other formats.
     input_format <- "hapmap"
     setwd(home_dir)
     on.exit(setwd(home_dir), add = TRUE)
-    if (!is.null(genotypes_path) |
-        !is.null(genotypes_file) |
+    if (!is.null(genotypes_path) | !is.null(genotypes_file) |
         (class(unlist(genotypes_object[, 12])) != "numeric" &
          class(unlist(genotypes_object[, 12])) != "integer")) {
       genotypes_object <-
@@ -401,9 +452,7 @@ create_phenotypes <-
                   SNP_impute = SNP_impute,
                   major_allele_zero = major_allele_zero)
     }
-    if (is.null(seed))
-      seed <- round(runif(1, 0, 10e5))
-    # Createing and setting a working directory for the output results
+    if (is.null(seed)){ seed <- round(runif(1, 0, 10e5)) }
     if (!is.null(output_dir)) {
       tempdir <- paste0(home_dir, "/", output_dir)
       if (dir.exists(tempdir)) {
@@ -468,16 +517,16 @@ create_phenotypes <-
     }
     if (architecture == "partially") {
       if (add) {
-        cat("\nNumber of pleiotropic additive QTNs:", overlap)
+        cat("\nNumber of pleiotropic additive QTNs:", overlap_a)
         cat("\nNumber of trait specific additive QTNs:",
-            paste(specific_QTN_number,
+            paste(specific_a_QTN_number,
                   collapse = ", ")
         )
       }
       if (dom) {
-        cat("\nNumber of pleiotropic dominant QTNs:", overlap)
+        cat("\nNumber of pleiotropic dominant QTNs:", overlap_a)
         cat("\nNumber of trait specific dominant QTNs:",
-            paste(specific_QTN_number,
+            paste(specific_a_QTN_number,
                   collapse = ", "))
       }
       if (epi) {
@@ -534,10 +583,7 @@ create_phenotypes <-
       }
       cat(paste0("\nOutput file format: \'", output_format, "\'\n"))
     }
-    if (architecture == "LD" |
-        out_geno == "plink" |
-        out_geno == "gds" |
-        output_format == "gemma"){
+    if (architecture == "LD" | out_geno == "plink" | out_geno == "gds" | output_format == "gemma"){
       dup <- duplicated(genotypes_object$snp)
       if(any(dup)){
         message("Removing ", sum(dup), " markers for being duplicated!")
@@ -600,12 +646,17 @@ create_phenotypes <-
         QTN_pleiotropic(
           genotypes = genotypes_object,
           seed = seed,
+          same_add_dom_QTN = same_add_dom_QTN,
           additive_QTN_number = additive_QTN_number,
+          dominance_QTN_number = dominance_QTN_number,
           epistatic_QTN_number = epistatic_QTN_number,
           constrains = constrains,
           rep = rep,
           rep_by = rep_by,
-          export_gt = export_gt
+          export_gt = export_gt,
+          add = add,
+          dom = dom,
+          epi = epi
         )
     }
     if (ntraits > 1 & !any(architecture != "partially")) {
@@ -613,15 +664,19 @@ create_phenotypes <-
         QTN_partially_pleiotropic(
           genotypes = genotypes_object,
           seed = seed,
-          overlap = overlap,
+          overlap_a = overlap_a,
           overlap_e = overlap_e,
-          specific_QTN_number = specific_QTN_number,
+          specific_a_QTN_number = specific_a_QTN_number,
           specific_e_QTN_number = specific_e_QTN_number,
           ntraits = ntraits,
           constrains = constrains,
           rep = rep,
           rep_by = rep_by,
-          export_gt = export_gt
+          export_gt = export_gt,
+          same_add_dom_QTN = same_add_dom_QTN,
+          add = add,
+          dom = dom,
+          epi = epi
         )
     }
     if (ntraits > 1 & !any(architecture != "LD")) {
@@ -635,8 +690,10 @@ create_phenotypes <-
           constrains = constrains,
           rep = rep,
           rep_by = rep_by,
-          export_gt = export_gt
-        )
+          export_gt = export_gt,
+          same_add_dom_QTN = same_add_dom_QTN,
+          add = add,
+          dom = dom)
     }
     if (ntraits == 1) {
       if (dom) {
@@ -647,6 +704,9 @@ create_phenotypes <-
               additive_object = QTN$additive_effect_trait_object,
               dominance_object = QTN$additive_effect_trait_object,
               epistatic_object = QTN$epistatic_effect_trait_object,
+              additive_QTN_number = additive_QTN_number,
+              dominance_QTN_number = dominance_QTN_number,
+              epistatic_QTN_number = epistatic_QTN_number,
               additive_effect = additive_effect,
               dominance_effect = dominance_effect,
               epistatic_effect = epistatic_effect,
@@ -665,6 +725,9 @@ create_phenotypes <-
               additive_object = QTN$additive_effect_trait_object,
               dominance_object = QTN$dominance_effect_trait_object,
               epistatic_object = QTN$epistatic_effect_trait_object,
+              additive_QTN_number = additive_QTN_number,
+              dominance_QTN_number = dominance_QTN_number,
+              epistatic_QTN_number = epistatic_QTN_number,
               additive_effect = additive_effect,
               dominance_effect = dominance_effect,
               epistatic_effect = epistatic_effect,
@@ -683,6 +746,8 @@ create_phenotypes <-
             seed = seed,
             additive_object = QTN$additive_effect_trait_object,
             epistatic_object = QTN$epistatic_effect_trait_object,
+            additive_QTN_number = additive_QTN_number,
+            epistatic_QTN_number = epistatic_QTN_number,
             additive_effect = additive_effect,
             epistatic_effect = epistatic_effect,
             big_additive_QTN_effect = big_additive_QTN_effect,
@@ -696,7 +761,6 @@ create_phenotypes <-
       }
     } else {
       if(dom){
-        #including same_add_dom_QTN
         if(same_add_dom_QTN){
           genetic_value <-
             base_line_multi_traits(
@@ -727,6 +791,9 @@ create_phenotypes <-
               additive_object = QTN$additive_effect_trait_object,
               dominance_object = QTN$dominance_effect_trait_object,
               epistatic_object = QTN$epistatic_effect_trait_object,
+              additive_QTN_number = additive_QTN_number,
+              dominance_QTN_number = dominance_QTN_number,
+              epistatic_QTN_number = epistatic_QTN_number,
               additive_effect = additive_effect,
               dominance_effect = dominance_effect,
               epistatic_effect = epistatic_effect,
@@ -748,6 +815,9 @@ create_phenotypes <-
             correlation = correlation,
             additive_object = QTN$additive_effect_trait_object,
             epistatic_object = QTN$epistatic_effect_trait_object,
+            additive_QTN_number = additive_QTN_number,
+            dominance_QTN_number = dominance_QTN_number,
+            epistatic_QTN_number = epistatic_QTN_number,
             additive_effect = additive_effect,
             epistatic_effect = epistatic_effect,
             big_additive_QTN_effect = big_additive_QTN_effect,
@@ -760,14 +830,6 @@ create_phenotypes <-
             sim_method = sim_method
           )
       }
-      
-      
-
-      
-      
-      
-      
-      
       if (!is.null(correlation)) {
         cat("Population Correlation \n")
         colnames(correlation) <- paste0("Trait_", 1:ntraits)
