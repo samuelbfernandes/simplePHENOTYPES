@@ -30,8 +30,8 @@
 #' @param epistatic_QTN_number Number of epistatic (additive x additive)
 #' quantitative trait nucleotide to be simulated.
 #' @param additive_effect Additive effect size to be simulated. If `ntraits` > 1, 
-#' additive_effect should have length equals to `ntraits`. For multiple QTNs a
-#' geometric series is simulated, i.e. if the additive_effect = 0.5, 
+#' one additive_effect should be provided for each trait. For multiple QTNs, a
+#' geometric series may be simulated, i.e. if the additive_effect = 0.5, 
 #' the effect size of the first QTNs is 0.2, and the effect size of the second is 0.5^2 and the 
 #' effect of the n^th QTN is 0.5^n.
 #' @param epistatic_effect Epistatic (additive x additive) effect size to be
@@ -176,26 +176,24 @@ create_phenotypes <-
       }
     }
     colnames(h2) <- paste0("Trait_", 1:ntraits)
-    # if (add) if (is.matrix(additive_effect)) {
-    #   additive_effect <-
-    #   split(additive_effect, rep(1:ncol(additive_effect), each = nrow(additive_effect)))
-    # }
-    # if (dom) if (is.matrix(dominance_effect)) {
-    #   dominance_effect <-
-    #     split(dominance_effect, rep(1:ncol(dominance_effect), each = nrow(dominance_effect)))
-    # }
-    # if (epi) if (is.matrix(epistatic_effect)) {
-    #   epistatic_effect <-
-    #     split(epistatic_effect, rep(1:ncol(epistatic_effect), each = nrow(epistatic_effect)))
-    # }
-    # if (dom & same_add_dom_QTN & !is.null(degree_of_dominance) & is.null(dominance_effect)) { 
-    #   dominance_effect <- lapply(additive_effect, function(x) x * degree_of_dominance)
-    # }
-
-    
-    
-    
-    
+    if (add) if (is.vector(additive_effect)) {
+      additive_effect <- as.list(additive_effect)
+    } else if (!is.list(additive_effect)) {
+      stop("\'additive_effect\' should be either a vector or a list of length = ntraits.", call. = F)
+    }
+    if (dom) if (is.vector(dominance_effect)) {
+      dominance_effect <- as.list(dominance_effect)
+    } else if (!is.list(dominance_effect)) {
+      stop("\'dominance_effect\' should be either a vector or a list of length = ntraits.", call. = F)
+    }
+    if (epi) if (is.vector(epistatic_effect)) {
+      epistatic_effect <- as.list(epistatic_effect)
+    } else if (!is.list(epistatic_effect)) {
+      stop("\'epistatic_effect\' should be either a vector or a list of length = ntraits.", call. = F)
+    }
+    if (dom & same_add_dom_QTN & !is.null(degree_of_dominance) & is.null(dominance_effect)) {
+      dominance_effect <- lapply(additive_effect, function(x) x * degree_of_dominance)
+    }
     if (sum(c(!is.null(genotypes_object), !is.null(genotypes_file), !is.null(genotypes_path))) != 1) {
       stop("Please provide one of `genotypes_object`, `genotypes_file` or `genotypes_path`.", call. = F)
     }
