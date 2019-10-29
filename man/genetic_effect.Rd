@@ -5,11 +5,9 @@
 \title{Calculate genetic value based on QTN objects.}
 \usage{
 genetic_effect(add_object = NULL, dom_object = NULL,
-  epi_object = NULL, additive_QTN_number = NULL,
-  dominance_QTN_number = NULL, epistatic_QTN_number = NULL,
-  add_effect = NULL, dom_effect = NULL, epi_effect = NULL,
-  big_add_QTN_effect = NULL, sim_method = NULL, add = NULL,
-  dom = NULL, epi = NULL)
+  epi_object = NULL, add_effect = NULL, dom_effect = NULL,
+  epi_effect = NULL, sim_method = NULL, add = NULL, dom = NULL,
+  epi = NULL)
 }
 \arguments{
 \item{add_object}{= NULL,}
@@ -18,19 +16,11 @@ genetic_effect(add_object = NULL, dom_object = NULL,
 
 \item{epi_object}{= NULL,}
 
-\item{additive_QTN_number}{= NULL,}
-
-\item{dominance_QTN_number}{= NULL,}
-
-\item{epistatic_QTN_number}{= NULL,}
-
 \item{add_effect}{= NULL,}
 
 \item{dom_effect}{= NULL,}
 
 \item{epi_effect}{= NULL,}
-
-\item{big_add_QTN_effect}{= NULL,}
 
 \item{sim_method}{= NULL,}
 

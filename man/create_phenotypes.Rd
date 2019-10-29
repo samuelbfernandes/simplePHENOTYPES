@@ -65,8 +65,8 @@ quantitative trait nucleotide to be simulated.}
 \item{sim_method}{Either "geometric" or "user".}
 
 \item{additive_effect}{Additive effect size to be simulated. If `ntraits` > 1, 
-additive_effect should have length equals to `ntraits`. For multiple QTNs a
-geometric series is simulated, i.e. if the additive_effect = 0.5, 
+one additive_effect should be provided for each trait. For multiple QTNs, a
+geometric series may be simulated, i.e. if the additive_effect = 0.5, 
 the effect size of the first QTNs is 0.2, and the effect size of the second is 0.5^2 and the 
 effect of the n^th QTN is 0.5^n.}
 
