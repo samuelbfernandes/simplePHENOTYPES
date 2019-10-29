@@ -9,7 +9,7 @@ output:
     highlight: textmate
     df_print: tibble
 author: Samuel B Fernandes and Alexander E Lipka
-date: Sep 25, 2019
+date: Oct 29, 2019
 
 vignette: >
   %\VignetteIndexEntry{Introduction to simplePHENOTYPES}
@@ -70,37 +70,45 @@ create_phenotypes(
 ```
 
 # Multiple Traits: Pleiotropic Architecture
-Simulating three traits `ntraits = 3` controlled by the same three additive QTN. One of these traits (Trait_1) is a "target", while the other is a correlated trait of lesser importance. The effect size of the largest-effect QTN is 0.3 for all traits, while the additive effect sizes are 0.04, 0.2 and 0.1 for each trait, respectively. Heritability for the target trait is 0.2, while the heritability of the two correlated traits is 0.4. Each replicate is being recorded in a different file (`output_format = "multi-file"`) in a folder named "Results_Pleotropic". The correlation between traits is not specified by the user; instead, the observed correlation is an artifact of different allelic effects for each trait. The same QTNs are used to generate phenotypes in all 10 replications (`rep_by = "experiment"`); alternatively, one could select different QTNs in each replicate using `rep_by = "QTN"` (default).
+Simulating three traits `ntraits = 3` controlled by the same three additive QTN and four dominance QTN. The effect size of the largest-effect additive QTN is 0.3 for all traits, while the additive effect sizes are 0.04, 0.2 and 0.1 for each trait, respectively. Heritability for trait_1 is 0.2, while the heritability of the two correlated traits is 0.4. Each replicate is being recorded in a different file (`output_format = "multi-file"`) in a folder named "Results_Pleotropic". The correlation between traits is not specified by the user; instead, the observed correlation is an artifact of different allelic effects for each trait. The same QTNs are used to generate phenotypes in all 10 replications (`vary_QTN = FALSE`); alternatively, one could select different QTNs in each replicate using `vary_QTN = TRUE` (default). The vector `additive_effect` contains one allelic effect for each trait and a geometric series (default) will be used to generate allelic effects for each one of the three additive QTNs (`additive_QTN_number = 3`) and four dominance QTNs (`dominance_QTN_number = 4`).
 ```{r MT P, results = "hide", eval = FALSE}
  test1 <-  create_phenotypes(
     genotypes_object = SNP55K_maize282_maf04,
-    additive_QTN_number = 4,
+    additive_QTN_number = 3,
+    dominance_QTN_number = 4,
     big_additive_QTN_effect = c(0.3, 0.3, 0.3),
-    h2 = c(0.2,0.4, 0.4),
+    h2 = c(0.2, 0.4, 0.4),
     additive_effect = c(0.04,0.2,0.1),
+    dominance_effect = c(0.04,0.2,0.1),
     ntraits = 3,
     rep = 10,
     vary_QTN = FALSE,
     output_format = "multi-file",
     architecture = "pleiotropic",
     output_dir = "Results_Pleiotropic",
-    to_r = T,
+    to_r = TRUE,
     seed = 10,
-    model = "A"
+    model = "AD",
+    sim_method = "geometric"
   )
 ```
-
+Optionally, users may input a list of allelic effects (`sim_method = "user"`). In the example below, a geometric series (users_geometric) is being assigned and should generate the same simulated data as the previous example (all.equal(test1, test2)). Notice that since `big_additive_QTN_effect` is provided, the user only needs to provide effects for two out of the three additive QTNs being simulated. On the other hand, all four dominance QTN must have an effect assigned on the users_geometric_d list.
 ```{r MT P2, results = "hide", eval = FALSE}
- users_geometric <- list(trait_1 = c(0.04, 0.0016, 6.4e-05),
-                         trait_2 = c(0.2, 0.04, 0.008),
-                         trait_3 = c(0.1, 0.01, 0.001))
+ users_geometric_a <- list(trait_1 = c(0.04, 0.0016),
+                         trait_2 = c(0.2, 0.04),
+                         trait_3 = c(0.1, 0.01))
+ users_geometric_d <- list(trait_1 = c(0.04, 0.0016, 6.4e-05, 2.56e-06),
+                         trait_2 = c(0.2, 0.04, 0.008, 0.0016),
+                         trait_3 = c(0.1, 0.01, 0.001, 1e-04))
 
  test2 <-  create_phenotypes(
    genotypes_object = SNP55K_maize282_maf04,
-   additive_QTN_number = 4,
+   additive_QTN_number = 3,
+   dominance_QTN_number = 4,
    big_additive_QTN_effect = c(0.3, 0.3, 0.3),
    h2 = c(0.2,0.4, 0.4),
-   additive_effect = users_geometric,
+   additive_effect = users_geometric_a,
+   dominance_effect = users_geometric_d,
    ntraits = 3,
    rep = 10,
    vary_QTN = FALSE,
@@ -110,7 +118,7 @@ Simulating three traits `ntraits = 3` controlled by the same three additive QTN.
    to_r = T,
    sim_method = "user",
    seed = 10,
-    model = "A"
+   model = "AD"
  )
  
  all.equal(test1, test2)
@@ -119,18 +127,22 @@ Simulating three traits `ntraits = 3` controlled by the same three additive QTN.
 # Multiple Traits: Partially Pleiotropic Architecture
 Simulating 20 replicates of three traits, which are respectively controlled by seven, 13 and four QTNs. The first of the three pleiotropic QTNs (`overlap = 3`) will have a large additive QTN effect of 0.9. All other QTNs will have additive effects that follow a geometric series, where the effect size of the i^th QTN has an effect size of 0.3^i. Correlation among traits is assigned to be equal to the cor_matrix object. All 20 replicates of these three simulated traits will be saved in one file, specifically in a long format and with an additional column named "Rep". Results will be saved in a directory called "Results_Partially". In this example, the genotype file will be saved in numeric format. Additionally, all phenotypes will be assigned to an object called "sim_results" (to_r = TRUE) and loaded into R.
 ```{r MT PP, results = "hide", eval = FALSE}
-cor_matrix <- matrix(c(   1, 0.4, -0.5,
-                        0.4,   1,  0.7,
-                       -0.5, 0.7,    1 ), 3)
+cor_matrix <- matrix(c(   1, 0.3, -0.9,
+                        0.3,   1,  -0.5,
+                       -0.9, -0.5,    1 ), 3)
 
 sim_results <- create_phenotypes(
   genotypes_object = SNP55K_maize282_maf04,
-  overlap_a = 3,
-  specific_a_QTN_number = c(4, 10, 1),
-  big_additive_QTN_effect = c(0.9, 0.9, 0.9),
-  h2 = c(0.2, 0.4, 0.8),
-  additive_effect = c(0.3, 0.3, 0.3),
   ntraits = 3,
+  overlap_a = 3,
+  overlap_e = 2,
+  same_add_dom_QTN = TRUE,
+  degree_of_dominance = 0.5,
+  specific_a_QTN_number = c(4, 10, 1),
+  specific_e_QTN_number = c(3, 2, 5),
+  h2 = c(0.2, 0.4, 0.8),
+  additive_effect = c(0.5, 0.33, 0.2),
+  epistatic_effect = c(0.3, 0.3, 0.3),
   correlation = cor_matrix,
   rep = 20,
   output_dir = "Results_Partially",
@@ -138,19 +150,18 @@ sim_results <- create_phenotypes(
   architecture = "partially",
   out_geno = "numeric",
   to_r = TRUE,
-  model = "A"
+  model = "AED"
 )
 ```
 
 
-# Multiple Traits: Linkage Dissequilibrium Architecture
-Simulating five replicates of two linked traits controlled by three additive QTNs. For each QTN, a marker is first selected, and then two separate markers that have an r^2 of at most 0.8 with the selected marker will be the respective QTNs of the two traits. The largest additive effect size of a pair of QTNs selected in this manner will be 0.1, and then the other QTN pairs will have additive effects that follow a geometric series, where the effect size of the i^th QTN is 0.02^i for one trait and 0.05^i for the other trait. Starting seed number is 200 and output phenotypes are saved in one file, but in a "wide" format with each replicate of two traits being added as additional columns. Plink fam, bim and bed files are also saved at Results_LD.
+# Multiple Traits: Linkage Disequilibrium Architecture
+Simulating five replicates of two linked traits controlled by three additive QTNs each. For each QTN, a marker is first selected, and then two separate markers that have an r^2 of at most 0.8 (`ld=0.8`) with the selected marker will be the respective QTNs of the two traits. The three QTNs will have additive effects that follow a geometric series, where the effect size of the i^th QTN is 0.02^i for one trait and 0.05^i for the other trait. Starting seed number is 200 and output phenotypes are saved in one file, but in a "wide" format with each replicate of two traits being added as additional columns. Plink fam, bim and bed files are also saved at Results_LD.
 
 ```{r MT LD, results = "hide", eval = FALSE}
 create_phenotypes(
   genotypes_object = SNP55K_maize282_maf04,
   additive_QTN_number = 3,
-  big_additive_QTN_effect = c(0.1, 0.1),
   h2 = c(0.2, 0.4),
   additive_effect = c(0.02, 0.05),
   rep = 5,
@@ -175,7 +186,6 @@ create_phenotypes(
   specific_e_QTN_number = c(2,1, 5),
   epistatic_effect = c(0.01, 0.4, 0.2),
   additive_effect = c(0.3, 0.2, 0.5),
-  big_additive_QTN_effect = c(0.3, 0.2, 0.5),
   h2 = c(0.2,0.4, 0.8),
   ntraits = 3,
   rep = 20,
@@ -194,14 +204,13 @@ create_phenotypes(
   genotypes_path = getwd(),
   shared_name = "WGS_chrm_",
   additive_QTN_number = 3,
-  big_additive_QTN_effect = 0.1,
   h2 = 0.2,
   additive_effect = 0.02,
   rep = 5,
   seed = 200,
   output_format = "gemma",
   output_dir = "Results",
-  model = "A"
+  model = "ADE"
 )
 ```
 
