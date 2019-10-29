@@ -3,13 +3,9 @@
 #' @param add_object = NULL,
 #' @param dom_object = NULL,
 #' @param epi_object = NULL,
-#' @param additive_QTN_number = NULL,
-#' @param dominance_QTN_number = NULL,
-#' @param epistatic_QTN_number = NULL,
 #' @param add_effect = NULL,
 #' @param dom_effect = NULL,
 #' @param epi_effect = NULL,
-#' @param big_add_QTN_effect = NULL,
 #' @param sim_method = NULL,
 #' @param add = NULL,
 #' @param dom = NULL,
@@ -23,13 +19,9 @@ genetic_effect <-
   function(add_object = NULL,
            dom_object = NULL,
            epi_object = NULL,
-           additive_QTN_number = NULL,
-           dominance_QTN_number = NULL,
-           epistatic_QTN_number = NULL,
            add_effect = NULL,
            dom_effect = NULL,
            epi_effect = NULL,
-           big_add_QTN_effect = NULL,
            sim_method = NULL,
            add = NULL,
            dom = NULL,
@@ -52,29 +44,19 @@ genetic_effect <-
     add_component <- as.data.frame(matrix(0, nrow = n, ncol = 1))
     dom_component <- as.data.frame(matrix(0, nrow = n, ncol = 1))
     epi_component <- as.data.frame(matrix(0, nrow = n, ncol = 1))
-    if (add == TRUE) {
-      if (!is.null(big_add_QTN_effect)) {
-        add_component <-
-          add_component +
-          (add_object[, 1] * big_add_QTN_effect)
-        if (additive_QTN_number >= 2){
-          for (i in 2:additive_QTN_number) {
-            add_component <- 
-              add_component + (add_object[, i] * as.numeric(add_effect[i-1]))
-          }
-        }
-      } else {
-        for (i in 1:additive_QTN_number) {
-          add_component <- 
-            add_component + 
-            (add_object[, i] * as.numeric(add_effect[i]))
-        }
+    if (add) {
+      additive_QTN_number <- ncol(add_object)
+      for (i in 1:additive_QTN_number) {
+        add_component <- 
+          add_component + 
+          (add_object[, i] * as.numeric(add_effect[i]))
       }
       rownames(add_component) <- rownames
       colnames(add_component) <- "additive_effect"
       add_genetic_variance <- var(add_component)
     }
-    if (dom == TRUE) {
+    if (dom) {
+      dominance_QTN_number <- ncol(dom_object)
       for (i in 1:dominance_QTN_number) {
         dom_component[dom_object[, i] == 1, 1] <-
           dom_component[dom_object[, i] == 1, 1] + dom_effect[i]
@@ -83,10 +65,8 @@ genetic_effect <-
       colnames(dom_component) <- "dominance_effect"
       dom_genetic_variance <- var(dom_component)
     }
-    if (epi == TRUE) {
-      epi_object <- as.data.frame(epi_object)
-      epi_component <-
-        as.data.frame( matrix( 0, nrow = n, ncol = 1))
+    if (epi) {
+      epistatic_QTN_number <- ncol(epi_object)/2
       for (i in 0:(epistatic_QTN_number - 1)) {
         epi_component <-
           epi_component + 
