@@ -6,7 +6,7 @@
 \usage{
 file_loader(genotypes_object = NULL, genotypes_file = NULL,
   genotypes_path = NULL, input_format = "hapmap", nrows = Inf,
-  na_string = "NA", shared_name = NULL, SNP_impute = "Middle",
+  na_string = "NA", prefix = NULL, SNP_impute = "Middle",
   SNP_effect = "Add", major_allele_zero = FALSE)
 }
 \arguments{
@@ -22,7 +22,7 @@ file_loader(genotypes_object = NULL, genotypes_file = NULL,
 
 \item{na_string}{= "NA",}
 
-\item{shared_name}{= NULL,}
+\item{prefix}{= NULL,}
 
 \item{SNP_impute}{= "Middle",}
 

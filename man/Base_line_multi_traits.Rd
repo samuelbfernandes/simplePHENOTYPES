@@ -55,7 +55,7 @@ Samuel Fernandes
 Last update: Jul 22, 2019
 
 -------------------------------base_line_multi_traits-------------------------
----------------------------------------------------------------------------
+--------------------------------------------------------------------------
 whiting transformation
 coloring transformation
 approximation to make it positive definite

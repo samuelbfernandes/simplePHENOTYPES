@@ -47,5 +47,5 @@ Select SNPs to be assigned as QTNs
 Samuel Fernandes
 Last update: Jul 22, 2019
 
------------------------------ QTN_linkage ---------------------------------
+----------------------------- QTN_linkage ------------------------------------
 }

@@ -49,6 +49,6 @@ Calculate genetic value based on QTN objects.
 Alex Lipka and Samuel Fernandes
 Last update: Jul 22, 2019
 
------------------------------Base_line_single_trait----------------------------
+-----------------------------Base_line_single_trait---------------------------
 --------------------------------------------------------------------------
 }

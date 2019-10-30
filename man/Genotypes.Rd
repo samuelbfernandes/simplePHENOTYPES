@@ -6,7 +6,7 @@
 \usage{
 genotypes(genotypes_object = NULL, genotypes_file = NULL,
   genotypes_path = NULL, input_format = "hapmap", nrows = Inf,
-  na_string = "NA", shared_name = NULL, maf_cutoff = NULL,
+  na_string = "NA", prefix = NULL, maf_cutoff = NULL,
   SNP_effect = "Add", SNP_impute = "Middle",
   major_allele_zero = FALSE)
 }
@@ -23,7 +23,7 @@ genotypes(genotypes_object = NULL, genotypes_file = NULL,
 
 \item{na_string}{= "NA",}
 
-\item{shared_name}{= NULL,}
+\item{prefix}{= NULL,}
 
 \item{maf_cutoff}{= NULL,}
 
