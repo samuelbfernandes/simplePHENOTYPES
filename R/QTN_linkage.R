@@ -17,7 +17,7 @@
 #' @author Samuel Fernandes
 #' Last update: Jul 22, 2019
 #'
-#'----------------------------- QTN_linkage ---------------------------------
+#'----------------------------- QTN_linkage ------------------------------------
 QTN_linkage <-
   function(genotypes = NULL,
            seed = NULL,

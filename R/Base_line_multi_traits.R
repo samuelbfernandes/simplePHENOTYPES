@@ -38,13 +38,15 @@ base_line_multi_traits <-
            dom = NULL,
            epi = NULL,
            sim_method = NULL) {
-    #'---------------------------------------------------------------------------
-      traits <- NULL
-      VA <- NULL
-      VD <- NULL
-      VE <- NULL
-      sample_cor = NULL
-    if (rep_by != 'QTN'){ rep <- 1}
+    #'--------------------------------------------------------------------------
+    traits <- NULL
+    VA <- NULL
+    VD <- NULL
+    VE <- NULL
+    sample_cor <- NULL
+    if (rep_by != "QTN"){
+      rep <- 1
+      }
     results <- vector("list", rep)
     for(z in 1:rep){
       if (!is.null(correlation) & architecture != "LD") {
@@ -109,7 +111,7 @@ base_line_multi_traits <-
             traits[, i] <-
               traits[, i] * sdg[i] + meang[i]
             cor_original_trait[i] <-
-              cor(traits[, i], genetic_value[,i])
+              cor(traits[, i], genetic_value[, i])
           }
           sample_cor <- cor(traits)
           results[[z]] <- list(
@@ -184,7 +186,7 @@ base_line_multi_traits <-
               cor(traits[, i], genetic_value[, i])
           }
           sample_cor <- cor(traits)
-          results[[z]] <- 
+          results[[z]] <-
             list(
               base_line = traits,
               VA = VA,
@@ -193,7 +195,7 @@ base_line_multi_traits <-
               sample_cor = sample_cor,
               cor_original_trait = cor_original_trait
             )
-         }
+        }
       } else {
         VA <- c()
         VE <- c()
@@ -233,14 +235,20 @@ base_line_multi_traits <-
           rownames(traits) <- rownames
         } else {
           if (add) {
-            traits <- matrix(NA, nrow(additive_object[[z]][[1]]), ncol = ntraits)
-            rownames <- rownames(additive_object[[z]][[1]]) 
+            traits <- matrix(NA,
+                             nrow(additive_object[[z]][[1]]),
+                             ncol = ntraits)
+            rownames <- rownames(additive_object[[z]][[1]])
           } else if (dom) {
-            traits <- matrix(NA, nrow(dominance_object[[z]][[1]]), ncol = ntraits)
-            rownames <- rownames(dominance_object[[z]][[1]]) 
+            traits <- matrix(NA,
+                             nrow(dominance_object[[z]][[1]]),
+                             ncol = ntraits)
+            rownames <- rownames(dominance_object[[z]][[1]])
           } else {
-            traits <- matrix(NA, nrow(epistatic_object[[z]][[1]]), ncol = ntraits)
-            rownames <- rownames(epistatic_object[[z]][[1]]) 
+            traits <- matrix(NA,
+                             nrow(epistatic_object[[z]][[1]]),
+                             ncol = ntraits)
+            rownames <- rownames(epistatic_object[[z]][[1]])
           }
           for (i in 1:ntraits) {
             trait_temp <-

@@ -19,7 +19,7 @@
 
 #' Last update: Jul 22, 2019
 #'
-#'-----------------------------Base_line_single_trait----------------------------
+#'-----------------------------Base_line_single_trait---------------------------
 base_line_single_trait <-
   function(additive_object = NULL,
            dominance_object = NULL,
@@ -33,14 +33,14 @@ base_line_single_trait <-
            ntraits = 1,
            add = NULL,
            dom = NULL,
-           epi = NULL,           
+           epi = NULL,
            sim_method = NULL
-           ) {
+  ) {
     #'--------------------------------------------------------------------------
-    if (rep_by != 'QTN') {
+    if (rep_by != "QTN") {
       rep <- 1
     }
-    if(ntraits > 1) {
+    if (ntraits > 1) {
       results <- genetic_effect(add_object = additive_object,
                                 dom_object = dominance_object,
                                 epi_object = epistatic_object,
@@ -53,8 +53,8 @@ base_line_single_trait <-
                                 epi = epi)
     } else {
       results <- vector("list", rep)
-      for(z in 1:rep){
-        results[[z]] <- 
+      for (z in 1:rep){
+        results[[z]] <-
           genetic_effect(add_object = additive_object[[z]],
                          dom_object = dominance_object[[z]],
                          epi_object = epistatic_object[[z]],
