@@ -92,12 +92,12 @@ Simulating three traits `ntraits = 3` controlled by the same three additive QTN 
     sim_method = "geometric"
   )
 ```
-Optionally, users may input a list of allelic effects (`sim_method = "user"`). In the example below, a geometric series (users_geometric) is being assigned and should generate the same simulated data as the previous example (all.equal(test1, test2)). Notice that since `big_additive_QTN_effect` is provided, the user only needs to provide effects for two out of the three additive QTNs being simulated. On the other hand, all four dominance QTN must have an effect assigned on the users_geometric_d list.
+Optionally, users may input a list of allelic effects (`sim_method = "custom"`). In the example below, a geometric series (custom_geometric) is being assigned and should generate the same simulated data as the previous example (all.equal(test1, test2)). Notice that since `big_additive_QTN_effect` is provided, the user only needs to provide effects for two out of the three additive QTNs being simulated. On the other hand, all four dominance QTN must have an effect assigned on the custom_geometric_d list.
 ```{r MT P2, results = "hide", eval = FALSE}
- users_geometric_a <- list(trait_1 = c(0.04, 0.0016),
+ custom_geometric_a <- list(trait_1 = c(0.04, 0.0016),
                          trait_2 = c(0.2, 0.04),
                          trait_3 = c(0.1, 0.01))
- users_geometric_d <- list(trait_1 = c(0.04, 0.0016, 6.4e-05, 2.56e-06),
+ custom_geometric_d <- list(trait_1 = c(0.04, 0.0016, 6.4e-05, 2.56e-06),
                          trait_2 = c(0.2, 0.04, 0.008, 0.0016),
                          trait_3 = c(0.1, 0.01, 0.001, 1e-04))
 
@@ -107,8 +107,8 @@ Optionally, users may input a list of allelic effects (`sim_method = "user"`). I
    dominance_QTN_number = 4,
    big_additive_QTN_effect = c(0.3, 0.3, 0.3),
    h2 = c(0.2,0.4, 0.4),
-   additive_effect = users_geometric_a,
-   dominance_effect = users_geometric_d,
+   additive_effect = custom_geometric_a,
+   dominance_effect = custom_geometric_d,
    ntraits = 3,
    rep = 10,
    vary_QTN = FALSE,
@@ -116,7 +116,7 @@ Optionally, users may input a list of allelic effects (`sim_method = "user"`). I
    architecture = "pleiotropic",
    output_dir = "Results_Pleiotropic",
    to_r = T,
-   sim_method = "user",
+   sim_method = "custom",
    seed = 10,
    model = "AD"
  )
