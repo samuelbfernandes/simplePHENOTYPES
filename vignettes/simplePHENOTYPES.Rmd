@@ -49,7 +49,7 @@ install.packages("[PATH]/simplePHENOTYPES_0.2.1.tar.gz", repos = NULL, type = "s
 
 # Load sample dataset
 Note that the example dataset is already numericalized. HapMap format may also be used with options  `geno_obj`, `genotypes_file` or `geno_path`.
-```{r load data}
+```{r load data, eval = FALSE}
 library(simplePHENOTYPES)
 data("SNP55K_maize282_maf04")
 SNP55K_maize282_maf04[1:8, 1:10]
