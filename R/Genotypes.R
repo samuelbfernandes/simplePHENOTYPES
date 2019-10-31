@@ -1,12 +1,12 @@
 #' Generate a numeric (dosaje) HapMap file
 #' @export
-#' @param genotypes_object = NULL,
-#' @param genotypes_file = NULL,
+#' @param geno_obj = NULL,
+#' @param geno_file = NULL,
 #' @param input_format = "hapmap",
 #' @param nrows = Inf,
 #' @param na_string = "NA",
 #' @param prefix = NULL,
-#' @param genotypes_path = NULL,
+#' @param geno_path = NULL,
 #' @param maf_cutoff = NULL,
 #' @param SNP_effect = 'Add',
 #' @param SNP_impute = 'Middle',
@@ -17,9 +17,9 @@
 #'
 #'------------------------------------------------------------------------------
 genotypes <-
-  function(genotypes_object = NULL,
-           genotypes_file = NULL,
-           genotypes_path = NULL,
+  function(geno_obj = NULL,
+           geno_file = NULL,
+           geno_path = NULL,
            input_format = "hapmap",
            nrows = Inf,
            na_string = "NA",
@@ -30,9 +30,9 @@ genotypes <-
            major_allele_zero = FALSE) {
     #---------------------------------------------------------------------------
     hmp <- file_loader(
-      genotypes_object = genotypes_object,
-      genotypes_file = genotypes_file,
-      genotypes_path = genotypes_path,
+      geno_obj = geno_obj,
+      geno_file = geno_file,
+      geno_path = geno_path,
       input_format = input_format,
       nrows = nrows,
       na_string = na_string,
@@ -42,34 +42,26 @@ genotypes <-
       hm <- list(GT = hmp$GT,
                  GD = hmp$GD,
                  GI = hmp$GI)
-      # Obtain the mafs of all SNPs
       #-------------------------------------------------------------------------
-      # Total number of lines
       ns <- nrow(hm$GD)
-      # Sum of the allele scores for each SNP
       ss <- apply(hm$GD, 2, sum)
-      # Combine two situations: one where the allele coded as '2' is major;
-      # one where '0' is coded as major.
       maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-      # Copy the minor allele frequencies for all SNPs
       maf <- apply(maf_matrix, 2, min)
-      # Find out which SNPs have MAF < maf_cutoff
       snps_below_maf <- which(maf < maf_cutoff)
-      # Remove these SNPs from hm$GD
       hm_GD_without_snps_below_maf <- hm$GD[, -snps_below_maf]
-      genotypes_object <-
+      geno_obj <-
         data.frame(hm$GI,
                    rep(NA, nrow(hm$GI)),
                    t(hm_GD_without_snps_below_maf))
-      colnames(genotypes_object) <-
+      colnames(geno_obj) <-
         c("snp", "allele", "chr", "pos", "cm", t(as.character(hm$GT)))
     } else {
-      genotypes_object <-
+      geno_obj <-
         data.frame(hmp$GI,
                    rep(NA, nrow(hmp$GI)),
                    t(hmp$GD))
-      colnames(genotypes_object) <-
+      colnames(geno_obj) <-
         c("snp", "allele", "chr", "pos", "cm", t(as.character(hmp$GT)))
     }
-    return(genotypes_object)
+    return(geno_obj)
   }

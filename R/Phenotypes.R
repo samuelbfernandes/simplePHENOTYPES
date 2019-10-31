@@ -27,23 +27,18 @@ phenotypes <-
     #---------------------------------------------------------------------------
     n <- nrow(base_line_trait[[1]]$base_line)
     names <- rownames(base_line_trait[[1]]$base_line)
-    if (rep_by != 'QTN'){
+    if (rep_by != "QTN") {
       if (ntraits > 1) {
         if (output_format == "multi-file") {
-          # Create a working directory for the output results:
           dir.create("Phenotypes")
-          # Set the working directory
           setwd("./Phenotypes")
         }
         H2 <- matrix(NA, nrow(h2), ntraits)
-        # For loop through the vector of heritabilities
         for (i in 1:nrow(h2)) {
           simulated_data <- vector("list", rep)
           ss <- c()
-          # If heritability is zero
           if (h2[i, 1] == 0) {
             colnames <- c("<Taxa>", paste0("Trait_", 1:ntraits), "Rep")
-            # Simulate rep experiments with a given heritability
             for (z in 1:rep) {
               simulated_data[[z]] <-
                 data.frame(names,
@@ -63,106 +58,6 @@ phenotypes <-
                                ntraits)
                 )
             }
-            if (output_format == "multi-file") {
-              invisible(lapply(1:rep, function(x) {
-                data.table::fwrite(
-                  simulated_data[[x]][- (ntraits + 2)],
-                  paste0("Simulated_Data_", "_Rep", x, "_Herit_", paste(h2[i, ], collapse = "_"), ".txt"),
-                  row.names = FALSE,
-                  sep = "\t",
-                  quote = FALSE,
-                  na = NA
-                )
-              }))
-            } else if (output_format == "long") {
-              temp_simulated_data <- do.call(rbind, simulated_data)
-              data.table::fwrite(
-                temp_simulated_data,
-                paste0("Simulated_Data_", rep, "_Reps", "_Herit_", paste(h2[i, ], collapse = "_"), ".txt"),
-                row.names = FALSE,
-                sep = "\t",
-                quote = FALSE,
-                na = NA
-              )
-            } else if (output_format == "gemma") {
-              invisible(lapply(1:rep, function(x) {
-                temp_fam <-  merge(fam, simulated_data[[x]][- (ntraits + 2)], 
-                                   by.x = "V1", by.y = "<Taxa>", sort = FALSE)
-                data.table::fwrite(
-                  temp_fam,
-                  paste0("Simulated_Data_", "_Rep", x, "_Herit_", paste(h2[i, ], collapse = "_"), ".fam"),
-                  row.names = FALSE,
-                  sep = "\t",
-                  col.names = FALSE,
-                  quote = FALSE,
-                  na = NA
-                )
-              }))
-            } else {
-              temp <- simulated_data[[1]][- (ntraits + 2)]
-              for (j in 2:rep) {
-                temp <- cbind(temp, simulated_data[[j]][-c(1, (ntraits + 2))])
-              }
-              data.table::fwrite(
-                temp,
-                paste0("Simulated_Data_", rep, "_Reps", "_Herit_", paste(h2[i, ], collapse = "_"), ".txt"),
-                row.names = FALSE,
-                sep = "\t",
-                quote = FALSE,
-                na = NA
-              )
-            }
-            # Output the m rep and the seed numbers, formatted for TASSEL
-            write.table(
-              ss,
-              ifelse(
-                output_format == "multi-file",
-                paste0(
-                  "../seed_number_for_",
-                  rep,
-                  "_Reps",
-                  "_Herit_",
-                  i,
-                  ".txt"
-                ),
-                paste0("seed_number_for_",
-                       rep, "_Reps", "_Herit_", paste(h2[i, ], collapse = "_"), ".txt")
-              ),
-              row.names = FALSE,
-              col.names = FALSE,
-              sep = "\t",
-              quote = FALSE
-            )
-          } else {
-            # Calcualte V_e, the residual variance
-            va <- apply(base_line_trait[[1]]$base_line, 2, var)
-            residual_cov <-  diag( (va / h2[i, ]) - va)
-            # Simulate rep experiments with a given heritability
-            colnames <- c("<Taxa>", 
-                          c(paste0("Trait_",
-                                   1:ntraits, "_H2_", h2[i, ]), "Rep"))
-            for (z in 1:rep) {
-              simulated_data[[z]] <-
-                data.frame(names,
-                           matrix(NA, n, ntraits),
-                           rep = z)
-              colnames(simulated_data[[z]]) <- colnames
-              if (!is.null(seed)) {
-                sss <- round( (seed * z * z) * i)
-                set.seed(sss)
-                ss <- c(ss, sss)
-              }
-              simulated_data[[z]][, 2:(ntraits + 1)] <-
-                base_line_trait[[1]]$base_line + mvtnorm::rmvnorm(
-                  n = n,
-                  mean = rep(0, ntraits),
-                  sigma = residual_cov
-                )
-            }
-            H2_temp <- sapply(1:rep, function(x) {
-              va / apply(simulated_data[[x]][1:ntraits + 1], 2, var)
-            })
-            H2[i,] <- apply(H2_temp, 1, mean)
             if (output_format == "multi-file") {
               invisible(lapply(1:rep, function(x) {
                 data.table::fwrite(
@@ -188,7 +83,7 @@ phenotypes <-
               )
             } else if (output_format == "gemma") {
               invisible(lapply(1:rep, function(x) {
-                temp_fam <-  merge(fam, simulated_data[[x]][- (ntraits + 2)], 
+                temp_fam <-  merge(fam, simulated_data[[x]][- (ntraits + 2)],
                                    by.x = "V1", by.y = "<Taxa>", sort = FALSE)
                 data.table::fwrite(
                   temp_fam,
@@ -216,7 +111,108 @@ phenotypes <-
                 na = NA
               )
             }
-            # Output the m rep and the seed numbers, formatted for TASSEL
+            write.table(
+              ss,
+              ifelse(
+                output_format == "multi-file",
+                paste0(
+                  "../seed_number_for_",
+                  rep,
+                  "_Reps",
+                  "_Herit_",
+                  i,
+                  ".txt"
+                ),
+                paste0("seed_number_for_",
+                       rep, "_Reps", "_Herit_",
+                       paste(h2[i, ], collapse = "_"), ".txt")
+              ),
+              row.names = FALSE,
+              col.names = FALSE,
+              sep = "\t",
+              quote = FALSE
+            )
+          } else {
+            va <- apply(base_line_trait[[1]]$base_line, 2, var)
+            residual_cov <-  diag( (va / h2[i, ]) - va)
+            colnames <- c("<Taxa>",
+                          c(paste0("Trait_",
+                                   1:ntraits, "_H2_", h2[i, ]), "Rep"))
+            for (z in 1:rep) {
+              simulated_data[[z]] <-
+                data.frame(names,
+                           matrix(NA, n, ntraits),
+                           rep = z)
+              colnames(simulated_data[[z]]) <- colnames
+              if (!is.null(seed)) {
+                sss <- round( (seed * z * z) * i)
+                set.seed(sss)
+                ss <- c(ss, sss)
+              }
+              simulated_data[[z]][, 2:(ntraits + 1)] <-
+                base_line_trait[[1]]$base_line + mvtnorm::rmvnorm(
+                  n = n,
+                  mean = rep(0, ntraits),
+                  sigma = residual_cov
+                )
+            }
+            H2_temp <- sapply(1:rep, function(x) {
+              va / apply(simulated_data[[x]][1:ntraits + 1], 2, var)
+            })
+            H2[i, ] <- apply(H2_temp, 1, mean)
+            if (output_format == "multi-file") {
+              invisible(lapply(1:rep, function(x) {
+                data.table::fwrite(
+                  simulated_data[[x]][- (ntraits + 2)],
+                  paste0("Simulated_Data_", "_Rep", x, "_Herit_",
+                         paste(h2[i, ], collapse = "_"), ".txt"),
+                  row.names = FALSE,
+                  sep = "\t",
+                  quote = FALSE,
+                  na = NA
+                )
+              }))
+            } else if (output_format == "long") {
+              temp_simulated_data <- do.call(rbind, simulated_data)
+              data.table::fwrite(
+                temp_simulated_data,
+                paste0("Simulated_Data_", rep, "_Reps", "_Herit_",
+                       paste(h2[i, ], collapse = "_"), ".txt"),
+                row.names = FALSE,
+                sep = "\t",
+                quote = FALSE,
+                na = NA
+              )
+            } else if (output_format == "gemma") {
+              invisible(lapply(1:rep, function(x) {
+                temp_fam <-  merge(fam, simulated_data[[x]][- (ntraits + 2)],
+                                   by.x = "V1", by.y = "<Taxa>", sort = FALSE)
+                data.table::fwrite(
+                  temp_fam,
+                  paste0("Simulated_Data_", "_Rep", x, "_Herit_",
+                         paste(h2[i, ], collapse = "_"), ".fam"),
+                  row.names = FALSE,
+                  sep = "\t",
+                  col.names = FALSE,
+                  quote = FALSE,
+                  na = NA
+                )
+              }))
+            } else {
+              temp <- simulated_data[[1]][- (ntraits + 2)]
+              for (j in 2:rep) {
+                temp <- cbind(temp, simulated_data[[j]][-c(1, (ntraits + 2))])
+              }
+              data.table::fwrite(
+                temp,
+                paste0("Simulated_Data_", rep, "_Reps", "_Herit_",
+                       paste(h2[i, ], collapse = "_"), ".txt"),
+                row.names = FALSE,
+                sep = "\t",
+                quote = FALSE,
+                na = NA
+              )
+            }
             write.table(
               ss,
               ifelse(
@@ -239,32 +235,25 @@ phenotypes <-
               quote = FALSE
             )
           }
-        }  #End for(i in h2)
+        }
         colnames(H2) <- paste0("Trait_", 1:ntraits)
         cat("\nSample heritability (Average of",
             rep,
             " replications): \n")
         print(H2)
         if (to_r) {
-          #cat(paste("Files saved in:", getwd()))
           simulated_data <- do.call(rbind, simulated_data)
           return(simulated_data)
-        } #else {
-        #return(paste("Files saved in:", getwd())) 
-        #}
+        }
       } else {
-        # For loop through the vector of heritabilities
         H2 <- matrix(NA, nrow = rep, ncol = ncol(h2))
         for (i in 1:nrow(h2)) {
-          # If heritability is zero
           ss <- c()
           if (h2[i, 1] == 0) {
             simulated_data <-
               data.frame(names, matrix(NA, n, rep))
-            # Format the output file for the simulated phenotypes
             colnames(simulated_data) <-
               c("<Taxa>", paste0("normal_random_variables_", 1:rep))
-            # Simulate rep experiments with a given heritability
             for (j in 1:rep) {
               if (!is.null(seed)) {
                 sss <- seed + j
@@ -274,7 +263,6 @@ phenotypes <-
               simulated_data[, j + 1] <-
                 rnorm(n, mean = 0, sd = 1)
             }
-            # Output the m rep and the seed numbers, formatted for TASSEL
             write.table(
               ss,
               paste0("seed_number_for_", rep, "_Reps", "_Herit_",
@@ -285,7 +273,7 @@ phenotypes <-
               quote = FALSE
             )
             if (output_format == "multi-file") {
-              invisible(apply(as.matrix(1:rep), 1,function(x) {
+              invisible(apply(as.matrix(1:rep), 1, function(x) {
                 data.table::fwrite(
                   simulated_data[, c(1, x + 1)],
                   paste0("Simulated_Data", "_Rep", x, "_Herit_",
@@ -298,11 +286,11 @@ phenotypes <-
               }))
             } else if (output_format == "long") {
               temp <- simulated_data[, 1:2]
-              colnames(temp) <- c("<Taxa>","Pheno")
+              colnames(temp) <- c("<Taxa>", "Pheno")
               if (rep > 1) {
-                for(x in 2:rep) {
+                for (x in 2:rep) {
                   temp2 <- simulated_data[, c(1, x + 1)]
-                  colnames(temp2) <- c("<Taxa>","Pheno")
+                  colnames(temp2) <- c("<Taxa>", "Pheno")
                   temp <- rbind(temp, temp2 )
                 }
               }
@@ -317,7 +305,7 @@ phenotypes <-
                 na = NA
               )
             } else if (output_format == "gemma") {
-              temp_fam <- merge(fam, simulated_data, 
+              temp_fam <- merge(fam, simulated_data,
                                 by.x = "V1", by.y = "<Taxa>", sort = FALSE)
               data.table::fwrite(
                 temp_fam,
@@ -341,15 +329,12 @@ phenotypes <-
               )
             }
           } else {
-            # Calcualte V_e, the residual variance
             va <- var(base_line_trait[[1]]$base_line)
-            residual.variance <- (va / h2[i,1]) -  va
+            residual.variance <- (va / h2[i, 1]) - va
             simulated_data <-
               data.frame(names, matrix(NA, n, rep))
-            # Format the output file for the simulated phenotypes
             colnames(simulated_data) <-
-              c("<Taxa>", c(paste0( "Heritability_", h2[i,], "_Rep_", 1:rep)))
-            # Simulate rep experiments with a given heritability
+              c("<Taxa>", c(paste0( "Heritability_", h2[i, ], "_Rep_", 1:rep)))
             for (j in 1:rep) {
               if (!is.null(seed)) {
                 sss <- round( (seed * j * j) * i)
@@ -362,7 +347,6 @@ phenotypes <-
                 base_line_trait[[1]]$base_line + normal_random_variables
               H2[j, i] <- va / var(simulated_data[, j + 1])
             }
-            # Output the m rep and the seed numbers, formatted for TASSEL
             write.table(
               ss,
               paste0("seed_number_for_", rep, "_Reps", "_Herit_",
@@ -373,7 +357,7 @@ phenotypes <-
               quote = FALSE
             )
             if (output_format == "multi-file") {
-              invisible(apply(as.matrix(1:rep), 1,function(x) {
+              invisible(apply(as.matrix(1:rep), 1, function(x) {
                 data.table::fwrite(
                   simulated_data[, c(1, x + 1)],
                   paste0("Simulated_Data", "_Rep", x, "_Herit_",
@@ -386,12 +370,12 @@ phenotypes <-
               }))
             } else if (output_format == "long") {
               temp <- simulated_data[, 1:2]
-              colnames(temp) <- c("<Taxa>","Pheno")
+              colnames(temp) <- c("<Taxa>", "Pheno")
               if (rep > 1) {
-                for(x in 2:rep) {
+                for (x in 2:rep) {
                   temp2 <- simulated_data[, c(1, x + 1)]
-                  colnames(temp2) <- c("<Taxa>","Pheno")
-                  temp <- rbind(temp, temp2 )
+                  colnames(temp2) <- c("<Taxa>", "Pheno")
+                  temp <- rbind(temp, temp2)
                 }
               }
               temp$reps <- rep(1:rep, each = n)
@@ -405,7 +389,7 @@ phenotypes <-
                 na = NA
               )
             } else if (output_format == "gemma") {
-              temp_fam <- merge(fam, simulated_data, 
+              temp_fam <- merge(fam, simulated_data,
                                 by.x = "V1", by.y = "<Taxa>", sort = FALSE)
               data.table::fwrite(
                 temp_fam,
@@ -437,30 +421,22 @@ phenotypes <-
         )
         print(H2)
         if (to_r) {
-          #cat(paste("Files saved in:", getwd()))
           return(simulated_data)
-        } #else {
-        #return(paste("Files saved in:", getwd())) 
-        #}
+        }
       }
     } else {
       if (ntraits > 1) {
         if (output_format == "multi-file") {
-          # Create a working directory for the output results:
           dir.create("Phenotypes")
-          # Set the working directory
           setwd("./Phenotypes")
         }
         H2 <- matrix(NA, nrow(h2), ntraits)
-        # For loop through the vector of heritabilities
         for (i in 1:nrow(h2)) {
           simulated_data <- vector("list", rep)
           H2_temp <- matrix(NA, rep, ntraits)
           ss <- c()
-          # If heritability is zero
-          if (h2[i,1] == 0) {
+          if (h2[i, 1] == 0) {
             colnames <- c("<Taxa>", paste0("Trait_", 1:ntraits), "Rep")
-            # Simulate rep experiments with a given heritability
             for (z in 1:rep) {
               simulated_data[[z]] <-
                 data.frame(names,
@@ -504,7 +480,7 @@ phenotypes <-
               )
             } else if (output_format == "gemma") {
               invisible(lapply(1:rep, function(x) {
-                temp_fam <-  merge(fam, simulated_data[[x]][- (ntraits + 2)], 
+                temp_fam <-  merge(fam, simulated_data[[x]][- (ntraits + 2)],
                                    by.x = "V1", by.y = "<Taxa>", sort = FALSE)
                 data.table::fwrite(
                   temp_fam,
@@ -532,7 +508,6 @@ phenotypes <-
                 na = NA
               )
             }
-            # Output the m rep and the seed numbers, formatted for TASSEL
             write.table(
               ss,
               ifelse(
@@ -556,11 +531,10 @@ phenotypes <-
             )
           } else {
             colnames <- c("<Taxa>",
-                          paste0("Trait_", 1:ntraits, "_H2_", h2[i,]), "Rep")
+                          paste0("Trait_", 1:ntraits, "_H2_", h2[i, ]), "Rep")
             for (z in 1:rep) {
               va <- apply(base_line_trait[[z]]$base_line, 2, var)
-              residual_cov <- diag( (va / h2[i,]) - va)
-              # Simulate rep experiments with a given heritability
+              residual_cov <- diag( (va / h2[i, ]) - va)
               simulated_data[[z]] <-
                 data.frame(names,
                            matrix(NA, n, ntraits),
@@ -577,7 +551,7 @@ phenotypes <-
                   mean = rep(0, ntraits),
                   sigma = residual_cov
                 )
-              H2_temp[z,] <- 
+              H2_temp[z, ] <-
                 va / apply(simulated_data[[z]][1:ntraits + 1], 2, var)
             }
             H2[i, ] <- apply(H2_temp, 2, mean)
@@ -606,7 +580,7 @@ phenotypes <-
               )
             } else if (output_format == "gemma") {
               invisible(lapply(1:rep, function(x) {
-                temp_fam <-  merge(fam, simulated_data[[x]][- (ntraits + 2)], 
+                temp_fam <-  merge(fam, simulated_data[[x]][- (ntraits + 2)],
                                    by.x = "V1", by.y = "<Taxa>", sort = FALSE)
                 data.table::fwrite(
                   temp_fam,
@@ -634,7 +608,6 @@ phenotypes <-
                 na = NA
               )
             }
-            # Output the m rep and the seed numbers, formatted for TASSEL
             write.table(
               ss,
               ifelse(
@@ -657,32 +630,25 @@ phenotypes <-
               quote = FALSE
             )
           }
-        }  #End for(i in h2)
+        }
         colnames(H2) <- paste0("Trait_", 1:ntraits)
         cat("\nSample heritability (Average of",
             rep,
             " replications): \n")
         print(H2)
         if (to_r) {
-          #cat(paste("Files saved in:", getwd()))
           simulated_data <- do.call(rbind, simulated_data)
           return(simulated_data)
-        } #else {
-        #return(paste("Files saved in:", getwd())) 
-        #}
+        }
       } else {
-        # For loop through the vector of heritabilities
         H2 <- matrix(NA, nrow = rep, ncol = ncol(h2))
         for (i in 1:nrow(h2)) {
-          # If heritability is zero
           ss <- c()
           if (h2[i, 1] == 0) {
             simulated_data <-
               data.frame(names, matrix(NA, n, rep))
-            # Format the output file for the simulated phenotypes
             colnames(simulated_data) <-
               c("<Taxa>", paste0("normal_random_variables_", 1:rep))
-            # Simulate rep experiments with a given heritability
             for (j in 1:rep) {
               if (!is.null(seed)) {
                 sss <- seed + j
@@ -694,7 +660,6 @@ phenotypes <-
                       mean = 0,
                       sd = 1)
             }
-            # Output the m rep and the seed numbers, formatted for TASSEL
             write.table(
               ss,
               paste0("seed_number_for_", rep, "_Reps", "_Herit_",
@@ -705,7 +670,7 @@ phenotypes <-
               quote = FALSE
             )
             if (output_format == "multi-file") {
-              invisible(apply(as.matrix(1:rep), 1,function(x) {
+              invisible(apply(as.matrix(1:rep), 1, function(x) {
                 data.table::fwrite(
                   simulated_data[, c(1, x + 1)],
                   paste0("Simulated_Data", "_Rep", x, "_Herit_",
@@ -718,11 +683,11 @@ phenotypes <-
               }))
             } else if (output_format == "long") {
               temp <- simulated_data[, 1:2]
-              colnames(temp) <- c("<Taxa>","Pheno")
+              colnames(temp) <- c("<Taxa>", "Pheno")
               if (rep > 1) {
-                for(x in 2:rep) {
+                for (x in 2:rep) {
                   temp2 <- simulated_data[, c(1, x + 1)]
-                  colnames(temp2) <- c("<Taxa>","Pheno")
+                  colnames(temp2) <- c("<Taxa>", "Pheno")
                   temp <- rbind(temp, temp2 )
                 }
               }
@@ -737,7 +702,7 @@ phenotypes <-
                 na = NA
               )
             } else if (output_format == "gemma") {
-              temp_fam <- merge(fam, simulated_data, 
+              temp_fam <- merge(fam, simulated_data,
                                 by.x = "V1", by.y = "<Taxa>", sort = FALSE)
               data.table::fwrite(
                 temp_fam,
@@ -763,15 +728,13 @@ phenotypes <-
           } else {
             simulated_data <-
               data.frame(names, matrix(NA, n, rep))
-            # Format the output file for the simulated phenotypes
             colnames(simulated_data) <-
               c("<Taxa>", c(paste0(
                 "Heritability_", h2[i, ], "_Rep_", 1:rep
               )))
-            # Simulate rep experiments with a given heritability
             for (j in 1:rep) {
               va <- var(base_line_trait[[j]]$base_line)
-              residual.variance <-  (va / h2[i,1]) - va
+              residual.variance <-  (va / h2[i, 1]) - va
               if (!is.null(seed)) {
                 sss <- round( (seed * j * j) * i)
                 ss <- c(ss, sss)
@@ -785,9 +748,8 @@ phenotypes <-
                 )
               simulated_data[, j + 1] <-
                 base_line_trait[[j]]$base_line + normal_random_variables
-              H2[j,i] <- va /var(simulated_data[, j + 1])
+              H2[j, i] <- va / var(simulated_data[, j + 1])
             }
-            # Output the m rep and the seed numbers, formatted for TASSEL
             write.table(
               ss,
               paste0("seed_number_for_", rep, "_Reps", "_Herit_",
@@ -798,7 +760,7 @@ phenotypes <-
               quote = FALSE
             )
             if (output_format == "multi-file") {
-              invisible(apply(as.matrix(1:rep), 1,function(x) {
+              invisible(apply(as.matrix(1:rep), 1, function(x) {
                 data.table::fwrite(
                   simulated_data[, c(1, x + 1)],
                   paste0("Simulated_Data", "_Rep", x, "_Herit_",
@@ -811,11 +773,11 @@ phenotypes <-
               }))
             } else if (output_format == "long") {
               temp <- simulated_data[, 1:2]
-              colnames(temp) <- c("<Taxa>","Pheno")
+              colnames(temp) <- c("<Taxa>", "Pheno")
               if (rep > 1) {
-                for(x in 2:rep) {
+                for (x in 2:rep) {
                   temp2 <- simulated_data[, c(1, x + 1)]
-                  colnames(temp2) <- c("<Taxa>","Pheno")
+                  colnames(temp2) <- c("<Taxa>", "Pheno")
                   temp <- rbind(temp, temp2 )
                 }
               }
@@ -830,7 +792,7 @@ phenotypes <-
                 na = NA
               )
             } else if (output_format == "gemma") {
-              temp_fam <- merge(fam, simulated_data, 
+              temp_fam <- merge(fam, simulated_data,
                                 by.x = "V1", by.y = "<Taxa>", sort = FALSE)
               data.table::fwrite(
                 temp_fam,
@@ -861,11 +823,8 @@ phenotypes <-
             " replications): \n")
         print(H2)
         if (to_r) {
-          #cat(paste("Files saved in:", getwd()))
           return(simulated_data)
-        } #else {
-        #return(paste("Files saved in:", getwd())) 
-        #}
+        }
       }
     }
   }

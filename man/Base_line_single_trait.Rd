@@ -4,24 +4,24 @@
 \alias{base_line_single_trait}
 \title{Calculate genetic value based on QTN objects.}
 \usage{
-base_line_single_trait(additive_object = NULL, dominance_object = NULL,
-  epistatic_object = NULL, additive_effect = NULL,
-  dominance_effect = NULL, epistatic_effect = NULL, seed = NULL,
-  rep = NULL, rep_by = "experiment", ntraits = 1, add = NULL,
-  dom = NULL, epi = NULL, sim_method = NULL)
+base_line_single_trait(add_obj = NULL, dom_obj = NULL,
+  epi_obj = NULL, add_effect = NULL, dom_effect = NULL,
+  epi_effect = NULL, seed = NULL, rep = NULL,
+  rep_by = "experiment", ntraits = 1, add = NULL, dom = NULL,
+  epi = NULL, sim_method = NULL)
 }
 \arguments{
-\item{additive_object}{hhh}
+\item{add_obj}{hhh}
 
-\item{dominance_object}{hhh}
+\item{dom_obj}{hhh}
 
-\item{epistatic_object}{hhh}
+\item{epi_obj}{hhh}
 
-\item{additive_effect}{hhh}
+\item{add_effect}{hhh}
 
-\item{dominance_effect}{= NULL,}
+\item{dom_effect}{= NULL,}
 
-\item{epistatic_effect}{hhh}
+\item{epi_effect}{hhh}
 
 \item{seed}{hhh}
 

@@ -1,14 +1,14 @@
 #' Calculate genetic value based on QTN objects.
 #' @export
-#' @param additive_object hhh
-#' @param dominance_object hhh
-#' @param epistatic_object hhh
-#' @param additive_effect hhh
-#' @param dominance_effect = NULL,
-#' @param epistatic_effect kkkk
+#' @param add_obj hhh
+#' @param dom_obj hhh
+#' @param epi_obj hhh
+#' @param add_effect hhh
+#' @param dom_effect = NULL,
+#' @param epi_effect kkkk
 #' @param seed hhh
 #' @param ntraits hhh
-#' @param correlation hhh
+#' @param cor hhh
 #' @param architecture hhh
 #' @param rep = 1,
 #' @param rep_by = 'QTN',
@@ -22,15 +22,15 @@
 #'
 #'-------------------------------base_line_multi_traits-------------------------
 base_line_multi_traits <-
-  function(additive_object = NULL,
-           dominance_object = NULL,
-           epistatic_object = NULL,
-           additive_effect = NULL,
-           dominance_effect = NULL,
-           epistatic_effect = NULL,
+  function(add_obj = NULL,
+           dom_obj = NULL,
+           epi_obj = NULL,
+           add_effect = NULL,
+           dom_effect = NULL,
+           epi_effect = NULL,
            seed = seed,
            ntraits = NULL,
-           correlation = NULL,
+           cor = NULL,
            architecture = NULL,
            rep = NULL,
            rep_by = NULL,
@@ -48,21 +48,21 @@ base_line_multi_traits <-
       rep <- 1
       }
     results <- vector("list", rep)
-    for(z in 1:rep){
-      if (!is.null(correlation) & architecture != "LD") {
+    for (z in 1:rep){
+      if (!is.null(cor) & architecture != "LD") {
         if (architecture == "pleiotropic") {
           if (add) {
             genetic_value <-
-              matrix(NA, nrow(additive_object[[z]]), ncol = ntraits)
-            rownames <- rownames(additive_object[[z]])
+              matrix(NA, nrow(add_obj[[z]]), ncol = ntraits)
+            rownames <- rownames(add_obj[[z]])
           } else if (dom) {
             genetic_value <-
-              matrix(NA, nrow(dominance_object[[z]]), ncol = ntraits)
-            rownames <- rownames(dominance_object[[z]])
+              matrix(NA, nrow(dom_obj[[z]]), ncol = ntraits)
+            rownames <- rownames(dom_obj[[z]])
           } else {
             genetic_value <-
-              matrix(NA, nrow(epistatic_object[[z]]), ncol = ntraits)
-            rownames <- rownames(epistatic_object[[z]])
+              matrix(NA, nrow(epi_obj[[z]]), ncol = ntraits)
+            rownames <- rownames(epi_obj[[z]])
           }
           VA <- c()
           VE <- c()
@@ -70,12 +70,12 @@ base_line_multi_traits <-
           for (j in 1:ntraits) {
             trait_temp <-
               base_line_single_trait(
-                additive_object = additive_object[[z]],
-                dominance_object = dominance_object[[z]],
-                epistatic_object = epistatic_object[[z]],
-                additive_effect = additive_effect[[j]],
-                dominance_effect = dominance_effect[[j]],
-                epistatic_effect = epistatic_effect[[j]],
+                add_obj = add_obj[[z]],
+                dom_obj = dom_obj[[z]],
+                epi_obj = epi_obj[[z]],
+                add_effect = add_effect[[j]],
+                dom_effect = dom_effect[[j]],
+                epi_effect = epi_effect[[j]],
                 seed = seed,
                 ntraits = ntraits,
                 add = add,
@@ -92,20 +92,17 @@ base_line_multi_traits <-
           sdg <- apply(genetic_value, 2, sd)
           meang <- apply(genetic_value, 2, mean)
           genetic_s <- apply(genetic_value, 2, scale)
-          #' whiting transformation
           L <- t(chol(cov(genetic_s)))
           G_white <- t(solve(L) %*% t(genetic_s))
-          #' coloring transformation
-          #' approximation to make it positive definite
-          if (!lqmm::is.positive.definite(correlation)) {
-            cat("Correlation matrix not positive definite! Using make.positive.definite \n")
-            correlation <-
-              lqmm::make.positive.definite(correlation)
+          if (!lqmm::is.positive.definite(cor)) {
+            cat("cor matrix not positive definite!
+                Using lqmm::make.positive.definite() \n")
+            cor <-
+              lqmm::make.positive.definite(cor)
           }
-          L <- t(chol(correlation))
+          L <- t(chol(cor))
           traits <- t(L %*% t(G_white))
           rownames(traits) <- rownames
-          #' bring it back to the original scale
           cor_original_trait <- c()
           for (i in 1:ncol(traits)) {
             traits[, i] <-
@@ -124,16 +121,16 @@ base_line_multi_traits <-
         } else {
           if (add) {
             genetic_value <-
-              matrix(NA, nrow(additive_object[[z]][[1]]), ncol = ntraits)
-            rownames <- rownames(additive_object[[z]][[1]])
+              matrix(NA, nrow(add_obj[[z]][[1]]), ncol = ntraits)
+            rownames <- rownames(add_obj[[z]][[1]])
           } else if (dom) {
             genetic_value <-
-              matrix(NA, nrow(dominance_object[[z]][[1]]), ncol = ntraits)
-            rownames <- rownames(dominance_object[[z]][[1]])
+              matrix(NA, nrow(dom_obj[[z]][[1]]), ncol = ntraits)
+            rownames <- rownames(dom_obj[[z]][[1]])
           } else {
             genetic_value <-
-              matrix(NA, nrow(epistatic_object[[z]][[1]]), ncol = ntraits)
-            rownames <- rownames(epistatic_object[[z]][[1]])
+              matrix(NA, nrow(epi_obj[[z]][[1]]), ncol = ntraits)
+            rownames <- rownames(epi_obj[[z]][[1]])
           }
           VA <- c()
           VD <- c()
@@ -141,12 +138,12 @@ base_line_multi_traits <-
           for (j in 1:ntraits) {
             trait_temp <-
               base_line_single_trait(
-                additive_object = additive_object[[z]][[j]],
-                dominance_object = dominance_object[[z]][[j]],
-                epistatic_object = epistatic_object[[z]][[j]],
-                additive_effect = additive_effect[[j]],
-                dominance_effect = dominance_effect[[j]],
-                epistatic_effect = epistatic_effect[[j]],
+                add_obj = add_obj[[z]][[j]],
+                dom_obj = dom_obj[[z]][[j]],
+                epi_obj = epi_obj[[z]][[j]],
+                add_effect = add_effect[[j]],
+                dom_effect = dom_effect[[j]],
+                epi_effect = epi_effect[[j]],
                 seed = seed,
                 ntraits = ntraits,
                 add = add,
@@ -163,22 +160,19 @@ base_line_multi_traits <-
           sdg <- apply(genetic_value, 2, sd)
           meang <- apply(genetic_value, 2, mean)
           genetic_s <- apply(genetic_value, 2, scale)
-          #' whiting transformation
           L <- t(chol(cov(genetic_s)))
           G_white <- t(solve(L) %*% t(genetic_s))
-          #' coloring transformation
-          if (!lqmm::is.positive.definite(correlation)) {
+          if (!lqmm::is.positive.definite(cor)) {
             cat(
-              "Correlation matrix not positive definite!
+              "cor matrix not positive definite!
               \nUsing lqmm::make.positive.definite \n"
             )
-            correlation <-
-              lqmm::make.positive.definite(correlation)
+            cor <-
+              lqmm::make.positive.definite(cor)
           }
-          L <- t(chol(correlation))
+          L <- t(chol(cor))
           traits <- t(L %*% t(G_white))
           rownames(traits) <- rownames
-          #' bring it back to the original scale
           cor_original_trait <- c()
           for (i in 1:ntraits) {
             traits[, i] <- (traits[, i] * sdg[i]) + meang[i]
@@ -202,24 +196,24 @@ base_line_multi_traits <-
         VD <- c()
         if (architecture == "pleiotropic") {
           if (add) {
-            traits <- matrix(NA, nrow(additive_object[[z]]), ncol = ntraits)
-            rownames <- rownames(additive_object[[1]])
+            traits <- matrix(NA, nrow(add_obj[[z]]), ncol = ntraits)
+            rownames <- rownames(add_obj[[1]])
           } else if (dom) {
-            traits <- matrix(NA, nrow(dominance_object[[z]]), ncol = ntraits)
-            rownames <- rownames(additive_object[[1]])
+            traits <- matrix(NA, nrow(dom_obj[[z]]), ncol = ntraits)
+            rownames <- rownames(add_obj[[1]])
           } else {
-            traits <- matrix(NA, nrow(epistatic_object[[z]]), ncol = ntraits)
-            rownames <- rownames(additive_object[[1]])
+            traits <- matrix(NA, nrow(epi_obj[[z]]), ncol = ntraits)
+            rownames <- rownames(add_obj[[1]])
           }
           for (i in 1:ntraits) {
             trait_temp <-
               base_line_single_trait(
-                additive_object = additive_object[[z]],
-                dominance_object = dominance_object[[z]],
-                epistatic_object = epistatic_object[[z]],
-                additive_effect = additive_effect[[i]],
-                dominance_effect = dominance_effect[[i]],
-                epistatic_effect = epistatic_effect[[i]],
+                add_obj = add_obj[[z]],
+                dom_obj = dom_obj[[z]],
+                epi_obj = epi_obj[[z]],
+                add_effect = add_effect[[i]],
+                dom_effect = dom_effect[[i]],
+                epi_effect = epi_effect[[i]],
                 seed = seed,
                 ntraits = ntraits,
                 add = add,
@@ -236,29 +230,29 @@ base_line_multi_traits <-
         } else {
           if (add) {
             traits <- matrix(NA,
-                             nrow(additive_object[[z]][[1]]),
+                             nrow(add_obj[[z]][[1]]),
                              ncol = ntraits)
-            rownames <- rownames(additive_object[[z]][[1]])
+            rownames <- rownames(add_obj[[z]][[1]])
           } else if (dom) {
             traits <- matrix(NA,
-                             nrow(dominance_object[[z]][[1]]),
+                             nrow(dom_obj[[z]][[1]]),
                              ncol = ntraits)
-            rownames <- rownames(dominance_object[[z]][[1]])
+            rownames <- rownames(dom_obj[[z]][[1]])
           } else {
             traits <- matrix(NA,
-                             nrow(epistatic_object[[z]][[1]]),
+                             nrow(epi_obj[[z]][[1]]),
                              ncol = ntraits)
-            rownames <- rownames(epistatic_object[[z]][[1]])
+            rownames <- rownames(epi_obj[[z]][[1]])
           }
           for (i in 1:ntraits) {
             trait_temp <-
               base_line_single_trait(
-                additive_object = additive_object[[z]][[i]],
-                dominance_object = dominance_object[[z]][[i]],
-                epistatic_object = epistatic_object[[z]][[i]],
-                additive_effect = additive_effect[[i]],
-                dominance_effect = dominance_effect[[i]],
-                epistatic_effect = epistatic_effect[[i]],
+                add_obj = add_obj[[z]][[i]],
+                dom_obj = dom_obj[[z]][[i]],
+                epi_obj = epi_obj[[z]][[i]],
+                add_effect = add_effect[[i]],
+                dom_effect = dom_effect[[i]],
+                epi_effect = epi_effect[[i]],
                 seed = seed,
                 ntraits = ntraits,
                 add = add,

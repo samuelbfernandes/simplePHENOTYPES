@@ -1,8 +1,8 @@
 #' Calculate genetic value based on QTN objects.
 #' @export
-#' @param add_object = NULL,
-#' @param dom_object = NULL,
-#' @param epi_object = NULL,
+#' @param add_obj = NULL,
+#' @param dom_obj = NULL,
+#' @param epi_obj = NULL,
 #' @param add_effect = NULL,
 #' @param dom_effect = NULL,
 #' @param epi_effect = NULL,
@@ -16,9 +16,9 @@
 #'
 #'-----------------------------genetic_effect----------------------------
 genetic_effect <-
-  function(add_object = NULL,
-           dom_object = NULL,
-           epi_object = NULL,
+  function(add_obj = NULL,
+           dom_obj = NULL,
+           epi_obj = NULL,
            add_effect = NULL,
            dom_effect = NULL,
            epi_effect = NULL,
@@ -31,54 +31,54 @@ genetic_effect <-
     add_genetic_variance <- NULL
     dom_genetic_variance <- NULL
     epi_genetic_variance <- NULL
-    if (!is.null(add_object)) {
-      rownames <- rownames(add_object)
-      n <- nrow(add_object)
-    } else if (!is.null(dom_object)) {
-      rownames <-  rownames(dom_object)
-      n <- nrow(dom_object)
+    if (!is.null(add_obj)) {
+      rownames <- rownames(add_obj)
+      n <- nrow(add_obj)
+    } else if (!is.null(dom_obj)) {
+      rownames <-  rownames(dom_obj)
+      n <- nrow(dom_obj)
     } else {
-      rownames <-  rownames(epi_object)
-      n <- nrow(epi_object)
+      rownames <-  rownames(epi_obj)
+      n <- nrow(epi_obj)
     }
     add_component <- as.data.frame(matrix(0, nrow = n, ncol = 1))
     dom_component <- as.data.frame(matrix(0, nrow = n, ncol = 1))
     epi_component <- as.data.frame(matrix(0, nrow = n, ncol = 1))
     if (add) {
-      additive_QTN_number <- ncol(add_object)
+      additive_QTN_number <- ncol(add_obj)
       for (i in 1:additive_QTN_number) {
-        add_component <- 
-          add_component + 
-          (add_object[, i] * as.numeric(add_effect[i]))
+        add_component <-
+          add_component +
+          (add_obj[, i] * as.numeric(add_effect[i]))
       }
       rownames(add_component) <- rownames
       colnames(add_component) <- "additive_effect"
       add_genetic_variance <- var(add_component)
     }
     if (dom) {
-      dominance_QTN_number <- ncol(dom_object)
+      dominance_QTN_number <- ncol(dom_obj)
       for (i in 1:dominance_QTN_number) {
-        dom_component[dom_object[, i] == 1, 1] <-
-          dom_component[dom_object[, i] == 1, 1] + dom_effect[i]
+        dom_component[dom_obj[, i] == 1, 1] <-
+          dom_component[dom_obj[, i] == 1, 1] + dom_effect[i]
       }
       rownames(dom_component) <- rownames
       colnames(dom_component) <- "dominance_effect"
       dom_genetic_variance <- var(dom_component)
     }
     if (epi) {
-      epistatic_QTN_number <- ncol(epi_object)/2
+      epistatic_QTN_number <- ncol(epi_obj) / 2
       for (i in 0:(epistatic_QTN_number - 1)) {
         epi_component <-
-          epi_component + 
-          ( (epi_object[, ( (2 * i) + 1)] *
-               epi_object[, ( (2 * i) + 2)]) *
+          epi_component +
+          ( (epi_obj[, ( (2 * i) + 1)] *
+               epi_obj[, ( (2 * i) + 2)]) *
               as.numeric(epi_effect[i + 1]))
       }
       rownames(epi_component) <- rownames
       colnames(epi_component) <- "epistatic_effect"
       epi_genetic_variance <- var(epi_component)
     }
-    base_line_trait <- add_component + dom_component + epi_component 
+    base_line_trait <- add_component + dom_component + epi_component
     return( list(
       base_line = base_line_trait,
       VA = c(add_genetic_variance),

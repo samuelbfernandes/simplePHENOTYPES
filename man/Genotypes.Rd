@@ -4,18 +4,17 @@
 \alias{genotypes}
 \title{Generate a numeric (dosaje) HapMap file}
 \usage{
-genotypes(genotypes_object = NULL, genotypes_file = NULL,
-  genotypes_path = NULL, input_format = "hapmap", nrows = Inf,
-  na_string = "NA", prefix = NULL, maf_cutoff = NULL,
-  SNP_effect = "Add", SNP_impute = "Middle",
-  major_allele_zero = FALSE)
+genotypes(geno_obj = NULL, geno_file = NULL, geno_path = NULL,
+  input_format = "hapmap", nrows = Inf, na_string = "NA",
+  prefix = NULL, maf_cutoff = NULL, SNP_effect = "Add",
+  SNP_impute = "Middle", major_allele_zero = FALSE)
 }
 \arguments{
-\item{genotypes_object}{= NULL,}
+\item{geno_obj}{= NULL,}
 
-\item{genotypes_file}{= NULL,}
+\item{geno_file}{= NULL,}
 
-\item{genotypes_path}{= NULL,}
+\item{geno_path}{= NULL,}
 
 \item{input_format}{= "hapmap",}
 

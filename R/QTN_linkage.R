@@ -2,8 +2,8 @@
 #' @export
 #' @param genotypes = NULL,
 #' @param seed = NULL,
-#' @param additive_QTN_number = NULL,
-#' @param dominance_QTN_number = NULL,
+#' @param add_QTN_num = NULL,
+#' @param dom_QTN_num = NULL,
 #' @param same_add_dom_QTN = NULL,
 #' @param dom = NULL,
 #' @param add = NULL,
@@ -21,12 +21,11 @@
 QTN_linkage <-
   function(genotypes = NULL,
            seed = NULL,
-           additive_QTN_number = NULL,
-           dominance_QTN_number = NULL,
+           add_QTN_num = NULL,
+           dom_QTN_num = NULL,
            ld = NULL,
            gdsfile = NULL,
-           constrains = list(maf_above = NULL,
-                             maf_below = NULL),
+           constrains = list(maf_above = NULL, maf_below = NULL),
            rep = NULL,
            rep_by = NULL,
            export_gt = NULL,
@@ -34,30 +33,31 @@ QTN_linkage <-
            add = NULL,
            dom = NULL) {
     #---------------------------------------------------------------------------
-    additive_effect_trait_object <- NULL
-    dominance_effect_trait_object <- NULL
-    if (rep_by != 'QTN'){rep <- 1}
-    if (any(lengths(constrains)>0)) { 
-      index <- constrain(genotypes = genotypes, 
+    add_ef_trait_obj <- NULL
+    dom_ef_trait_obj <- NULL
+    if (rep_by != "QTN") {
+      rep <- 1
+      }
+    if (any(lengths(constrains) > 0)) {
+      index <- constrain(genotypes = genotypes,
                          maf_above = constrains$maf_above,
                          maf_below = constrains$maf_below)
     } else {
-      # First SNP at column 6
       index <- 6:nrow(genotypes)
     }
     if (same_add_dom_QTN) {
       sup <- vector("list", rep)
       inf <- vector("list", rep)
-      add_QTN_genotypic_information_sup <- vector("list", rep)
-      add_QTN_genotypic_information_inf <- vector("list", rep)
+      add_gen_info_sup <- vector("list", rep)
+      add_gen_info_inf <- vector("list", rep)
       QTN_causing_ld <- vector("list", rep)
       results <- vector("list", rep)
-      for(z in 1:rep){
+      for (z in 1:rep){
         if (!is.null(seed)) {
-          set.seed(seed+z)
+          set.seed(seed + z)
         }
         vector_of_add_QTN <-
-          sample(index, additive_QTN_number, replace = FALSE)
+          sample(index, add_QTN_num, replace = FALSE)
         genofile <- SNPRelate::snpgdsOpen(gdsfile)
         x <- 1
         sup_temp <- c()
@@ -107,31 +107,29 @@ QTN_linkage <-
           inf_temp[x] <- i2
           x <- x + 1
         }
-        # close the genotype file
         SNPRelate::snpgdsClose(genofile)
         sup[[z]] <- sup_temp
         inf[[z]] <- inf_temp
-        QTN_causing_ld[[z]] <- 
+        QTN_causing_ld[[z]] <-
           data.frame(SNP = "cause_of_LD", genotypes[vector_of_add_QTN, ])
-        add_QTN_genotypic_information_sup[[z]] <- 
-          data.frame(SNP = "QTN_upstream",genotypes[sup[[z]], ])
-        add_QTN_genotypic_information_inf[[z]] <- 
+        add_gen_info_sup[[z]] <-
+          data.frame(SNP = "QTN_upstream", genotypes[sup[[z]], ])
+        add_gen_info_inf[[z]] <-
           data.frame(SNP = "QTN_downstream", genotypes[inf[[z]], ])
         results[[z]] <- rbind(QTN_causing_ld[[z]],
-                              add_QTN_genotypic_information_sup[[z]],
-                              add_QTN_genotypic_information_inf[[z]])
+                              add_gen_info_sup[[z]],
+                              add_gen_info_inf[[z]])
       }
       results <- do.call(rbind, results)
-      results <- 
-        data.frame(rep = rep(1:rep, each=additive_QTN_number*3),
-                   results)
-      if(!export_gt){
-        results <- results[,1:6]
+      results <-
+        data.frame(rep = rep(1:rep, each = add_QTN_num * 3), results)
+      if (!export_gt){
+        results <- results[, 1:6]
       }
       write.table(
         c(seed + 1:rep),
         paste0(
-          "seed_number_for_",additive_QTN_number,
+          "seed_num_for_", add_QTN_num,
           "_Add_and_Dom_QTN",
           ".txt"
         ),
@@ -143,8 +141,8 @@ QTN_linkage <-
       data.table::fwrite(
         results,
         paste0(
-          "Genotypic_information_for_",
-          additive_QTN_number,
+          "Genotypic_info_for_",
+          add_QTN_num,
           "Add_and_Dom_QTN_with_LD_of_",
           paste(ld, collapse = "_"),
           ".txt"
@@ -154,31 +152,31 @@ QTN_linkage <-
         quote = FALSE,
         na = NA
       )
-      additive_effect_trait_object <- mapply(function(x,y) {
+      add_ef_trait_obj <- mapply(function(x, y) {
         rownames(x) <-
-          paste0("Chr_",  x$chr, "_", x$pos)
+          paste0("Chr_", x$chr, "_", x$pos)
         rownames(y) <-
-          paste0("Chr_",  y$chr, "_", y$pos)
-        b<- list(t(x[,-(1:6)]),t(y[,-(1:6)]))
+          paste0("Chr_", y$chr, "_", y$pos)
+        b <- list(t(x[, - (1:6)]), t(y[, - (1:6)]))
+        return(b)
       },
-      x=add_QTN_genotypic_information_sup,
-      y=add_QTN_genotypic_information_inf,
+      x = add_gen_info_sup,
+      y = add_gen_info_inf,
       SIMPLIFY = F)
-      
     } else {
       if (add) {
         sup <- vector("list", rep)
         inf <- vector("list", rep)
-        add_QTN_genotypic_information_sup <- vector("list", rep)
-        add_QTN_genotypic_information_inf <- vector("list", rep)
+        add_gen_info_sup <- vector("list", rep)
+        add_gen_info_inf <- vector("list", rep)
         QTN_causing_ld <- vector("list", rep)
         results <- vector("list", rep)
-        for(z in 1:rep){
+        for (z in 1:rep) {
           if (!is.null(seed)) {
-            set.seed(seed+z)
+            set.seed(seed + z)
           }
           vector_of_add_QTN <-
-            sample(index, additive_QTN_number, replace = FALSE)
+            sample(index, add_QTN_num, replace = FALSE)
           genofile <- SNPRelate::snpgdsOpen(gdsfile)
           x <- 1
           sup_temp <- c()
@@ -228,31 +226,29 @@ QTN_linkage <-
             inf_temp[x] <- i2
             x <- x + 1
           }
-          # close the genotype file
           SNPRelate::snpgdsClose(genofile)
           sup[[z]] <- sup_temp
           inf[[z]] <- inf_temp
-          QTN_causing_ld[[z]] <- 
+          QTN_causing_ld[[z]] <-
             data.frame(SNP = "cause_of_LD", genotypes[vector_of_add_QTN, ])
-          add_QTN_genotypic_information_sup[[z]] <- 
-            data.frame(SNP = "QTN_upstream",genotypes[sup[[z]], ])
-          add_QTN_genotypic_information_inf[[z]] <- 
+          add_gen_info_sup[[z]] <-
+            data.frame(SNP = "QTN_upstream", genotypes[sup[[z]], ])
+          add_gen_info_inf[[z]] <-
             data.frame(SNP = "QTN_downstream", genotypes[inf[[z]], ])
           results[[z]] <- rbind(QTN_causing_ld[[z]],
-                                add_QTN_genotypic_information_sup[[z]],
-                                add_QTN_genotypic_information_inf[[z]])
+                                add_gen_info_sup[[z]],
+                                add_gen_info_inf[[z]])
         }
         results <- do.call(rbind, results)
-        results <- 
-          data.frame(rep = rep(1:rep, each=additive_QTN_number*3),
-                     results)
-        if(!export_gt){
-          results <- results[,1:6]
+        results <-
+          data.frame(rep = rep(1:rep, each = add_QTN_num * 3), results)
+        if (!export_gt) {
+          results <- results[, 1:6]
         }
         write.table(
           c(seed + 1:rep),
           paste0(
-            "seed_number_for_",additive_QTN_number,
+            "seed_num_for_", add_QTN_num,
             "_Add_QTN",
             ".txt"
           ),
@@ -264,8 +260,8 @@ QTN_linkage <-
         data.table::fwrite(
           results,
           paste0(
-            "Genotypic_information_for_",
-            additive_QTN_number,
+            "Genotypic_info_for_",
+            add_QTN_num,
             "Add_QTN_with_LD_of_",
             paste(ld, collapse = "_"),
             ".txt"
@@ -275,31 +271,31 @@ QTN_linkage <-
           quote = FALSE,
           na = NA
         )
-        additive_effect_trait_object <- mapply(function(x,y) {
+        add_ef_trait_obj <- mapply(function(x, y) {
           rownames(x) <-
-            paste0("Chr_",  x$chr, "_", x$pos)
+            paste0("Chr_", x$chr, "_", x$pos)
           rownames(y) <-
             paste0("Chr_",  y$chr, "_", y$pos)
-          b<- list(t(x[,-(1:6)]),t(y[,-(1:6)]))
+          b <- list(t(x[, - (1:6)]), t(y[, - (1:6)]))
+          return(b)
         },
-        x=add_QTN_genotypic_information_sup,
-        y=add_QTN_genotypic_information_inf,
+        x = add_gen_info_sup,
+        y = add_gen_info_inf,
         SIMPLIFY = F)
-        
       }
       if (dom) {
         sup <- vector("list", rep)
         inf <- vector("list", rep)
-        dom_QTN_genotypic_information_sup <- vector("list", rep)
-        dom_QTN_genotypic_information_inf <- vector("list", rep)
+        dom_gen_info_sup <- vector("list", rep)
+        dom_gen_info_inf <- vector("list", rep)
         QTN_causing_ld <- vector("list", rep)
         results <- vector("list", rep)
-        for(z in 1:rep){
+        for (z in 1:rep) {
           if (!is.null(seed)) {
             set.seed(seed + z + 10)
           }
           vector_of_dom_QTN <-
-            sample(index, dominance_QTN_number, replace = FALSE)
+            sample(index, dom_QTN_num, replace = FALSE)
           genofile <- SNPRelate::snpgdsOpen(gdsfile)
           x <- 1
           sup_temp <- c()
@@ -349,31 +345,29 @@ QTN_linkage <-
             inf_temp[x] <- i2
             x <- x + 1
           }
-          # close the genotype file
           SNPRelate::snpgdsClose(genofile)
           sup[[z]] <- sup_temp
           inf[[z]] <- inf_temp
-          QTN_causing_ld[[z]] <- 
+          QTN_causing_ld[[z]] <-
             data.frame(SNP = "cause_of_LD", genotypes[vector_of_dom_QTN, ])
-          dom_QTN_genotypic_information_sup[[z]] <- 
-            data.frame(SNP = "QTN_upstream",genotypes[sup[[z]], ])
-          dom_QTN_genotypic_information_inf[[z]] <- 
+          dom_gen_info_sup[[z]] <-
+            data.frame(SNP = "QTN_upstream", genotypes[sup[[z]], ])
+          dom_gen_info_inf[[z]] <-
             data.frame(SNP = "QTN_downstream", genotypes[inf[[z]], ])
           results[[z]] <- rbind(QTN_causing_ld[[z]],
-                                dom_QTN_genotypic_information_sup[[z]],
-                                dom_QTN_genotypic_information_inf[[z]])
+                                dom_gen_info_sup[[z]],
+                                dom_gen_info_inf[[z]])
         }
         results <- do.call(rbind, results)
-        results <- 
-          data.frame(rep = rep(1:rep, each=dominance_QTN_number*3),
-                     results)
-        if(!export_gt){
-          results <- results[,1:6]
+        results <-
+          data.frame(rep = rep(1:rep, each = dom_QTN_num * 3), results)
+        if (!export_gt) {
+          results <- results[, 1:6]
         }
         write.table(
           c(seed + 1:rep),
           paste0(
-            "seed_number_for_",dominance_QTN_number,
+            "seed_num_for_", dom_QTN_num,
             "_Dom_QTN",
             ".txt"
           ),
@@ -385,8 +379,8 @@ QTN_linkage <-
         data.table::fwrite(
           results,
           paste0(
-            "Genotypic_information_for_",
-            dominance_QTN_number,
+            "Genotypic_info_for_",
+            dom_QTN_num,
             "Dom_QTN_with_LD_of_",
             paste(ld, collapse = "_"),
             ".txt"
@@ -396,19 +390,19 @@ QTN_linkage <-
           quote = FALSE,
           na = NA
         )
-        dominance_effect_trait_object <- mapply(function(x,y) {
+        dom_ef_trait_obj <- mapply(function(x, y) {
           rownames(x) <-
-            paste0("Chr_",  x$chr, "_", x$pos)
+            paste0("Chr_", x$chr, "_", x$pos)
           rownames(y) <-
-            paste0("Chr_",  y$chr, "_", y$pos)
-          b<- list(t(x[,-(1:6)]),t(y[,-(1:6)]))
+            paste0("Chr_", y$chr, "_", y$pos)
+          b <- list(t(x[, - (1:6)]), t(y[, - (1:6)]))
+          return(b)
         },
-        x=dom_QTN_genotypic_information_sup,
-        y=dom_QTN_genotypic_information_inf,
+        x = dom_gen_info_sup,
+        y = dom_gen_info_inf,
         SIMPLIFY = F)
-        
       }
     }
-    return(list(additive_effect_trait_object = additive_effect_trait_object,
-                dominance_effect_trait_object = dominance_effect_trait_object))
+    return(list(add_ef_trait_obj = add_ef_trait_obj,
+                dom_ef_trait_obj = dom_ef_trait_obj))
   }

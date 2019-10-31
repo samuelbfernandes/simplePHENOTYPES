@@ -6,15 +6,15 @@
 #' @importFrom SNPRelate snpgdsOpen snpgdsLDpair snpgdsClose snpgdsCreateGeno
 #' @importFrom gdsfmt read.gdsn index.gdsn
 #' @importFrom lqmm is.positive.definite make.positive.definite
-#' @param genotypes_object Marker dataset loaded as an R object.
+#' @param geno_obj Marker dataset loaded as an R object.
 #' Currently either HapMap or numericalized files 
 #' (e.g. `data("SNP55K_maize282_maf04")`) are accepted. Only one of 
-#' `genotypes_object`, `genotypes_file` or `genotypes_path` should be provided.
-#' @param genotypes_file Name of a marker data set to be read from file.
-#' @param genotypes_path Path to a folder containing the marker dataset 
+#' `geno_obj`, `geno_file` or `geno_path` should be provided.
+#' @param geno_file Name of a marker data set to be read from file.
+#' @param geno_path Path to a folder containing the marker dataset 
 #' file/files (e.g. separated by chromosome).
 #' @param rep Number of experiments to be simulated.
-#' @param ntraits Number of traits to be simulated under pleitropic,
+#' @param ntraits Number of traits to be simulated under pleiotropic,
 #' partially and LD architectures (see below). If not assigned, 
 #' a single trait will be simulated. Currently, the only option for the 
 #' LD architecture is `ntraits = 2`.
@@ -27,13 +27,13 @@
 #' @param model The genetic model to be assumed. The options are:
 #' "A" (additive), "D" (dominance), "E" (epistatic) 
 #' as well as any combination of those models such as "AE", "DE" or "ADE".
-#' @param additive_QTN_number Number of additive quantitative trait nucleotide
+#' @param add_QTN_num Number of additive quantitative trait nucleotide
 #' to be simulated.
-#' @param dominance_QTN_number Number of dominance quantitative trait nucleotide
+#' @param dom_QTN_num Number of dominance quantitative trait nucleotide
 #' to be simulated.
-#' @param epistatic_QTN_number Number of epistatic (Currently, only additive x 
+#' @param epi_QTN_num Number of epistatic (Currently, only additive x 
 #' additive epistasis are simulated) quantitative trait nucleotide to be simulated.
-#' @param additive_effect Additive effect size to be simulated. It may be either 
+#' @param add_effect Additive effect size to be simulated. It may be either 
 #' a vector (assuming `ntraits` = 1 or one allelic effect per trait) or a list 
 #' of length = `ntraits`, i.e., if `ntraits` > 1, one set of additive effects 
 #' should be provided for each trait. In that case, each component should be a 
@@ -41,15 +41,15 @@
 #' length equal to the number of additive QTNs being simulated. 
 #' @param same_add_dom_QTN A bolean for having the same quantitative trait
 #' nucleotide having additive and dominance effects.
-#' @param dominance_effect Similar to the `additive_effect`, it could be either 
+#' @param dom_effect Similar to the `add_effect`, it could be either 
 #' a vector or a list. Optional if `same_add_dom_QTN = TRUE`. 
-#' @param degree_of_dominance If the same set of quantitative trait nucleotide 
+#' @param degree_of_dom If the same set of quantitative trait nucleotide 
 #' are being used for simulating additive and dominance effects, the dominance 
 #' allelic effect could be a proportion of the additive allelic effect.
-#' In other words, `degree_of_dominance` equals to 0.5, 1, 1.5 will simulate,
+#' In other words, `degree_of_dom` equals to 0.5, 1, 1.5 will simulate,
 #' partial dominance, complete dominance and overdominance, respectivelly. 
-#' @param epistatic_effect Epistatic (additive x additive) effect size to be
-#' simulated. Similar to the `additive_effect`, it could be either a vector or 
+#' @param epi_effect Epistatic (additive x additive) effect size to be
+#' simulated. Similar to the `add_effect`, it could be either a vector or 
 #' a list.
 #' @param architecture Genetic architecture to be simulated. Should be provided 
 #' if `ntraits` > 1. Possible options are: 'pleiotropic', for traits being 
@@ -57,42 +57,42 @@
 #' pleiotropic and trait specific QTNs; 'LD', for traits being exclusively 
 #' controled QTNs in linkage disequilibrium (controled by parameter `ld`). 
 #' Currently the only option for `architecture = "LD"` is `ntraits = 2`.
-#' @param pleitropic_a Number of pleiotropic additive QTNs to be 
+#' @param pleio_a Number of pleiotropic additive QTNs to be 
 #' used if `architecture = "partially"`.
-#' @param pleitropic_d Number of pleiotropic dominance QTNs to be 
+#' @param pleio_d Number of pleiotropic dominance QTNs to be 
 #' used if `architecture = "partially"`.
-#' @param pleitropic_e Number of pleiotropic epistatic QTNs to be 
+#' @param pleio_e Number of pleiotropic epistatic QTNs to be 
 #' used if `architecture = "partially"`.
-#' @param trait_specific_a_QTN_number Number of trait specific additive QTNs if
+#' @param trait_spec_a_QTN_num Number of trait specific additive QTNs if
 #'`architecture = "partially"`.. It should have length equals to `ntraits`.
-#' @param trait_specific_d_QTN_number Number of trait specific dominance QTNs if
+#' @param trait_spec_d_QTN_num Number of trait specific dominance QTNs if
 #' `architecture = "partially"`. It should have length equals to `ntraits`.
-#' @param trait_specific_e_QTN_number Number of trait specific epistatic QTNs if
+#' @param trait_spec_e_QTN_num Number of trait specific epistatic QTNs if
 #' `architecture = "partially"`. It should have length equals to `ntraits`.
 #' @param ld Linkage disequilibrium between selected marker two adjacent markers
 #' to be used as QTN. Default is `ld = 0.5`.
 #' @param sim_method Provide the method of simulating allelic effects. 
 #' The options available are "geometric" and "custom". For multiple QTNs, 
-#' a geometric series may be simulated, i.e. if the additive_effect = 0.5, 
+#' a geometric series may be simulated, i.e. if the add_effect = 0.5, 
 #' the effect size of the first QTNs is 0.2, and the effect size of the second 
 #' is 0.5^2 and the effect of the n^th QTN is 0.5^n.
 #' @param vary_QTN A bolean to determine if the same set of quantitative trait 
 #' nucleotide (QTN) should be used to generate genetic effects for each 
 #' experiment (`vary_QTN = FALSE`) or  if a different set of QTNs should be 
 #' used for each experiment (`vary_QTN = TRUE`).
-#' @param big_additive_QTN_effect Additive effect size for one possible major
+#' @param big_add_QTN_effect Additive effect size for one possible major
 #' effect quantitative trait nucleotide. If `ntraits` > 1, 
-#' big_additive_QTN_effect should have length equals `ntraits`.
-#' If `additive_QTN_number` > 1, the fist QTN will have the large effect.
-#' @param correlation Option to simulate traits with a pre-defined correlation. 
+#' big_add_QTN_effect should have length equals `ntraits`.
+#' If `add_QTN_num` > 1, the fist QTN will have the large effect.
+#' @param cor Option to simulate traits with a pre-defined cor. 
 #' It should be a square matrix with number of rows = `ntraits`.
 #' @param seed Value to be used by set.seed. If NULL (default),
 #' runif(1, 0, 10e5) will be used. Notice that at each sampling step, 
 #' a different seed generated based on the `seed` parameter is used. For example, 
-#' when simulating the 10th replication of trait 1, the seed to be used is 
-#' `round( (seed * 10 * 10) * 1)`. On the other hand, for simulating the 21st 
-#' replication of trait 2, the seed to be used will be 
-#' `round( (seed * 21 * 21) * 2)`.The actual seed used in every simulation is 
+#' if one uses `seed = 123`, when simulating the 10th replication of trait 1, 
+#' the seed to be used is `round( (123 * 10 * 10) * 1)`. On the other hand, 
+#' for simulating the 21st replication of trait 2, the seed to be used will be 
+#' `round( (123 * 21 * 21) * 2)`.The actual seed used in every simulation is 
 #' exported along with simulated phenotypes.
 #' @param export_gt If TRUE genotypes of selected QTNs will be saved at file.
 #' If FALSE (default), only the QTN information will be saved.
@@ -112,7 +112,7 @@
 #' @param constrains Set constrains for QTN selection. Currently, only minor 
 #' allelic frequency is implemented. Eiter one or both of the following options 
 #' may be non-null: 'list(maf_above = NULL, maf_below = NULL)'.
-#' @param prefix If `genotypes_path` points to a folder with files other than the
+#' @param prefix If `geno_path` points to a folder with files other than the
 #' marker dataset, a part of the dataset name may be used to select the desired 
 #' files (e.g. prefix = "Chr" would read files Chr1.hmp.txt, ..., Chr10.hmp.txt 
 #' but not HapMap.hmp.txt).
@@ -136,10 +136,10 @@
 #' # Simulate 50 replications of a single phenotype.
 #'
 #' pheno <- create_phenotypes(
-#'   genotypes_object = SNP55K_maize282_maf04,
-#'   additive_QTN_number = 3,
-#'   additive_effect = 0.1,
-#'   big_additive_QTN_effect = 0.9,
+#'   geno_obj = SNP55K_maize282_maf04,
+#'   add_QTN_num = 3,
+#'   add_effect = 0.1,
+#'   big_add_QTN_effect = 0.9,
 #'   rep = 10,
 #'   h2 = 0.7,
 #'   to_r = TRUE,
@@ -150,42 +150,35 @@
 #' # vignette("simplePHENOTYPES")
 #'
 create_phenotypes <-
-  function(genotypes_object = NULL,
-           genotypes_file = NULL,
-           genotypes_path = NULL,
-           nrows = Inf,
-           na_string = "NA",
-           prefix = NULL,
-           maf_cutoff = NULL,
-           SNP_effect = "Add",
-           SNP_impute = "Middle",
-           major_allele_zero = FALSE,
-           model = NULL,
-           additive_QTN_number = NULL,
-           dominance_QTN_number = NULL,
-           epistatic_QTN_number = NULL,
-           sim_method = "geometric",
-           additive_effect = NULL,
-           dominance_effect = NULL,
-           epistatic_effect = NULL,
-           same_add_dom_QTN = TRUE,
-           degree_of_dominance = NULL,
-           big_additive_QTN_effect = NULL,
-           architecture = "pleiotropic",
-           pleitropic_a = NULL,
-           pleitropic_d = NULL,
-           pleitropic_e = NULL,
-           trait_specific_a_QTN_number = NULL,
-           trait_specific_d_QTN_number = NULL,
-           trait_specific_e_QTN_number = NULL,
-           ld = 0.5,
+  function(geno_obj = NULL,
+           geno_file = NULL,
+           geno_path = NULL,
            rep = NULL,
-           vary_QTN = TRUE,
-           export_gt = FALSE,
            ntraits = 1,
            h2 = NULL,
-           correlation = NULL,
+           model = NULL,
+           add_QTN_num = NULL,
+           dom_QTN_num = NULL,
+           epi_QTN_num = NULL,
+           add_effect = NULL,
+           same_add_dom_QTN = TRUE,
+           dom_effect = NULL,
+           degree_of_dom = NULL,
+           epi_effect = NULL,
+           architecture = "pleiotropic",
+           pleio_a = NULL,
+           pleio_d = NULL,
+           pleio_e = NULL,
+           trait_spec_a_QTN_num = NULL,
+           trait_spec_d_QTN_num = NULL,
+           trait_spec_e_QTN_num = NULL,
+           ld = 0.5,
+           sim_method = "geometric",
+           vary_QTN = TRUE,
+           big_add_QTN_effect = NULL,
+           cor = NULL,
            seed = NULL,
+           export_gt = FALSE,
            home_dir = getwd(),
            output_dir = NULL,
            to_r = FALSE,
@@ -193,21 +186,43 @@ create_phenotypes <-
            out_geno = NULL,
            gdsfile = NULL,
            constrains = list(maf_above = NULL,
-                             maf_below = NULL)) {
+                             maf_below = NULL),
+           prefix = NULL,
+           maf_cutoff = NULL,
+           nrows = Inf,
+           na_string = "NA",
+           SNP_effect = "Add",
+           SNP_impute = "Middle",
+           major_allele_zero = FALSE) {
     # -------------------------------------------------------------------------
-    #TODO:
-    # list all set.seed values
     x <- try({
-      .onAttach <- function(libname, simplePHENOTYPES) {
-        packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
+      packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
+      if (grepl("A", model)) {
+        add <- TRUE
+      } else {
+        add <- FALSE
       }
-      .onAttach()
-      if (grepl("A", model)) { add <- TRUE } else {add <- FALSE  }
-      if (grepl("D", model)) { dom <- TRUE } else {dom <- FALSE  }
-      if (grepl("E", model)) { epi <- TRUE } else {epi <- FALSE  }
-      if (architecture == "LD" ) ntraits <- 2
-      if (is.null(out_geno)) out_geno <- "none"
-      if (vary_QTN) {rep_by <-  "QTN"} else {rep_by <- "experiment"}
+      if (grepl("D", model)) {
+        dom <- TRUE
+      } else {
+        dom <- FALSE
+      }
+      if (grepl("E", model)) {
+        epi <- TRUE
+      } else {
+        epi <- FALSE
+      }
+      if (architecture == "LD") {
+        ntraits <- 2
+      }
+      if (is.null(out_geno)) {
+        out_geno <- "none"
+      }
+      if (vary_QTN) {
+        rep_by <-  "QTN"
+      } else {
+        rep_by <- "experiment"
+      }
       if (is.vector(h2)) {
         if (ntraits > 1){
           h2 <- matrix(h2, nrow = 1)
@@ -217,40 +232,42 @@ create_phenotypes <-
       }
       colnames(h2) <- paste0("Trait_", 1:ntraits)
       if (add) {
-        if (is.vector(additive_effect)) {
-          additive_effect <- as.list(additive_effect)
-        } else if (!is.list(additive_effect)) {
-          stop("\'additive_effect\' should be either a vector or a list of length = ntraits.", call. = F)
+        if (is.vector(add_effect)) {
+          add_effect <- as.list(add_effect)
+        } else if (!is.list(add_effect)) {
+          stop("\'add_effect\' should be either a vector or a list of length = ntraits.", call. = F)
         }
       }
-      if (epi) {if (is.vector(epistatic_effect)) {
-        epistatic_effect <- as.list(epistatic_effect)
-      } else if (!is.list(epistatic_effect)) {
-        stop("\'epistatic_effect\' should be either a vector or a list of length = ntraits.", call. = F)
+      if (epi) {
+        if (is.vector(epi_effect)) {
+        epi_effect <- as.list(epi_effect)
+      } else if (!is.list(epi_effect)) {
+        stop("\'epi_effect\' should be either a vector or a list of length = ntraits.", call. = F)
       }
       }
       if (dom & same_add_dom_QTN & add){
-        if (!is.null(degree_of_dominance) & is.null(dominance_effect)) {
-          dominance_effect <- lapply(additive_effect, function(x) x *
-                                       degree_of_dominance)
+        if (!is.null(degree_of_dom) & is.null(dom_effect)) {
+          dom_effect <- lapply(add_effect, function(x) x *
+                                       degree_of_dom)
         }
         if (architecture == "partially") {
-          if (is.null(pleitropic_d) & is.null(trait_specific_d_QTN_number)) {
-            trait_specific_d_QTN_number <- trait_specific_a_QTN_number
-            pleitropic_d <- pleitropic_a
+          if (is.null(pleio_d) & is.null(trait_spec_d_QTN_num)) {
+            trait_spec_d_QTN_num <- trait_spec_a_QTN_num
+            pleio_d <- pleio_a
           }
-        } else if (is.null(dominance_QTN_number)){
-          dominance_QTN_number <- additive_QTN_number
+        } else if (is.null(dom_QTN_num)) {
+          dom_QTN_num <- add_QTN_num
         }
       }
-      if (dom) {if (is.null(dominance_effect)) {
-        stop("Please set \'same_add_dom_QTN\'=TRUE and a \'degree_of_dominance\' between -2 and 2, or provide \'dominance_effect\'.", call. = F)
+      if (dom) {
+        if (is.null(dom_effect)) {
+        stop("Please set \'same_add_dom_QTN\'=TRUE and a \'degree_of_dom\' between -2 and 2, or provide \'dom_effect\'.", call. = F)
       }
       }
-      if (sum(c(!is.null(genotypes_object),
-                !is.null(genotypes_file),
-                !is.null(genotypes_path))) != 1) {
-        stop("Please provide one of `genotypes_object`, `genotypes_file` or `genotypes_path`.", call. = F)
+      if (sum(c(!is.null(geno_obj),
+                !is.null(geno_file),
+                !is.null(geno_path))) != 1) {
+        stop("Please provide one of `geno_obj`, `geno_file` or `geno_path`.", call. = F)
       }
       if (!is.null(model)){
         if (!(grepl("A", model) | grepl("D", model) | grepl("E", model))) {
@@ -264,164 +281,164 @@ create_phenotypes <-
       }
       if (sim_method == "geometric") {
         if (add) {
-          temp_add <- additive_effect
+          temp_add <- add_effect
           if (architecture == "partially"){
-            a_qtns <- (trait_specific_a_QTN_number + pleitropic_a)
+            a_qtns <- (trait_spec_a_QTN_num + pleio_a)
           } else {
-            a_qtns <-  rep(additive_QTN_number, ntraits)
+            a_qtns <-  rep(add_QTN_num, ntraits)
           }
-          additive_effect <- vector("list", ntraits)
-          if (!is.null(big_additive_QTN_effect)) {
-            a_qtns <- a_qtns-1
-            for(i in 1:ntraits){
-              additive_effect[[i]] <- c(big_additive_QTN_effect[i],
+          add_effect <- vector("list", ntraits)
+          if (!is.null(big_add_QTN_effect)) {
+            a_qtns <- a_qtns - 1
+            for (i in 1:ntraits) {
+              add_effect[[i]] <- c(big_add_QTN_effect[i],
                                         rep(temp_add[[i]], a_qtns[i]) ^
                                           (1:a_qtns[i]))
             }
-          }else {
-            for(i in 1:ntraits){
-              additive_effect[[i]] <- 
+          } else {
+            for (i in 1:ntraits) {
+              add_effect[[i]] <-
                 rep(temp_add[[i]], a_qtns[i]) ^
                 (1:a_qtns[i])
             }
           }
         }
         if (dom) {
-          if (architecture == "partially"){ 
-            d_qtns <- (trait_specific_d_QTN_number + pleitropic_d) 
+          if (architecture == "partially") {
+            d_qtns <- (trait_spec_d_QTN_num + pleio_d)
           } else {
-            d_qtns <-  rep(dominance_QTN_number, ntraits)
+            d_qtns <- rep(dom_QTN_num, ntraits)
           }
-          temp_dom <- dominance_effect
-          dominance_effect <- vector("list", ntraits)
-          for(i in 1:ntraits){
-            dominance_effect[[i]] <- 
+          temp_dom <- dom_effect
+          dom_effect <- vector("list", ntraits)
+          for (i in 1:ntraits){
+            dom_effect[[i]] <-
               rep(temp_dom[[i]], d_qtns[i]) ^
               (1:d_qtns[i])
           }
         }
         if (epi) {
-          if (architecture == "partially"){
-            e_qtns <- (trait_specific_e_QTN_number + pleitropic_e) 
+          if (architecture == "partially") {
+            e_qtns <- (trait_spec_e_QTN_num + pleio_e)
           } else {
-            e_qtns <-  rep(epistatic_QTN_number, ntraits)
+            e_qtns <-  rep(epi_QTN_num, ntraits)
           }
-          temp_epi <- epistatic_effect
-          epistatic_effect <- vector("list", ntraits)
-          for(i in 1:ntraits){
-            epistatic_effect[[i]] <- 
+          temp_epi <- epi_effect
+          epi_effect <- vector("list", ntraits)
+          for (i in 1:ntraits) {
+            epi_effect[[i]] <-
               rep(temp_epi[[i]], e_qtns[i]) ^
               (1:e_qtns[i])
           }
         }
       } else {
         if (add){
-          if (!is.null(big_additive_QTN_effect)) {
-            for(i in 1:ntraits){
-              additive_effect[[i]] <- 
-                c(big_additive_QTN_effect[i], 
-                  additive_effect[[i]])
+          if (!is.null(big_add_QTN_effect)) {
+            for (i in 1:ntraits){
+              add_effect[[i]] <-
+                c(big_add_QTN_effect[i],
+                  add_effect[[i]])
             }
             if (architecture != "partially") {
-              if(any(lengths(additive_effect) != additive_QTN_number)){
-                stop("When simulating big effect QTNs, \'additive_effect\' must be of length = \'additive_QTN_number\'-1.", call. = F)
-              } else if (any(lengths(additive_effect) !=
-                             (trait_specific_a_QTN_number + pleitropic_a))){
-                stop("When simulating big effect QTNs, \'additive_effect\' must be of length = (\'trait_specific_a_QTN_number\' + \'pleitropic_a\') -1.", call. = F)
+              if (any(lengths(add_effect) != add_QTN_num)) {
+                stop("When simulating big effect QTNs, \'add_effect\' must be of length = \'add_QTN_num\'-1.", call. = F)
+              } else if (any(lengths(add_effect) !=
+                             (trait_spec_a_QTN_num + pleio_a))){
+                stop("When simulating big effect QTNs, \'add_effect\' must be of length = (\'trait_spec_a_QTN_num\' + \'pleio_a\') -1.", call. = F)
               }
             }
-          } else if(any(lengths(additive_effect) != additive_QTN_number)){
-            stop("Please provide an \'additive_effect\' object of length = \'additive_QTN_number\'.", call. = F)
+          } else if (any(lengths(add_effect) != add_QTN_num)) {
+            stop("Please provide an \'add_effect\' object of length = \'add_QTN_num\'.", call. = F)
           }
         }
-        if (dom){
-          if(any(lengths(dominance_effect) !=  dominance_QTN_number))
-            stop("Please provide a \'dominance_effect\' object of length  = \'dominance_QTN_number\'.", call. = F)
+        if (dom) {
+          if (any(lengths(dom_effect) !=  dom_QTN_num))
+            stop("Please provide a \'dom_effect\' object of length  = \'dom_QTN_num\'.", call. = F)
         }
-        if (epi){
-          if(any(lengths(epistatic_effect) !=  epistatic_QTN_number))
-            stop("Please provide an \'epistatic_effect\' object of length = \'epistatic_QTN_number\'.", call. = F)
+        if (epi) {
+          if (any(lengths(epi_effect) !=  epi_QTN_num))
+            stop("Please provide an \'epi_effect\' object of length = \'epi_QTN_num\'.", call. = F)
         }
       }
       if (ntraits > 1) {
-        if (!is.null(correlation) & !all(ntraits == dim(correlation))) {
-          stop("ntraits do not match with dim of correlation matrix!", call. = F)
+        if (!is.null(cor) & !all(ntraits == dim(cor))) {
+          stop("ntraits do not match with dim of cor matrix!", call. = F)
         }
         if (architecture == "LD") {
           if (ncol(h2) > 2) {
-            stop("For the LD architecture, \'h2\' should have two columns, one for each trait!", call. = F) 
+            stop("For the LD architecture, \'h2\' should have two columns, one for each trait!", call. = F)
           }
-          if (ncol(h2) ==1 ) {h2 <- cbind(h2, h2)}
+          if (ncol(h2) == 1 ) {
+            h2 <- cbind(h2, h2)
+            }
         }
         if (ntraits != ncol(h2)) {
           stop("Parameter \'h2\' should have length/ncol = \'ntraits\'.", call. = F)
         }
         if (architecture == "partially"){
-          
           if (add) {
-            if (is.null(trait_specific_a_QTN_number) | is.null(pleitropic_a)) {
-              stop("For Partially Pleiotropic additive architecture, both \'pleitropic_a\' and \'trait_specific_a_QTN_number\' must be provided!", call. = F)
+            if (is.null(trait_spec_a_QTN_num) | is.null(pleio_a)) {
+              stop("For Partially Pleiotropic additive architecture, both \'pleio_a\' and \'trait_spec_a_QTN_num\' must be provided!", call. = F)
             }
-            if (ntraits != length(trait_specific_a_QTN_number)) {
-              stop("Parameter \'trait_specific_a_QTN_number\' should have length = \'ntraits\'.", call. = F) 
+            if (ntraits != length(trait_spec_a_QTN_num)) {
+              stop("Parameter \'trait_spec_a_QTN_num\' should have length = \'ntraits\'.", call. = F)
             }
           }
           if (dom) {
-            if (same_add_dom_QTN) { 
+            if (same_add_dom_QTN) {
               if (!add) {
-                stop("\'same_add_dom_QTN\' is only valid if model includes \'A\'.", call. = F)   
+                stop("\'same_add_dom_QTN\' is only valid if model includes \'A\'.", call. = F)
               }
-            } else if (is.null(pleitropic_d) | is.null(trait_specific_d_QTN_number)) {
-              stop("Please provide \'pleitropic_d\' and \'trait_specific_d_QTN_number\'.", call. = F)  
+            } else if (is.null(pleio_d) | is.null(trait_spec_d_QTN_num)) {
+              stop("Please provide \'pleio_d\' and \'trait_spec_d_QTN_num\'.", call. = F)
             }
           }
           if (epi) {
-            if (is.null(trait_specific_e_QTN_number) | is.null(pleitropic_e)) {
-              stop("For Partially Pleiotropic epistatic architecture, both \'pleitropic_e\' and \'trait_specific_e_QTN_number\' must be provided!", call. = F)
+            if (is.null(trait_spec_e_QTN_num) | is.null(pleio_e)) {
+              stop("For Partially Pleiotropic epistatic architecture, both \'pleio_e\' and \'trait_spec_e_QTN_num\' must be provided!", call. = F)
             }
-            if (ntraits != length(trait_specific_e_QTN_number)) {
-              stop("Parameter \'trait_specific_e_QTN_number\' should have length = \'ntraits\'", call. = F)
+            if (ntraits != length(trait_spec_e_QTN_num)) {
+              stop("Parameter \'trait_spec_e_QTN_num\' should have length = \'ntraits\'", call. = F)
             }
           }
         } else {
           if (add) {
-            if (is.null(additive_QTN_number)) {
-              stop("Please provide a valid \'additive_QTN_number\'.", call. = F)
+            if (is.null(add_QTN_num)) {
+              stop("Please provide a valid \'add_QTN_num\'.", call. = F)
             }
           }
           if (dom) {
-            if (is.null(dominance_QTN_number)) {
-              stop("Please provide a valid \'dominance_QTN_number\'.", call. = F)
+            if (is.null(dom_QTN_num)) {
+              stop("Please provide a valid \'dom_QTN_num\'.", call. = F)
             }
             if (same_add_dom_QTN) {
               if (!add) {
-                stop("\'same_add_dom_QTN\' is only valid if \'additive_QTN_number\' is not NULL.", call. = F)  
+                stop("\'same_add_dom_QTN\' is only valid if \'add_QTN_num\' is not NULL.", call. = F)
               }
             }
           }
           if (epi) {
-            if (is.null(epistatic_QTN_number)) {
-              stop("Please provide a valid \'epistatic_QTN_number\'.", call. = F)
+            if (is.null(epi_QTN_num)) {
+              stop("Please provide a valid \'epi_QTN_num\'.", call. = F)
             }
           }
         }
-        
-        if (architecture == "partially" | architecture == "pleiotropic"){
-          if (is.null(correlation)) {
-            if (!is.null(additive_effect)) {
-              a_var <- all(lapply(additive_effect, var) == 0)
+        if (architecture == "partially" | architecture == "pleiotropic") {
+          if (is.null(cor)) {
+            if (!is.null(add_effect)) {
+              a_var <- all(lapply(add_effect, var) == 0)
             }
-            if (!is.null(dominance_effect)) {
-              d_var <- all(lapply(dominance_effect, var) == 0)
+            if (!is.null(dom_effect)) {
+              d_var <- all(lapply(dom_effect, var) == 0)
             }
-            if (!is.null(epistatic_effect)) {
-              e_var <- all(lapply(epistatic_effect, var) == 0)
+            if (!is.null(epi_effect)) {
+              e_var <- all(lapply(epi_effect, var) == 0)
             }
             w <- c()
             if (exists("a_var")) w <- a_var
             if (exists("d_var")) w <- c(w, d_var)
-            if (exists("e_var")) w <- c(w, e_var) 
-            if (all(w)) warning("If \'correlation = NULL\', allelic effect must be different to generate different correlated traits!")
+            if (exists("e_var")) w <- c(w, e_var)
+            if (all(w)) warning("If \'cor = NULL\', allelic effect must be different to generate different correlated traits!")
           }
         }
         mm <-
@@ -432,25 +449,22 @@ create_phenotypes <-
               architecture == "partially",
               "Partially Pleiotropic",
               ifelse(architecture == "LD", "Linkage Disequilibrium", {
-                stop("The genetic architecture used is not valid! 
+                stop("The genetic architecture used is not valid!
                    Please choose one of: \'pleiotropic\', \'partially\' or \'LD\' ", call. = F)
               })
             )
           )
       }
-      
-      
-      #TODO VCF and other formats.
       input_format <- "hapmap"
       setwd(home_dir)
       on.exit(setwd(home_dir), add = TRUE)
-      if (!is.null(genotypes_path) | !is.null(genotypes_file) |
-          (class(unlist(genotypes_object[, 12])) != "numeric" &
-           class(unlist(genotypes_object[, 12])) != "integer")) {
-        genotypes_object <-
-          genotypes(genotypes_object = genotypes_object,
-                    genotypes_path = genotypes_path,
-                    genotypes_file = genotypes_file,
+      if (!is.null(geno_path) | !is.null(geno_file) |
+          (class(unlist(geno_obj[, 12])) != "numeric" &
+           class(unlist(geno_obj[, 12])) != "integer")) {
+        geno_obj <-
+          genotypes(geno_obj = geno_obj,
+                    geno_path = geno_path,
+                    geno_file = geno_file,
                     input_format = input_format,
                     nrows = nrows,
                     na_string = na_string,
@@ -459,7 +473,9 @@ create_phenotypes <-
                     SNP_impute = SNP_impute,
                     major_allele_zero = major_allele_zero)
       }
-      if (is.null(seed)){ seed <- round(runif(1, 0, 10e5)) }
+      if (is.null(seed)) {
+        seed <- round(runif(1, 0, 10e5))
+        }
       if (!is.null(output_dir)) {
         tempdir <- paste0(home_dir, "/", output_dir)
         if (dir.exists(tempdir)) {
@@ -486,11 +502,11 @@ create_phenotypes <-
         if (add & !dom & !epi) {
           cat("Simulation of a", mm, "Genetic Architecture with Additive Effects\n")
         } else if (!add & dom & !epi) {
-          cat("Simulation of a", mm, "Genetic Architecture with Dominance Effects\n") 
+          cat("Simulation of a", mm, "Genetic Architecture with Dominance Effects\n")
         } else if (!add & !dom & epi) {
-          cat("Simulation of a", mm, "Genetic Architecture with Epistatic Effects \n") 
+          cat("Simulation of a", mm, "Genetic Architecture with Epistatic Effects \n")
         } else if (add & dom & !epi) {
-          cat("Simulation of a", mm, "Genetic Architecture with Additive and Dominance Effects \n") 
+          cat("Simulation of a", mm, "Genetic Architecture with Additive and Dominance Effects \n")
         } else if (add & !dom & epi) {
           cat("Simulation of a", mm, "Genetic Architecture with Additive and Epistatic Effects \n")
         } else if (!add & dom & epi) {
@@ -502,11 +518,11 @@ create_phenotypes <-
         if (add & !dom & !epi) {
           cat("Simulation of a Single Trait Genetic Architecture with Additive Effects\n")
         } else if (!add & dom & !epi) {
-          cat("Simulation of a Single Trait Genetic Architecture with Dominance Effects\n") 
+          cat("Simulation of a Single Trait Genetic Architecture with Dominance Effects\n")
         } else if (!add & !dom & epi) {
-          cat("Simulation of a Single Trait Genetic Architecture with Epistatic Effects \n") 
+          cat("Simulation of a Single Trait Genetic Architecture with Epistatic Effects \n")
         } else if (add & dom & !epi) {
-          cat("Simulation of a Single Trait Genetic Architecture with Additive and Dominance Effects \n") 
+          cat("Simulation of a Single Trait Genetic Architecture with Additive and Dominance Effects \n")
         } else if (add & !dom & epi) {
           cat("Simulation of a Single Trait Genetic Architecture with Additive and Epistatic Effects \n")
         } else if (!add & dom & epi) {
@@ -519,120 +535,118 @@ create_phenotypes <-
       cat("Number of traits:", ntraits)
       if (architecture == "pleiotropic" |
           architecture == "LD" |
-          ntraits == 1 ) {
-        if (add) cat("\nNumber of additive QTNs:", additive_QTN_number)
+          ntraits == 1) {
+        if (add) cat("\nNumber of additive QTNs:", add_QTN_num)
         if (dom) {
-          if(same_add_dom_QTN) {
+          if (same_add_dom_QTN) {
             cat("\nNumber of dominance QTNs: Same QTNs used for the additive model!")
-            if (!is.null(degree_of_dominance))
-              cat("\nDegree of dominance:", degree_of_dominance)
+            if (!is.null(degree_of_dom))
+              cat("\nDegree of dominance:", degree_of_dom)
           } else {
-            cat("\nNumber of dominance QTNs:", dominance_QTN_number)
+            cat("\nNumber of dominance QTNs:", dom_QTN_num)
           }
         }
-        if (epi) cat("\nNumber of epistatic QTNs:", epistatic_QTN_number)
+        if (epi) cat("\nNumber of epistatic QTNs:", epi_QTN_num)
       }
       if (architecture == "partially") {
         if (add) {
-          cat("\nNumber of pleiotropic additive QTNs:", pleitropic_a)
+          cat("\nNumber of pleiotropic additive QTNs:", pleio_a)
           cat("\nNumber of trait specific additive QTNs:",
-              paste(trait_specific_a_QTN_number,
+              paste(trait_spec_a_QTN_num,
                     collapse = ", ")
           )
         }
         if (dom) {
-          if(same_add_dom_QTN & add) { 
+          if (same_add_dom_QTN & add) {
             cat("\nNumber of pleiotropic and trait specific dominant QTNs: Same as for the additive model!")
           } else {
-            cat("\nNumber of pleiotropic dominant QTNs:", pleitropic_d)
+            cat("\nNumber of pleiotropic dominant QTNs:", pleio_d)
             cat("\nNumber of trait specific dominant QTNs:",
-                paste(trait_specific_d_QTN_number,
-                      collapse = ", "))
+                paste(trait_spec_d_QTN_num,
+                      collapse = ", ")
+                )
           }
         }
         if (epi) {
-          cat("\nNumber of pleiotropic epistatic QTNs:", pleitropic_e)
+          cat("\nNumber of pleiotropic epistatic QTNs:", pleio_e)
           cat("\nNumber of trait specific epistatic QTNs:",
-              paste(trait_specific_e_QTN_number,
+              paste(trait_spec_e_QTN_num,
                     collapse = ", "))
         }
       }
       cat("\nReplicating set of QTNs every simulation (vary_QTN): ", vary_QTN)
-      if(ntraits == 1) {
+      if (ntraits == 1) {
         cat("\nPopulation Heritability:", h2)
         if (add) {
-          names(additive_effect) <- paste0("Trait_", 1:ntraits)
+          names(add_effect) <- paste0("Trait_", 1:ntraits)
           cat("\nAdditive genetic effect:\n")
-          print(additive_effect)
-          #cat("\nBig effect Additive QTN:", big_additive_QTN_effect)
+          print(add_effect)
         }
         if (dom) {
-          names(dominance_effect) <- paste0("Trait_", 1:ntraits)
+          names(dom_effect) <- paste0("Trait_", 1:ntraits)
           cat("\nDominance genetic effect:\n")
-          print(dominance_effect)
+          print(dom_effect)
         }
         if (epi) {
-          names(epistatic_effect) <- paste0("Trait_", 1:ntraits)
+          names(epi_effect) <- paste0("Trait_", 1:ntraits)
           cat("\nEpistatic genetic effect:\n")
-          print(epistatic_effect)
+          print(epi_effect)
         }
         cat(paste0("\nOutput file format: \'", output_format, "\'\n"))
       } else {
-        if(nrow(h2) > 1){
+        if (nrow(h2) > 1){
           cat("\nPopulation Heritability:")
-          #colnames(h2) <- paste0("Trait_", 1:ntraits)
           print(h2)
         } else {
           cat("\nPopulation Heritability:\n")
           print(h2)
         }
         if (add) {
-          names(additive_effect) <- paste0("Trait_", 1:ntraits)
+          names(add_effect) <- paste0("Trait_", 1:ntraits)
           cat("\nAdditive genetic effects:\n")
-          print(additive_effect)
-          #cat("\nBig effect Additive QTN:", big_additive_QTN_effect)
+          print(add_effect)
         }
         if (dom) {
-          names(dominance_effect) <- paste0("Trait_", 1:ntraits)
-          if (same_add_dom_QTN & !is.null(degree_of_dominance)) {
-            cat("\nDominance genetic effects (degree_of_dominance = ",degree_of_dominance,"):\n")
+          names(dom_effect) <- paste0("Trait_", 1:ntraits)
+          if (same_add_dom_QTN & !is.null(degree_of_dom)) {
+            cat("\nDominance genetic effects (degree_of_dom = ", degree_of_dom, "):\n")
           } else {
             cat("\nDominance genetic effects:\n")
           }
-          print(dominance_effect) 
+          print(dom_effect)
         }
         if (epi) {
-          names(epistatic_effect) <- paste0("Trait_", 1:ntraits)
+          names(epi_effect) <- paste0("Trait_", 1:ntraits)
           cat("\nEpistatic genetic effects:\n")
-          print(epistatic_effect)
+          print(epi_effect)
         }
         cat(paste0("\nOutput file format: \'", output_format, "\'\n"))
       }
       if (architecture == "LD" | out_geno == "plink" |
-          out_geno == "gds" | output_format == "gemma"){
-        dup <- duplicated(genotypes_object$snp)
-        if(any(dup)){
+          out_geno == "gds" | output_format == "gemma") {
+        dup <- duplicated(geno_obj$snp)
+        if (any(dup)) {
           message("Removing ", sum(dup), " markers for being duplicated!")
-          genotypes_object <- genotypes_object[!dup, ]      
+          geno_obj <- geno_obj[!dup, ]
         }
-        if (any(grepl("geno.gds", dir(home_dir)))){
+        if (any(grepl("geno.gds", dir(home_dir)))) {
           message("A file named geno.gds is already present in this folder, creating \'geno2\'.")
           gdsfile <- "geno2"
         }
         if (is.null(gdsfile))  gdsfile <- "geno"
-        if (!is.numeric(genotypes_object$chr)) {
-          genotypes_object$chr <- as.numeric(
-            gsub("\\D+", "", genotypes_object$chr)
+        if (!is.numeric(geno_obj$chr)) {
+          geno_obj$chr <- as.numeric(
+            gsub("\\D+", "", geno_obj$chr)
           )
         }
         SNPRelate::snpgdsCreateGeno(
           paste0(home_dir, "/", gdsfile, ".gds"),
-          genmat = as.matrix(genotypes_object[, -c(1:5)]),
-          sample.id = colnames(genotypes_object)[-c(1:5)],
-          snp.id = genotypes_object$snp,
-          snp.chromosome = genotypes_object$chr,
-          snp.position = genotypes_object$pos,
-          snp.allele = genotypes_object$allele,
+          genmat = as.matrix(geno_obj[, -c(1:5)]),
+          sample.id = colnames(geno_obj)[-c(1:5)],
+          snp.id = geno_obj$snp,
+          snp.chromosome = geno_obj$chr,
+          snp.position = geno_obj$pos,
+          snp.allele = geno_obj$allele,
           snpfirstdim = TRUE
         )
         gdsfmt::showfile.gds(closeall = TRUE)
@@ -642,11 +656,11 @@ create_phenotypes <-
             output_format == "gemma") {
           genofile <- SNPRelate::snpgdsOpen(gdsfile)
           snpset <-
-            SNPRelate::snpgdsSelectSNP(genofile, remove.monosnp=F, verbose=F)
+            SNPRelate::snpgdsSelectSNP(genofile, remove.monosnp = F, verbose = F)
           SNPRelate::snpgdsGDS2BED(genofile,
                                    bed.fn = "geno",
                                    snp.id = snpset,
-                                   verbose=F)
+                                   verbose = F)
           SNPRelate::snpgdsClose(genofile)
           cat("\nPlink bed files saved at:", home_dir, "\n")
         }
@@ -657,7 +671,7 @@ create_phenotypes <-
       }
       if (out_geno == "numeric") {
         data.table::fwrite(
-          genotypes_object,
+          geno_obj,
           paste0(
             ifelse(is.null(output_dir), "", "../"),
             "Numeric_SNP_File"
@@ -673,12 +687,12 @@ create_phenotypes <-
       if (ntraits == 1 | !any(architecture != "pleiotropic")) {
         QTN <-
           QTN_pleiotropic(
-            genotypes = genotypes_object,
+            genotypes = geno_obj,
             seed = seed,
             same_add_dom_QTN = same_add_dom_QTN,
-            additive_QTN_number = additive_QTN_number,
-            dominance_QTN_number = dominance_QTN_number,
-            epistatic_QTN_number = epistatic_QTN_number,
+            add_QTN_num = add_QTN_num,
+            dom_QTN_num = dom_QTN_num,
+            epi_QTN_num = epi_QTN_num,
             constrains = constrains,
             rep = rep,
             rep_by = rep_by,
@@ -691,12 +705,12 @@ create_phenotypes <-
       if (ntraits > 1 & !any(architecture != "partially")) {
         QTN <-
           QTN_partially_pleiotropic(
-            genotypes = genotypes_object,
+            genotypes = geno_obj,
             seed = seed,
-            pleitropic_a = pleitropic_a,
-            pleitropic_e = pleitropic_e,
-            trait_specific_a_QTN_number = trait_specific_a_QTN_number,
-            trait_specific_e_QTN_number = trait_specific_e_QTN_number,
+            pleio_a = pleio_a,
+            pleio_e = pleio_e,
+            trait_spec_a_QTN_num = trait_spec_a_QTN_num,
+            trait_spec_e_QTN_num = trait_spec_e_QTN_num,
             ntraits = ntraits,
             constrains = constrains,
             rep = rep,
@@ -711,9 +725,9 @@ create_phenotypes <-
       if (ntraits > 1 & !any(architecture != "LD")) {
         QTN <-
           QTN_linkage(
-            genotypes = genotypes_object,
+            genotypes = geno_obj,
             seed = seed,
-            additive_QTN_number = additive_QTN_number,
+            add_QTN_num = add_QTN_num,
             ld = ld,
             gdsfile = gdsfile,
             constrains = constrains,
@@ -730,12 +744,12 @@ create_phenotypes <-
             genetic_value <-
               base_line_single_trait(
                 seed = seed,
-                additive_object = QTN$additive_effect_trait_object,
-                dominance_object = QTN$additive_effect_trait_object,
-                epistatic_object = QTN$epistatic_effect_trait_object,
-                additive_effect = additive_effect,
-                dominance_effect = dominance_effect,
-                epistatic_effect = epistatic_effect,
+                add_obj = QTN$add_effect_trait_object,
+                dom_obj = QTN$add_effect_trait_object,
+                epi_obj = QTN$epi_effect_trait_object,
+                add_effect = add_effect,
+                dom_effect = dom_effect,
+                epi_effect = epi_effect,
                 rep = rep,
                 rep_by = rep_by,
                 add = add,
@@ -747,12 +761,12 @@ create_phenotypes <-
             genetic_value <-
               base_line_single_trait(
                 seed = seed,
-                additive_object = QTN$additive_effect_trait_object,
-                dominance_object = QTN$dominance_effect_trait_object,
-                epistatic_object = QTN$epistatic_effect_trait_object,
-                additive_effect = additive_effect,
-                dominance_effect = dominance_effect,
-                epistatic_effect = epistatic_effect,
+                add_obj = QTN$add_effect_trait_object,
+                dom_obj = QTN$dom_effect_trait_object,
+                epi_obj = QTN$epi_effect_trait_object,
+                add_effect = add_effect,
+                dom_effect = dom_effect,
+                epi_effect = epi_effect,
                 rep = rep,
                 rep_by = rep_by,
                 add = add,
@@ -765,10 +779,10 @@ create_phenotypes <-
           genetic_value <-
             base_line_single_trait(
               seed = seed,
-              additive_object = QTN$additive_effect_trait_object,
-              epistatic_object = QTN$epistatic_effect_trait_object,
-              additive_effect = additive_effect,
-              epistatic_effect = epistatic_effect,
+              add_obj = QTN$add_effect_trait_object,
+              epi_obj = QTN$epi_effect_trait_object,
+              add_effect = add_effect,
+              epi_effect = epi_effect,
               rep = rep,
               rep_by = rep_by,
               add = add,
@@ -778,20 +792,19 @@ create_phenotypes <-
             )
         }
       } else {
-        if(dom){
-          if(same_add_dom_QTN){
-            #include pleitropic for partially and QTN number
+        if (dom){
+          if (same_add_dom_QTN) {
             genetic_value <-
               base_line_multi_traits(
                 seed = seed,
                 ntraits = ntraits,
-                correlation = correlation,
-                additive_object = QTN$additive_effect_trait_object,
-                dominance_object = QTN$additive_effect_trait_object,
-                epistatic_object = QTN$epistatic_effect_trait_object,
-                additive_effect = additive_effect,
-                dominance_effect = dominance_effect,
-                epistatic_effect = epistatic_effect,
+                cor = cor,
+                add_obj = QTN$add_effect_trait_object,
+                dom_obj = QTN$add_effect_trait_object,
+                epi_obj = QTN$epi_effect_trait_object,
+                add_effect = add_effect,
+                dom_effect = dom_effect,
+                epi_effect = epi_effect,
                 rep = rep,
                 rep_by = rep_by,
                 architecture = architecture,
@@ -805,13 +818,13 @@ create_phenotypes <-
               base_line_multi_traits(
                 seed = seed,
                 ntraits = ntraits,
-                correlation = correlation,
-                additive_object = QTN$additive_effect_trait_object,
-                dominance_object = QTN$dominance_effect_trait_object,
-                epistatic_object = QTN$epistatic_effect_trait_object,
-                additive_effect = additive_effect,
-                dominance_effect = dominance_effect,
-                epistatic_effect = epistatic_effect,
+                cor = cor,
+                add_obj = QTN$add_effect_trait_object,
+                dom_obj = QTN$dom_effect_trait_object,
+                epi_obj = QTN$epi_effect_trait_object,
+                add_effect = add_effect,
+                dom_effect = dom_effect,
+                epi_effect = epi_effect,
                 rep = rep,
                 rep_by = rep_by,
                 architecture = architecture,
@@ -826,11 +839,11 @@ create_phenotypes <-
             base_line_multi_traits(
               seed = seed,
               ntraits = ntraits,
-              correlation = correlation,
-              additive_object = QTN$additive_effect_trait_object,
-              epistatic_object = QTN$epistatic_effect_trait_object,
-              additive_effect = additive_effect,
-              epistatic_effect = epistatic_effect,
+              cor = cor,
+              add_obj = QTN$add_effect_trait_object,
+              epi_obj = QTN$epi_effect_trait_object,
+              add_effect = add_effect,
+              epi_effect = epi_effect,
               rep = rep,
               rep_by = rep_by,
               architecture = architecture,
@@ -840,22 +853,22 @@ create_phenotypes <-
               sim_method = sim_method
             )
         }
-        if (!is.null(correlation)) {
-          cat("Population Correlation \n")
-          colnames(correlation) <- paste0("Trait_", 1:ntraits)
-          rownames(correlation) <- paste0("Trait_", 1:ntraits)
-          print(correlation)
+        if (!is.null(cor)) {
+          cat("Population cor \n")
+          colnames(cor) <- paste0("Trait_", 1:ntraits)
+          rownames(cor) <- paste0("Trait_", 1:ntraits)
+          print(cor)
         }
         if (rep_by == "QTN") {
           sample_cor <- matrix(0, ntraits, ntraits)
-          for(v in 1:rep) {
+          for (v in 1:rep) {
             sample_cor <- (sample_cor + genetic_value[[v]]$sample_cor)
           }
-          sample_cor <- sample_cor/rep
+          sample_cor <- sample_cor / rep
         } else {
           sample_cor <- genetic_value[[1]]$sample_cor
         }
-        cat("\nSample Correlation \n")
+        cat("\nSample cor \n")
         colnames(sample_cor) <- paste0("Trait_", 1:ntraits)
         rownames(sample_cor) <- paste0("Trait_", 1:ntraits)
         print(sample_cor)
@@ -878,11 +891,10 @@ create_phenotypes <-
       if (out_geno != "gds") {
         unlink(gdsfile, force = TRUE)
       }
-      if(to_r) return(results)
-      
-    }, 
+      if (to_r) return(results)
+    },
     silent = FALSE)
-    if (class(x)== "try-error") {
+    if (class(x) == "try-error") {
       sink()
       close(zz)
     }

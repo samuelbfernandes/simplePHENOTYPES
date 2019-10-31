@@ -1,11 +1,11 @@
 #' Calculate genetic value based on QTN objects.
 #' @export
-#' @param additive_object hhh
-#' @param dominance_object hhh
-#' @param epistatic_object hhh
-#' @param additive_effect hhh
-#' @param dominance_effect = NULL,
-#' @param epistatic_effect hhh
+#' @param add_obj hhh
+#' @param dom_obj hhh
+#' @param epi_obj hhh
+#' @param add_effect hhh
+#' @param dom_effect = NULL,
+#' @param epi_effect hhh
 #' @param seed hhh
 #' @param rep = NULL,
 #' @param rep_by = NULL,
@@ -21,12 +21,12 @@
 #'
 #'-----------------------------Base_line_single_trait---------------------------
 base_line_single_trait <-
-  function(additive_object = NULL,
-           dominance_object = NULL,
-           epistatic_object = NULL,
-           additive_effect = NULL,
-           dominance_effect = NULL,
-           epistatic_effect = NULL,
+  function(add_obj = NULL,
+           dom_obj = NULL,
+           epi_obj = NULL,
+           add_effect = NULL,
+           dom_effect = NULL,
+           epi_effect = NULL,
            seed = NULL,
            rep = NULL,
            rep_by = "experiment",
@@ -41,12 +41,12 @@ base_line_single_trait <-
       rep <- 1
     }
     if (ntraits > 1) {
-      results <- genetic_effect(add_object = additive_object,
-                                dom_object = dominance_object,
-                                epi_object = epistatic_object,
-                                add_effect = additive_effect,
-                                dom_effect = dominance_effect,
-                                epi_effect = epistatic_effect,
+      results <- genetic_effect(add_obj = add_obj,
+                                dom_obj = dom_obj,
+                                epi_obj = epi_obj,
+                                add_effect = add_effect,
+                                dom_effect = dom_effect,
+                                epi_effect = epi_effect,
                                 sim_method = sim_method,
                                 add = add,
                                 dom = dom,
@@ -55,12 +55,12 @@ base_line_single_trait <-
       results <- vector("list", rep)
       for (z in 1:rep){
         results[[z]] <-
-          genetic_effect(add_object = additive_object[[z]],
-                         dom_object = dominance_object[[z]],
-                         epi_object = epistatic_object[[z]],
-                         add_effect = additive_effect[[1]],
-                         dom_effect = dominance_effect[[1]],
-                         epi_effect = epistatic_effect[[1]],
+          genetic_effect(add_obj = add_obj[[z]],
+                         dom_obj = dom_obj[[z]],
+                         epi_obj = epi_obj[[z]],
+                         add_effect = add_effect[[1]],
+                         dom_effect = dom_effect[[1]],
+                         epi_effect = epi_effect[[1]],
                          sim_method = sim_method,
                          add = add,
                          dom = dom,

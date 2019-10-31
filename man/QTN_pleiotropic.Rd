@@ -5,11 +5,10 @@
 \title{Select SNPs to be assigned as QTNs.}
 \usage{
 QTN_pleiotropic(genotypes = NULL, seed = NULL,
-  same_add_dom_QTN = NULL, additive_QTN_number = NULL,
-  dominance_QTN_number = NULL, epistatic_QTN_number = NULL,
-  constrains = list(maf_above = NULL, maf_below = NULL), rep = NULL,
-  rep_by = NULL, export_gt = NULL, add = NULL, dom = NULL,
-  epi = NULL)
+  same_add_dom_QTN = NULL, add_QTN_num = NULL, dom_QTN_num = NULL,
+  epi_QTN_num = NULL, constrains = list(maf_above = NULL, maf_below =
+  NULL), rep = NULL, rep_by = NULL, export_gt = NULL, add = NULL,
+  dom = NULL, epi = NULL)
 }
 \arguments{
 \item{genotypes}{= NULL,}
@@ -18,11 +17,11 @@ QTN_pleiotropic(genotypes = NULL, seed = NULL,
 
 \item{same_add_dom_QTN}{= NULL,}
 
-\item{additive_QTN_number}{= NULL,}
+\item{add_QTN_num}{= NULL,}
 
-\item{dominance_QTN_number}{= NULL,}
+\item{dom_QTN_num}{= NULL,}
 
-\item{epistatic_QTN_number}{= NULL}
+\item{epi_QTN_num}{= NULL}
 
 \item{constrains}{= list(maf_above = NULL, maf_below = NULL)}
 

@@ -4,17 +4,17 @@
 \alias{file_loader}
 \title{...}
 \usage{
-file_loader(genotypes_object = NULL, genotypes_file = NULL,
-  genotypes_path = NULL, input_format = "hapmap", nrows = Inf,
-  na_string = "NA", prefix = NULL, SNP_impute = "Middle",
-  SNP_effect = "Add", major_allele_zero = FALSE)
+file_loader(geno_obj = NULL, geno_file = NULL, geno_path = NULL,
+  input_format = "hapmap", nrows = Inf, na_string = "NA",
+  prefix = NULL, SNP_impute = "Middle", SNP_effect = "Add",
+  major_allele_zero = FALSE)
 }
 \arguments{
-\item{genotypes_object}{= NULL,}
+\item{geno_obj}{= NULL,}
 
-\item{genotypes_file}{= NULL,}
+\item{geno_file}{= NULL,}
 
-\item{genotypes_path}{= NULL,}
+\item{geno_path}{= NULL,}
 
 \item{input_format}{= "hapmap",}
 

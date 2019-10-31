@@ -1,8 +1,8 @@
 #' ...
 #' @export
-#' @param genotypes_object = NULL,
-#' @param genotypes_file = NULL,
-#' @param genotypes_path = NULL,
+#' @param geno_obj = NULL,
+#' @param geno_file = NULL,
+#' @param geno_path = NULL,
 #' @param input_format = "hapmap",
 #' @param nrows = Inf,
 #' @param na_string = "NA",
@@ -15,9 +15,9 @@
 #' Last update: Sep 19, 2019
 #'------------------------------------------------------------------------------
 file_loader <-
-  function(genotypes_object = NULL,
-           genotypes_file = NULL,
-           genotypes_path = NULL,
+  function(geno_obj = NULL,
+           geno_file = NULL,
+           geno_path = NULL,
            input_format = "hapmap",
            nrows = Inf,
            na_string = "NA",
@@ -26,30 +26,27 @@ file_loader <-
            SNP_effect = "Add",
            major_allele_zero = FALSE) {
     #'--------------------------------------------------------------------------
-    if (is.null(genotypes_object) &&
-        is.null(genotypes_file) &&
-        is.null(genotypes_path)){
-      stop("Please provide one of: \'genotypes_object\',
-           \'genotypes_file\' or \'genotypes_path\'")
+    if (is.null(geno_obj) &&
+        is.null(geno_file) &&
+        is.null(geno_path)){
+      stop("Please provide one of: \'geno_obj\',
+           \'geno_file\' or \'geno_path\'")
     }
-    if (!is.null(genotypes_object)){
+    if (!is.null(geno_obj)){
       cat("File loaded from memory. \n")
       if (input_format == "hapmap") {
-        GT <- as.matrix(colnames(genotypes_object)[- (1:11)])
-        GI <- genotypes_object[, c(1, 2, 3, 4)]
+        GT <- as.matrix(colnames(geno_obj)[- (1:11)])
+        GI <- geno_obj[, c(1, 2, 3, 4)]
         print(paste0(
           "Converting HapMap format to numerical under model of ",
           SNP_impute
         ))
-        # Set column names
         colnames(GT) <- "taxa"
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
-        # Initial GD
         GD <- NULL
-        # to determine number of bits of genotypes_object
-        bit <- nchar(as.character(genotypes_object[2, 12]))
+        bit <- nchar(as.character(geno_obj[2, 12]))
         print("Performing numericalization")
-        GD <- apply(genotypes_object[, - (1:11)], 1, function(one)
+        GD <- apply(geno_obj[, - (1:11)], 1, function(one)
           GAPIT_numericalization(
             one,
             bit = bit,
@@ -57,7 +54,6 @@ file_loader <-
             impute = SNP_impute,
             major_allele_zero = major_allele_zero
           ))
-        # set GT and GI to NULL in case of null GD
         if (is.null(GD)) {
           GT <- NULL
           GI <- NULL
@@ -66,10 +62,10 @@ file_loader <-
       return(list(GT = GT, GD = GD, GI = GI))
     }else{
       if (input_format == "hapmap") {
-        if (is.null(genotypes_path)) {
+        if (is.null(geno_path)) {
           G <-
             try(data.table::fread(
-              file = genotypes_file,
+              file = geno_file,
               head = TRUE,
               skip = 0,
               nrows = nrows,
@@ -79,11 +75,11 @@ file_loader <-
             silent = TRUE)
         } else {
           if (is.null(prefix)) {
-            files <- paste0(genotypes_path,"/", dir(genotypes_path))
+            files <- paste0(geno_path, "/", dir(geno_path))
           } else{
-            files <- paste0(genotypes_path,"/", 
-                            dir(genotypes_path)[grepl(prefix,
-                                                      dir(genotypes_path))])
+            files <- paste0(geno_path, "/",
+                            dir(geno_path)[grepl(prefix,
+                                                      dir(geno_path))])
           }
           cat("Reading the following HapMap files: \n")
           cat( files, sep = "\n")
@@ -116,12 +112,9 @@ file_loader <-
       ))
       GT <- as.matrix(colnames(G)[- (1:11)])
       GI <- G[, c(1, 2, 3, 4)]
-      # Set column names
       colnames(GT) <- "taxa"
       colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
-      # Initial GD
       GD <- NULL
-      # to determine number of bits of genotypes_object
       bit <- nchar(as.character(G[2, 12]))
       print("Performing numericalization")
       GD <- apply(G[, - (1:11)], 1, function(one)
@@ -132,7 +125,6 @@ file_loader <-
           impute = SNP_impute,
           major_allele_zero = major_allele_zero
         ))
-      # set GT and GI to NULL in case of null GD
       if (is.null(GD)) {
         GT <- NULL
         GI <- NULL

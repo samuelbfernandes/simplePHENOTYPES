@@ -5,10 +5,9 @@
 \title{Select SNPs to be assigned as QTNs}
 \usage{
 QTN_partially_pleiotropic(genotypes = NULL, seed = NULL,
-  pleitropic_a = NULL, pleitropic_d = NULL, pleitropic_e = NULL,
-  trait_specific_a_QTN_number = NULL,
-  trait_specific_d_QTN_number = NULL,
-  trait_specific_e_QTN_number = NULL, ntraits = NULL,
+  pleio_a = NULL, pleio_d = NULL, pleio_e = NULL,
+  trait_spec_a_QTN_num = NULL, trait_spec_d_QTN_num = NULL,
+  trait_spec_e_QTN_num = NULL, ntraits = NULL,
   constrains = list(maf_above = NULL, maf_below = NULL), rep = NULL,
   rep_by = NULL, export_gt = NULL, same_add_dom_QTN = NULL,
   add = NULL, dom = NULL, epi = NULL)
@@ -18,17 +17,17 @@ QTN_partially_pleiotropic(genotypes = NULL, seed = NULL,
 
 \item{seed}{= NULL,}
 
-\item{pleitropic_a}{= NULL,}
+\item{pleio_a}{= NULL,}
 
-\item{pleitropic_d}{= NULL,}
+\item{pleio_d}{= NULL,}
 
-\item{pleitropic_e}{= NULL,}
+\item{pleio_e}{= NULL,}
 
-\item{trait_specific_a_QTN_number}{= NULL,}
+\item{trait_spec_a_QTN_num}{= NULL,}
 
-\item{trait_specific_d_QTN_number}{= NULL,}
+\item{trait_spec_d_QTN_num}{= NULL,}
 
-\item{trait_specific_e_QTN_number}{= NULL,}
+\item{trait_spec_e_QTN_num}{= NULL,}
 
 \item{ntraits}{= NULL}
 

@@ -4,31 +4,30 @@
 \alias{base_line_multi_traits}
 \title{Calculate genetic value based on QTN objects.}
 \usage{
-base_line_multi_traits(additive_object = NULL, dominance_object = NULL,
-  epistatic_object = NULL, additive_effect = NULL,
-  dominance_effect = NULL, epistatic_effect = NULL, seed = seed,
-  ntraits = NULL, correlation = NULL, architecture = NULL,
-  rep = NULL, rep_by = NULL, add = NULL, dom = NULL, epi = NULL,
-  sim_method = NULL)
+base_line_multi_traits(add_obj = NULL, dom_obj = NULL,
+  epi_obj = NULL, add_effect = NULL, dom_effect = NULL,
+  epi_effect = NULL, seed = seed, ntraits = NULL, cor = NULL,
+  architecture = NULL, rep = NULL, rep_by = NULL, add = NULL,
+  dom = NULL, epi = NULL, sim_method = NULL)
 }
 \arguments{
-\item{additive_object}{hhh}
+\item{add_obj}{hhh}
 
-\item{dominance_object}{hhh}
+\item{dom_obj}{hhh}
 
-\item{epistatic_object}{hhh}
+\item{epi_obj}{hhh}
 
-\item{additive_effect}{hhh}
+\item{add_effect}{hhh}
 
-\item{dominance_effect}{= NULL,}
+\item{dom_effect}{= NULL,}
 
-\item{epistatic_effect}{kkkk}
+\item{epi_effect}{kkkk}
 
 \item{seed}{hhh}
 
 \item{ntraits}{hhh}
 
-\item{correlation}{hhh}
+\item{cor}{hhh}
 
 \item{architecture}{hhh}
 
@@ -56,11 +55,4 @@ Last update: Jul 22, 2019
 
 -------------------------------base_line_multi_traits-------------------------
 --------------------------------------------------------------------------
-whiting transformation
-coloring transformation
-approximation to make it positive definite
-bring it back to the original scale
-whiting transformation
-coloring transformation
-bring it back to the original scale
 }

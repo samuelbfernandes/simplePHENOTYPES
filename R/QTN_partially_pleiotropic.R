@@ -6,12 +6,12 @@
 #' @param dom = NULL,
 #' @param epi = NULL
 #' @param same_add_dom_QTN = NULL,
-#' @param pleitropic_a = NULL,
-#' @param pleitropic_d = NULL,
-#' @param pleitropic_e = NULL,
-#' @param trait_specific_a_QTN_number = NULL,
-#' @param trait_specific_d_QTN_number = NULL,
-#' @param trait_specific_e_QTN_number = NULL,
+#' @param pleio_a = NULL,
+#' @param pleio_d = NULL,
+#' @param pleio_e = NULL,
+#' @param trait_spec_a_QTN_num = NULL,
+#' @param trait_spec_d_QTN_num = NULL,
+#' @param trait_spec_e_QTN_num = NULL,
 #' @param ntraits = NULL
 #' @param constrains = list(maf_above = NULL, maf_below = NULL)
 #' @param rep = 1,
@@ -25,12 +25,12 @@
 QTN_partially_pleiotropic <-
   function(genotypes = NULL,
            seed = NULL,
-           pleitropic_a = NULL,
-           pleitropic_d = NULL,
-           pleitropic_e = NULL,
-           trait_specific_a_QTN_number = NULL,
-           trait_specific_d_QTN_number = NULL,
-           trait_specific_e_QTN_number = NULL,
+           pleio_a = NULL,
+           pleio_d = NULL,
+           pleio_e = NULL,
+           trait_spec_a_QTN_num = NULL,
+           trait_spec_d_QTN_num = NULL,
+           trait_spec_e_QTN_num = NULL,
            ntraits = NULL,
            constrains = list(maf_above = NULL,
                              maf_below = NULL),
@@ -42,88 +42,92 @@ QTN_partially_pleiotropic <-
            dom = NULL,
            epi = NULL) {
     #---------------------------------------------------------------------------
-    additive_effect_trait_object <- NULL
-    dominance_effect_trait_object <- NULL
-    epistatic_effect_trait_object <-  NULL
-    if (any(lengths(constrains)>0)) {
-      index <- constrain(genotypes = genotypes, 
+    add_ef_trait_obj <- NULL
+    dom_ef_trait_obj <- NULL
+    epi_ef_trait_obj <-  NULL
+    if (any(lengths(constrains) > 0)) {
+      index <- constrain(genotypes = genotypes,
                          maf_above = constrains$maf_above,
                          maf_below = constrains$maf_below)
     } else {
-      # First SNP at column 6
       index <- 6:nrow(genotypes)
     }
-    if (rep_by != 'QTN'){rep <- 1}
-    if (same_add_dom_QTN) { 
-      add_pleiotropic_QTN_genotypic_info <- vector("list", rep)
-      add_specific_QTN_genotypic_info <- vector("list", rep)
+    if (rep_by != "QTN"){
+      rep <- 1
+      }
+    if (same_add_dom_QTN) {
+      add_pleio_gen_info <- vector("list", rep)
+      add_specific_gen_info <- vector("list", rep)
       for (j in 1:rep) {
         if (!is.null(seed)) {
           set.seed(seed + j)
         }
-        vector_of_pleiotropic_add_QTN <-
-          sample(index, pleitropic_a, replace = FALSE)
-        add_pleiotropic_QTN_genotypic_info[[j]] <-
-          as.data.frame(genotypes[vector_of_pleiotropic_add_QTN, ])
+        vec_of_pleio_add_QTN <-
+          sample(index, pleio_a, replace = FALSE)
+        add_pleio_gen_info[[j]] <-
+          as.data.frame(genotypes[vec_of_pleio_add_QTN, ])
         snps <-
-          setdiff(index, vector_of_pleiotropic_add_QTN)
-        vector_of_specific_add_QTN_temp <- vector("list", ntraits)
-        add_specific_QTN_genotypic_info_temp <- vector("list", ntraits)
+          setdiff(index, vec_of_pleio_add_QTN)
+        vec_spec_add_QTN_temp <- vector("list", ntraits)
+        add_specific_gen_info_temp <- vector("list", ntraits)
         ss <- c()
         for (i in 1:ntraits) {
           if (!is.null(seed)) {
             ss[i] <- seed + i + j
             set.seed(seed + i + j)
           }
-          vector_of_specific_add_QTN_temp[[i]] <-
-            sample(snps, trait_specific_a_QTN_number[i], replace = FALSE)
-          snps <- setdiff(snps, vector_of_specific_add_QTN_temp[[i]])
-          add_specific_QTN_genotypic_info_temp[[i]] <-
-            as.data.frame(genotypes[vector_of_specific_add_QTN_temp[[i]], ])
+          vec_spec_add_QTN_temp[[i]] <-
+            sample(snps, trait_spec_a_QTN_num[i], replace = FALSE)
+          snps <- setdiff(snps, vec_spec_add_QTN_temp[[i]])
+          add_specific_gen_info_temp[[i]] <-
+            as.data.frame(genotypes[vec_spec_add_QTN_temp[[i]], ])
         }
-        add_specific_QTN_genotypic_info_temp <- 
-          do.call(rbind, add_specific_QTN_genotypic_info_temp)
-        add_specific_QTN_genotypic_info[[j]] <- 
-          data.frame(trait = paste0("trait_",rep(1:ntraits, trait_specific_a_QTN_number)),
-                     add_specific_QTN_genotypic_info_temp)
+        add_specific_gen_info_temp <-
+          do.call(rbind, add_specific_gen_info_temp)
+        add_specific_gen_info[[j]] <-
+          data.frame(trait = paste0("trait_", rep(1:ntraits,
+                                                 trait_spec_a_QTN_num)),
+                     add_specific_gen_info_temp)
       }
-      add_object <- mapply(function(x,y) {
-        p <- split(y, y[,1])
+      add_object <- mapply(function(x, y) {
+        p <- split(y, y[, 1])
         names(p) <- NULL
         lapply(p, function(z) {
-          x <- data.frame(type= "Pleiotropic", trait = unique(z[,1]), x)
-          z <- data.frame(type= "trait_specific", z)
-          rbind(x,z)
+          x <- data.frame(type = "Pleiotropic", trait = unique(z[, 1]), x)
+          z <- data.frame(type = "trait_specific", z)
+          rbind(x, z)
         }
         )
       },
-      x=add_pleiotropic_QTN_genotypic_info,
-      y=add_specific_QTN_genotypic_info,
+      x = add_pleio_gen_info,
+      y = add_specific_gen_info,
       SIMPLIFY = F)
-      additive_effect_trait_object = add_object
-      add_object <- unlist(add_object,recursive=FALSE)
+      add_ef_trait_obj <- add_object
+      add_object <- unlist(add_object, recursive = FALSE)
       add_object <- do.call(rbind, add_object)
       add_object <-
-        data.frame(rep = sort(c(rep(1:rep, each = pleitropic_a*ntraits),
-                                rep(1:rep, each = sum(trait_specific_a_QTN_number)))),
+        data.frame(rep = sort(c(rep(1:rep,
+                                    each = pleio_a * ntraits),
+                                rep(1:rep,
+                                    each = sum(trait_spec_a_QTN_num)))),
                    add_object)
-      additive_effect_trait_object <-  
-        lapply(additive_effect_trait_object, function(x){
+      add_ef_trait_obj <-
+        lapply(add_ef_trait_obj, function(x) {
           lapply(x, function(b){
             rownames(b) <-
-              paste0("Chr_",  b$chr, "_", b$pos)
-            b <- b[,-(1:7)]
+              paste0("Chr_", b$chr, "_", b$pos)
+            b <- b[, - (1:7)]
             return(t(b))
           })
         })
-      if(!export_gt){
-        add_object <- add_object[,1:7]
+      if (!export_gt) {
+        add_object <- add_object[, 1:7]
       }
       write.table(
         c(seed + 1:rep),
         paste0(
           "seed_number_for_",
-          paste0(trait_specific_a_QTN_number + pleitropic_a, collapse = "_"),
+          paste0(trait_spec_a_QTN_num + pleio_a, collapse = "_"),
           "_Add_and_Dom_QTN",
           ".txt"
         ),
@@ -141,78 +145,80 @@ QTN_partially_pleiotropic <-
         na = NA
       )
     } else {
-      if (add) { 
-        add_pleiotropic_QTN_genotypic_info <- vector("list", rep)
-        add_specific_QTN_genotypic_info <- vector("list", rep)
+      if (add) {
+        add_pleio_gen_info <- vector("list", rep)
+        add_specific_gen_info <- vector("list", rep)
         for (j in 1:rep) {
           if (!is.null(seed)) {
             set.seed(seed + j)
           }
-          vector_of_pleiotropic_add_QTN <-
-            sample(index, pleitropic_a, replace = FALSE)
-          add_pleiotropic_QTN_genotypic_info[[j]] <-
-            as.data.frame(genotypes[vector_of_pleiotropic_add_QTN, ])
+          vec_of_pleio_add_QTN <-
+            sample(index, pleio_a, replace = FALSE)
+          add_pleio_gen_info[[j]] <-
+            as.data.frame(genotypes[vec_of_pleio_add_QTN, ])
           snps <-
-            setdiff(index, vector_of_pleiotropic_add_QTN)
-          vector_of_specific_add_QTN_temp <- vector("list", ntraits)
-          add_specific_QTN_genotypic_info_temp <- vector("list", ntraits)
+            setdiff(index, vec_of_pleio_add_QTN)
+          vec_spec_add_QTN_temp <- vector("list", ntraits)
+          add_specific_gen_info_temp <- vector("list", ntraits)
           ss <- c()
           for (i in 1:ntraits) {
             if (!is.null(seed)) {
               ss[i] <- seed + i + j
               set.seed(seed + i + j)
             }
-            vector_of_specific_add_QTN_temp[[i]] <-
-              sample(snps, trait_specific_a_QTN_number[i], replace = FALSE)
-            snps <- setdiff(snps, vector_of_specific_add_QTN_temp[[i]])
-            add_specific_QTN_genotypic_info_temp[[i]] <-
-              as.data.frame(genotypes[vector_of_specific_add_QTN_temp[[i]], ])
+            vec_spec_add_QTN_temp[[i]] <-
+              sample(snps, trait_spec_a_QTN_num[i], replace = FALSE)
+            snps <- setdiff(snps, vec_spec_add_QTN_temp[[i]])
+            add_specific_gen_info_temp[[i]] <-
+              as.data.frame(genotypes[vec_spec_add_QTN_temp[[i]], ])
           }
-          add_specific_QTN_genotypic_info_temp <- 
-            do.call(rbind, add_specific_QTN_genotypic_info_temp)
-          add_specific_QTN_genotypic_info[[j]] <- 
-            data.frame(trait = paste0("trait_",rep(1:ntraits, trait_specific_a_QTN_number)),
-                       add_specific_QTN_genotypic_info_temp)
+          add_specific_gen_info_temp <-
+            do.call(rbind, add_specific_gen_info_temp)
+          add_specific_gen_info[[j]] <-
+            data.frame(trait = paste0("trait_",
+                                      rep(1:ntraits,
+                                          trait_spec_a_QTN_num)),
+                       add_specific_gen_info_temp)
         }
-        add_object <- mapply(function(x,y) {
-          p <- split(y, y[,1])
+        add_object <- mapply(function(x, y) {
+          p <- split(y, y[, 1])
           names(p) <- NULL
           lapply(p, function(z) {
-            x <- data.frame(type= "Pleiotropic", trait = unique(z[,1]), x)
-            z <- data.frame(type= "trait_specific", z)
-            rbind(x,z)
+            x <- data.frame(type = "Pleiotropic", trait = unique(z[, 1]), x)
+            z <- data.frame(type = "trait_specific", z)
+            rbind(x, z)
           }
           )
         },
-        x=add_pleiotropic_QTN_genotypic_info,
-        y=add_specific_QTN_genotypic_info,
+        x = add_pleio_gen_info,
+        y = add_specific_gen_info,
         SIMPLIFY = F)
-        additive_effect_trait_object = add_object
-        add_object <- unlist(add_object,recursive=FALSE)
+        add_ef_trait_obj <- add_object
+        add_object <- unlist(add_object, recursive = FALSE)
         add_object <- do.call(rbind, add_object)
         add_object <-
           data.frame(rep = sort(c(rep(1:rep,
-                                      each = pleitropic_a*ntraits),
+                                      each = pleio_a * ntraits),
                                   rep(1:rep,
-                                      each = sum(trait_specific_a_QTN_number)))),
+                                      each = sum(trait_spec_a_QTN_num)))),
                      add_object)
-        additive_effect_trait_object <-  
-          lapply(additive_effect_trait_object, function(x){
-            lapply(x, function(b){
+        add_ef_trait_obj <-
+          lapply(add_ef_trait_obj, function(x) {
+            lapply(x, function(b) {
               rownames(b) <-
                 paste0("Chr_",  b$chr, "_", b$pos)
-              b <- b[,-(1:7)]
+              b <- b[, - (1:7)]
               return(t(b))
             })
           })
-        if(!export_gt){
-          add_object <- add_object[,1:7]
+        if (!export_gt) {
+          add_object <- add_object[, 1:7]
         }
         write.table(
           c(seed + 1:rep),
           paste0(
             "seed_number_for_",
-            paste0(trait_specific_a_QTN_number + pleitropic_a, collapse = "_"),
+            paste0(trait_spec_a_QTN_num + pleio_a, collapse = "_"),
             "_Add_QTN",
             ".txt"
           ),
@@ -231,80 +237,79 @@ QTN_partially_pleiotropic <-
         )
       }
       if (dom) {
-        dom_pleiotropic_QTN_genotypic_info <- vector("list", rep)
-        dom_specific_QTN_genotypic_info <- vector("list", rep)
+        dom_pleio_gen_info <- vector("list", rep)
+        dom_spec_gen_info <- vector("list", rep)
         for (j in 1:rep) {
           if (!is.null(seed)) {
             set.seed(seed + j * 5)
           }
-          vector_of_pleiotropic_dom_QTN <-
-            sample(index, pleitropic_d, replace = FALSE)
-          dom_pleiotropic_QTN_genotypic_info[[j]] <-
-            as.data.frame(genotypes[vector_of_pleiotropic_dom_QTN, ])
+          vec_pleio_dom_QTN <-
+            sample(index, pleio_d, replace = FALSE)
+          dom_pleio_gen_info[[j]] <-
+            as.data.frame(genotypes[vec_pleio_dom_QTN, ])
           snpsd <-
-            setdiff(index, vector_of_pleiotropic_dom_QTN)
-          vector_of_specific_dom_QTN_temp <- vector("list", ntraits)
-          dom_specific_QTN_genotypic_info_temp <- vector("list", ntraits)
-          
+            setdiff(index, vec_pleio_dom_QTN)
+          vec_spec_dom_QTN_temp <- vector("list", ntraits)
+          dom_spec_gen_info_temp <- vector("list", ntraits)
           ssd <- c()
           for (i in 1:ntraits) {
             if (!is.null(seed)) {
-              ssd[i] <- seed + i + j *5
+              ssd[i] <- seed + i + j * 5
               set.seed(seed + i + j * 5)
             }
-            vector_of_specific_dom_QTN_temp[[i]] <-
-              sample(snpsd, trait_specific_d_QTN_number[i], replace = FALSE)
-            snpsd <- setdiff(snpsd, vector_of_specific_dom_QTN_temp[[i]])
-            dom_specific_QTN_genotypic_info_temp[[i]] <-
-              as.data.frame(genotypes[vector_of_specific_dom_QTN_temp[[i]], ])
+            vec_spec_dom_QTN_temp[[i]] <-
+              sample(snpsd, trait_spec_d_QTN_num[i], replace = FALSE)
+            snpsd <- setdiff(snpsd, vec_spec_dom_QTN_temp[[i]])
+            dom_spec_gen_info_temp[[i]] <-
+              as.data.frame(genotypes[vec_spec_dom_QTN_temp[[i]], ])
           }
-          dom_specific_QTN_genotypic_info_temp <- 
-            do.call(rbind, dom_specific_QTN_genotypic_info_temp)
-          dom_specific_QTN_genotypic_info[[j]] <- 
+          dom_spec_gen_info_temp <-
+            do.call(rbind, dom_spec_gen_info_temp)
+          dom_spec_gen_info[[j]] <-
             data.frame(trait = paste0("trait_",
                                       rep(1:ntraits,
-                                          trait_specific_d_QTN_number)),
-                       dom_specific_QTN_genotypic_info_temp)
+                                          trait_spec_d_QTN_num)),
+                       dom_spec_gen_info_temp)
         }
-        dom_object <- mapply(function(x,y) {
-          p <- split(y, y[,1])
+        dom_object <- mapply(function(x, y) {
+          p <- split(y, y[, 1])
           names(p) <- NULL
           lapply(p, function(z) {
-            x <- data.frame(type= "Pleiotropic", trait = unique(z[,1]), x)
-            z <- data.frame(type= "trait_specific", z)
-            rbind(x,z)
+            x <- data.frame(type = "Pleiotropic", trait = unique(z[, 1]), x)
+            z <- data.frame(type = "trait_specific", z)
+            rbind(x, z)
           }
           )
         },
-        x=dom_pleiotropic_QTN_genotypic_info,
-        y=dom_specific_QTN_genotypic_info,
+        x = dom_pleio_gen_info,
+        y = dom_spec_gen_info,
         SIMPLIFY = F)
-        dominance_effect_trait_object = dom_object
-        dom_object <- unlist(dom_object,recursive=FALSE)
+        dom_ef_trait_obj <- dom_object
+        dom_object <- unlist(dom_object, recursive = FALSE)
         dom_object <- do.call(rbind, dom_object)
         dom_object <-
           data.frame(rep = sort(c(rep(1:rep,
-                                      each = pleitropic_d*ntraits),
+                                      each = pleio_d * ntraits),
                                   rep(1:rep,
-                                      each = sum(trait_specific_d_QTN_number)))),
+                                      each = sum(trait_spec_d_QTN_num)))),
                      dom_object)
-        dominance_effect_trait_object <-  
-          lapply(dominance_effect_trait_object, function(x){
+        dom_ef_trait_obj <-
+          lapply(dom_ef_trait_obj, function(x) {
             lapply(x, function(b){
               rownames(b) <-
                 paste0("Chr_",  b$chr, "_", b$pos)
-              b <- b[,-(1:7)]
+              b <- b[, - (1:7)]
               return(t(b))
             })
           })
-        if(!export_gt){
-          dom_object <- dom_object[,1:7]
+        if (!export_gt){
+          dom_object <- dom_object[, 1:7]
         }
         write.table(
           c(seed + 1:rep),
           paste0(
             "seed_number_for_",
-            paste0(trait_specific_a_QTN_number + pleitropic_a, collapse = "_"),
+            paste0(trait_spec_a_QTN_num + pleio_a, collapse = "_"),
             "_Dom_QTN",
             ".txt"
           ),
@@ -324,77 +329,79 @@ QTN_partially_pleiotropic <-
       }
     }
     if (epi) {
-      epi_pleiotropic_QTN_genotypic_info <- vector("list", rep)
-      epi_specific_QTN_genotypic_info <- vector("list", rep)
+      epi_pleio_QTN_gen_info <- vector("list", rep)
+      epi_spec_QTN_gen_info <- vector("list", rep)
       for (j in 1:rep) {
         if (!is.null(seed)) {
           set.seed(seed + seed + j)
         }
-        vector_of_pleiotropic_epi_QTN <-
-          sample(index, (2 * pleitropic_e), replace = FALSE)
-        epi_pleiotropic_QTN_genotypic_info[[j]] <-
-          as.data.frame(genotypes[vector_of_pleiotropic_epi_QTN, ])
+        vec_pleio_epi_QTN <-
+          sample(index, (2 * pleio_e), replace = FALSE)
+        epi_pleio_QTN_gen_info[[j]] <-
+          as.data.frame(genotypes[vec_pleio_epi_QTN, ])
         snps_e <-
-          setdiff(index, vector_of_pleiotropic_epi_QTN)
-        vector_of_specific_epi_QTN_temp <- vector("list", ntraits)
-        epi_specific_QTN_genotypic_info_temp <- vector("list", ntraits)
+          setdiff(index, vec_pleio_epi_QTN)
+        vec_spec_epi_QTN_temp <- vector("list", ntraits)
+        epi_spec_QTN_gen_info_temp <- vector("list", ntraits)
         sse <- c()
         for (i in 1:ntraits) {
           if (!is.null(seed)) {
             sse[i] <- (seed + i) + seed + j
             set.seed( (seed + i) + seed + j)
           }
-          vector_of_specific_epi_QTN_temp[[i]] <-
-            sample(snps_e, (2 * trait_specific_e_QTN_number[i]), replace = FALSE)
-          snps_e <- setdiff(snps_e, vector_of_specific_epi_QTN_temp[[i]])
-          epi_specific_QTN_genotypic_info_temp[[i]] <-
-            as.data.frame(genotypes[vector_of_specific_epi_QTN_temp[[i]], ])
+          vec_spec_epi_QTN_temp[[i]] <-
+            sample(snps_e, (2 * trait_spec_e_QTN_num[i]), replace = FALSE)
+          snps_e <- setdiff(snps_e, vec_spec_epi_QTN_temp[[i]])
+          epi_spec_QTN_gen_info_temp[[i]] <-
+            as.data.frame(genotypes[vec_spec_epi_QTN_temp[[i]], ])
         }
-        epi_specific_QTN_genotypic_info_temp <- 
-          do.call(rbind, epi_specific_QTN_genotypic_info_temp)
-        epi_specific_QTN_genotypic_info[[j]] <- 
+        epi_spec_QTN_gen_info_temp <-
+          do.call(rbind, epi_spec_QTN_gen_info_temp)
+        epi_spec_QTN_gen_info[[j]] <-
           data.frame(trait = paste0("trait_",
                                     rep(1:ntraits,
-                                        (2 * trait_specific_e_QTN_number))),
-                     epi_specific_QTN_genotypic_info_temp)
+                                        (2 * trait_spec_e_QTN_num))),
+                     epi_spec_QTN_gen_info_temp)
       }
-      epi_object <- mapply(function(x,y) {
-        p <- split(y, y[,1])
+      epi_object <- mapply(function(x, y) {
+        p <- split(y, y[, 1])
         names(p) <- NULL
         lapply(p, function(z) {
-          x <- data.frame(type= "Pleiotropic", trait = unique(z[,1]), x)
-          z <- data.frame(type= "trait_specific", z)
-          rbind(x,z)
+          x <- data.frame(type = "Pleiotropic", trait = unique(z[, 1]), x)
+          z <- data.frame(type = "trait_specific", z)
+          rbind(x, z)
         }
         )
       },
-      x=epi_pleiotropic_QTN_genotypic_info,
-      y=epi_specific_QTN_genotypic_info,
+      x = epi_pleio_QTN_gen_info,
+      y = epi_spec_QTN_gen_info,
       SIMPLIFY = F)
-      epistatic_effect_trait_object <- epi_object
-      epi_object <- unlist(epi_object,recursive=FALSE)
+      epi_ef_trait_obj <- epi_object
+      epi_object <- unlist(epi_object, recursive = FALSE)
       epi_object <- do.call(rbind, epi_object)
       epi_object <-
-        data.frame(rep = sort(c(rep(1:rep, each = pleitropic_e*ntraits*2),
-                                rep(1:rep, each = sum(trait_specific_e_QTN_number)*2))),
+        data.frame(rep = sort(c(rep(1:rep,
+                                    each = pleio_e * ntraits * 2),
+                                rep(1:rep,
+                                    each = sum(trait_spec_e_QTN_num) * 2))),
                    epi_object)
-      epistatic_effect_trait_object <-  
-        lapply(epistatic_effect_trait_object, function(x){
-          lapply(x, function(b){
+      epi_ef_trait_obj <-
+        lapply(epi_ef_trait_obj, function(x) {
+          lapply(x, function(b) {
             rownames(b) <-
-              paste0("Chr_",  b$chr, "_", b$pos)
-            b <- b[,-(1:7)]
+              paste0("Chr_", b$chr, "_", b$pos)
+            b <- b[, - (1:7)]
             return(t(b))
           })
         })
-      if(!export_gt){
-        epi_object <- epi_object[,1:7]
+      if (!export_gt) {
+        epi_object <- epi_object[, 1:7]
       }
       write.table(
         c(seed + seed + 1:rep),
         paste0(
           "seed_number_for_",
-          paste0(trait_specific_e_QTN_number + pleitropic_e, collapse = "_"),
+          paste0(trait_spec_e_QTN_num + pleio_e, collapse = "_"),
           "_Epi_QTN",
           ".txt"
         ),
@@ -413,8 +420,8 @@ QTN_partially_pleiotropic <-
       )
     }
     return(list(
-      additive_effect_trait_object = additive_effect_trait_object,
-      dominance_effect_trait_object = dominance_effect_trait_object,
-      epistatic_effect_trait_object = epistatic_effect_trait_object
+      add_ef_trait_obj = add_ef_trait_obj,
+      dom_ef_trait_obj = dom_ef_trait_obj,
+      epi_ef_trait_obj = epi_ef_trait_obj
     ))
   }
