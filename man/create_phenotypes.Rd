@@ -7,24 +7,24 @@
 create_phenotypes(geno_obj = NULL, geno_file = NULL,
   geno_path = NULL, rep = NULL, ntraits = 1, h2 = NULL,
   model = NULL, add_QTN_num = NULL, dom_QTN_num = NULL,
-  epi_QTN_num = NULL, add_effect = NULL, same_add_dom_QTN = TRUE,
-  dom_effect = NULL, degree_of_dom = NULL, epi_effect = NULL,
+  epi_QTN_num = NULL, add_effect = NULL, same_add_dom_QTN = FALSE,
+  dom_effect = NULL, degree_of_dom = 1, epi_effect = NULL,
   architecture = "pleiotropic", pleio_a = NULL, pleio_d = NULL,
   pleio_e = NULL, trait_spec_a_QTN_num = NULL,
   trait_spec_d_QTN_num = NULL, trait_spec_e_QTN_num = NULL, ld = 0.5,
-  sim_method = "geometric", vary_QTN = TRUE,
+  sim_method = "geometric", vary_QTN = FALSE,
   big_add_QTN_effect = NULL, cor = NULL, seed = NULL,
   export_gt = FALSE, home_dir = getwd(), output_dir = NULL,
   to_r = FALSE, output_format = "long", out_geno = NULL,
   gdsfile = NULL, constrains = list(maf_above = NULL, maf_below =
   NULL), prefix = NULL, maf_cutoff = NULL, nrows = Inf,
   na_string = "NA", SNP_effect = "Add", SNP_impute = "Middle",
-  major_allele_zero = FALSE)
+  major_allele_zero = FALSE, quiet = FALSE)
 }
 \arguments{
 \item{geno_obj}{Marker dataset loaded as an R object.
 Currently either HapMap or numericalized files 
-(e.g. `data("SNP55K_maize282_maf04")`) are accepted. Only one of 
+(code as aa = 0, Aa = 1 and AA = 2, e.g. `data("SNP55K_maize282_maf04")`) are accepted. Only one of 
 `geno_obj`, `geno_file` or `geno_path` should be provided.}
 
 \item{geno_file}{Name of a marker data set to be read from file.}
@@ -130,7 +130,7 @@ If `add_QTN_num` > 1, the fist QTN will have the large effect.}
 It should be a square matrix with number of rows = `ntraits`.}
 
 \item{seed}{Value to be used by set.seed. If NULL (default),
-runif(1, 0, 10e5) will be used. Notice that at each sampling step, 
+runif(1, 0, .Machine$integer.max) will be used. Notice that at each sampling step, 
 a different seed generated based on the `seed` parameter is used. For example, 
 if one uses `seed = 123`, when simulating the 10th replication of trait 1, 
 the seed to be used is `round( (123 * 10 * 10) * 1)`. On the other hand, 
@@ -186,6 +186,8 @@ implementation, the default is 'Middle'.}
 
 \item{major_allele_zero}{Parameter used for numericalization. Following 
 GAPIT implementation, the default is FALSE.}
+
+\item{quiet}{Whether or not the log file should be opened once the simulation is done.}
 }
 \value{
 Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits'

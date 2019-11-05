@@ -6,7 +6,7 @@
 \usage{
 base_line_multi_traits(add_obj = NULL, dom_obj = NULL,
   epi_obj = NULL, add_effect = NULL, dom_effect = NULL,
-  epi_effect = NULL, seed = seed, ntraits = NULL, cor = NULL,
+  epi_effect = NULL, ntraits = NULL, cor = NULL,
   architecture = NULL, rep = NULL, rep_by = NULL, add = NULL,
   dom = NULL, epi = NULL, sim_method = NULL)
 }
@@ -22,8 +22,6 @@ base_line_multi_traits(add_obj = NULL, dom_obj = NULL,
 \item{dom_effect}{= NULL,}
 
 \item{epi_effect}{kkkk}
-
-\item{seed}{hhh}
 
 \item{ntraits}{hhh}
 

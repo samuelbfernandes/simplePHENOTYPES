@@ -6,9 +6,9 @@
 \usage{
 base_line_single_trait(add_obj = NULL, dom_obj = NULL,
   epi_obj = NULL, add_effect = NULL, dom_effect = NULL,
-  epi_effect = NULL, seed = NULL, rep = NULL,
-  rep_by = "experiment", ntraits = 1, add = NULL, dom = NULL,
-  epi = NULL, sim_method = NULL)
+  epi_effect = NULL, rep = NULL, rep_by = "experiment",
+  ntraits = 1, add = NULL, dom = NULL, epi = NULL,
+  sim_method = NULL)
 }
 \arguments{
 \item{add_obj}{hhh}
@@ -22,8 +22,6 @@ base_line_single_trait(add_obj = NULL, dom_obj = NULL,
 \item{dom_effect}{= NULL,}
 
 \item{epi_effect}{hhh}
-
-\item{seed}{hhh}
 
 \item{rep}{= NULL,}
 

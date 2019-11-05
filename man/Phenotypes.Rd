@@ -6,7 +6,7 @@
 \usage{
 phenotypes(base_line_trait = NULL, h2 = NULL, rep = NULL,
   seed = NULL, ntraits = NULL, output_format = NULL, fam = NULL,
-  to_r = NULL, rep_by = NULL)
+  to_r = NULL, rep_by = NULL, hets = NULL)
 }
 \arguments{
 \item{base_line_trait}{= NULL,}
@@ -26,6 +26,8 @@ phenotypes(base_line_trait = NULL, h2 = NULL, rep = NULL,
 \item{to_r}{= FALSE}
 
 \item{rep_by}{= 'QTN'}
+
+\item{hets}{= 'QTN'}
 }
 \value{
 Phenotypes for ntraits traits
