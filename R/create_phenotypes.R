@@ -87,7 +87,7 @@
 #' @param cor Option to simulate traits with a pre-defined cor. 
 #' It should be a square matrix with number of rows = `ntraits`.
 #' @param seed Value to be used by set.seed. If NULL (default),
-#' runif(1, 0, 2147483647) will be used. Notice that at each sampling step, 
+#'  sample(.Machine$integer.max/3, 1) will be used. Notice that at each sampling step, 
 #' a different seed generated based on the `seed` parameter is used. For example, 
 #' if one uses `seed = 123`, when simulating the 10th replication of trait 1, 
 #' the seed to be used is `round( (123 * 10 * 10) * 1)`. On the other hand, 
@@ -511,7 +511,7 @@ create_phenotypes <-
                     major_allele_zero = major_allele_zero)
       }
       if (is.null(seed)) {
-        seed <- round(runif(1, 0, 2147483647))
+        seed <- sample(.Machine$integer.max/3, 1)
       }
       if (!is.null(output_dir)) {
         tempdir <- paste0(home_dir, "/", output_dir)
