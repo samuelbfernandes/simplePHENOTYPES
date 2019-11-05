@@ -511,7 +511,7 @@ create_phenotypes <-
                     major_allele_zero = major_allele_zero)
       }
       if (is.null(seed)) {
-        seed <- sample(.Machine$integer.max/3, 1)
+        seed <- as.integer(sample(.Machine$integer.max/3, 1))
       }
       if (!is.null(output_dir)) {
         tempdir <- paste0(home_dir, "/", output_dir)
