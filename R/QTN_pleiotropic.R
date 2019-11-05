@@ -47,7 +47,7 @@ QTN_pleiotropic <-
     if (rep_by != "QTN") {
       rep <- 1
       }
-    if (same_add_dom_QTN) {
+    if (same_add_dom_QTN & add) {
       add_QTN_geno_info <- vector("list", rep)
       add_ef_trait_obj <- vector("list", rep)
       for (i in 1:rep) {
@@ -166,7 +166,7 @@ QTN_pleiotropic <-
         dom_ef_trait_obj <- vector("list", rep)
         for (i in 1:rep) {
           if (!is.null(seed)) {
-            set.seed(seed + i + 10)
+            set.seed(seed + i + rep)
           }
           vector_of_dom_QTN <-
             sample(index, dom_QTN_num, replace = FALSE)
@@ -191,7 +191,7 @@ QTN_pleiotropic <-
           dom_QTN_geno_info <- dom_QTN_geno_info[, 1:5]
         }
         if (!is.null(seed)) {
-          s <- as.matrix(seed + 1:rep) + 10
+          s <- as.matrix(seed + 1:rep) + rep
         } else {
           s <- "set.seed not assigned"
         }
@@ -224,7 +224,7 @@ QTN_pleiotropic <-
       epi_ef_trait_obj <- vector("list", rep)
       for (i in 1:rep) {
         if (!is.null(seed)) {
-          set.seed(seed * seed + i + 20)
+          set.seed(seed + seed + i + rep)
         }
         vector_of_epi_QTN <-
           sample(index, (2 * epi_QTN_num), replace = FALSE)
@@ -249,7 +249,7 @@ QTN_pleiotropic <-
         epi_QTN_gen_infor <- epi_QTN_gen_infor[, 1:5]
       }
       if (!is.null(seed)) {
-        ss <- as.matrix( (seed * seed) + 1:rep + 20)
+        ss <- as.matrix( (seed + seed) + 1:rep + rep)
       } else {
         ss <- "set.seed not assigned"
       }
