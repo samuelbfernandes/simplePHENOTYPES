@@ -32,6 +32,10 @@ In order to install simplePHENOTYPES you will need to install SNPRelate and gdsf
 setRepositories()
 1 2
 #Option 1: Installing from bitbucket:
+## requirements:
+#Rtools
+#library(devtools)
+#library(knitr)
 ##On Windows please uncomment and run the line below:
 #options(download.file.method = "libcurl")
 devtools::install_bitbucket("fernandessb/simplephenotypes", auth_user = "fernandessb", password = "RhtNaUHY66VdLESMRLCD", build_vignettes = TRUE)
