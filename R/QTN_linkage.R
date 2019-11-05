@@ -45,7 +45,7 @@ QTN_linkage <-
     } else {
       index <- 6:nrow(genotypes)
     }
-    if (same_add_dom_QTN) {
+    if (same_add_dom_QTN & add) {
       sup <- vector("list", rep)
       inf <- vector("list", rep)
       add_gen_info_sup <- vector("list", rep)
@@ -292,7 +292,7 @@ QTN_linkage <-
         results <- vector("list", rep)
         for (z in 1:rep) {
           if (!is.null(seed)) {
-            set.seed(seed + z + 10)
+            set.seed(seed + z + rep)
           }
           vector_of_dom_QTN <-
             sample(index, dom_QTN_num, replace = FALSE)
@@ -365,7 +365,7 @@ QTN_linkage <-
           results <- results[, 1:6]
         }
         write.table(
-          c(seed + 1:rep),
+          c(seed + 1:rep + rep),
           paste0(
             "seed_num_for_", dom_QTN_num,
             "_Dom_QTN",
