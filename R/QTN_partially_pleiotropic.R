@@ -55,7 +55,7 @@ QTN_partially_pleiotropic <-
     if (rep_by != "QTN"){
       rep <- 1
       }
-    if (same_add_dom_QTN) {
+    if (same_add_dom_QTN & add) {
       add_pleio_gen_info <- vector("list", rep)
       add_specific_gen_info <- vector("list", rep)
       for (j in 1:rep) {
@@ -127,8 +127,21 @@ QTN_partially_pleiotropic <-
         c(seed + 1:rep),
         paste0(
           "seed_number_for_",
-          paste0(trait_spec_a_QTN_num + pleio_a, collapse = "_"),
-          "_Add_and_Dom_QTN",
+          paste0(pleio_a, collapse = "_"),
+          "pleiotropic_Add_and_Dom_QTN",
+          ".txt"
+        ),
+        row.names = FALSE,
+        col.names = FALSE,
+        sep = "\t",
+        quote = FALSE
+      )
+      write.table(
+        ss,
+        paste0(
+          "seed_number_for_",
+          paste0(trait_spec_a_QTN_num, collapse = "_"),
+          "trait_specific_Add_and_Dom_QTN",
           ".txt"
         ),
         row.names = FALSE,
@@ -219,7 +232,20 @@ QTN_partially_pleiotropic <-
           paste0(
             "seed_number_for_",
             paste0(trait_spec_a_QTN_num + pleio_a, collapse = "_"),
-            "_Add_QTN",
+            "pleiotropic_Add_QTN",
+            ".txt"
+          ),
+          row.names = FALSE,
+          col.names = FALSE,
+          sep = "\t",
+          quote = FALSE
+        )
+        write.table(
+          ss,
+          paste0(
+            "seed_number_for_",
+            paste0(trait_spec_a_QTN_num, collapse = "_"),
+            "trait_specific_Add_QTN",
             ".txt"
           ),
           row.names = FALSE,
@@ -241,7 +267,7 @@ QTN_partially_pleiotropic <-
         dom_spec_gen_info <- vector("list", rep)
         for (j in 1:rep) {
           if (!is.null(seed)) {
-            set.seed(seed + j * 5)
+            set.seed(seed + j + rep)
           }
           vec_pleio_dom_QTN <-
             sample(index, pleio_d, replace = FALSE)
@@ -254,8 +280,8 @@ QTN_partially_pleiotropic <-
           ssd <- c()
           for (i in 1:ntraits) {
             if (!is.null(seed)) {
-              ssd[i] <- seed + i + j * 5
-              set.seed(seed + i + j * 5)
+              ssd[i] <- seed + i + j + rep
+              set.seed(seed + i + j + rep)
             }
             vec_spec_dom_QTN_temp[[i]] <-
               sample(snpsd, trait_spec_d_QTN_num[i], replace = FALSE)
@@ -309,8 +335,21 @@ QTN_partially_pleiotropic <-
           c(seed + 1:rep),
           paste0(
             "seed_number_for_",
-            paste0(trait_spec_a_QTN_num + pleio_a, collapse = "_"),
-            "_Dom_QTN",
+            paste0(pleio_a, collapse = "_"),
+            "pleiotropic_Dom_QTN",
+            ".txt"
+          ),
+          row.names = FALSE,
+          col.names = FALSE,
+          sep = "\t",
+          quote = FALSE
+        )
+        write.table(
+          ssd,
+          paste0(
+            "seed_number_for_",
+            paste0(trait_spec_a_QTN_num, collapse = "_"),
+            "trait_specific_Dom_QTN",
             ".txt"
           ),
           row.names = FALSE,
@@ -319,7 +358,7 @@ QTN_partially_pleiotropic <-
           quote = FALSE
         )
         data.table::fwrite(
-          add_object,
+          dom_object,
           "Dominance_selected_QTNs.txt",
           row.names = FALSE,
           sep = "\t",
@@ -346,8 +385,8 @@ QTN_partially_pleiotropic <-
         sse <- c()
         for (i in 1:ntraits) {
           if (!is.null(seed)) {
-            sse[i] <- (seed + i) + seed + j
-            set.seed( (seed + i) + seed + j)
+            sse[i] <- seed + i + seed + j
+            set.seed(seed + i + seed + j)
           }
           vec_spec_epi_QTN_temp[[i]] <-
             sample(snps_e, (2 * trait_spec_e_QTN_num[i]), replace = FALSE)
@@ -401,8 +440,21 @@ QTN_partially_pleiotropic <-
         c(seed + seed + 1:rep),
         paste0(
           "seed_number_for_",
-          paste0(trait_spec_e_QTN_num + pleio_e, collapse = "_"),
-          "_Epi_QTN",
+          paste0(pleio_e, collapse = "_"),
+          "pleiotropic_Epi_QTN",
+          ".txt"
+        ),
+        row.names = FALSE,
+        col.names = FALSE,
+        sep = "\t",
+        quote = FALSE
+      )
+      write.table(
+        sse,
+        paste0(
+          "seed_number_for_",
+          paste0(trait_spec_e_QTN_num, collapse = "_"),
+          "trait_specific_Epi_QTN",
           ".txt"
         ),
         row.names = FALSE,
