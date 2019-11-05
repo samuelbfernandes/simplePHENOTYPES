@@ -6,7 +6,6 @@
 #' @param add_effect hhh
 #' @param dom_effect = NULL,
 #' @param epi_effect kkkk
-#' @param seed hhh
 #' @param ntraits hhh
 #' @param cor hhh
 #' @param architecture hhh
@@ -28,7 +27,6 @@ base_line_multi_traits <-
            add_effect = NULL,
            dom_effect = NULL,
            epi_effect = NULL,
-           seed = seed,
            ntraits = NULL,
            cor = NULL,
            architecture = NULL,
@@ -76,7 +74,6 @@ base_line_multi_traits <-
                 add_effect = add_effect[[j]],
                 dom_effect = dom_effect[[j]],
                 epi_effect = epi_effect[[j]],
-                seed = seed,
                 ntraits = ntraits,
                 add = add,
                 dom = dom,
@@ -92,13 +89,16 @@ base_line_multi_traits <-
           sdg <- apply(genetic_value, 2, sd)
           meang <- apply(genetic_value, 2, mean)
           genetic_s <- apply(genetic_value, 2, scale)
-          L <- t(chol(cov(genetic_s)))
+          cg <- cov(genetic_s)
+          if (!lqmm::is.positive.definite(cg)) {
+            cat("Using lqmm::make.positive.definite() to make genetic correlation positive definite!\n")
+            cg <- lqmm::make.positive.definite(cg)
+          }
+          L <- t(chol(cg))
           G_white <- t(solve(L) %*% t(genetic_s))
           if (!lqmm::is.positive.definite(cor)) {
-            cat("cor matrix not positive definite!
-                Using lqmm::make.positive.definite() \n")
-            cor <-
-              lqmm::make.positive.definite(cor)
+            cat("cor matrix not positive definite! Applying lqmm::make.positive.definite() \n")
+            cor <- lqmm::make.positive.definite(cor)
           }
           L <- t(chol(cor))
           traits <- t(L %*% t(G_white))
@@ -144,7 +144,6 @@ base_line_multi_traits <-
                 add_effect = add_effect[[j]],
                 dom_effect = dom_effect[[j]],
                 epi_effect = epi_effect[[j]],
-                seed = seed,
                 ntraits = ntraits,
                 add = add,
                 dom = dom,
@@ -160,12 +159,16 @@ base_line_multi_traits <-
           sdg <- apply(genetic_value, 2, sd)
           meang <- apply(genetic_value, 2, mean)
           genetic_s <- apply(genetic_value, 2, scale)
-          L <- t(chol(cov(genetic_s)))
+          cg <- cov(genetic_s)
+          if (!lqmm::is.positive.definite(cg)) {
+            cat("Using lqmm::make.positive.definite() to make genetic correlation positive definite!\n")
+            cg <- lqmm::make.positive.definite(cg)
+          }
+          L <- t(chol(cg))
           G_white <- t(solve(L) %*% t(genetic_s))
           if (!lqmm::is.positive.definite(cor)) {
             cat(
-              "cor matrix not positive definite!
-              \nUsing lqmm::make.positive.definite \n"
+              "cor matrix not positive definite! Applying lqmm::make.positive.definite \n"
             )
             cor <-
               lqmm::make.positive.definite(cor)
@@ -200,10 +203,10 @@ base_line_multi_traits <-
             rownames <- rownames(add_obj[[1]])
           } else if (dom) {
             traits <- matrix(NA, nrow(dom_obj[[z]]), ncol = ntraits)
-            rownames <- rownames(add_obj[[1]])
+            rownames <- rownames(dom_obj[[1]])
           } else {
             traits <- matrix(NA, nrow(epi_obj[[z]]), ncol = ntraits)
-            rownames <- rownames(add_obj[[1]])
+            rownames <- rownames(epi_obj[[1]])
           }
           for (i in 1:ntraits) {
             trait_temp <-
@@ -214,7 +217,6 @@ base_line_multi_traits <-
                 add_effect = add_effect[[i]],
                 dom_effect = dom_effect[[i]],
                 epi_effect = epi_effect[[i]],
-                seed = seed,
                 ntraits = ntraits,
                 add = add,
                 dom = dom,
@@ -253,7 +255,6 @@ base_line_multi_traits <-
                 add_effect = add_effect[[i]],
                 dom_effect = dom_effect[[i]],
                 epi_effect = epi_effect[[i]],
-                seed = seed,
                 ntraits = ntraits,
                 add = add,
                 dom = dom,
