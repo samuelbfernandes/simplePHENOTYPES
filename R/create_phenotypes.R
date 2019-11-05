@@ -199,8 +199,6 @@ create_phenotypes <-
     # -------------------------------------------------------------------------
     x <- try({
       packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
-      zz <- file("Log_Sim.txt", open = "wt")
-      sink(zz, type = "output")
       if (grepl("A", model)) {
         add <- TRUE
       } else {
@@ -535,6 +533,8 @@ create_phenotypes <-
       } else {
         path_out <- home_dir
       }
+      zz <- file("Log_Sim.txt", open = "wt")
+      sink(zz, type = "output")
       if (ntraits > 1) {
         if (add & !dom & !epi) {
           cat("Simulation of a", mm, "Genetic Architecture with Additive Effects\n")
