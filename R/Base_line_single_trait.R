@@ -6,7 +6,6 @@
 #' @param add_effect hhh
 #' @param dom_effect = NULL,
 #' @param epi_effect hhh
-#' @param seed hhh
 #' @param rep = NULL,
 #' @param rep_by = NULL,
 #' @param ntraits = NULL
@@ -27,7 +26,6 @@ base_line_single_trait <-
            add_effect = NULL,
            dom_effect = NULL,
            epi_effect = NULL,
-           seed = NULL,
            rep = NULL,
            rep_by = "experiment",
            ntraits = 1,
