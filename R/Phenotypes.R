@@ -53,7 +53,7 @@ phenotypes <-
                            rep = z)
               colnames(simulated_data[[z]]) <- colnames
               if (!is.null(seed)) {
-                sss <- seed + z
+                sss <- as.integer(seed + z)
                 ss <- c(ss, sss)
                 set.seed(sss)
               }
@@ -151,7 +151,7 @@ phenotypes <-
                            rep = z)
               colnames(simulated_data[[z]]) <- colnames
               if (!is.null(seed)) {
-                sss <-  (seed + z) * round(h2[i, 1] * 10)
+                sss <-  as.integer((seed + z) * round(h2[i, 1] * 10))
                 set.seed(sss)
                 ss <- c(ss, sss)
               }
@@ -267,7 +267,7 @@ phenotypes <-
               c("<Taxa>", paste0("normal_random_variables_", 1:rep))
             for (j in 1:rep) {
               if (!is.null(seed)) {
-                sss <- seed + j
+                sss <- as.integer(seed + j)
                 set.seed(sss)
                 ss <- c(ss, sss)
               }
@@ -347,7 +347,7 @@ phenotypes <-
               c("<Taxa>", c(paste0( "Heritability_", h2[i, ], "_Rep_", 1:rep)))
             for (j in 1:rep) {
               if (!is.null(seed)) {
-                sss <- (seed + j) * round(h2[i, 1] * 10)
+                sss <- as.integer((seed + j) * round(h2[i, 1] * 10))
                 ss <- c(ss, sss)
                 set.seed(sss)
               }
@@ -424,24 +424,12 @@ phenotypes <-
             }
           }
         }
-        # if (exists("hets")) {
-        # if (any(!hets)) {
-        #   H2 <- as.matrix(H2[hets, ])
-        #   H2 <- apply(H2, 2, mean)
-        #   cat("\nSample heritability (Average of",
-        #       nrow(H2),
-        #       " replications. After replications with no hets): \n"
-        #   )
-        #   print(H2)
-        # } else {
           H2 <- apply(H2, 2, mean)
           cat("\nSample heritability (Average of",
               rep,
               " replications): \n"
           )
           print(H2)
-        # }
-        # }
         if (to_r) {
           return(simulated_data)
         }
@@ -466,7 +454,7 @@ phenotypes <-
                            rep = z)
               colnames(simulated_data[[z]]) <- colnames
               if (!is.null(seed)) {
-                sss <- seed + z
+                sss <- as.integer(seed + z)
                 ss <- c(ss, sss)
                 set.seed(sss)
               }
@@ -563,7 +551,7 @@ phenotypes <-
                            rep = z)
               colnames(simulated_data[[z]]) <- colnames
               if (!is.null(seed)) {
-                sss <- (seed + z) * round(h2[i, 1] * 10)
+                sss <- as.integer((seed + z) * round(h2[i, 1] * 10))
                 set.seed(sss)
                 ss <- c(ss, sss)
               }
@@ -679,7 +667,7 @@ phenotypes <-
               c("<Taxa>", paste0("normal_random_variables_", 1:rep))
             for (j in 1:rep) {
               if (!is.null(seed)) {
-                sss <- seed + j
+                sss <- as.integer(seed + j)
                 set.seed(sss)
                 ss <- c(ss, sss)
               }
@@ -764,7 +752,7 @@ phenotypes <-
               va <- var(base_line_trait[[j]]$base_line)
               residual.variance <-  (va / h2[i, 1]) - va
               if (!is.null(seed)) {
-                sss <-  (seed + j) * round(h2[i, 1] * 10)
+                sss <-  as.integer((seed + j) * round(h2[i, 1] * 10))
                 ss <- c(ss, sss)
                 set.seed(sss)
               }
