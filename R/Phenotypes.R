@@ -9,6 +9,7 @@
 #' @param fam = NULL
 #' @param to_r = FALSE
 #' @param rep_by = 'QTN'
+#' @param hets = 'QTN'
 #' @return Phenotypes for ntraits traits
 #' @author Alex lipka and Samuel Fernandes
 #' Last update: Jul 22, 2019
@@ -23,8 +24,10 @@ phenotypes <-
            output_format = NULL,
            fam = NULL,
            to_r = NULL,
-           rep_by = NULL) {
+           rep_by = NULL,
+           hets = NULL) {
     #---------------------------------------------------------------------------
+    h <- 0
     n <- nrow(base_line_trait[[1]]$base_line)
     names <- rownames(base_line_trait[[1]]$base_line)
     if (rep_by != "QTN") {
@@ -34,6 +37,10 @@ phenotypes <-
           setwd("./Phenotypes")
         }
         H2 <- matrix(NA, nrow(h2), ntraits)
+        va <- apply(base_line_trait[[1]]$base_line, 2, var)
+        if (any(va == 0)) {
+          stop("Genetic variance = 0 for at least one trait! Please select a different set of QTNs", call. = F)
+        }
         for (i in 1:nrow(h2)) {
           simulated_data <- vector("list", rep)
           ss <- c()
@@ -133,7 +140,6 @@ phenotypes <-
               quote = FALSE
             )
           } else {
-            va <- apply(base_line_trait[[1]]$base_line, 2, var)
             residual_cov <-  diag( (va / h2[i, ]) - va)
             colnames <- c("<Taxa>",
                           c(paste0("Trait_",
@@ -145,7 +151,7 @@ phenotypes <-
                            rep = z)
               colnames(simulated_data[[z]]) <- colnames
               if (!is.null(seed)) {
-                sss <- round( (seed * z * z) * i)
+                sss <-  (seed + z) * round(h2[i, 1] * 10)
                 set.seed(sss)
                 ss <- c(ss, sss)
               }
@@ -159,7 +165,8 @@ phenotypes <-
             H2_temp <- sapply(1:rep, function(x) {
               va / apply(simulated_data[[x]][1:ntraits + 1], 2, var)
             })
-            H2[i, ] <- apply(H2_temp, 1, mean)
+                H2[i, ] <- apply(H2_temp, 1, mean)
+                print(H2)
             if (output_format == "multi-file") {
               invisible(lapply(1:rep, function(x) {
                 data.table::fwrite(
@@ -237,9 +244,9 @@ phenotypes <-
           }
         }
         colnames(H2) <- paste0("Trait_", 1:ntraits)
-        cat("\nSample heritability (Average of",
-            rep,
-            " replications): \n")
+          cat("\nSample heritability (Average of",
+              rep,
+              " replications): \n")
         print(H2)
         if (to_r) {
           simulated_data <- do.call(rbind, simulated_data)
@@ -247,6 +254,10 @@ phenotypes <-
         }
       } else {
         H2 <- matrix(NA, nrow = rep, ncol = ncol(h2))
+        va <- var(base_line_trait[[1]]$base_line)
+        if (va == 0) {
+          stop("Genetic variance = 0! Please select a different set of QTNs", call. = F)
+        }
         for (i in 1:nrow(h2)) {
           ss <- c()
           if (h2[i, 1] == 0) {
@@ -329,7 +340,6 @@ phenotypes <-
               )
             }
           } else {
-            va <- var(base_line_trait[[1]]$base_line)
             residual.variance <- (va / h2[i, 1]) - va
             simulated_data <-
               data.frame(names, matrix(NA, n, rep))
@@ -337,7 +347,7 @@ phenotypes <-
               c("<Taxa>", c(paste0( "Heritability_", h2[i, ], "_Rep_", 1:rep)))
             for (j in 1:rep) {
               if (!is.null(seed)) {
-                sss <- round( (seed * j * j) * i)
+                sss <- (seed + j) * round(h2[i, 1] * 10)
                 ss <- c(ss, sss)
                 set.seed(sss)
               }
@@ -414,12 +424,24 @@ phenotypes <-
             }
           }
         }
-        H2 <- apply(H2, 2, mean)
-        cat("\nSample heritability (Average of",
-            rep,
-            " replications): \n"
-        )
-        print(H2)
+        # if (exists("hets")) {
+        # if (any(!hets)) {
+        #   H2 <- as.matrix(H2[hets, ])
+        #   H2 <- apply(H2, 2, mean)
+        #   cat("\nSample heritability (Average of",
+        #       nrow(H2),
+        #       " replications. After replications with no hets): \n"
+        #   )
+        #   print(H2)
+        # } else {
+          H2 <- apply(H2, 2, mean)
+          cat("\nSample heritability (Average of",
+              rep,
+              " replications): \n"
+          )
+          print(H2)
+        # }
+        # }
         if (to_r) {
           return(simulated_data)
         }
@@ -541,7 +563,7 @@ phenotypes <-
                            rep = z)
               colnames(simulated_data[[z]]) <- colnames
               if (!is.null(seed)) {
-                sss <- round( (seed * z * z) * i)
+                sss <- (seed + z) * round(h2[i, 1] * 10)
                 set.seed(sss)
                 ss <- c(ss, sss)
               }
@@ -551,10 +573,16 @@ phenotypes <-
                   mean = rep(0, ntraits),
                   sigma = residual_cov
                 )
-              H2_temp[z, ] <-
-                va / apply(simulated_data[[z]][1:ntraits + 1], 2, var)
+              if (any(va == 0)) {
+                warning("Genetic variance = 0 for at least one trait in rep ",z,"! Please select a different set of QTNs", call. = F)
+                H2_temp[z, ] <- NA
+                h <- h + 1
+              } else {
+                H2_temp[z, ] <-
+                  va / apply(simulated_data[[z]][1:ntraits + 1], 2, var)
+              }
             }
-            H2[i, ] <- apply(H2_temp, 2, mean)
+            H2[i, ] <- apply(H2_temp, 2, mean, na.rm = T)
             if (output_format == "multi-file") {
               invisible(lapply(1:rep, function(x) {
                 data.table::fwrite(
@@ -633,7 +661,7 @@ phenotypes <-
         }
         colnames(H2) <- paste0("Trait_", 1:ntraits)
         cat("\nSample heritability (Average of",
-            rep,
+            rep - h,
             " replications): \n")
         print(H2)
         if (to_r) {
@@ -736,7 +764,7 @@ phenotypes <-
               va <- var(base_line_trait[[j]]$base_line)
               residual.variance <-  (va / h2[i, 1]) - va
               if (!is.null(seed)) {
-                sss <- round( (seed * j * j) * i)
+                sss <-  (seed + j) * round(h2[i, 1] * 10)
                 ss <- c(ss, sss)
                 set.seed(sss)
               }
@@ -748,7 +776,13 @@ phenotypes <-
                 )
               simulated_data[, j + 1] <-
                 base_line_trait[[j]]$base_line + normal_random_variables
-              H2[j, i] <- va / var(simulated_data[, j + 1])
+              if (va == 0) {
+                warning("Genetic variance = 0 in rep ",j,"! Please select a different set of QTNs", call. = F)
+                h <- h + 1
+                H2[j, i] <- NA
+                } else {
+                H2[j, i] <- va / var(simulated_data[, j + 1]) 
+              }
             }
             write.table(
               ss,
@@ -817,9 +851,9 @@ phenotypes <-
             }
           }
         }
-        H2 <- apply(H2, 2, mean)
+        H2 <- apply(H2, 2, mean, na.rm = T)
         cat("\nSample heritability (Average of",
-            rep,
+            rep - h,
             " replications): \n")
         print(H2)
         if (to_r) {
