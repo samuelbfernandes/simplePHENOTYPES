@@ -45,6 +45,33 @@ QTN_partially_pleiotropic <-
     add_ef_trait_obj <- NULL
     dom_ef_trait_obj <- NULL
     epi_ef_trait_obj <-  NULL
+    add_QTN <- TRUE 
+    dom_QTN <- TRUE 
+    epi_QTN <- TRUE 
+    if (!is.null(pleio_a) &
+        !is.null(trait_spec_a_QTN_num)) {
+      if ((pleio_a + trait_spec_a_QTN_num) == 0 ) {
+        add_QTN <- FALSE
+        pleio_a <- 1
+        trait_spec_a_QTN_num <- rep(1, ntraits)
+      }
+    }
+    if (!is.null(pleio_d) &
+        !is.null(trait_spec_d_QTN_num)) {
+      if ((pleio_d + trait_spec_d_QTN_num) == 0 ) {
+        dom_QTN <- FALSE
+        pleio_d <- 1
+        trait_spec_d_QTN_num <- rep(1, ntraits)
+      }
+    }
+    if (!is.null(pleio_e) &
+        !is.null(trait_spec_e_QTN_num)) {
+      if ((pleio_e + trait_spec_e_QTN_num) == 0 ) {
+        epi_QTN <- FALSE
+        pleio_e <- 1
+        trait_spec_e_QTN_num <- rep(1, ntraits)
+      }
+    }
     if (any(lengths(constrains) > 0)) {
       index <- constrain(genotypes = genotypes,
                          maf_above = constrains$maf_above,
@@ -123,6 +150,7 @@ QTN_partially_pleiotropic <-
       if (!export_gt) {
         add_object <- add_object[, 1:7]
       }
+      if (add_QTN) {
       write.table(
         c(seed + 1:rep),
         paste0(
@@ -157,6 +185,7 @@ QTN_partially_pleiotropic <-
         quote = FALSE,
         na = NA
       )
+      }
     } else {
       if (add) {
         add_pleio_gen_info <- vector("list", rep)
@@ -227,6 +256,7 @@ QTN_partially_pleiotropic <-
         if (!export_gt) {
           add_object <- add_object[, 1:7]
         }
+        if (add_QTN) {
         write.table(
           c(seed + 1:rep),
           paste0(
@@ -261,6 +291,7 @@ QTN_partially_pleiotropic <-
           quote = FALSE,
           na = NA
         )
+        }
       }
       if (dom) {
         dom_pleio_gen_info <- vector("list", rep)
@@ -331,6 +362,7 @@ QTN_partially_pleiotropic <-
         if (!export_gt){
           dom_object <- dom_object[, 1:7]
         }
+        if (dom_QTN) {
         write.table(
           c(seed + 1:rep),
           paste0(
@@ -365,6 +397,7 @@ QTN_partially_pleiotropic <-
           quote = FALSE,
           na = NA
         )
+        }
       }
     }
     if (epi) {
@@ -436,6 +469,7 @@ QTN_partially_pleiotropic <-
       if (!export_gt) {
         epi_object <- epi_object[, 1:7]
       }
+      if (epi_QTN) {
       write.table(
         c(seed + seed + 1:rep),
         paste0(
@@ -470,6 +504,37 @@ QTN_partially_pleiotropic <-
         quote = FALSE,
         na = NA
       )
+      }
+    }
+    if (!is.null(add_ef_trait_obj) & !add_QTN) {
+      add_ef_trait_obj <- lapply(add_ef_trait_obj, function(x) {
+        lapply(x, function(y){
+          rnames <- rownames(y) 
+          y <- matrix(0, nrow = nrow(y), ncol =  1)
+          rownames(y)  <- rnames
+          return(y)
+        })
+      })
+    }
+    if (!is.null(dom_ef_trait_obj) & !dom_QTN) {
+      dom_ef_trait_obj <- lapply(dom_ef_trait_obj, function(x) {
+        lapply(x, function(y){
+          rnames <- rownames(y) 
+          y <- matrix(0, nrow = nrow(y), ncol =  1)
+          rownames(y)  <- rnames
+          return(y)
+        })
+      })
+    }
+    if (!is.null(epi_ef_trait_obj) & !epi_QTN) {
+      epi_ef_trait_obj <- lapply(epi_ef_trait_obj, function(x) {
+        lapply(x, function(y){
+          rnames <- rownames(y) 
+          y <- matrix(0, nrow = nrow(y), ncol =  1)
+          rownames(y)  <- rnames
+          return(y)
+        })
+      })
     }
     return(list(
       add_ef_trait_obj = add_ef_trait_obj,

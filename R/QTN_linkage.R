@@ -35,6 +35,20 @@ QTN_linkage <-
     #---------------------------------------------------------------------------
     add_ef_trait_obj <- NULL
     dom_ef_trait_obj <- NULL
+    add_QTN <- TRUE 
+    dom_QTN <- TRUE 
+    if (!is.null(add_QTN_num)) {
+      if (add_QTN_num == 0 ) {
+        add_QTN <- FALSE
+        add_QTN_num <- 1
+      }
+    }
+    if (!is.null(dom_QTN_num)) {
+      if (dom_QTN_num == 0 ) {
+        dom_QTN <- FALSE
+        dom_QTN_num <- 1
+      }
+    }
     if (rep_by != "QTN") {
       rep <- 1
       }
@@ -126,6 +140,7 @@ QTN_linkage <-
       if (!export_gt){
         results <- results[, 1:6]
       }
+      if (add_QTN) {
       write.table(
         c(seed + 1:rep),
         paste0(
@@ -152,6 +167,7 @@ QTN_linkage <-
         quote = FALSE,
         na = NA
       )
+      }
       add_ef_trait_obj <- mapply(function(x, y) {
         rownames(x) <-
           paste0("Chr_", x$chr, "_", x$pos)
@@ -245,6 +261,7 @@ QTN_linkage <-
         if (!export_gt) {
           results <- results[, 1:6]
         }
+        if (add_QTN) {
         write.table(
           c(seed + 1:rep),
           paste0(
@@ -271,6 +288,7 @@ QTN_linkage <-
           quote = FALSE,
           na = NA
         )
+        }
         add_ef_trait_obj <- mapply(function(x, y) {
           rownames(x) <-
             paste0("Chr_", x$chr, "_", x$pos)
@@ -364,6 +382,7 @@ QTN_linkage <-
         if (!export_gt) {
           results <- results[, 1:6]
         }
+        if (add_QTN) {
         write.table(
           c(seed + 1:rep + rep),
           paste0(
@@ -390,6 +409,7 @@ QTN_linkage <-
           quote = FALSE,
           na = NA
         )
+        }
         dom_ef_trait_obj <- mapply(function(x, y) {
           rownames(x) <-
             paste0("Chr_", x$chr, "_", x$pos)
@@ -402,6 +422,26 @@ QTN_linkage <-
         y = dom_gen_info_inf,
         SIMPLIFY = F)
       }
+    }
+    if (!is.null(add_ef_trait_obj) & !add_QTN) {
+      add_ef_trait_obj <- lapply(add_ef_trait_obj, function(x) {
+        lapply(x, function(y){
+          rnames <- rownames(y) 
+          y <- matrix(0, nrow = nrow(y), ncol =  1)
+          rownames(y)  <- rnames
+          return(y)
+        })
+      })
+    }
+    if (!is.null(dom_ef_trait_obj) & !dom_QTN) {
+      dom_ef_trait_obj <- lapply(dom_ef_trait_obj, function(x) {
+        lapply(x, function(y){
+          rnames <- rownames(y) 
+          y <- matrix(0, nrow = nrow(y), ncol =  1)
+          rownames(y)  <- rnames
+          return(y)
+        })
+      })
     }
     return(list(add_ef_trait_obj = add_ef_trait_obj,
                 dom_ef_trait_obj = dom_ef_trait_obj))

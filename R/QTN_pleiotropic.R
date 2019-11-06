@@ -37,6 +37,27 @@ QTN_pleiotropic <-
     add_ef_trait_obj <- NULL
     dom_ef_trait_obj <- NULL
     epi_ef_trait_obj <-  NULL
+    add_QTN <- TRUE 
+    dom_QTN <- TRUE 
+    epi_QTN <- TRUE 
+    if (!is.null(add_QTN_num)) {
+      if (add_QTN_num == 0 ) {
+        add_QTN <- FALSE
+        add_QTN_num <- 1
+      }
+    }
+    if (!is.null(dom_QTN_num)) {
+      if (dom_QTN_num == 0 ) {
+        dom_QTN <- FALSE
+        dom_QTN_num <- 1
+      }
+    }
+    if (!is.null(epi_QTN_num)) {
+      if (epi_QTN_num == 0 ) {
+        epi_QTN <- FALSE
+        epi_QTN_num <- 1
+      }
+    }
     if (any(lengths(constrains) > 0)) {
       index <- constrain(genotypes = genotypes,
                          maf_above = constrains$maf_above,
@@ -46,7 +67,7 @@ QTN_pleiotropic <-
     }
     if (rep_by != "QTN") {
       rep <- 1
-      }
+    }
     if (same_add_dom_QTN & add) {
       add_QTN_geno_info <- vector("list", rep)
       add_ef_trait_obj <- vector("list", rep)
@@ -81,28 +102,30 @@ QTN_pleiotropic <-
       } else {
         s <- "set.seed not assigned"
       }
-      write.table(
-        s,
-        paste0("seed_num_for_", rep, "_reps_and_", add_QTN_num,
-               "_Add_and_Dom_QTN", ".txt"),
-        row.names = FALSE,
-        col.names = FALSE,
-        sep = "\t",
-        quote = FALSE
-      )
-      data.table::fwrite(
-        add_QTN_geno_info,
-        paste0(
-          "geno_info_for_", rep, "_reps_and_",
-          add_QTN_num,
-          "_Add_and_Dom_QTN",
-          ".txt"
-        ),
-        row.names = FALSE,
-        sep = "\t",
-        quote = FALSE,
-        na = NA
-      )
+      if (add_QTN) {
+        write.table(
+          s,
+          paste0("seed_num_for_", rep, "_reps_and_", add_QTN_num,
+                 "_Add_and_Dom_QTN", ".txt"),
+          row.names = FALSE,
+          col.names = FALSE,
+          sep = "\t",
+          quote = FALSE
+        )
+        data.table::fwrite(
+          add_QTN_geno_info,
+          paste0(
+            "geno_info_for_", rep, "_reps_and_",
+            add_QTN_num,
+            "_Add_and_Dom_QTN",
+            ".txt"
+          ),
+          row.names = FALSE,
+          sep = "\t",
+          quote = FALSE,
+          na = NA
+        )
+      }
     } else {
       if (add) {
         add_QTN_geno_info <- vector("list", rep)
@@ -138,28 +161,30 @@ QTN_pleiotropic <-
         } else {
           s <- "set.seed not assigned"
         }
-        write.table(
-          s,
-          paste0("seed_num_for_", rep, "_reps_and_", add_QTN_num,
-                 "_Add_QTN", ".txt"),
-          row.names = FALSE,
-          col.names = FALSE,
-          sep = "\t",
-          quote = FALSE
-        )
-        data.table::fwrite(
-          add_QTN_geno_info,
-          paste0(
-            "geno_info_for_", rep, "_reps_and_",
-            add_QTN_num,
-            "_Add_QTN",
-            ".txt"
-          ),
-          row.names = FALSE,
-          sep = "\t",
-          quote = FALSE,
-          na = NA
-        )
+        if (add_QTN) {
+          write.table(
+            s,
+            paste0("seed_num_for_", rep, "_reps_and_", add_QTN_num,
+                   "_Add_QTN", ".txt"),
+            row.names = FALSE,
+            col.names = FALSE,
+            sep = "\t",
+            quote = FALSE
+          )
+          data.table::fwrite(
+            add_QTN_geno_info,
+            paste0(
+              "geno_info_for_", rep, "_reps_and_",
+              add_QTN_num,
+              "_Add_QTN",
+              ".txt"
+            ),
+            row.names = FALSE,
+            sep = "\t",
+            quote = FALSE,
+            na = NA
+          )
+        }
       }
       if (dom) {
         dom_QTN_geno_info <- vector("list", rep)
@@ -195,28 +220,30 @@ QTN_pleiotropic <-
         } else {
           s <- "set.seed not assigned"
         }
-        write.table(
-          s,
-          paste0("seed_num_for_", rep, "_reps_and_", dom_QTN_num,
-                 "Dom_QTN", ".txt"),
-          row.names = FALSE,
-          col.names = FALSE,
-          sep = "\t",
-          quote = FALSE
-        )
-        data.table::fwrite(
-          dom_QTN_geno_info,
-          paste0(
-            "geno_info_for_", rep, "_reps_and_",
-            dom_QTN_num,
-            "_dom_QTN",
-            ".txt"
-          ),
-          row.names = FALSE,
-          sep = "\t",
-          quote = FALSE,
-          na = NA
-        )
+        if (dom_QTN) {
+          write.table(
+            s,
+            paste0("seed_num_for_", rep, "_reps_and_", dom_QTN_num,
+                   "Dom_QTN", ".txt"),
+            row.names = FALSE,
+            col.names = FALSE,
+            sep = "\t",
+            quote = FALSE
+          )
+          data.table::fwrite(
+            dom_QTN_geno_info,
+            paste0(
+              "geno_info_for_", rep, "_reps_and_",
+              dom_QTN_num,
+              "_dom_QTN",
+              ".txt"
+            ),
+            row.names = FALSE,
+            sep = "\t",
+            quote = FALSE,
+            na = NA
+          )
+        }
       }
     }
     if (epi) {
@@ -253,32 +280,58 @@ QTN_pleiotropic <-
       } else {
         ss <- "set.seed not assigned"
       }
-      write.table(
-        ss,
-        paste0(
-          "seed_num_for_", rep, "_reps_and_",
-          epi_QTN_num,
-          "Epi_QTN",
-          ".txt"
-        ),
-        row.names = FALSE,
-        col.names = FALSE,
-        sep = "\t",
-        quote = FALSE
-      )
-      data.table::fwrite(
-        epi_QTN_gen_infor,
-        paste0(
-          "geno_info_for_",
-          epi_QTN_num,
-          "_epi_QTN",
-          ".txt"
-        ),
-        row.names = FALSE,
-        sep = "\t",
-        quote = FALSE,
-        na = NA
-      )
+      if (epi_QTN) {
+        write.table(
+          ss,
+          paste0(
+            "seed_num_for_", rep, "_reps_and_",
+            epi_QTN_num,
+            "Epi_QTN",
+            ".txt"
+          ),
+          row.names = FALSE,
+          col.names = FALSE,
+          sep = "\t",
+          quote = FALSE
+        )
+        data.table::fwrite(
+          epi_QTN_gen_infor,
+          paste0(
+            "geno_info_for_",
+            epi_QTN_num,
+            "_epi_QTN",
+            ".txt"
+          ),
+          row.names = FALSE,
+          sep = "\t",
+          quote = FALSE,
+          na = NA
+        )
+      }
+    }
+    if (!is.null(add_ef_trait_obj) & !add_QTN) {
+      add_ef_trait_obj <- lapply(add_ef_trait_obj, function(x) {
+        rnames <- rownames(x) 
+        x <- as.matrix(rep(0, nrow(x)))
+        rownames(x)  <- rnames
+        return(x)
+      })
+    }
+    if (!is.null(dom_ef_trait_obj) & !dom_QTN) {
+      dom_ef_trait_obj <-lapply(dom_ef_trait_obj, function(x) {
+        rnames <- rownames(x) 
+        x <- as.matrix(rep(0, nrow(x)))
+        rownames(x)  <- rnames
+        return(x)
+      })
+    }
+    if (!is.null(epi_ef_trait_obj) & !epi_QTN) {
+      epi_ef_trait_obj <-lapply(epi_ef_trait_obj, function(x) {
+        rnames <- rownames(x) 
+        x <- as.matrix(rep(0, nrow(x)))
+        rownames(x)  <- rnames
+        return(x)
+      })
     }
     return(list(
       add_ef_trait_obj = add_ef_trait_obj,
