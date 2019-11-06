@@ -1,11 +1,16 @@
 Package: simplePHENOTYPES
 Type: Package
+Version: 1.0.0
 Title: Simulation of Pleiotropic, Linked and Epistatic PHENOTYPES
-Version: 0.3
-Author: Samuel B Fernandes
-Maintainer: Samuel Fernandes <samuelf@illinois.edu>
 Description: Package for simulation of single and multi-traits phenotypes of various genetic settings.
-License: GPL-3
+Authors@R: c(
+    person("Samuel", "Fernandes", , "samuelf@illinois.edu", c("aut", "cre")),
+    person("Alexander", "Lipka", , role = "aut")
+    )
+Author: Samuel B Fernandes [aut, cre]
+		Alexander E Lipka [aut]
+Maintainer: Samuel Fernandes <samuelf@illinois.edu>
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Depends: R (>= 3.0)
@@ -21,4 +26,6 @@ RoxygenNote: 6.1.1
 Suggests: 
     knitr,
     rmarkdown
+NeedsCompilation: no
 VignetteBuilder: knitr
+URL: https://github.com/samuelbfernandes/simplePHENOTYPES
