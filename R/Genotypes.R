@@ -42,17 +42,16 @@ genotypes <-
       hm <- list(GT = hmp$GT,
                  GD = hmp$GD,
                  GI = hmp$GI)
-      #-------------------------------------------------------------------------
       ns <- nrow(hm$GD)
       ss <- apply(hm$GD, 2, sum)
       maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
       maf <- apply(maf_matrix, 2, min)
       snps_below_maf <- which(maf < maf_cutoff)
-      hm_GD_without_snps_below_maf <- hm$GD[, -snps_below_maf]
+      hm_GI_filtered <- hm$GI[-snps_below_maf,]
       geno_obj <-
-        data.frame(hm$GI,
-                   rep(NA, nrow(hm$GI)),
-                   t(hm_GD_without_snps_below_maf))
+        data.frame(hm$GI[-snps_below_maf,],
+                   rep(NA, nrow(hm_GI_filtered)),
+                   t(hm$GD[, -snps_below_maf]))
       colnames(geno_obj) <-
         c("snp", "allele", "chr", "pos", "cm", t(as.character(hm$GT)))
     } else {
