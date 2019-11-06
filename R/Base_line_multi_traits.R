@@ -268,7 +268,9 @@ base_line_multi_traits <-
           }
           rownames(traits) <- rownames
         }
-        sample_cor <- cor(traits)
+        if (!all(traits == 0)) {
+          sample_cor <- cor(traits)
+          }
         results[[z]] <- list(
           base_line = traits,
           VA = VA,

@@ -39,12 +39,13 @@ phenotypes <-
         H2 <- matrix(NA, nrow(h2), ntraits)
         va <- apply(base_line_trait[[1]]$base_line, 2, var)
         if (any(va == 0)) {
-          stop("Genetic variance = 0 for at least one trait! Please select a different set of QTNs", call. = F)
-        }
+          warning("Genetic variance = 0 for at least one trait! This will result in h2 = 0!", call. = F)
+        h2[, which(va == 0)] <- 0
+          }
         for (i in 1:nrow(h2)) {
           simulated_data <- vector("list", rep)
           ss <- c()
-          if (h2[i, 1] == 0) {
+          if (any(h2[i, ] == 0)) {
             colnames <- c("<Taxa>", paste0("Trait_", 1:ntraits), "Rep")
             for (z in 1:rep) {
               simulated_data[[z]] <-
@@ -65,6 +66,7 @@ phenotypes <-
                                ntraits)
                 )
             }
+            H2 <- matrix(0, nrow(h2), ntraits)
             if (output_format == "multi-file") {
               invisible(lapply(1:rep, function(x) {
                 data.table::fwrite(
@@ -166,7 +168,6 @@ phenotypes <-
               va / apply(simulated_data[[x]][1:ntraits + 1], 2, var)
             })
                 H2[i, ] <- apply(H2_temp, 1, mean)
-                print(H2)
             if (output_format == "multi-file") {
               invisible(lapply(1:rep, function(x) {
                 data.table::fwrite(
@@ -256,11 +257,12 @@ phenotypes <-
         H2 <- matrix(NA, nrow = rep, ncol = ncol(h2))
         va <- var(base_line_trait[[1]]$base_line)
         if (va == 0) {
-          stop("Genetic variance = 0! Please select a different set of QTNs", call. = F)
-        }
+          warning("Genetic variance = 0! Please select a different set of QTNs", call. = F)
+          h2[, which(va == 0)] <- 0
+          }
         for (i in 1:nrow(h2)) {
           ss <- c()
-          if (h2[i, 1] == 0) {
+          if (any(h2[i, ] == 0)) {
             simulated_data <-
               data.frame(names, matrix(NA, n, rep))
             colnames(simulated_data) <-
@@ -274,6 +276,7 @@ phenotypes <-
               simulated_data[, j + 1] <-
                 rnorm(n, mean = 0, sd = 1)
             }
+            H2 <- matrix(0, nrow = rep, ncol = ncol(h2))
             write.table(
               ss,
               paste0("seed_number_for_", rep, "_Reps", "_Herit_",
@@ -445,7 +448,7 @@ phenotypes <-
           simulated_data <- vector("list", rep)
           H2_temp <- matrix(NA, rep, ntraits)
           ss <- c()
-          if (h2[i, 1] == 0) {
+          if (any(h2[i, ] == 0)) {
             colnames <- c("<Taxa>", paste0("Trait_", 1:ntraits), "Rep")
             for (z in 1:rep) {
               simulated_data[[z]] <-
@@ -465,6 +468,7 @@ phenotypes <-
                   sigma = diag(1, ntraits)
                 )
             }
+            H2 <- matrix(0, rep, ntraits)
             if (output_format == "multi-file") {
               invisible(lapply(1:rep, function(x) {
                 data.table::fwrite(
@@ -660,7 +664,7 @@ phenotypes <-
         H2 <- matrix(NA, nrow = rep, ncol = ncol(h2))
         for (i in 1:nrow(h2)) {
           ss <- c()
-          if (h2[i, 1] == 0) {
+          if (any(h2[i, ] == 0)) {
             simulated_data <-
               data.frame(names, matrix(NA, n, rep))
             colnames(simulated_data) <-
@@ -676,6 +680,7 @@ phenotypes <-
                       mean = 0,
                       sd = 1)
             }
+            H2 <- matrix(0, nrow = rep, ncol = ncol(h2))
             write.table(
               ss,
               paste0("seed_number_for_", rep, "_Reps", "_Herit_",
