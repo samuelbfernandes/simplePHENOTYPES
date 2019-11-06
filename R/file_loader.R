@@ -1,4 +1,4 @@
-#' ...
+#' Function used by create_phenotypes to load marker dataset.
 #' @export
 #' @param geno_obj = NULL,
 #' @param geno_file = NULL,
