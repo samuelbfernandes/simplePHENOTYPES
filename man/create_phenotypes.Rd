@@ -131,7 +131,7 @@ If `add_QTN_num` > 1, the fist QTN will have the large effect.}
 It should be a square matrix with number of rows = `ntraits`.}
 
 \item{seed}{Value to be used by set.seed. If NULL (default),
- runif(1, 0, .Machine$integer.max/3) will be used. Notice that at each sampling step, 
+ runif(1, 0, 1000000) will be used. Notice that at each sampling step, 
 a different seed generated based on the `seed` parameter is used. For example, 
 if one uses `seed = 123`, when simulating the 10th replication of trait 1, 
 the seed to be used is `round( (123 * 10 * 10) * 1)`. On the other hand, 

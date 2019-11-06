@@ -88,7 +88,7 @@
 #' @param cor Option to simulate traits with a pre-defined cor. 
 #' It should be a square matrix with number of rows = `ntraits`.
 #' @param seed Value to be used by set.seed. If NULL (default),
-#'  runif(1, 0, .Machine$integer.max/3) will be used. Notice that at each sampling step, 
+#'  runif(1, 0, 1000000) will be used. Notice that at each sampling step, 
 #' a different seed generated based on the `seed` parameter is used. For example, 
 #' if one uses `seed = 123`, when simulating the 10th replication of trait 1, 
 #' the seed to be used is `round( (123 * 10 * 10) * 1)`. On the other hand, 
@@ -330,7 +330,7 @@ create_phenotypes <-
           temp_add <- add_effect
           if (architecture == "partially"){
             a_qtns <- (trait_spec_a_QTN_num + pleio_a)
-            if (a_qtns == 0 ) {
+            if (all(a_qtns == 0) ) {
               a_qtns <- rep(0, ntraits)
             }
           } else {
@@ -363,7 +363,7 @@ create_phenotypes <-
         if (dom) {
           if (architecture == "partially") {
             d_qtns <- (trait_spec_d_QTN_num + pleio_d)
-            if (d_qtns == 0 ) {
+            if (all(d_qtns == 0 )) {
               d_qtns <- rep(0, ntraits)
             }
           } else {
@@ -384,7 +384,7 @@ create_phenotypes <-
         if (epi) {
           if (architecture == "partially") {
             e_qtns <- (trait_spec_e_QTN_num + pleio_e)
-            if (e_qtns == 0 ) {
+            if (all(e_qtns == 0 )) {
               e_qtns <- rep(0, ntraits)
             }
           } else {
@@ -515,19 +515,19 @@ create_phenotypes <-
           if (is.null(cor)) {
             if (add) {
               if (!is.null(add_effect) &
-                  (pleio_a > 0 | trait_spec_a_QTN_num > 0)) {
+                  all(pleio_a > 0 | trait_spec_a_QTN_num > 0)) {
               a_var <- all(lapply(add_effect, var) == 0)
               }
             }
             if (dom) {
               if (!is.null(dom_effect) &
-                  (pleio_d > 0 | trait_spec_d_QTN_num > 0)) {
+                  all(pleio_d > 0 | trait_spec_d_QTN_num > 0)) {
               d_var <- all(lapply(dom_effect, var) == 0)
               }
             }
             if (epi) {
               if (!is.null(epi_effect) &
-                  (pleio_e > 0 | trait_spec_e_QTN_num > 0)) {
+                  all(pleio_e > 0 | trait_spec_e_QTN_num > 0)) {
               e_var <- all(lapply(epi_effect, var) == 0)
               }
             }
@@ -571,7 +571,7 @@ create_phenotypes <-
                     major_allele_zero = major_allele_zero)
       }
       if (is.null(seed)) {
-        seed <- as.integer(runif(1, 0, .Machine$integer.max/3))
+        seed <- as.integer(runif(1, 0, 1000000))
       }
       if (!is.null(output_dir)) {
         tempdir <- paste0(home_dir, "/", output_dir)
@@ -854,7 +854,7 @@ create_phenotypes <-
           dom_QTN_num > 0
         } else if (!is.null(pleio_d) &
                    !is.null(trait_spec_d_QTN_num)) {
-          pleio_d > 0 & trait_spec_d_QTN_num > 0
+          all(pleio_d > 0 & trait_spec_d_QTN_num > 0)
         }
         if (h_num) {
           if (same_add_dom_QTN & add){
