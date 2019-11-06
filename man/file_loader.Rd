@@ -2,7 +2,7 @@
 % Please edit documentation in R/file_loader.R
 \name{file_loader}
 \alias{file_loader}
-\title{...}
+\title{Function used by create_phenotypes to load marker dataset.}
 \usage{
 file_loader(geno_obj = NULL, geno_file = NULL, geno_path = NULL,
   input_format = "hapmap", nrows = Inf, na_string = "NA",
@@ -34,7 +34,7 @@ file_loader(geno_obj = NULL, geno_file = NULL, geno_path = NULL,
 genotype data sampled
 }
 \description{
-...
+Function used by create_phenotypes to load marker dataset.
 }
 \author{
 Samuel Fernandes

@@ -44,7 +44,8 @@ It could be either a vector with length equals to `ntraits`,
 or a matrix with ncol equals to ntraits. If the later is used, the simulation
 will loop over the number of rows and will generate a result for each row. 
 If a single trait is being simulated and h2 is a vector, 
-one simulation of each heritability value will be conducted.}
+one simulation of each heritability value will be conducted. Either none or all
+traits are expetec to have a `h2 = 0`.}
 
 \item{model}{The genetic model to be assumed. The options are:
 "A" (additive), "D" (dominance), "E" (epistatic) 
@@ -66,7 +67,7 @@ should be provided for each trait. In that case, each component should be a
 vector of either lenght one, if `sim_method = "geometric"` (see below), or 
 length equal to the number of additive QTNs being simulated.}
 
-\item{same_add_dom_QTN}{A bolean for having the same quantitative trait
+\item{same_add_dom_QTN}{A boolean for having the same quantitative trait
 nucleotide having additive and dominance effects.}
 
 \item{dom_effect}{Similar to the `add_effect`, it could be either 
@@ -130,7 +131,7 @@ If `add_QTN_num` > 1, the fist QTN will have the large effect.}
 It should be a square matrix with number of rows = `ntraits`.}
 
 \item{seed}{Value to be used by set.seed. If NULL (default),
-runif(1, 0, .Machine$integer.max) will be used. Notice that at each sampling step, 
+ sample(.Machine$integer.max/3, 1) will be used. Notice that at each sampling step, 
 a different seed generated based on the `seed` parameter is used. For example, 
 if one uses `seed = 123`, when simulating the 10th replication of trait 1, 
 the seed to be used is `round( (123 * 10 * 10) * 1)`. On the other hand, 
