@@ -7,6 +7,6 @@ There were no ERRORs or WARNINGs or NOTEs.
 
 There was 1 NOTE:
 
-* that this is my first submission.
+* This is my first submission.
 
 
