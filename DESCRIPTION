@@ -3,8 +3,7 @@ Date: 2019-11-05
 Type: Package
 Version: 1.0.0
 Title: Simulation of Pleiotropic, Linked and Epistatic PHENOTYPES
-Description: A package for simulation of single and multi-trait (correlated) phenotypes based on many genetic settings. 
-Pleiotropic, Partially-Pleiotropic and Linkage Disequilibrium architectures are simulated based on additive, dominance and epistatic models.
+Description: A package for simulation of single and multi-trait (correlated) phenotypes based on many genetic settings. Pleiotropic, Partially-Pleiotropic and Linkage Disequilibrium architectures are simulated based on additive, dominance and epistatic models.
 Authors@R: c(
     person("Samuel", "Fernandes", , "samuelf@illinois.edu", c("aut", "cre")),
     person("Alexander", "Lipka", , role = "aut")
