@@ -9,7 +9,7 @@ output:
     highlight: textmate
     df_print: tibble
 author: Samuel B Fernandes and Alexander E Lipka
-date: Oct 29, 2019
+date: Nov 05, 2019
 
 vignette: >
   %\VignetteIndexEntry{Introduction to simplePHENOTYPES}
@@ -48,7 +48,7 @@ install.packages("data.table")
 install.packages("mvtnorm")
 # please replace [PATH] by your path to the simplePHENOTYPES_0.2.1.tar.gz file 
 # or install it using RStudio's menu option to install from Package Arquive File.
-install.packages("[PATH]/simplePHENOTYPES_0.2.1.tar.gz", repos = NULL, type = "source")
+install.packages("[PATH]/simplePHENOTYPES_1.0.0.tar.gz", repos = NULL, type = "source")
 ```
 
 # Load sample dataset
@@ -202,11 +202,11 @@ create_phenotypes(
 ```
 
 # Using your own data
-If files are saved by chromosome, they can be read directly into create_phenotypes using options `geno_path` (recommendation: consider having all marker data files in a separate folder). If multiple files are saved in the same folder as the marker data, the parameter `shared_name` might be used to select only marker data. For example, if your data is saved as "WGS_chrm_1.hmp.txt", ..., "WGS_chrm_10.hmp.txt", one would use `shared_name = "WGS_chrm_"` .
+If files are saved by chromosome, they can be read directly into create_phenotypes using options `geno_path` (recommendation: consider having all marker data files in a separate folder). If multiple files are saved in the same folder as the marker data, the parameter `prefix` might be used to select only marker data. For example, if your data is saved as "WGS_chrm_1.hmp.txt", ..., "WGS_chrm_10.hmp.txt", one would use `prefix = "WGS_chrm_"` .
 ```{r example, results = "hide", eval = FALSE}
 create_phenotypes(
   geno_path = getwd(),
-  shared_name = "WGS_chrm_",
+  prefix = "WGS_chrm_",
   add_QTN_num = 3,
   h2 = 0.2,
   add_effect = 0.02,
