@@ -50,7 +50,7 @@ QTN_partially_pleiotropic <-
     epi_QTN <- TRUE 
     if (!is.null(pleio_a) &
         !is.null(trait_spec_a_QTN_num)) {
-      if ((pleio_a + trait_spec_a_QTN_num) == 0 ) {
+      if (all((pleio_a + trait_spec_a_QTN_num) == 0 )) {
         add_QTN <- FALSE
         pleio_a <- 1
         trait_spec_a_QTN_num <- rep(1, ntraits)
@@ -58,7 +58,7 @@ QTN_partially_pleiotropic <-
     }
     if (!is.null(pleio_d) &
         !is.null(trait_spec_d_QTN_num)) {
-      if ((pleio_d + trait_spec_d_QTN_num) == 0 ) {
+      if (all((pleio_d + trait_spec_d_QTN_num) == 0 )) {
         dom_QTN <- FALSE
         pleio_d <- 1
         trait_spec_d_QTN_num <- rep(1, ntraits)
@@ -66,7 +66,7 @@ QTN_partially_pleiotropic <-
     }
     if (!is.null(pleio_e) &
         !is.null(trait_spec_e_QTN_num)) {
-      if ((pleio_e + trait_spec_e_QTN_num) == 0 ) {
+      if (all((pleio_e + trait_spec_e_QTN_num) == 0 )) {
         epi_QTN <- FALSE
         pleio_e <- 1
         trait_spec_e_QTN_num <- rep(1, ntraits)
