@@ -29,8 +29,7 @@ file_loader <-
     if (is.null(geno_obj) &&
         is.null(geno_file) &&
         is.null(geno_path)){
-      stop("Please provide one of: \'geno_obj\',
-           \'geno_file\' or \'geno_path\'")
+      stop("Please provide one of: \'geno_obj\', \'geno_file\' or \'geno_path\'", call. = F)
     }
     if (!is.null(geno_obj)){
       cat("File loaded from memory. \n")
@@ -63,6 +62,9 @@ file_loader <-
     }else{
       if (input_format == "hapmap") {
         if (is.null(geno_path)) {
+          if (!geno_file %in% dir()) {
+            stop(paste("File ",geno_file," not found."), call. = F)
+          }
           G <-
             try(data.table::fread(
               file = geno_file,
@@ -106,17 +108,12 @@ file_loader <-
           }
         }
       }
-      print(paste0(
-        "Converting HapMap format to numerical under model of ",
-        SNP_impute
-      ))
       GT <- as.matrix(colnames(G)[- (1:11)])
       GI <- G[, c(1, 2, 3, 4)]
       colnames(GT) <- "taxa"
       colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
       GD <- NULL
       bit <- nchar(as.character(G[2, 12]))
-      print("Performing numericalization")
       GD <- apply(G[, - (1:11)], 1, function(one)
         GAPIT_numericalization(
           one,
