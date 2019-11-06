@@ -4,40 +4,43 @@
 
 Authors: Samuel B Fernandes and Alexander E Lipka
 
-Date: Sep 25, 2019
+Date: Nov 05, 2019
 
 ____
 
-This short tutorial presents some of the possible scenarios one would simulate, but it certainly does not explore all the possibilities. For more information on specific parameter input please check the help documentation (```?create_phenotypes```).
+This short tutorial presents some of the possible genetic architectures that one could simulate, but it certainly does not explore all the possibilities. For more information on specific input parameters, please check the help documentation (?create_phenotypes).
 
 ____
 
 ### Installation
-In order to install simplePHENOTYPES you will need to install SNPRelate and gdsfmt (both from Bioconductor), as well as lqmm and data.table (both from CRAN).  
+In order to install simplePHENOTYPES you will need to install SNPRelate and gdsfmt (both from Bioconductor), as well as mvtnorm, lqmm and data.table (from CRAN).
 ```r
 #IMPORTANT 1[space]2 is setting CRAN and Bioconductor as repositories
 setRepositories()
 1 2
-##On Windows please include the following:
+#Option 1: Installing from bitbucket:
+## requirements:
+#Rtools
+#library(devtools)
+#library(knitr)
+##On Windows please uncomment and run the line below:
 #options(download.file.method = "libcurl")
+devtools::install_bitbucket("fernandessb/simplephenotypes", auth_user = "fernandessb", password = "RhtNaUHY66VdLESMRLCD", build_vignettes = TRUE)
 
-#Installing from bitbucket:
-devtools::install_bitbucket("fernandessb/simplephenotypes", auth_user = "fernandessb", password = "RhtNaUHY66VdLESMRLCD", build_vignettes = TRUE, dependencies = TRUE)
-
-#Installing from source package:
+#Option 2: Installing from source package:
 install.packages("gdsfmt")
 install.packages("SNPRelate")
 install.packages("lqmm")
 install.packages("data.table")
 install.packages("mvtnorm")
-# please replace [PATH] by your path to the simplePHENOTYPES_0.1.0.tar.gz file 
+# please replace [PATH] by your path to the simplePHENOTYPES_0.2.1.tar.gz file 
 # or install it using RStudio's menu option to install from Package Arquive File.
-install.packages("[PATH]/simplePHENOTYPES_0.2.0.tar.gz", repos = NULL, type = "source")
+install.packages("[PATH]/simplePHENOTYPES_1.0.0.tar.gz", repos = NULL, type = "source")
 ```
 ____
 
 ### Load example dataset
-Note that the example dataset is alredy numericalized. HapMap format may also be used with options  ```genotypes_object```, ```genotypes_file``` or ```genotypes_path```.
+Note that the example dataset is already numericalized. HapMap format may also be used with options  ```geno_obj```, ```genotypes_file``` or ```geno_path```.
 ```r
 library(simplePHENOTYPES)
 data("SNP55K_maize282_maf04")
@@ -49,109 +52,154 @@ cor_matrix <- matrix(c(   1, 0.4, -0.5,
 ____
 
 ### Single Trait
-Simulating 10 replications (experiments with the same genetic setting but varying the random residuals) of a single trait with a heritability of 0.7. A vector could also be used to simulate different heritabilities. In this setting, the simulated trait is controlled by 1 big effect QTN (allelic effect of 0.9) and 2 small effect QTNs with additive effects following a geometric series starting with 0.2.
-Please see help files (?create_phenotypes) to check out default values being used.
+Simulating ten replicates of a single trait with a heritability of 0.7. In this setting, the simulated trait is controlled by one large-effect QTN (additive effect of 0.9) and two small effect QTNs with additive effects following a geometric series starting with 0.2; thus the effect size of the first of these two QTNs is 0.2, and the effect size of the second is 0.2^2.
+Please see help files (```?create_phenotypes```) to see which default values are being used.
 ```r
 create_phenotypes(
-  genotypes_object = SNP55K_maize282_maf04,
-  additive_QTN_number = 3,
-  additive_effect = 0.2,
-  big_additive_QTN_effect = 0.9,
+  geno_obj = SNP55K_maize282_maf04,
+  add_QTN_num = 3,
+  add_effect = 0.2,
+  big_add_QTN_effect = 0.9,
   rep = 10,
-  h2 = 0.7)
+  h2 = 0.7,
+  model = "A")
 ```
 ____
 
-### Multiple Traits: Pleiotropic Model
-Simulating 2 traits ```ntraits = 2``` controlled by the same 3 additive QTN and the same "big" effect QTN with effect of 0.3. The other 2 QTNs have allelic effects of 0.04 and 0.2, respectively. Heritability for the target trait is 0.2 and 0.4 for the correlated trait. Each replication is being recorded in a different file ```output_format = "multi-file"``` in a folder named "Results". The correlation between traits is just an artifact of the different allelic effects. No attempt is being done on simulating specific correlation between traits.
+### Multiple Traits: Pleiotropic Architecture
+Simulating three traits `ntraits = 3` controlled by the same three additive QTN and four dominance QTN. The effect size of the largest-effect additive QTN is 0.3 for all traits, while the additive effect sizes are 0.04, 0.2 and 0.1 for each trait, respectively. Heritability for `trait_1` is 0.2, while the heritability of the two correlated traits is 0.4. Each replicate is being recorded in a different file (`output_format = "multi-file"`) in a folder named `"Results_Pleotropic"`. The correlation between traits is not specified by the user; instead, the observed correlation is an artifact of different allelic effects for each trait. The same QTNs are used to generate phenotypes in all 10 replications (`vary_QTN = FALSE`); alternatively, one could select different QTNs in each replicate using `vary_QTN = TRUE` (default). The vector `add_effect` contains one allelic effect for each trait and a geometric series (default) will be used to generate allelic effects for each one of the three additive QTNs (`add_QTN_num = 3`) and four dominance QTNs (`dom_QTN_num = 4`).
 ```r
-create_phenotypes(
-  genotypes_object = SNP55K_maize282_maf04,
-  additive_QTN_number = 3,
-  big_additive_QTN_effect = 0.3,
-  h2 = 0.2,
-  h2_MT = 0.4,
-  additive_effect = c(0.04,0.2),
-  ntraits = 2,
-  rep = 10,
-  output_format = "multi-file",
-  model = "pleiotropic",
-  output_dir = "Results_Pleiotropic"
-)
+ test1 <-  create_phenotypes(
+    geno_obj = SNP55K_maize282_maf04,
+    add_QTN_num = 3,
+    dom_QTN_num = 4,
+    big_add_QTN_effect = c(0.3, 0.3, 0.3),
+    h2 = c(0.2, 0.4, 0.4),
+    add_effect = c(0.04,0.2,0.1),
+    dom_effect = c(0.04,0.2,0.1),
+    ntraits = 3,
+    rep = 10,
+    vary_QTN = FALSE,
+    output_format = "multi-file",
+    architecture = "pleiotropic",
+    output_dir = "Results_Pleiotropic",
+    to_r = TRUE,
+    seed = 10,
+    model = "AD",
+    sim_method = "geometric"
+  )
+```
+Optionally, users may input a list of allelic effects (```sim_method = custom```). In the example below, a geometric series (`custom_geometric`) is being assigned and should generate the same simulated data as the previous example (all.equal(test1, test2)). Notice that since `big_add_QTN_effect` is provided, the user only needs to provide effects for two out of the three additive QTNs being simulated. On the other hand, all four dominance QTN must have an effect assigned on the `custom_geometric_d` list.
+
+```r
+ custom_geometric_a <- list(trait_1 = c(0.04, 0.0016),
+                         trait_2 = c(0.2, 0.04),
+                         trait_3 = c(0.1, 0.01))
+ custom_geometric_d <- list(trait_1 = c(0.04, 0.0016, 6.4e-05, 2.56e-06),
+                         trait_2 = c(0.2, 0.04, 0.008, 0.0016),
+                         trait_3 = c(0.1, 0.01, 0.001, 1e-04))
+
+ test2 <-  create_phenotypes(
+   geno_obj = SNP55K_maize282_maf04,
+   add_QTN_num = 3,
+   dom_QTN_num = 4,
+   big_add_QTN_effect = c(0.3, 0.3, 0.3),
+   h2 = c(0.2,0.4, 0.4),
+   add_effect = custom_geometric_a,
+   dom_effect = custom_geometric_d,
+   ntraits = 3,
+   rep = 10,
+   vary_QTN = FALSE,
+   output_format = "multi-file",
+   architecture = "pleiotropic",
+   output_dir = "Results_Pleiotropic",
+   to_r = T,
+   sim_method = "custom",
+   seed = 10,
+   model = "AD"
+ )
+ 
+ all.equal(test1, test2)
 ```
 ____
 
-### Multiple Traits: Partially Pleiotropic Model
-Simulating 3 traits controlled by 7, 13 and 4 QTNs, respectively. The first of the 3 pleiotropic QTNs ```overlap = 3``` will have a big additive QTN effect of 0.9. All other QTNs will have an allelic effect of 0.3 being used for the geometric series. Correlation among traits is assigned to be equal to the cor_matrix object. Each replication will be appended in a unique file in a long format and with an additional column named "Rep". Results will be saved at "Results_Partially". In this example, the genotype file will be saved as numeric.
+### Multiple Traits: Partially Pleiotropic Architecture
+Simulating 20 replicates of three traits, which are respectively controlled by seven, 13 and four QTNs. The first of the three pleiotropic QTNs (`pleio_a = 3`) will have a large additive QTN effect of 0.9. All other QTNs will have additive effects that follow a geometric series, where the effect size of the i^th QTN has an effect size of 0.3^i. Correlation among traits is assigned to be equal to the `cor_matrix` object. All 20 replicates of these three simulated traits will be saved in one file, specifically in a long format and with an additional column named "Rep". Results will be saved in a directory called `"Results_Partially"`. In this example, the genotype file will be saved in numeric format. Additionally, all phenotypes will be assigned to an object called `"sim_results"` (`to_r = TRUE`) and loaded into R.
 ```r
- sim_results <- create_phenotypes(
-  genotypes_object = SNP55K_maize282_maf04,
-  overlap = 3,
-  specific_QTN_number = c(4,10, 1),
-  big_additive_QTN_effect = 0.9,
-  h2 = 0.2,
-  h2_MT = c(0.4, 0.8),
-  additive_effect = c(0.3, 0.3, 0.3),
+cor_matrix <- matrix(c(   1, 0.3, -0.9,
+                        0.3,   1,  -0.5,
+                       -0.9, -0.5,    1 ), 3)
+
+sim_results <- create_phenotypes(
+  geno_obj = SNP55K_maize282_maf04,
   ntraits = 3,
-  correlation = cor_matrix,
+  pleio_a = 3,
+  pleio_e = 2,
+  same_add_dom_QTN = TRUE,
+  degree_of_dom = 0.5,
+  trait_spec_a_QTN_num = c(4, 10, 1),
+  trait_spec_e_QTN_num = c(3, 2, 5),
+  h2 = c(0.2, 0.4, 0.8),
+  add_effect = c(0.5, 0.33, 0.2),
+  epi_effect = c(0.3, 0.3, 0.3),
+  cor = cor_matrix,
   rep = 20,
   output_dir = "Results_Partially",
   output_format = "long",
-  model = "partially",
+  architecture = "partially",
   out_geno = "numeric",
-  to_r = TRUE
+  to_r = TRUE,
+  model = "AED"
 )
 ```
 ____
 
-### Multiple Traits: Linkage Dissequilibrium Model
-Simulating 5 replications of 2 (current default is for 2 traits with the LD model) linked traits controlled by 3 additive QTNs with a big effect of 0.1 and a geometric series starting from 0.02. Starting seed number is 200 and output phenotypes are saved
-at different columns of a single file. Plink fam, bim and bed files are also saved at Results_LD.
+### Multiple Traits: Linkage Disequilibrium Architecture
+Simulating five replicates of two linked traits controlled by three additive QTNs each. For each QTN, a marker is first selected, and then two separate markers that have an r^2 of at most 0.8 (`ld=0.8`) with the selected marker will be the respective QTNs of the two traits. The three QTNs will have additive effects that follow a geometric series, where the effect size of the i^th QTN is 0.02^i for one trait and 0.05^i for the other trait. Starting seed number is 200 and output phenotypes are saved in one file, but in a "wide" format with each replicate of two traits being added as additional columns. Plink fam, bim and bed files are also saved at `Results_LD`.
 
 ```r
 create_phenotypes(
-  genotypes_object = SNP55K_maize282_maf04,
-  additive_QTN_number = 3,
-  big_additive_QTN_effect = 0.1,
-  h2 = 0.2,
-  additive_effect = 0.02,
+  geno_obj = SNP55K_maize282_maf04,
+  add_QTN_num = 3,
+  h2 = c(0.2, 0.4),
+  add_effect = c(0.02, 0.05),
   rep = 5,
   seed = 200,
   output_format = "wide",
-  model = "LD",
+  architecture = "LD",
   output_dir = "Results_LD",
   out_geno = "plink",
-  ld=0.8
+  ld=0.8,
+  model = "A"
 )
 ```
 ____
 
-### Multiple Traits: Partially Pleiotropic Model with Epistatic effects
-Simulating 3 traits controlled by 3 pleiotropic additive QTNs ```overlap = 3```, 2 pleiotropic epistatic QTNs ```overlapE = 2```,
-4, 10 and 1 additive trait-specific QTN and 2, 1 and 5 epistatic trait-specific QTNs, respectively. Results will be saved as ".fam" files used as gemma input.
+### Multiple Traits: Partially Pleiotropic Architecture with Epistatic effects
+Simulating 20 replicates of three traits. In each replicate, different SNPs are selected to be the QTNs for each trait. These traits are controlled by three pleiotropic additive QTNs (`pleio = 3`); two pleiotropic epistatic QTNs (`pleio_e = 2`); four, ten and one additive trait-specific QTN (`specific_QTN_number = c(4,10, 1)`);  and two, one and five epistatic trait-specific QTNs (`trait_specific_e_QTN_number = c(2,1, 5)`). Results will be saved as ".fam" files used as gemma input; thus each replicate trait that is simulated will have its own unique output file.
 ```r
 create_phenotypes(
-  genotypes_object = SNP55K_maize282_maf04,
-  overlap = 3,
-  overlap_e = 2,
-  specific_QTN_number = c(4,10, 1),
-  specific_e_QTN_number = c(2,1, 5),
-  epistatic_effect = c(0.01, 0.4, 0.2),
-  additive_effect = c(0.3, 0.2, 0.5),
-  big_additive_QTN_effect = 0.9,
-  h2 = 0.2,
-  h2_MT = c(0.4, 0.8, 0.55),
+  geno_obj = SNP55K_maize282_maf04,
+  pleio_a = 3,
+  pleio_e = 2,
+  trait_spec_a_QTN_num = c(4,10, 1),
+  trait_spec_e_QTN_num = c(2,1, 5),
+  epi_effect = c(0.01, 0.4, 0.2),
+  add_effect = c(0.3, 0.2, 0.5),
+  h2 = c(0.2,0.4, 0.8),
   ntraits = 3,
   rep = 20,
+  vary_QTN = TRUE,
   output_dir = "Results_Partially_E",
   output_format = "gemma",
-  model = "partially"
+  architecture = "partially",
+  model = "AE"
 )
 ```
 ____
 
 ### Using your own data
-If files are saved by chromosome, they may be readed from file using options ```genotypes_path``` (consider having all marker data files in a separated folder). If multiple files are saved on the same folder as the marker data, the parameter ```shared_name``` might be used to select only marker data. For example, if your data is saved as "WGS_chrm_1.hmp.txt", ..., "WGS_chrm_10.hmp.txt", one would use ```shared_name = "WGS_chrm_"``` (it simply uses regex to select files).
+If files are saved by chromosome, they can be read directly into `create_phenotypes` using options `geno_path` (recommendation: consider having all marker data files in a separate folder). If multiple files are saved in the same folder as the marker data, the parameter `shared_name` might be used to select only marker data. For example, if your data is saved as `"WGS_chrm_1.hmp.txt"`, ..., `"WGS_chrm_10.hmp.txt"`, one would use `prefix = "WGS_chrm_"` .
 ```r
 create_phenotypes(
   genotypes_path = getwd(),
