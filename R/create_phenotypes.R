@@ -489,19 +489,22 @@ create_phenotypes <-
             if (add) {
               if (!is.null(add_effect) &
                 add_QTN_num > 0) {
-              a_var <- all(lapply(add_effect, var) == 0)
+                af <- matrix(unlist(add_effect), add_QTN_num, ntraits)
+                a_var <- all(apply(af, 1, var) == 0)
               }
             }
            if (dom) {
              if (!is.null(dom_effect) &
                 dom_QTN_num > 0) {
-              d_var <- all(lapply(dom_effect, var) == 0)
+               df <- matrix(unlist(dom_effect), dom_QTN_num, ntraits)
+               d_var <- all(apply(df, 1, var) == 0)
             }
           }
           if (epi) {
             if (!is.null(epi_effect) &
                 epi_QTN_num > 0) {
-              e_var <- all(lapply(epi_effect, var) == 0)
+              ef <- matrix(unlist(epi_effect), epi_QTN_num, ntraits)
+              e_var <- all(apply(ef, 1, var) == 0)
             }
           }
             w <- c()
@@ -515,20 +518,32 @@ create_phenotypes <-
           if (is.null(cor)) {
             if (add) {
               if (!is.null(add_effect) &
-                  all(pleio_a > 0 | trait_spec_a_QTN_num > 0)) {
-              a_var <- all(lapply(add_effect, var) == 0)
+                  all(pleio_a > 1)) {
+                af <- matrix(NA, pleio_a, ntraits)
+                for (i in 1:ntraits) {
+                  af[2,] <- add_effect[[i]][1:pleio_a]
+                }
+                a_var <- all(apply(af, 2, var) == 0)
               }
             }
             if (dom) {
               if (!is.null(dom_effect) &
-                  all(pleio_d > 0 | trait_spec_d_QTN_num > 0)) {
-              d_var <- all(lapply(dom_effect, var) == 0)
+                  all(pleio_d > 1)) {
+                df <- matrix(NA, pleio_d, ntraits)
+                for (i in 1:ntraits) {
+                  df[2,] <- dom_effect[[i]][1:pleio_d]
+                }
+                d_var <- all(apply(df, 2, var) == 0)
               }
             }
             if (epi) {
               if (!is.null(epi_effect) &
-                  all(pleio_e > 0 | trait_spec_e_QTN_num > 0)) {
-              e_var <- all(lapply(epi_effect, var) == 0)
+                  all(pleio_e > 1)) {
+                ef <- matrix(NA, pleio_e, ntraits)
+                for (i in 1:ntraits) {
+                  ef[2,] <- epi_effect[[i]][1:pleio_e]
+                }
+                e_var <- all(apply(ef, 2, var) == 0)
               }
             }
             w <- c()
@@ -849,14 +864,14 @@ create_phenotypes <-
             dom = dom)
       }
       hets <- NULL
-      if (dom) {
+      if (dom & !is.null(dom_effect)) {
         h_num <- if(!is.null(dom_QTN_num)) {
-          dom_QTN_num > 0
+          dom_QTN_num > 0 & any(dom_effect > 0)
         } else if (!is.null(pleio_d) &
                    !is.null(trait_spec_d_QTN_num)) {
           all(pleio_d > 0 & trait_spec_d_QTN_num > 0)
         }
-        if (h_num) {
+        if (h_num & any(dom_effect > 0) ) {
           if (same_add_dom_QTN & add){
             if (rep_by == "QTN" |
                 architecture == "partially" |
@@ -1069,7 +1084,7 @@ create_phenotypes <-
         } else {
           sample_cor <- genetic_value[[1]]$sample_cor
         }
-        if (!is.null(sample_cor)){
+        if (!is.null(sample_cor) & length(sample_cor) > 0){
         cat("\nSample cor \n")
         colnames(sample_cor) <- paste0("Trait_", 1:ntraits)
         rownames(sample_cor) <- paste0("Trait_", 1:ntraits)
