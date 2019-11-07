@@ -45,7 +45,7 @@ or a matrix with ncol equals to ntraits. If the later is used, the simulation
 will loop over the number of rows and will generate a result for each row. 
 If a single trait is being simulated and h2 is a vector, 
 one simulation of each heritability value will be conducted. Either none or all
-traits are expetec to have a `h2 = 0`.}
+traits are expected to have a `h2 = 0`.}
 
 \item{model}{The genetic model to be assumed. The options are:
 "A" (additive), "D" (dominance), "E" (epistatic) 
@@ -64,7 +64,7 @@ additive epistasis are simulated) quantitative trait nucleotide to be simulated.
 a vector (assuming `ntraits` = 1 or one allelic effect per trait) or a list 
 of length = `ntraits`, i.e., if `ntraits` > 1, one set of additive effects 
 should be provided for each trait. In that case, each component should be a 
-vector of either lenght one, if `sim_method = "geometric"` (see below), or 
+vector of either length one, if `sim_method = "geometric"` (see below), or 
 length equal to the number of additive QTNs being simulated.}
 
 \item{same_add_dom_QTN}{A boolean for having the same quantitative trait
@@ -77,7 +77,7 @@ a vector or a list. Optional if `same_add_dom_QTN = TRUE`.}
 are being used for simulating additive and dominance effects, the dominance 
 allelic effect could be a proportion of the additive allelic effect.
 In other words, `degree_of_dom` equals to 0.5, 1, 1.5 will simulate,
-partial dominance, complete dominance and overdominance, respectivelly.}
+partial dominance, complete dominance and overdominance, respectively.}
 
 \item{epi_effect}{Epistatic (additive x additive) effect size to be
 simulated. Similar to the `add_effect`, it could be either a vector or 
@@ -85,9 +85,9 @@ a list.}
 
 \item{architecture}{Genetic architecture to be simulated. Should be provided 
 if `ntraits` > 1. Possible options are: 'pleiotropic', for traits being 
-controled by the same QTNs; 'partially', for traits being controled by 
+controlled by the same QTNs; 'partially', for traits being controlled by 
 pleiotropic and trait specific QTNs; 'LD', for traits being exclusively 
-controled QTNs in linkage disequilibrium (controled by parameter `ld`). 
+controlled QTNs in linkage disequilibrium (controlled by parameter `ld`). 
 Currently the only option for `architecture = "LD"` is `ntraits = 2`.}
 
 \item{pleio_a}{Number of pleiotropic additive QTNs to be 
@@ -117,7 +117,7 @@ a geometric series may be simulated, i.e. if the add_effect = 0.5,
 the effect size of the first QTNs is 0.2, and the effect size of the second 
 is 0.5^2 and the effect of the n^th QTN is 0.5^n.}
 
-\item{vary_QTN}{A bolean to determine if the same set of quantitative trait 
+\item{vary_QTN}{A boolean to determine if the same set of quantitative trait 
 nucleotide (QTN) should be used to generate genetic effects for each 
 experiment (`vary_QTN = FALSE`) or  if a different set of QTNs should be 
 used for each experiment (`vary_QTN = TRUE`).}
@@ -147,7 +147,7 @@ If FALSE (default), only the QTN information will be saved.}
 \item{output_dir}{Name to be used to create a folder and save output files.}
 
 \item{to_r}{Option for saving simulated results into R in addition to saving 
-it to file. If TRUE, results need to be assinged to an R object (see vignette).}
+it to file. If TRUE, results need to be assigned to an R object (see vignette).}
 
 \item{output_format}{Four options for saving outputs: 'multi-file', 
 saves one simulation setting in a separate file; 'long' (default for multiple
@@ -162,7 +162,7 @@ to be used by gemma with plink bed files (renaming .fam file might be necessary)
 be used with option architecture = "LD". Default is NULL.}
 
 \item{constrains}{Set constrains for QTN selection. Currently, only minor 
-allelic frequency is implemented. Eiter one or both of the following options 
+allelic frequency is implemented. Either one or both of the following options 
 may be non-null: 'list(maf_above = NULL, maf_below = NULL)'.}
 
 \item{prefix}{If `geno_path` points to a folder with files other than the
@@ -171,7 +171,7 @@ files (e.g. prefix = "Chr" would read files Chr1.hmp.txt, ..., Chr10.hmp.txt
 but not HapMap.hmp.txt).}
 
 \item{maf_cutoff}{Optional filter for minor allele frequency 
-(The dataset will be filtered. Not to be confunded with the constrain option
+(The dataset will be filtered. Not to be confounded with the constrain option
 which will only filter possible QTNs).}
 
 \item{nrows}{Option for loading only part of a dataset. Please see 
@@ -199,7 +199,7 @@ Simulation of ntraits phenotypes based on a SNP file
 }
 \examples{
 # Simulate 50 replications of a single phenotype.
-
+\dontrun{
 pheno <- create_phenotypes(
   geno_obj = SNP55K_maize282_maf04,
   add_QTN_num = 3,
@@ -210,12 +210,12 @@ pheno <- create_phenotypes(
   to_r = TRUE,
   model = "A"
 )
-
+}
 # For more examples, please run the following:
 # vignette("simplePHENOTYPES")
 
 }
 \author{
 Samuel Fernandes and Alexander Lipka
-Last update: Oct 29th, 2019
+Last update: Nov 05, 2019
 }

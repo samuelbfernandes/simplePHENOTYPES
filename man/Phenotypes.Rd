@@ -36,8 +36,8 @@ Phenotypes for ntraits traits
 Generate environmental effects based on a given heritability
 }
 \author{
-Alex lipka and Samuel Fernandes
-Last update: Jul 22, 2019
+Samuel Fernandes and Alexander Lipka
+Last update: Nov 05, 2019
 
 ----------------------------phenotypes---------------------------------------
 }

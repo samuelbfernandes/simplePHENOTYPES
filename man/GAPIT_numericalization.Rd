@@ -2,7 +2,7 @@
 % Please edit documentation in R/GAPIT_numericalization.R
 \name{GAPIT_numericalization}
 \alias{GAPIT_numericalization}
-\title{convert character SNP genotpe to numerical}
+\title{convert character SNP genotype to numerical}
 \usage{
 GAPIT_numericalization(x, bit = NULL, effect = "Add",
   impute = "None", major_allele_zero = FALSE)
@@ -19,10 +19,10 @@ GAPIT_numericalization(x, bit = NULL, effect = "Add",
 \item{major_allele_zero}{= FALSE,}
 }
 \value{
-Coresponding numerical value
+Corresponding numerical value
 }
 \description{
-convert character SNP genotpe to numerical
+convert character SNP genotype to numerical
 }
 \author{
 Feng Tian and Zhiwu Zhang (Modified by Samuel Fernandes)

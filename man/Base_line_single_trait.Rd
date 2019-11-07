@@ -44,8 +44,8 @@ A vector of Genetic values
 Calculate genetic value based on QTN objects.
 }
 \author{
-Alex Lipka and Samuel Fernandes
-Last update: Jul 22, 2019
+Samuel Fernandes and Alexander Lipka
+Last update: Nov 05, 2019
 
 -----------------------------Base_line_single_trait---------------------------
 --------------------------------------------------------------------------

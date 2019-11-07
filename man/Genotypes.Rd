@@ -2,7 +2,7 @@
 % Please edit documentation in R/Genotypes.R
 \name{genotypes}
 \alias{genotypes}
-\title{Generate a numeric (dosaje) HapMap file}
+\title{Generate a numeric (dosage) HapMap file}
 \usage{
 genotypes(geno_obj = NULL, geno_file = NULL, geno_path = NULL,
   input_format = "hapmap", nrows = Inf, na_string = "NA",
@@ -36,11 +36,11 @@ genotypes(geno_obj = NULL, geno_file = NULL, geno_path = NULL,
 A numeric HapMap
 }
 \description{
-Generate a numeric (dosaje) HapMap file
+Generate a numeric (dosage) HapMap file
 }
 \author{
-Alex lipka and Samuel Fernandes
-Last update: Sep 19, 2019
+Samuel Fernandes and Alexander Lipka
+Last update: Nov 05, 2019
 
 ------------------------------------------------------------------------------
 }
