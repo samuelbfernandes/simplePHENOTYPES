@@ -1,20 +1,21 @@
 Package: simplePHENOTYPES
-Date: 2019-11-05
+Date: 2019-11-06
 Type: Package
 Version: 1.0.0
-Title: Simulation of Pleiotropic, Linked and Epistatic PHENOTYPES
-Description: A package for simulation of single and multi-trait (correlated) phenotypes based on many genetic settings. Pleiotropic, Partially-Pleiotropic and Linkage Disequilibrium architectures are simulated based on additive, dominance and epistatic models.
+Title: Simulation of Pleiotropic, Linked and Epistatic Phenotypes
+Description: The number of studies involving correlated traits and the availability of tools to handle this type of data has increased considerably in the last decade. With such a demand, we need tools for testing hypotheses related to single and multi-trait (correlated) phenotypes based on many genetic settings. Thus, we implemented various options for simulation of pleiotropy and Linkage Disequilibrium under additive, dominance and epistatic models.
 Authors@R: c(
-    person("Samuel", "Fernandes", , "samuelf@illinois.edu", c("aut", "cre")),
-    person("Alexander", "Lipka", , role = "aut")
+    person("Samuel", "Fernandes", email = "samuelf@illinois.edu", role = c("aut", "cre"),
+    	comment = c(ORCID = "0000-0001-8269-535X")),
+    person("Alexander", "Lipka", email = "alipka@illinois.edu" , role = "aut",
+    	comment = c(ORCID = "0000-0003-1571-8528"))
     )
-Author: Samuel B Fernandes [aut, cre]
-		Alexander E Lipka [aut]
-Maintainer: Samuel Fernandes <samuelf@illinois.edu>
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
-Depends: R (>= 3.0)
+biocViews:
+Depends: 
+	R (>= 3.5.0)
 Imports: 
     data.table,
     mvtnorm,
@@ -23,9 +24,11 @@ Imports:
     utils,
     SNPRelate,
     gdsfmt
-RoxygenNote: 6.1.1
 Suggests: 
     knitr,
     rmarkdown
+RoxygenNote: 6.1.1
 VignetteBuilder: knitr
 URL: https://github.com/samuelbfernandes/simplePHENOTYPES
+BugReports: https://github.com/samuelbfernandes/simplePHENOTYPES/issues
+NeedsCompilation: no
