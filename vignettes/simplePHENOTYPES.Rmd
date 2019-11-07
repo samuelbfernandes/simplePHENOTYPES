@@ -7,7 +7,6 @@ output:
     number_sections: true
     theme: spacelab
     highlight: textmate
-    df_print: tibble
 author: Samuel B Fernandes and Alexander E Lipka
 date: Nov 05, 2019
 
@@ -29,8 +28,7 @@ This short tutorial presents some of the possible genetic architectures that one
 In order to install simplePHENOTYPES you will need to install SNPRelate and gdsfmt (both from Bioconductor), as well as mvtnorm, lqmm and data.table (from CRAN).
 ```{r installation, results = "hide", eval = FALSE}
 #IMPORTANT 1[space]2 is setting CRAN and Bioconductor as repositories
-setRepositories()
-1 2
+setRepositories(ind = 1:2)
 #Option 1: Installing from bitbucket:
 ## requirements:
 #Rtools
@@ -74,7 +72,7 @@ create_phenotypes(
 ```
 
 # Multiple Traits: Pleiotropic Architecture
-Simulating three traits `ntraits = 3` controlled by the same three additive QTN and four dominance QTN. The effect size of the largest-effect additive QTN is 0.3 for all traits, while the additive effect sizes are 0.04, 0.2 and 0.1 for each trait, respectively. Heritability for trait_1 is 0.2, while the heritability of the two correlated traits is 0.4. Each replicate is being recorded in a different file (`output_format = "multi-file"`) in a folder named "Results_Pleotropic". The correlation between traits is not specified by the user; instead, the observed correlation is an artifact of different allelic effects for each trait. The same QTNs are used to generate phenotypes in all 10 replications (`vary_QTN = FALSE`); alternatively, one could select different QTNs in each replicate using `vary_QTN = TRUE` (default). The vector `add_effect` contains one allelic effect for each trait and a geometric series (default) will be used to generate allelic effects for each one of the three additive QTNs (`add_QTN_num = 3`) and four dominance QTNs (`dom_QTN_num = 4`).
+Simulating three traits `ntraits = 3` controlled by the same three additive QTN and four dominance QTN. The effect size of the largest-effect additive QTN is 0.3 for all traits, while the additive effect sizes are 0.04, 0.2 and 0.1 for each trait, respectively. Heritability for trait_1 is 0.2, while the heritability of the two correlated traits is 0.4. Each replicate is being recorded in a different file (`output_format = "multi-file"`) in a folder named "Results_Pleiotropic". The correlation between traits is not specified by the user; instead, the observed correlation is an artifact of different allelic effects for each trait. The same QTNs are used to generate phenotypes in all 10 replications (`vary_QTN = FALSE`); alternatively, one could select different QTNs in each replicate using `vary_QTN = TRUE` (default). The vector `add_effect` contains one allelic effect for each trait and a geometric series (default) will be used to generate allelic effects for each one of the three additive QTNs (`add_QTN_num = 3`) and four dominance QTNs (`dom_QTN_num = 4`).
 ```{r MT P, results = "hide", eval = FALSE}
  test1 <-  create_phenotypes(
     geno_obj = SNP55K_maize282_maf04,
