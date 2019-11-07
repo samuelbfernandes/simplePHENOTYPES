@@ -750,10 +750,10 @@ create_phenotypes <-
           paste0(home_dir, "/", gdsfile, ".gds"),
           genmat = as.matrix(geno_obj[, -c(1:5)]),
           sample.id = colnames(geno_obj)[-c(1:5)],
-          snp.id = geno_obj$snp,
+          snp.id = as.character(geno_obj$snp),
           snp.chromosome = geno_obj$chr,
           snp.position = geno_obj$pos,
-          snp.allele = geno_obj$allele,
+          snp.allele = as.character(geno_obj$allele),
           snpfirstdim = TRUE
         )
         gdsfmt::showfile.gds(closeall = TRUE)
