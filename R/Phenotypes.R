@@ -70,7 +70,7 @@ phenotypes <-
                                ntraits)
                 )
             }
-            H2 <- matrix(0, nrow(h2), ntraits)
+            H2 <- matrix(0, 1, ntraits)
             if (output_format == "multi-file") {
               invisible(lapply(1:rep, function(x) {
                 data.table::fwrite(
@@ -280,7 +280,7 @@ phenotypes <-
               simulated_data[, j + 1] <-
                 rnorm(n, mean = 0, sd = 1)
             }
-            H2 <- matrix(0, nrow = rep, ncol = ncol(h2))
+            H2 <- matrix(0, nrow = 1, ncol = ncol(h2))
             write.table(
               ss,
               paste0("seed_number_for_", rep, "_Reps", "_Herit_",
@@ -472,7 +472,7 @@ phenotypes <-
                   sigma = diag(1, ntraits)
                 )
             }
-            H2 <- matrix(0, rep, ntraits)
+            H2 <- matrix(0, 1, ntraits)
             if (output_format == "multi-file") {
               invisible(lapply(1:rep, function(x) {
                 data.table::fwrite(
@@ -684,7 +684,7 @@ phenotypes <-
                       mean = 0,
                       sd = 1)
             }
-            H2 <- matrix(0, nrow = rep, ncol = ncol(h2))
+            H2 <- matrix(0, nrow = 1, ncol = ncol(h2))
             write.table(
               ss,
               paste0("seed_number_for_", rep, "_Reps", "_Herit_",
