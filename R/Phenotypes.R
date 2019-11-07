@@ -29,7 +29,11 @@ phenotypes <-
     #---------------------------------------------------------------------------
     h <- 0
     n <- nrow(base_line_trait[[1]]$base_line)
-    names <- rownames(base_line_trait[[1]]$base_line)
+    names <- if (output_format == "gemma"){
+      fam[,1]
+    } else {
+      rownames(base_line_trait[[1]]$base_line) 
+    }
     if (rep_by != "QTN") {
       if (ntraits > 1) {
         if (output_format == "multi-file") {
