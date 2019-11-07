@@ -18,8 +18,8 @@
 #' @param rep_by = 'QTN',
 #' @param export_gt = FALSE
 #' @return Genotype of selected SNPs
-#' @author Alex lipka and Samuel Fernandes
-#' Last update: Jul 22, 2019
+#' @author Samuel Fernandes and Alexander Lipka
+#' Last update: Nov 05, 2019
 #'
 #'----------------------------- QTN_partially_pleiotropic ----------------------
 QTN_partially_pleiotropic <-

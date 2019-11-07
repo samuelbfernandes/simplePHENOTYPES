@@ -1,11 +1,11 @@
-#' convert character SNP genotpe to numerical
+#' convert character SNP genotype to numerical
 #' @export
 #' @param x ggg
 #' @param bit = NULL,
 #' @param effect = 'Add',
 #' @param impute = 'None',
 #' @param major_allele_zero = FALSE,
-#' @return Coresponding numerical value
+#' @return Corresponding numerical value
 #' @author Feng Tian and Zhiwu Zhang (Modified by Samuel Fernandes)
 #' Last update: Sep 20, 2019
 #'

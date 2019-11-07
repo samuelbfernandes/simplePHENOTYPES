@@ -14,8 +14,8 @@
 #' @param dom = NULL,
 #' @param epi = NULL
 #' @return Genotype of selected SNPs
-#' @author Alex lipka and Samuel Fernandes
-#' Last update: Jul 22, 2019
+#' @author Samuel Fernandes and Alexander Lipka
+#' Last update: Nov 05, 2019
 #'
 #------------------------------  QTN_pleiotropic -------------------------------
 QTN_pleiotropic <-

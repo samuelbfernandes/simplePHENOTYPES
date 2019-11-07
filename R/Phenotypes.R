@@ -11,8 +11,8 @@
 #' @param rep_by = 'QTN'
 #' @param hets = 'QTN'
 #' @return Phenotypes for ntraits traits
-#' @author Alex lipka and Samuel Fernandes
-#' Last update: Jul 22, 2019
+#' @author Samuel Fernandes and Alexander Lipka
+#' Last update: Nov 05, 2019
 #'
 #'----------------------------phenotypes---------------------------------------
 phenotypes <-

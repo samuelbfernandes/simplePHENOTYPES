@@ -15,7 +15,7 @@
 #' @param export_gt = FALSE
 #' @return Genotype of selected SNPs
 #' @author Samuel Fernandes
-#' Last update: Jul 22, 2019
+#' Last update: Nov 05, 2019
 #'
 #'----------------------------- QTN_linkage ------------------------------------
 QTN_linkage <-

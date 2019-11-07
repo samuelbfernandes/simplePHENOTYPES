@@ -14,9 +14,8 @@
 #' @param epi = NULL
 #' @param sim_method = NULL,
 #' @return A vector of Genetic values
-#' @author Alex Lipka and Samuel Fernandes
-
-#' Last update: Jul 22, 2019
+#' @author Samuel Fernandes and Alexander Lipka
+#' Last update: Nov 05, 2019
 #'
 #'-----------------------------Base_line_single_trait---------------------------
 base_line_single_trait <-

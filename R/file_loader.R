@@ -12,7 +12,7 @@
 #' @param major_allele_zero = FALSE
 #' @return genotype data sampled
 #' @author  Samuel Fernandes
-#' Last update: Sep 19, 2019
+#' Last update: Nov 05, 2019
 #'------------------------------------------------------------------------------
 file_loader <-
   function(geno_obj = NULL,

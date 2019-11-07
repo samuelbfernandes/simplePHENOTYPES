@@ -17,7 +17,7 @@
 #' @param sim_method = NULL,
 #' @return A matrix of Genetic values for multiple traits
 #' @author Samuel Fernandes
-#' Last update: Jul 22, 2019
+#' Last update: Nov 05, 2019
 #'
 #'-------------------------------base_line_multi_traits-------------------------
 base_line_multi_traits <-

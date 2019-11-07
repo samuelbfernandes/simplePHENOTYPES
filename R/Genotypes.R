@@ -1,4 +1,4 @@
-#' Generate a numeric (dosaje) HapMap file
+#' Generate a numeric (dosage) HapMap file
 #' @export
 #' @param geno_obj = NULL,
 #' @param geno_file = NULL,
@@ -12,8 +12,8 @@
 #' @param SNP_impute = 'Middle',
 #' @param major_allele_zero = FALSE,
 #' @return A numeric HapMap
-#' @author Alex lipka and Samuel Fernandes
-#' Last update: Sep 19, 2019
+#' @author Samuel Fernandes and Alexander Lipka
+#' Last update: Nov 05, 2019
 #'
 #'------------------------------------------------------------------------------
 genotypes <-
