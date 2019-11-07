@@ -7,8 +7,8 @@
 
 <!-- badges: end -->
 
-simplePHENOTYPES is a package to make simulation accessible to any R
-user.
+simplePHENOTYPES is a package to make the simulation of molecular
+marker-based multi-trait phenotypes accessible to any R user.
 
 This short tutorial presents some of the possible genetic architectures
 that one could simulate, but it certainly does not explore all the
@@ -17,32 +17,22 @@ check the help documentation (?create\_phenotypes).
 
 # Installation
 
-In order to install simplePHENOTYPES you will need to install SNPRelate
-and gdsfmt (both from Bioconductor), as well as mvtnorm, lqmm and
-data.table (from CRAN).
+In order to install simplePHENOTYPES, the following r packages will also
+be installed:
+
+  - From Bioconductor:
+      - SNPRelate
+      - gdsfmt
+  - From CRAN:
+      - mvtnorm  
+      - lqmm  
+      - data.table
+
+<!-- end list -->
 
 ``` r
-#IMPORTANT 1[space]2 is setting CRAN and Bioconductor as repositories
-setRepositories()
-1 2
-#Option 1: Installing from bitbucket:
-## requirements:
-#Rtools
-#library(devtools)
-#library(knitr)
-##On Windows please uncomment and run the line below:
-#options(download.file.method = "libcurl")
-devtools::install_bitbucket("fernandessb/simplephenotypes", auth_user = "fernandessb", password = "RhtNaUHY66VdLESMRLCD", build_vignettes = TRUE)
-
-#Option 2: Installing from source package:
-install.packages("gdsfmt")
-install.packages("SNPRelate")
-install.packages("lqmm")
-install.packages("data.table")
-install.packages("mvtnorm")
-# please replace [PATH] by your path to the simplePHENOTYPES_0.2.1.tar.gz file 
-# or install it using RStudio's menu option to install from Package Arquive File.
-install.packages("[PATH]/simplePHENOTYPES_1.0.0.tar.gz", repos = NULL, type = "source")
+setRepositories(ind = 1:2)
+devtools::install_github("samuelbfernandes/simplePHENOTYPES")
 ```
 
 # Load sample dataset
@@ -55,6 +45,15 @@ may also be used with options `geno_obj`, `genotypes_file` or
 library(simplePHENOTYPES)
 data("SNP55K_maize282_maf04")
 SNP55K_maize282_maf04[1:8, 1:10]
+#>            snp allele chr     pos cm 4226 4722 33-16 38-11 A188
+#> 1: ss196422159    A/G   1  379844 NA    0    0     0     0    0
+#> 2: ss196422171    G/A   1  613257 NA    0    0     0     0    0
+#> 3: ss196422173    G/A   1  659354 NA    2    2     0     0    0
+#> 4: ss196422186    G/C   1  992572 NA    2    0     0     0    0
+#> 5: ss196500940    G/A   1 2044264 NA    2    2     2     2    2
+#> 6: ss196422234    A/G   1 2044555 NA    0    0     0     0    0
+#> 7: ss196422236    G/A   1 2045035 NA    2    2     2     2    2
+#> 8: ss196422248    G/A   1 2428671 NA    0    2     2     0    2
 ```
 
 # Single Trait

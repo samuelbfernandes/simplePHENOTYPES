@@ -1,5 +1,6 @@
 ---
 output: github_document
+df_print: tibble
 ---
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
@@ -17,39 +18,33 @@ knitr::opts_chunk$set(
 <!-- badges: start -->
 <!-- badges: end -->
 
-simplePHENOTYPES is a package to make simulation accessible to any R user.
+simplePHENOTYPES is a package to make the simulation of molecular marker-based multi-trait phenotypes accessible to any R user.
 
 This short tutorial presents some of the possible genetic architectures that one could simulate, but it certainly does not explore all the possibilities. For more information on specific input parameters, please check the help documentation (?create_phenotypes).
 
 # Installation
-In order to install simplePHENOTYPES you will need to install SNPRelate and gdsfmt (both from Bioconductor), as well as mvtnorm, lqmm and data.table (from CRAN).
-```{r installation, results = "hide", eval = FALSE}
-#IMPORTANT 1[space]2 is setting CRAN and Bioconductor as repositories
-setRepositories()
-1 2
-#Option 1: Installing from bitbucket:
-## requirements:
-#Rtools
-#library(devtools)
-#library(knitr)
-##On Windows please uncomment and run the line below:
-#options(download.file.method = "libcurl")
-devtools::install_bitbucket("fernandessb/simplephenotypes", auth_user = "fernandessb", password = "RhtNaUHY66VdLESMRLCD", build_vignettes = TRUE)
 
-#Option 2: Installing from source package:
-install.packages("gdsfmt")
-install.packages("SNPRelate")
-install.packages("lqmm")
-install.packages("data.table")
-install.packages("mvtnorm")
-# please replace [PATH] by your path to the simplePHENOTYPES_0.2.1.tar.gz file 
-# or install it using RStudio's menu option to install from Package Arquive File.
-install.packages("[PATH]/simplePHENOTYPES_1.0.0.tar.gz", repos = NULL, type = "source")
+
+
+In order to install simplePHENOTYPES, the following r packages will also be installed:  
+
+*  From Bioconductor:
+    * SNPRelate
+    * gdsfmt
+    
+* From CRAN:
+    * mvtnorm  
+    * lqmm  
+    * data.table 
+
+```{r installation, results = "hide", eval = FALSE}
+setRepositories(ind = 1:2)
+devtools::install_github("samuelbfernandes/simplePHENOTYPES")
 ```
 
 # Load sample dataset
 Note that the example dataset is already numericalized. HapMap format may also be used with options  `geno_obj`, `genotypes_file` or `geno_path`.
-```{r load data, eval = FALSE}
+```{r load data}
 library(simplePHENOTYPES)
 data("SNP55K_maize282_maf04")
 SNP55K_maize282_maf04[1:8, 1:10]
