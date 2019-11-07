@@ -87,9 +87,9 @@ effect sizes are 0.04, 0.2 and 0.1 for each trait, respectively.
 Heritability for trait\_1 is 0.2, while the heritability of the two
 correlated traits is 0.4. Each replicate is being recorded in a
 different file (`output_format = "multi-file"`) in a folder named
-“Results\_Pleotropic”. The correlation between traits is not specified
-by the user; instead, the observed correlation is an artifact of
-different allelic effects for each trait. The same QTNs are used to
+“Results\_Pleiotropic”. The correlation between traits is not
+specified by the user; instead, the observed correlation is an artifact
+of different allelic effects for each trait. The same QTNs are used to
 generate phenotypes in all 10 replications (`vary_QTN = FALSE`);
 alternatively, one could select different QTNs in each replicate using
 `vary_QTN = TRUE` (default). The vector `add_effect` contains one
