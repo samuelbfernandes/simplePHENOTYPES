@@ -7,8 +7,8 @@
 
 <!-- badges: end -->
 
-simplePHENOTYPES is a package to make the simulation of molecular
-marker-based multi-trait phenotypes accessible to any R user.
+simplePHENOTYPES aims to make it simple to simulate traits under
+pleiotropy, partial-pleiotropy and linkage disequilibrium.
 
 This short tutorial presents some of the possible genetic architectures
 that one could simulate, but it certainly does not explore all the
@@ -294,6 +294,6 @@ Questions, suggestions, and bug reports are welcome and appreciated.
 
 Author: Samuel B Fernandes and Alexander E Lipka
 
-Contact: <samuelf@illinois.edu>
+Contact: <samuelf@illinois.edu> or <samuelfernandes@agronomo.eng.br>
 
 Institution: University of Illinois at Urbana-Champaign
