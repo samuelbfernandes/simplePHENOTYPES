@@ -288,3 +288,13 @@ create_phenotypes(
   model = "ADE"
 )
 ```
+
+# Contact
+
+Questions, suggestions, and bug reports are welcome and appreciated.
+
+Author: Samuel B Fernandes and Alexander E Lipka
+
+Contact: <samuelf@illinois.edu>
+
+Institution: University of Illinois at Urbana-Champaign
