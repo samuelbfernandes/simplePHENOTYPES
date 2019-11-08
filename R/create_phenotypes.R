@@ -295,7 +295,7 @@ create_phenotypes <-
       if (sum(c(!is.null(geno_obj),
                 !is.null(geno_file),
                 !is.null(geno_path))) != 1) {
-        stop("Please provide one of `geno_obj`, `geno_file` or `geno_path`.", call. = F)
+        stop("Please provide (only) one of `geno_obj`, `geno_file` or `geno_path`.", call. = F)
       }
       if (!is.null(model)){
         if (!(grepl("A", model) | grepl("D", model) | grepl("E", model))) {
@@ -521,7 +521,7 @@ create_phenotypes <-
                   all(pleio_a > 1)) {
                 af <- matrix(NA, pleio_a, ntraits)
                 for (i in 1:ntraits) {
-                  af[2,] <- add_effect[[i]][1:pleio_a]
+                  af[,i] <- add_effect[[i]][1:pleio_a]
                 }
                 a_var <- all(apply(af, 2, var) == 0)
               }
@@ -531,7 +531,7 @@ create_phenotypes <-
                   all(pleio_d > 1)) {
                 df <- matrix(NA, pleio_d, ntraits)
                 for (i in 1:ntraits) {
-                  df[2,] <- dom_effect[[i]][1:pleio_d]
+                  df[,i] <- dom_effect[[i]][1:pleio_d]
                 }
                 d_var <- all(apply(df, 2, var) == 0)
               }
@@ -541,7 +541,7 @@ create_phenotypes <-
                   all(pleio_e > 1)) {
                 ef <- matrix(NA, pleio_e, ntraits)
                 for (i in 1:ntraits) {
-                  ef[2,] <- epi_effect[[i]][1:pleio_e]
+                  ef[,i] <- epi_effect[[i]][1:pleio_e]
                 }
                 e_var <- all(apply(ef, 2, var) == 0)
               }
@@ -760,6 +760,12 @@ create_phenotypes <-
           geno_obj$chr <- as.numeric(
             gsub("\\D+", "", geno_obj$chr)
           )
+        }
+        al_na <- is.na(geno_obj$allele)
+        if (any(al_na)) {
+          geno_obj$allele[which(al_na)] <- "A/T"
+          warning("To create a gds file, \"A/T\" will arbitrarily be assigned to alleles coded as NA.",
+                  call. = F, immediate. = T)
         }
         SNPRelate::snpgdsCreateGeno(
           paste0(home_dir, "/", gdsfile, ".gds"),
