@@ -1,4 +1,4 @@
-#' Simulation of ntraits phenotypes based on a SNP file
+#' Simulation of single/multiple traits under different models and genetic architectures.
 #' @export
 #' @import utils
 #' @import stats
@@ -97,7 +97,7 @@
 #' exported along with simulated phenotypes.
 #' @param export_gt If TRUE genotypes of selected QTNs will be saved at file.
 #' If FALSE (default), only the QTN information will be saved.
-#' @param home_dir Home directory. Default is current working directory.
+#' @param home_dir Directory where files will be saved. It might be home_dir = getwd().
 #' @param output_dir Name to be used to create a folder and save output files.
 #' @param to_r Option for saving simulated results into R in addition to saving 
 #' it to file. If TRUE, results need to be assigned to an R object (see vignette).
@@ -130,10 +130,14 @@
 #' @param major_allele_zero Parameter used for numericalization. Following 
 #' GAPIT implementation, the default is FALSE.
 #' @param quiet Whether or not the log file should be opened once the simulation is done.
+#' @param verbose if FALSE, suppress prints.
 #' @return Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits'
 #'  traits, log file.
-#' @author Samuel Fernandes and Alexander Lipka
-#' Last update: Nov 05, 2019
+#' @references Rice, B., Lipka, A. E. (2019). Evaluation of RR-BLUP genomic selection models that incorporate peak genome-wide association study signals in maize and sorghum. Plant Genome 12, 1–14.\doi{10.3835/plantgenome2018.07.0052} \cr
+#' 
+#' Alexander E. Lipka, Feng Tian, Qishan Wang, Jason Peiffer, Meng Li, Peter J. Bradbury, Michael A. Gore, Edward S. Buckler, Zhiwu Zhang, GAPIT: genome association and prediction integrated tool, Bioinformatics, Volume 28, Issue 18, 15 September 2012, Pages 2397–2399, \doi{10.1093/bioinformatics/bts444}
+#' @author Samuel B Fernandes and Alexander E Lipka
+#' Last update: Nov 14, 2019
 #' @examples
 #' # Simulate 50 replications of a single phenotype.
 #'\dontrun{
@@ -145,7 +149,8 @@
 #'   rep = 10,
 #'   h2 = 0.7,
 #'   to_r = TRUE,
-#'   model = "A"
+#'   model = "A",
+#'   home_dir = tempdir()
 #' )
 #'}
 #' # For more examples, please run the following:
@@ -181,7 +186,7 @@ create_phenotypes <-
            cor = NULL,
            seed = NULL,
            export_gt = FALSE,
-           home_dir = getwd(),
+           home_dir = NULL,
            output_dir = NULL,
            to_r = FALSE,
            output_format = "long",
@@ -196,11 +201,15 @@ create_phenotypes <-
            SNP_effect = "Add",
            SNP_impute = "Middle",
            major_allele_zero = FALSE,
-           quiet = FALSE) {
+           quiet = FALSE,
+           verbose = TRUE) {
     # -------------------------------------------------------------------------
     x <- try({
       packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
       sunk <- FALSE
+      if (is.null(home_dir)) {
+        stop("Please provide a path to output results (It may be getwd())!.", call. = F)
+      }
       if (grepl("A", model)) {
         add <- TRUE
       } else {
@@ -583,7 +592,8 @@ create_phenotypes <-
                     prefix = prefix,
                     maf_cutoff = maf_cutoff,
                     SNP_impute = SNP_impute,
-                    major_allele_zero = major_allele_zero)
+                    major_allele_zero = major_allele_zero,
+                    verbose = verbose)
       }
       if (is.null(seed)) {
         seed <- as.integer(runif(1, 0, 1000000))
@@ -1035,7 +1045,8 @@ create_phenotypes <-
                 add = add,
                 dom = dom,
                 epi = epi,
-                sim_method = sim_method
+                sim_method = sim_method,
+                verbose = verbose
               )
           }else{
             genetic_value <-
@@ -1054,7 +1065,8 @@ create_phenotypes <-
                 add = add,
                 dom = dom,
                 epi = epi,
-                sim_method = sim_method
+                sim_method = sim_method,
+                verbose = verbose
               )
           }
         }else{
@@ -1072,7 +1084,8 @@ create_phenotypes <-
               add = add,
               dom = dom,
               epi = epi,
-              sim_method = sim_method
+              sim_method = sim_method,
+              verbose = verbose
             )
         }
         if (!is.null(cor)) {
@@ -1107,9 +1120,10 @@ create_phenotypes <-
         fam = fam,
         to_r = to_r,
         rep_by = rep_by,
-        hets = unlist(hets)
+        hets = unlist(hets),
+        verbose = verbose
       )
-      cat("\n\nResults are saved at:", getwd())
+      cat("\n\nResults are saved at:", home_dir)
       sink()
       close(zz)
       if (!quiet) {file.show(paste0(path_out, "/Log_Sim.txt"))}
