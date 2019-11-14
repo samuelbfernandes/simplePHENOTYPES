@@ -1,5 +1,5 @@
 #' Calculate genetic value based on QTN objects.
-#' @export
+#' @keywords internal
 #' @param add_obj hhh
 #' @param dom_obj hhh
 #' @param epi_obj hhh
@@ -15,6 +15,7 @@
 #' @param dom = NULL,
 #' @param epi = NULL
 #' @param sim_method = NULL,
+#' @param verbose = TRUE
 #' @return A matrix of Genetic values for multiple traits
 #' @author Samuel Fernandes
 #' Last update: Nov 05, 2019
@@ -35,7 +36,8 @@ base_line_multi_traits <-
            add = NULL,
            dom = NULL,
            epi = NULL,
-           sim_method = NULL) {
+           sim_method = NULL,
+           verbose = TRUE) {
     #'--------------------------------------------------------------------------
     traits <- NULL
     VA <- NULL
@@ -91,13 +93,13 @@ base_line_multi_traits <-
           genetic_s <- apply(genetic_value, 2, scale)
           cg <- cov(genetic_s)
           if (!lqmm::is.positive.definite(cg)) {
-            cat("Using lqmm::make.positive.definite() to make genetic correlation positive definite!\n")
+            if (verbose) cat("Using lqmm::make.positive.definite() to make genetic correlation positive definite!\n")
             cg <- lqmm::make.positive.definite(cg)
           }
           L <- t(chol(cg))
           G_white <- t(solve(L) %*% t(genetic_s))
           if (!lqmm::is.positive.definite(cor)) {
-            cat("cor matrix not positive definite! Applying lqmm::make.positive.definite() \n")
+            if (verbose) cat("cor matrix not positive definite! Applying lqmm::make.positive.definite() \n")
             cor <- lqmm::make.positive.definite(cor)
           }
           L <- t(chol(cor))
@@ -161,13 +163,13 @@ base_line_multi_traits <-
           genetic_s <- apply(genetic_value, 2, scale)
           cg <- cov(genetic_s)
           if (!lqmm::is.positive.definite(cg)) {
-            cat("Using lqmm::make.positive.definite() to make genetic correlation positive definite!\n")
+            if (verbose) cat("Using lqmm::make.positive.definite() to make genetic correlation positive definite!\n")
             cg <- lqmm::make.positive.definite(cg)
           }
           L <- t(chol(cg))
           G_white <- t(solve(L) %*% t(genetic_s))
           if (!lqmm::is.positive.definite(cor)) {
-            cat(
+            if (verbose) cat(
               "cor matrix not positive definite! Applying lqmm::make.positive.definite \n"
             )
             cor <-

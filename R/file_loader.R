@@ -1,5 +1,4 @@
 #' Function used by create_phenotypes to load marker dataset.
-#' @export
 #' @param geno_obj = NULL,
 #' @param geno_file = NULL,
 #' @param geno_path = NULL,
@@ -8,8 +7,10 @@
 #' @param na_string = "NA",
 #' @param prefix = NULL,
 #' @param SNP_impute = "Middle",
+#' @keywords internal
 #' @param SNP_effect = "Add",
 #' @param major_allele_zero = FALSE
+#' @param verbose = TRUE
 #' @return genotype data sampled
 #' @author  Samuel Fernandes
 #' Last update: Nov 05, 2019
@@ -24,7 +25,8 @@ file_loader <-
            prefix = NULL,
            SNP_impute = "Middle",
            SNP_effect = "Add",
-           major_allele_zero = FALSE) {
+           major_allele_zero = FALSE,
+           verbose = TRUE) {
     #'--------------------------------------------------------------------------
     if (is.null(geno_obj) &&
         is.null(geno_file) &&
@@ -32,11 +34,11 @@ file_loader <-
       stop("Please provide one of: \'geno_obj\', \'geno_file\' or \'geno_path\'", call. = F)
     }
     if (!is.null(geno_obj)){
-      cat("File loaded from memory. \n")
+      if (verbose) cat("File loaded from memory. \n")
       if (input_format == "hapmap") {
         GT <- as.matrix(colnames(geno_obj)[- (1:11)])
         GI <- geno_obj[, c(1, 2, 3, 4)]
-        print(paste0(
+        if (verbose) print(paste0(
           "Converting HapMap format to numerical under model of ",
           SNP_impute
         ))
@@ -44,7 +46,7 @@ file_loader <-
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         GD <- NULL
         bit <- nchar(as.character(geno_obj[2, 12]))
-        print("Performing numericalization")
+        if (verbose) print("Performing numericalization")
         GD <- apply(geno_obj[, - (1:11)], 1, function(one)
           GAPIT_numericalization(
             one,
@@ -83,8 +85,8 @@ file_loader <-
                             dir(geno_path)[grepl(prefix,
                                                       dir(geno_path))])
           }
-          cat("Reading the following HapMap files: \n")
-          cat( files, sep = "\n")
+          if (verbose) cat("Reading the following HapMap files: \n")
+          if (verbose) cat( files, sep = "\n")
           G <- vector("list", length(files))
           count <- 1
           for (i in files) {

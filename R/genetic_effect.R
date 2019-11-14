@@ -1,5 +1,5 @@
 #' Calculate genetic value based on QTN objects.
-#' @export
+#' @keywords internal
 #' @param add_obj = NULL,
 #' @param dom_obj = NULL,
 #' @param epi_obj = NULL,

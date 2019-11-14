@@ -1,5 +1,5 @@
 #' Generate a numeric (dosage) HapMap file
-#' @export
+#' @keywords internal
 #' @param geno_obj = NULL,
 #' @param geno_file = NULL,
 #' @param input_format = "hapmap",
@@ -11,6 +11,7 @@
 #' @param SNP_effect = 'Add',
 #' @param SNP_impute = 'Middle',
 #' @param major_allele_zero = FALSE,
+#' @param verbose = verbose
 #' @return A numeric HapMap
 #' @author Samuel Fernandes and Alexander Lipka
 #' Last update: Nov 05, 2019
@@ -27,7 +28,8 @@ genotypes <-
            maf_cutoff = NULL,
            SNP_effect = "Add",
            SNP_impute = "Middle",
-           major_allele_zero = FALSE) {
+           major_allele_zero = FALSE,
+           verbose = TRUE) {
     #---------------------------------------------------------------------------
     hmp <- file_loader(
       geno_obj = geno_obj,
@@ -36,7 +38,8 @@ genotypes <-
       input_format = input_format,
       nrows = nrows,
       na_string = na_string,
-      prefix = prefix
+      prefix = prefix,
+      verbose = verbose
     )
     if (!is.null(maf_cutoff)) {
       hm <- list(GT = hmp$GT,

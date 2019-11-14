@@ -1,5 +1,5 @@
 #' Generate environmental effects based on a given heritability
-#' @export
+#' @keywords internal
 #' @param base_line_trait = NULL,
 #' @param h2 = NULL,
 #' @param rep = NULL,
@@ -10,6 +10,7 @@
 #' @param to_r = FALSE
 #' @param rep_by = 'QTN'
 #' @param hets = 'QTN'
+#' @param verbose = TRUE
 #' @return Phenotypes for ntraits traits
 #' @author Samuel Fernandes and Alexander Lipka
 #' Last update: Nov 05, 2019
@@ -25,7 +26,8 @@ phenotypes <-
            fam = NULL,
            to_r = NULL,
            rep_by = NULL,
-           hets = NULL) {
+           hets = NULL,
+           verbose = TRUE) {
     #---------------------------------------------------------------------------
     h <- 0
     n <- nrow(base_line_trait[[1]]$base_line)
@@ -249,10 +251,10 @@ phenotypes <-
           }
         }
         colnames(H2) <- paste0("Trait_", 1:ntraits)
-          cat("\nSample heritability (Average of",
+          if (verbose) cat("\nSample heritability (Average of",
               rep,
               " replications): \n")
-        print(H2)
+        if (verbose) print(H2)
         if (to_r) {
           simulated_data <- do.call(rbind, simulated_data)
           return(simulated_data)
@@ -432,11 +434,11 @@ phenotypes <-
           }
         }
           H2 <- apply(H2, 2, mean)
-          cat("\nSample heritability (Average of",
+          if (verbose) cat("\nSample heritability (Average of",
               rep,
               " replications): \n"
           )
-          print(H2)
+          if (verbose) print(H2)
         if (to_r) {
           return(simulated_data)
         }
@@ -656,10 +658,10 @@ phenotypes <-
           }
         }
         colnames(H2) <- paste0("Trait_", 1:ntraits)
-        cat("\nSample heritability (Average of",
+        if (verbose) cat("\nSample heritability (Average of",
             rep - h,
             " replications): \n")
-        print(H2)
+        if (verbose) print(H2)
         if (to_r) {
           simulated_data <- do.call(rbind, simulated_data)
           return(simulated_data)
@@ -849,10 +851,10 @@ phenotypes <-
           }
         }
         H2 <- apply(H2, 2, mean, na.rm = T)
-        cat("\nSample heritability (Average of",
+        if (verbose) cat("\nSample heritability (Average of",
             rep - h,
             " replications): \n")
-        print(H2)
+        if (verbose) print(H2)
         if (to_r) {
           return(simulated_data)
         }

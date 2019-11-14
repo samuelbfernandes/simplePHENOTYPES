@@ -1,5 +1,5 @@
-#' Select SNPs to be assigned as QTNs
-#' @export
+#' Select SNPs to be assigned as QTNs: To be included LD, FST
+#' @keywords internal
 #' @param genotypes = NULL,
 #' @param maf_above = NULL
 #' @param maf_below = NULL

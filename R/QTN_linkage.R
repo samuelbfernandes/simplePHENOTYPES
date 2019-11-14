@@ -1,5 +1,5 @@
 #' Select SNPs to be assigned as QTNs
-#' @export
+#' @keywords internal
 #' @param genotypes = NULL,
 #' @param seed = NULL,
 #' @param add_QTN_num = NULL,
