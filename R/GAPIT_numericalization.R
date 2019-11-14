@@ -1,14 +1,16 @@
-#' convert character SNP genotype to numerical
-#' @export
+#' convert character SNP genotype to numerical. 
+#' Alexander E. Lipka, Feng Tian, Qishan Wang, Jason Peiffer, Meng Li,
+#' Peter J. Bradbury, Michael A. Gore, Edward S. Buckler, Zhiwu Zhang
+#' GAPIT: genome association and prediction integrated tool, Bioinformatics,
+#' Volume 28, Issue 18, 15 September 2012, Pages 2397–2399.
+#' @keywords internal
 #' @param x ggg
 #' @param bit = NULL,
 #' @param effect = 'Add',
 #' @param impute = 'None',
 #' @param major_allele_zero = FALSE,
 #' @return Corresponding numerical value
-#' @author Feng Tian and Zhiwu Zhang (Modified by Samuel Fernandes)
-#' Last update: Sep 20, 2019
-#'
+#' @source \doi{10.1093/bioinformatics/bts444}
 #'--------------------------numericalization---------------------------------
 GAPIT_numericalization <-
   function(x,
