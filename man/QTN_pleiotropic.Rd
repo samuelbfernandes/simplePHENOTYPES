@@ -47,3 +47,4 @@ Select SNPs to be assigned as QTNs.
 Samuel Fernandes and Alexander Lipka
 Last update: Nov 05, 2019
 }
+\keyword{internal}

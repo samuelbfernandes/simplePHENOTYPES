@@ -7,7 +7,7 @@
 file_loader(geno_obj = NULL, geno_file = NULL, geno_path = NULL,
   input_format = "hapmap", nrows = Inf, na_string = "NA",
   prefix = NULL, SNP_impute = "Middle", SNP_effect = "Add",
-  major_allele_zero = FALSE)
+  major_allele_zero = FALSE, verbose = TRUE)
 }
 \arguments{
 \item{geno_obj}{= NULL,}
@@ -29,6 +29,8 @@ file_loader(geno_obj = NULL, geno_file = NULL, geno_path = NULL,
 \item{SNP_effect}{= "Add",}
 
 \item{major_allele_zero}{= FALSE}
+
+\item{verbose}{= TRUE}
 }
 \value{
 genotype data sampled
@@ -42,3 +44,4 @@ Last update: Nov 05, 2019
 ------------------------------------------------------------------------------
 --------------------------------------------------------------------------
 }
+\keyword{internal}

@@ -2,7 +2,7 @@
 % Please edit documentation in R/create_phenotypes.R
 \name{create_phenotypes}
 \alias{create_phenotypes}
-\title{Simulation of ntraits phenotypes based on a SNP file}
+\title{Simulation of single/multiple traits under different models and genetic architectures.}
 \usage{
 create_phenotypes(geno_obj = NULL, geno_file = NULL,
   geno_path = NULL, rep = NULL, ntraits = 1, h2 = NULL,
@@ -14,12 +14,12 @@ create_phenotypes(geno_obj = NULL, geno_file = NULL,
   trait_spec_d_QTN_num = NULL, trait_spec_e_QTN_num = NULL, ld = 0.5,
   sim_method = "geometric", vary_QTN = FALSE,
   big_add_QTN_effect = NULL, cor = NULL, seed = NULL,
-  export_gt = FALSE, home_dir = getwd(), output_dir = NULL,
+  export_gt = FALSE, home_dir = NULL, output_dir = NULL,
   to_r = FALSE, output_format = "long", out_geno = NULL,
   gdsfile = NULL, constrains = list(maf_above = NULL, maf_below =
   NULL), prefix = NULL, maf_cutoff = NULL, nrows = Inf,
   na_string = "NA", SNP_effect = "Add", SNP_impute = "Middle",
-  major_allele_zero = FALSE, quiet = FALSE)
+  major_allele_zero = FALSE, quiet = FALSE, verbose = TRUE)
 }
 \arguments{
 \item{geno_obj}{Marker dataset loaded as an R object.
@@ -142,7 +142,7 @@ exported along with simulated phenotypes.}
 \item{export_gt}{If TRUE genotypes of selected QTNs will be saved at file.
 If FALSE (default), only the QTN information will be saved.}
 
-\item{home_dir}{Home directory. Default is current working directory.}
+\item{home_dir}{Directory where files will be saved. It might be home_dir = getwd().}
 
 \item{output_dir}{Name to be used to create a folder and save output files.}
 
@@ -189,13 +189,15 @@ implementation, the default is 'Middle'.}
 GAPIT implementation, the default is FALSE.}
 
 \item{quiet}{Whether or not the log file should be opened once the simulation is done.}
+
+\item{verbose}{if FALSE, suppress prints.}
 }
 \value{
 Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits'
  traits, log file.
 }
 \description{
-Simulation of ntraits phenotypes based on a SNP file
+Simulation of single/multiple traits under different models and genetic architectures.
 }
 \examples{
 # Simulate 50 replications of a single phenotype.
@@ -208,14 +210,20 @@ pheno <- create_phenotypes(
   rep = 10,
   h2 = 0.7,
   to_r = TRUE,
-  model = "A"
+  model = "A",
+  home_dir = tempdir()
 )
 }
 # For more examples, please run the following:
 # vignette("simplePHENOTYPES")
 
 }
+\references{
+Rice, B., Lipka, A. E. (2019). Evaluation of RR-BLUP genomic selection models that incorporate peak genome-wide association study signals in maize and sorghum. Plant Genome 12, 1–14.\doi{10.3835/plantgenome2018.07.0052} \cr
+
+Alexander E. Lipka, Feng Tian, Qishan Wang, Jason Peiffer, Meng Li, Peter J. Bradbury, Michael A. Gore, Edward S. Buckler, Zhiwu Zhang, GAPIT: genome association and prediction integrated tool, Bioinformatics, Volume 28, Issue 18, 15 September 2012, Pages 2397–2399, \doi{10.1093/bioinformatics/bts444}
+}
 \author{
-Samuel Fernandes and Alexander Lipka
-Last update: Nov 05, 2019
+Samuel B Fernandes and Alexander E Lipka
+Last update: Nov 14, 2019
 }

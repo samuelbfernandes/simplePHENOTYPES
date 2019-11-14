@@ -2,7 +2,7 @@
 % Please edit documentation in R/constrain.R
 \name{constrain}
 \alias{constrain}
-\title{Select SNPs to be assigned as QTNs}
+\title{Select SNPs to be assigned as QTNs: To be included LD, FST}
 \usage{
 constrain(genotypes = NULL, maf_above = NULL, maf_below = NULL)
 }
@@ -17,7 +17,7 @@ constrain(genotypes = NULL, maf_above = NULL, maf_below = NULL)
 ...
 }
 \description{
-Select SNPs to be assigned as QTNs
+Select SNPs to be assigned as QTNs: To be included LD, FST
 }
 \author{
 Samuel Fernandes
@@ -25,3 +25,4 @@ Last update: Sep 23, 2019
 
 ----------------------------- constrain ---------------------------------
 }
+\keyword{internal}
