@@ -763,19 +763,18 @@ create_phenotypes <-
         }
         al_na <- is.na(geno_obj$allele)
         if (any(al_na)) {
-          geno_obj$allele[which(al_na)] <- "A/T"
-          warning("To create a gds file, \"A/T\" will arbitrarily be assigned to alleles coded as NA.",
+          stop("Allele information must be provided to create GDS file.",
                   call. = F, immediate. = T)
         }
         SNPRelate::snpgdsCreateGeno(
           paste0(home_dir, "/", gdsfile, ".gds"),
-          genmat = as.matrix(geno_obj[, -c(1:5)]),
+          genmat = t(geno_obj[, -c(1:5)]),
           sample.id = colnames(geno_obj)[-c(1:5)],
           snp.id = as.character(geno_obj$snp),
           snp.chromosome = geno_obj$chr,
           snp.position = geno_obj$pos,
           snp.allele = as.character(geno_obj$allele),
-          snpfirstdim = TRUE
+          snpfirstdim = FALSE
         )
         gdsfmt::showfile.gds(closeall = TRUE)
         gdsfile <- paste0(home_dir, "/", gdsfile, ".gds")
@@ -788,7 +787,8 @@ create_phenotypes <-
           SNPRelate::snpgdsGDS2BED(genofile,
                                    bed.fn = "geno",
                                    snp.id = snpset,
-                                   verbose = F)
+                                   verbose = F, 
+                                   snpfirstdim = F)
           SNPRelate::snpgdsClose(genofile)
           cat("\nPlink bed files saved at:", home_dir, "\n")
         }
@@ -802,7 +802,7 @@ create_phenotypes <-
           geno_obj,
           paste0(
             ifelse(is.null(output_dir), "", "../"),
-            "Numeric_SNP_File"
+            "Numeric_SNP_File.txt"
           ),
           row.names = FALSE,
           sep = "\t",
