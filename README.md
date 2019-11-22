@@ -63,8 +63,9 @@ In this setting, the simulated trait is controlled by one large-effect
 QTN (additive effect of 0.9) and two small effect QTNs with additive
 effects following a geometric series starting with 0.2; thus the effect
 size of the first of these two QTNs is 0.2, and the effect size of the
-second is 0.2^2. Please see help files (?create\_phenotypes) to see
-which default values are being used.
+second is 0.2^2. Results are being saved at a temporary directory
+(`home_dir = tempdir()`). Please see help files (?create\_phenotypes) to
+see which default values are being used.
 
 ``` r
 create_phenotypes(
@@ -74,7 +75,8 @@ create_phenotypes(
   big_add_QTN_effect = 0.9,
   rep = 10,
   h2 = 0.7,
-  model = "A")
+  model = "A",
+  home_dir = getwd())
 ```
 
 # Multiple Traits: Pleiotropic Architecture
@@ -114,7 +116,8 @@ used to generate allelic effects for each one of the three additive QTNs
     to_r = TRUE,
     seed = 10,
     model = "AD",
-    sim_method = "geometric"
+    sim_method = "geometric",
+    home_dir = getwd()
   )
 ```
 
@@ -152,7 +155,8 @@ custom\_geometric\_d list.
    to_r = T,
    sim_method = "custom",
    seed = 10,
-   model = "AD"
+   model = "AD",
+   home_dir = getwd()
  )
  
  all.equal(test1, test2)
@@ -197,7 +201,8 @@ sim_results <- create_phenotypes(
   architecture = "partially",
   out_geno = "numeric",
   to_r = TRUE,
-  model = "AED"
+  model = "AED",
+  home_dir = getwd()
 )
 ```
 
@@ -227,7 +232,8 @@ create_phenotypes(
   output_dir = "Results_LD",
   out_geno = "plink",
   ld=0.8,
-  model = "A"
+  model = "A",
+  home_dir = getwd()
 )
 ```
 
@@ -259,7 +265,8 @@ create_phenotypes(
   output_dir = "Results_Partially_E",
   output_format = "gemma",
   architecture = "partially",
-  model = "AE"
+  model = "AE",
+  home_dir = getwd()
 )
 ```
 
@@ -284,7 +291,8 @@ create_phenotypes(
   seed = 200,
   output_format = "gemma",
   output_dir = "Results",
-  model = "ADE"
+  model = "ADE",
+  home_dir = getwd()
 )
 ```
 
@@ -294,6 +302,6 @@ Questions, suggestions, and bug reports are welcome and appreciated.
 
 Author: Samuel B Fernandes and Alexander E Lipka
 
-Contact: <samuelf@illinois.edu> or <samuelfernandes@agronomo.eng.br>
+Contact: <samuelf@illinois.edu> or <fernandessb101@gmail.com>
 
 Institution: University of Illinois at Urbana-Champaign
