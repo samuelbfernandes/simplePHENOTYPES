@@ -786,7 +786,7 @@ create_phenotypes <-
           snp.allele = as.character(geno_obj$allele),
           snpfirstdim = FALSE
         )
-        gdsfmt::showfile.gds(closeall = TRUE)
+        gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
         gdsfile <- paste0(home_dir, "/", gdsfile, ".gds")
         if (out_geno == "gds") cat("GDS files saved at:", home_dir, "\n")
         if (out_geno == "plink" |
@@ -799,7 +799,7 @@ create_phenotypes <-
                                    snp.id = snpset,
                                    verbose = F, 
                                    snpfirstdim = F)
-          SNPRelate::snpgdsClose(genofile)
+          gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
           cat("\nPlink bed files saved at:", home_dir, "\n")
         }
       }
@@ -882,12 +882,12 @@ create_phenotypes <-
       hets <- NULL
       if (dom & !is.null(dom_effect)) {
         h_num <- if(!is.null(dom_QTN_num)) {
-          dom_QTN_num > 0 & any(dom_effect > 0)
+          dom_QTN_num > 0 & any(unlist(dom_effect) > 0)
         } else if (!is.null(pleio_d) &
                    !is.null(trait_spec_d_QTN_num)) {
           all(pleio_d > 0 & trait_spec_d_QTN_num > 0)
         }
-        if (h_num & any(dom_effect > 0) ) {
+        if (h_num & any(unlist(dom_effect) > 0) ) {
           if (same_add_dom_QTN & add){
             if (rep_by == "QTN" |
                 architecture == "partially" |
