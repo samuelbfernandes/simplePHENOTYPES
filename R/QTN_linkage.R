@@ -83,14 +83,14 @@ QTN_linkage <-
             snp1 <-
               gdsfmt::read.gdsn(
                 gdsfmt::index.gdsn(genofile, "genotype"),
-                start = c(j, 1),
-                count = c(1, -1)
+                start = c(1, j),
+                count = c(-1, 1)
               )
             snp2 <-
               gdsfmt::read.gdsn(
                 gdsfmt::index.gdsn(genofile, "genotype"),
-                start = c(i, 1),
-                count = c(1, -1)
+                start = c(1, i),
+                count = c(-1, 1)
               )
             ldsup <-
               abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = "composite"))
@@ -107,8 +107,8 @@ QTN_linkage <-
             snp3 <-
               gdsfmt::read.gdsn(
                 gdsfmt::index.gdsn(genofile, "genotype"),
-                start = c(i2, 1),
-                count = c(1, -1)
+                start = c(1, i2),
+                count = c(-1, 1)
               )
             ldinf <-
               abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = "composite"))
@@ -204,14 +204,14 @@ QTN_linkage <-
               snp1 <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
-                  start = c(j, 1),
-                  count = c(1, -1)
+                  start = c(1, j),
+                  count = c(-1, 1)
                 )
               snp2 <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
-                  start = c(i, 1),
-                  count = c(1, -1)
+                  start = c(1, i),
+                  count = c(-1, 1)
                 )
               ldsup <-
                 abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = "composite"))
@@ -228,8 +228,8 @@ QTN_linkage <-
               snp3 <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
-                  start = c(i2, 1),
-                  count = c(1, -1)
+                  start = c(1, i2),
+                  count = c(-1, 1)
                 )
               ldinf <-
                 abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = "composite"))
@@ -325,14 +325,14 @@ QTN_linkage <-
               snp1 <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
-                  start = c(j, 1),
-                  count = c(1, -1)
+                  start = c(1, j),
+                  count = c(-1, 1)
                 )
               snp2 <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
-                  start = c(i, 1),
-                  count = c(1, -1)
+                  start = c(1, i),
+                  count = c(-1, 1)
                 )
               ldsup <-
                 abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = "composite"))
@@ -349,8 +349,8 @@ QTN_linkage <-
               snp3 <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
-                  start = c(i2, 1),
-                  count = c(1, -1)
+                  start = c(1, i2),
+                  count = c(-1, 1)
                 )
               ldinf <-
                 abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = "composite"))
