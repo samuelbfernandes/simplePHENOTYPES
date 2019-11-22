@@ -65,7 +65,7 @@
 #' @param pleio_e Number of pleiotropic epistatic QTNs to be 
 #' used if `architecture = "partially"`.
 #' @param trait_spec_a_QTN_num Number of trait specific additive QTNs if
-#'`architecture = "partially"`.. It should have length equals to `ntraits`.
+#'`architecture = "partially"`. It should have length equals to `ntraits`.
 #' @param trait_spec_d_QTN_num Number of trait specific dominance QTNs if
 #' `architecture = "partially"`. It should have length equals to `ntraits`.
 #' @param trait_spec_e_QTN_num Number of trait specific epistatic QTNs if
@@ -338,6 +338,9 @@ create_phenotypes <-
         if (add) {
           temp_add <- add_effect
           if (architecture == "partially"){
+            if (length(trait_spec_a_QTN_num) != ntraits){
+              stop("Parameter \'trait_spec_a_QTN_num\' should be of length ntraits", call. = F)
+            }
             a_qtns <- (trait_spec_a_QTN_num + pleio_a)
             if (all(a_qtns == 0) ) {
               a_qtns <- rep(0, ntraits)
@@ -371,6 +374,9 @@ create_phenotypes <-
         }
         if (dom) {
           if (architecture == "partially") {
+            if (length(trait_spec_d_QTN_num) != ntraits){
+              stop("Parameter \'trait_spec_d_QTN_num\' should be of length ntraits", call. = F)
+            }
             d_qtns <- (trait_spec_d_QTN_num + pleio_d)
             if (all(d_qtns == 0 )) {
               d_qtns <- rep(0, ntraits)
@@ -392,6 +398,9 @@ create_phenotypes <-
         }
         if (epi) {
           if (architecture == "partially") {
+            if (length(trait_spec_e_QTN_num) != ntraits){
+              stop("Parameter \'trait_spec_e_QTN_num\' should be of length ntraits", call. = F)
+            }
             e_qtns <- (trait_spec_e_QTN_num + pleio_e)
             if (all(e_qtns == 0 )) {
               e_qtns <- rep(0, ntraits)
