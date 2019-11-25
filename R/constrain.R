@@ -1,11 +1,11 @@
 #' Select SNPs to be assigned as QTNs: To be included LD, FST
 #' @keywords internal
-#' @param genotypes = NULL,
-#' @param maf_above = NULL
-#' @param maf_below = NULL
-#' @return ...
+#' @param genotypes a numericalized genotype object (geno_obj).
+#' @param maf_above Threshold for the minimum value of minor allele frequency.
+#' @param maf_below Threshold for the maximum value of minor allele frequency.
+#' @return Return a filtered dataset to be used when selecting QTNs.
 #' @author Samuel Fernandes
-#' Last update: Sep 23, 2019
+#' Last update: Nov 25, 2019
 #'
 #'----------------------------- constrain ---------------------------------
 constrain <-

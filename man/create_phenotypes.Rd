@@ -100,7 +100,7 @@ used if `architecture = "partially"`.}
 used if `architecture = "partially"`.}
 
 \item{trait_spec_a_QTN_num}{Number of trait specific additive QTNs if
-`architecture = "partially"`.. It should have length equals to `ntraits`.}
+`architecture = "partially"`. It should have length equals to `ntraits`.}
 
 \item{trait_spec_d_QTN_num}{Number of trait specific dominance QTNs if
 `architecture = "partially"`. It should have length equals to `ntraits`.}
