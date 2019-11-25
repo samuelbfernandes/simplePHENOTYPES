@@ -7,21 +7,21 @@
 constrain(genotypes = NULL, maf_above = NULL, maf_below = NULL)
 }
 \arguments{
-\item{genotypes}{= NULL,}
+\item{genotypes}{a numericalized genotype object (geno_obj).}
 
-\item{maf_above}{= NULL}
+\item{maf_above}{Threshold for the minimum value of minor allele frequency.}
 
-\item{maf_below}{= NULL}
+\item{maf_below}{Threshold for the maximum value of minor allele frequency.}
 }
 \value{
-...
+Return a filtered dataset to be used when selecting QTNs.
 }
 \description{
 Select SNPs to be assigned as QTNs: To be included LD, FST
 }
 \author{
 Samuel Fernandes
-Last update: Sep 23, 2019
+Last update: Nov 25, 2019
 
 ----------------------------- constrain ---------------------------------
 }
