@@ -57,7 +57,7 @@ QTN_linkage <-
                          maf_above = constrains$maf_above,
                          maf_below = constrains$maf_below)
     } else {
-      index <- 6:nrow(genotypes)
+      index <- 1:nrow(genotypes)
     }
     if (same_add_dom_QTN & add) {
       sup <- vector("list", rep)
