@@ -77,7 +77,7 @@ QTN_partially_pleiotropic <-
                          maf_above = constrains$maf_above,
                          maf_below = constrains$maf_below)
     } else {
-      index <- 6:nrow(genotypes)
+      index <- 1:nrow(genotypes)
     }
     if (rep_by != "QTN"){
       rep <- 1
