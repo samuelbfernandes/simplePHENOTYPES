@@ -9,6 +9,8 @@
 [![](https://img.shields.io/badge/Issues-%2B-brightgreen.svg)](https://github.com/samuelbfernandes/simplePHENOTYPES/issues)
 [![License:
 MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://cranlogs.r-pkg.org/badges/grand-total/simplePHENOTYPES?color=blue)](https://cran.r-project.org/package=simplePHENOTYPES)
+
 <!-- badges: end -->
 
 simplePHENOTYPES aims to make it simple to simulate traits under
