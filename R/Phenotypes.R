@@ -52,7 +52,7 @@ phenotypes <-
           simulated_data <- vector("list", rep)
           ss <- c()
           if (any(h2[i, ] == 0)) {
-            colnames <- c("<Taxa>", paste0("Trait_", 1:ntraits), "Rep")
+            colnames <- c("<Trait>", paste0("Trait_", 1:ntraits), "Rep")
             for (z in 1:rep) {
               simulated_data[[z]] <-
                 data.frame(names,
@@ -99,7 +99,7 @@ phenotypes <-
             } else if (output_format == "gemma") {
               invisible(lapply(1:rep, function(x) {
                 temp_fam <-  merge(fam, simulated_data[[x]][- (ntraits + 2)],
-                                   by.x = "V1", by.y = "<Taxa>", sort = FALSE)
+                                   by.x = "V1", by.y = "<Trait>", sort = FALSE)
                 data.table::fwrite(
                   temp_fam,
                   paste0("Simulated_Data_", "_Rep", x, "_Herit_",
@@ -149,7 +149,7 @@ phenotypes <-
             )
           } else {
             residual_cov <-  diag( (va / h2[i, ]) - va)
-            colnames <- c("<Taxa>",
+            colnames <- c("<Trait>",
                           c(paste0("Trait_",
                                    1:ntraits, "_H2_", h2[i, ]), "Rep"))
             for (z in 1:rep) {
@@ -200,7 +200,7 @@ phenotypes <-
             } else if (output_format == "gemma") {
               invisible(lapply(1:rep, function(x) {
                 temp_fam <-  merge(fam, simulated_data[[x]][- (ntraits + 2)],
-                                   by.x = "V1", by.y = "<Taxa>", sort = FALSE)
+                                   by.x = "V1", by.y = "<Trait>", sort = FALSE)
                 data.table::fwrite(
                   temp_fam,
                   paste0("Simulated_Data_", "_Rep", x, "_Herit_",
@@ -272,7 +272,7 @@ phenotypes <-
             simulated_data <-
               data.frame(names, matrix(NA, n, rep))
             colnames(simulated_data) <-
-              c("<Taxa>", paste0("normal_random_variables_", 1:rep))
+              c("<Trait>", paste0("normal_random_variables_", 1:rep))
             for (j in 1:rep) {
               if (!is.null(seed)) {
                 sss <- as.integer(seed + j)
@@ -306,11 +306,11 @@ phenotypes <-
               }))
             } else if (output_format == "long") {
               temp <- simulated_data[, 1:2]
-              colnames(temp) <- c("<Taxa>", "Pheno")
+              colnames(temp) <- c("<Trait>", "Pheno")
               if (rep > 1) {
                 for (x in 2:rep) {
                   temp2 <- simulated_data[, c(1, x + 1)]
-                  colnames(temp2) <- c("<Taxa>", "Pheno")
+                  colnames(temp2) <- c("<Trait>", "Pheno")
                   temp <- rbind(temp, temp2 )
                 }
               }
@@ -326,7 +326,7 @@ phenotypes <-
               )
             } else if (output_format == "gemma") {
               temp_fam <- merge(fam, simulated_data,
-                                by.x = "V1", by.y = "<Taxa>", sort = FALSE)
+                                by.x = "V1", by.y = "<Trait>", sort = FALSE)
               data.table::fwrite(
                 temp_fam,
                 paste0("Simulated_Data_", rep, "_Reps", "_Herit_",
@@ -353,7 +353,7 @@ phenotypes <-
             simulated_data <-
               data.frame(names, matrix(NA, n, rep))
             colnames(simulated_data) <-
-              c("<Taxa>", c(paste0( "Heritability_", h2[i, ], "_Rep_", 1:rep)))
+              c("<Trait>", c(paste0( "Heritability_", h2[i, ], "_Rep_", 1:rep)))
             for (j in 1:rep) {
               if (!is.null(seed)) {
                 sss <- as.integer((seed + j) * round(h2[i, 1] * 10))
@@ -389,11 +389,11 @@ phenotypes <-
               }))
             } else if (output_format == "long") {
               temp <- simulated_data[, 1:2]
-              colnames(temp) <- c("<Taxa>", "Pheno")
+              colnames(temp) <- c("<Trait>", "Pheno")
               if (rep > 1) {
                 for (x in 2:rep) {
                   temp2 <- simulated_data[, c(1, x + 1)]
-                  colnames(temp2) <- c("<Taxa>", "Pheno")
+                  colnames(temp2) <- c("<Trait>", "Pheno")
                   temp <- rbind(temp, temp2)
                 }
               }
@@ -409,7 +409,7 @@ phenotypes <-
               )
             } else if (output_format == "gemma") {
               temp_fam <- merge(fam, simulated_data,
-                                by.x = "V1", by.y = "<Taxa>", sort = FALSE)
+                                by.x = "V1", by.y = "<Trait>", sort = FALSE)
               data.table::fwrite(
                 temp_fam,
                 paste0("Simulated_Data_", rep, "_Reps", "_Herit_",
@@ -455,7 +455,7 @@ phenotypes <-
           H2_temp <- matrix(NA, rep, ntraits)
           ss <- c()
           if (any(h2[i, ] == 0)) {
-            colnames <- c("<Taxa>", paste0("Trait_", 1:ntraits), "Rep")
+            colnames <- c("<Trait>", paste0("Trait_", 1:ntraits), "Rep")
             for (z in 1:rep) {
               simulated_data[[z]] <-
                 data.frame(names,
@@ -501,7 +501,7 @@ phenotypes <-
             } else if (output_format == "gemma") {
               invisible(lapply(1:rep, function(x) {
                 temp_fam <-  merge(fam, simulated_data[[x]][- (ntraits + 2)],
-                                   by.x = "V1", by.y = "<Taxa>", sort = FALSE)
+                                   by.x = "V1", by.y = "<Trait>", sort = FALSE)
                 data.table::fwrite(
                   temp_fam,
                   paste0("Simulated_Data_", "_Rep", x, "_Herit_",
@@ -550,7 +550,7 @@ phenotypes <-
               quote = FALSE
             )
           } else {
-            colnames <- c("<Taxa>",
+            colnames <- c("<Trait>",
                           paste0("Trait_", 1:ntraits, "_H2_", h2[i, ]), "Rep")
             for (z in 1:rep) {
               va <- apply(base_line_trait[[z]]$base_line, 2, var)
@@ -607,7 +607,7 @@ phenotypes <-
             } else if (output_format == "gemma") {
               invisible(lapply(1:rep, function(x) {
                 temp_fam <-  merge(fam, simulated_data[[x]][- (ntraits + 2)],
-                                   by.x = "V1", by.y = "<Taxa>", sort = FALSE)
+                                   by.x = "V1", by.y = "<Trait>", sort = FALSE)
                 data.table::fwrite(
                   temp_fam,
                   paste0("Simulated_Data_", "_Rep", x, "_Herit_",
@@ -674,7 +674,7 @@ phenotypes <-
             simulated_data <-
               data.frame(names, matrix(NA, n, rep))
             colnames(simulated_data) <-
-              c("<Taxa>", paste0("normal_random_variables_", 1:rep))
+              c("<Trait>", paste0("normal_random_variables_", 1:rep))
             for (j in 1:rep) {
               if (!is.null(seed)) {
                 sss <- as.integer(seed + j)
@@ -710,11 +710,11 @@ phenotypes <-
               }))
             } else if (output_format == "long") {
               temp <- simulated_data[, 1:2]
-              colnames(temp) <- c("<Taxa>", "Pheno")
+              colnames(temp) <- c("<Trait>", "Pheno")
               if (rep > 1) {
                 for (x in 2:rep) {
                   temp2 <- simulated_data[, c(1, x + 1)]
-                  colnames(temp2) <- c("<Taxa>", "Pheno")
+                  colnames(temp2) <- c("<Trait>", "Pheno")
                   temp <- rbind(temp, temp2 )
                 }
               }
@@ -730,7 +730,7 @@ phenotypes <-
               )
             } else if (output_format == "gemma") {
               temp_fam <- merge(fam, simulated_data,
-                                by.x = "V1", by.y = "<Taxa>", sort = FALSE)
+                                by.x = "V1", by.y = "<Trait>", sort = FALSE)
               data.table::fwrite(
                 temp_fam,
                 paste0("Simulated_Data_", rep, "_Reps", "_Herit_",
@@ -756,7 +756,7 @@ phenotypes <-
             simulated_data <-
               data.frame(names, matrix(NA, n, rep))
             colnames(simulated_data) <-
-              c("<Taxa>", c(paste0(
+              c("<Trait>", c(paste0(
                 "Heritability_", h2[i, ], "_Rep_", 1:rep
               )))
             for (j in 1:rep) {
@@ -806,11 +806,11 @@ phenotypes <-
               }))
             } else if (output_format == "long") {
               temp <- simulated_data[, 1:2]
-              colnames(temp) <- c("<Taxa>", "Pheno")
+              colnames(temp) <- c("<Trait>", "Pheno")
               if (rep > 1) {
                 for (x in 2:rep) {
                   temp2 <- simulated_data[, c(1, x + 1)]
-                  colnames(temp2) <- c("<Taxa>", "Pheno")
+                  colnames(temp2) <- c("<Trait>", "Pheno")
                   temp <- rbind(temp, temp2 )
                 }
               }
@@ -826,7 +826,7 @@ phenotypes <-
               )
             } else if (output_format == "gemma") {
               temp_fam <- merge(fam, simulated_data,
-                                by.x = "V1", by.y = "<Taxa>", sort = FALSE)
+                                by.x = "V1", by.y = "<Trait>", sort = FALSE)
               data.table::fwrite(
                 temp_fam,
                 paste0("Simulated_Data_", rep, "_Reps", "_Herit_",
