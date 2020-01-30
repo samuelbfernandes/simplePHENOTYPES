@@ -532,45 +532,6 @@ create_phenotypes <-
             if (all(w)) warning("If \'cor = NULL\', allelic effect must be different to generate different correlated traits!",call. = F, immediate. = T)
           }
         }
-        if (architecture == "partially") {
-          if (is.null(cor)) {
-            if (add) {
-              if (!is.null(add_effect) &
-                  all(pleio_a > 1)) {
-                af <- matrix(NA, pleio_a, ntraits)
-                for (i in 1:ntraits) {
-                  af[,i] <- add_effect[[i]][1:pleio_a]
-                }
-                a_var <- all(apply(af, 2, var) == 0)
-              }
-            }
-            if (dom) {
-              if (!is.null(dom_effect) &
-                  all(pleio_d > 1)) {
-                df <- matrix(NA, pleio_d, ntraits)
-                for (i in 1:ntraits) {
-                  df[,i] <- dom_effect[[i]][1:pleio_d]
-                }
-                d_var <- all(apply(df, 2, var) == 0)
-              }
-            }
-            if (epi) {
-              if (!is.null(epi_effect) &
-                  all(pleio_e > 1)) {
-                ef <- matrix(NA, pleio_e, ntraits)
-                for (i in 1:ntraits) {
-                  ef[,i] <- epi_effect[[i]][1:pleio_e]
-                }
-                e_var <- all(apply(ef, 2, var) == 0)
-              }
-            }
-            w <- c()
-            if (exists("a_var")) w <- a_var
-            if (exists("d_var")) w <- c(w, d_var)
-            if (exists("e_var")) w <- c(w, e_var)
-            if (all(w)) warning("If \'cor = NULL\', allelic effects must be different to generate different correlated traits!",call. = F, immediate. = T)
-          }
-        }
         mm <-
           ifelse(
             architecture == "pleiotropic",
@@ -585,17 +546,13 @@ create_phenotypes <-
             )
           )
       }
-      input_format <- "hapmap"
       setwd(home_dir)
       on.exit(setwd(home_dir), add = TRUE)
-      if (!is.null(geno_path) | !is.null(geno_file) |
-          (class(unlist(geno_obj[, 12])) != "numeric" &
-           class(unlist(geno_obj[, 12])) != "integer")) {
+      if (!is.null(geno_path) | !is.null(geno_file)) {
         geno_obj <-
           genotypes(geno_obj = geno_obj,
                     geno_path = geno_path,
                     geno_file = geno_file,
-                    input_format = input_format,
                     nrows = nrows,
                     na_string = na_string,
                     prefix = prefix,
