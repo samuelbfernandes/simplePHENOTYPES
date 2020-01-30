@@ -2,7 +2,6 @@
 #' @keywords internal
 #' @param geno_obj = NULL,
 #' @param geno_file = NULL,
-#' @param input_format = "hapmap",
 #' @param nrows = Inf,
 #' @param na_string = "NA",
 #' @param prefix = NULL,
@@ -21,7 +20,6 @@ genotypes <-
   function(geno_obj = NULL,
            geno_file = NULL,
            geno_path = NULL,
-           input_format = "hapmap",
            nrows = Inf,
            na_string = "NA",
            prefix = NULL,
@@ -35,7 +33,6 @@ genotypes <-
       geno_obj = geno_obj,
       geno_file = geno_file,
       geno_path = geno_path,
-      input_format = input_format,
       nrows = nrows,
       na_string = na_string,
       prefix = prefix,
@@ -58,10 +55,18 @@ genotypes <-
       colnames(geno_obj) <-
         c("snp", "allele", "chr", "pos", "cm", t(as.character(hm$GT)))
     } else {
-      geno_obj <-
-        data.frame(hmp$GI,
-                   rep(NA, nrow(hmp$GI)),
-                   t(hmp$GD))
+      if (nrow(hmp$GD) == nrow(hmp$GI)) {
+        geno_obj <-
+          data.frame(hmp$GI,
+                     rep(NA, nrow(hmp$GI)),
+                     hmp$GD)
+      }else{
+        geno_obj <-
+          data.frame(hmp$GI,
+                     rep(NA, nrow(hmp$GI)),
+                     t(hmp$GD))
+      }
+
       colnames(geno_obj) <-
         c("snp", "allele", "chr", "pos", "cm", t(as.character(hmp$GT)))
     }
