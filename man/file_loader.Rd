@@ -4,10 +4,18 @@
 \alias{file_loader}
 \title{Function used by create_phenotypes to load marker dataset.}
 \usage{
-file_loader(geno_obj = NULL, geno_file = NULL, geno_path = NULL,
-  input_format = "hapmap", nrows = Inf, na_string = "NA",
-  prefix = NULL, SNP_impute = "Middle", SNP_effect = "Add",
-  major_allele_zero = FALSE, verbose = TRUE)
+file_loader(
+  geno_obj = NULL,
+  geno_file = NULL,
+  geno_path = NULL,
+  nrows = Inf,
+  na_string = "NA",
+  prefix = NULL,
+  SNP_impute = "Middle",
+  SNP_effect = "Add",
+  major_allele_zero = FALSE,
+  verbose = TRUE
+)
 }
 \arguments{
 \item{geno_obj}{= NULL,}
@@ -15,8 +23,6 @@ file_loader(geno_obj = NULL, geno_file = NULL, geno_path = NULL,
 \item{geno_file}{= NULL,}
 
 \item{geno_path}{= NULL,}
-
-\item{input_format}{= "hapmap",}
 
 \item{nrows}{= Inf,}
 

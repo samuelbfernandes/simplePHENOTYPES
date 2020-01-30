@@ -4,11 +4,21 @@
 \alias{QTN_pleiotropic}
 \title{Select SNPs to be assigned as QTNs.}
 \usage{
-QTN_pleiotropic(genotypes = NULL, seed = NULL,
-  same_add_dom_QTN = NULL, add_QTN_num = NULL, dom_QTN_num = NULL,
-  epi_QTN_num = NULL, constrains = list(maf_above = NULL, maf_below =
-  NULL), rep = NULL, rep_by = NULL, export_gt = NULL, add = NULL,
-  dom = NULL, epi = NULL)
+QTN_pleiotropic(
+  genotypes = NULL,
+  seed = NULL,
+  same_add_dom_QTN = NULL,
+  add_QTN_num = NULL,
+  dom_QTN_num = NULL,
+  epi_QTN_num = NULL,
+  constrains = list(maf_above = NULL, maf_below = NULL),
+  rep = NULL,
+  rep_by = NULL,
+  export_gt = NULL,
+  add = NULL,
+  dom = NULL,
+  epi = NULL
+)
 }
 \arguments{
 \item{genotypes}{= NULL,}

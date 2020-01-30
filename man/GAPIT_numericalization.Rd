@@ -12,8 +12,13 @@ Volume 28, Issue 18, 15 September 2012, Pages 2397–2399.}
 --------------------------numericalization---------------------------------
 }
 \usage{
-GAPIT_numericalization(x, bit = NULL, effect = "Add",
-  impute = "None", major_allele_zero = FALSE)
+GAPIT_numericalization(
+  x,
+  bit = NULL,
+  effect = "Add",
+  impute = "None",
+  major_allele_zero = FALSE
+)
 }
 \arguments{
 \item{x}{ggg}
