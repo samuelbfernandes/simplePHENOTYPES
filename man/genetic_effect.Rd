@@ -4,9 +4,18 @@
 \alias{genetic_effect}
 \title{Calculate genetic value based on QTN objects.}
 \usage{
-genetic_effect(add_obj = NULL, dom_obj = NULL, epi_obj = NULL,
-  add_effect = NULL, dom_effect = NULL, epi_effect = NULL,
-  sim_method = NULL, add = NULL, dom = NULL, epi = NULL)
+genetic_effect(
+  add_obj = NULL,
+  dom_obj = NULL,
+  epi_obj = NULL,
+  add_effect = NULL,
+  dom_effect = NULL,
+  epi_effect = NULL,
+  sim_method = NULL,
+  add = NULL,
+  dom = NULL,
+  epi = NULL
+)
 }
 \arguments{
 \item{add_obj}{= NULL,}
