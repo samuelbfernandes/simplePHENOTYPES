@@ -261,7 +261,7 @@ QTN_partially_pleiotropic <-
           c(seed + 1:rep),
           paste0(
             "seed_number_for_",
-            paste0(trait_spec_a_QTN_num + pleio_a, collapse = "_"),
+            paste0(pleio_a, collapse = "_"),
             "pleiotropic_Add_QTN",
             ".txt"
           ),
