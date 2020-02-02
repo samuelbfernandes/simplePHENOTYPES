@@ -125,18 +125,18 @@ QTN_linkage <-
         sup[[z]] <- sup_temp
         inf[[z]] <- inf_temp
         QTN_causing_ld[[z]] <-
-          data.frame(SNP = "cause_of_LD", genotypes[vector_of_add_QTN, ])
+          data.frame(SNP = "cause_of_LD", genotypes[vector_of_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
         add_gen_info_sup[[z]] <-
-          data.frame(SNP = "QTN_upstream", genotypes[sup[[z]], ])
+          data.frame(SNP = "QTN_upstream", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
         add_gen_info_inf[[z]] <-
-          data.frame(SNP = "QTN_downstream", genotypes[inf[[z]], ])
+          data.frame(SNP = "QTN_downstream", genotypes[inf[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
         results[[z]] <- rbind(QTN_causing_ld[[z]],
                               add_gen_info_sup[[z]],
                               add_gen_info_inf[[z]])
       }
       results <- do.call(rbind, results)
       results <-
-        data.frame(rep = rep(1:rep, each = add_QTN_num * 3), results)
+        data.frame(rep = rep(1:rep, each = add_QTN_num * 3), results, check.names = FALSE, fix.empty.names = FALSE)
       if (!export_gt){
         results <- results[, 1:6]
       }
@@ -246,11 +246,11 @@ QTN_linkage <-
           sup[[z]] <- sup_temp
           inf[[z]] <- inf_temp
           QTN_causing_ld[[z]] <-
-            data.frame(SNP = "cause_of_LD", genotypes[vector_of_add_QTN, ])
+            data.frame(SNP = "cause_of_LD", genotypes[vector_of_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
           add_gen_info_sup[[z]] <-
-            data.frame(SNP = "QTN_upstream", genotypes[sup[[z]], ])
+            data.frame(SNP = "QTN_upstream", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
           add_gen_info_inf[[z]] <-
-            data.frame(SNP = "QTN_downstream", genotypes[inf[[z]], ])
+            data.frame(SNP = "QTN_downstream", genotypes[inf[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
           results[[z]] <- rbind(QTN_causing_ld[[z]],
                                 add_gen_info_sup[[z]],
                                 add_gen_info_inf[[z]])
@@ -367,18 +367,18 @@ QTN_linkage <-
           sup[[z]] <- sup_temp
           inf[[z]] <- inf_temp
           QTN_causing_ld[[z]] <-
-            data.frame(SNP = "cause_of_LD", genotypes[vector_of_dom_QTN, ])
+            data.frame(SNP = "cause_of_LD", genotypes[vector_of_dom_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
           dom_gen_info_sup[[z]] <-
-            data.frame(SNP = "QTN_upstream", genotypes[sup[[z]], ])
+            data.frame(SNP = "QTN_upstream", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
           dom_gen_info_inf[[z]] <-
-            data.frame(SNP = "QTN_downstream", genotypes[inf[[z]], ])
+            data.frame(SNP = "QTN_downstream", genotypes[inf[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
           results[[z]] <- rbind(QTN_causing_ld[[z]],
                                 dom_gen_info_sup[[z]],
                                 dom_gen_info_inf[[z]])
         }
         results <- do.call(rbind, results)
         results <-
-          data.frame(rep = rep(1:rep, each = dom_QTN_num * 3), results)
+          data.frame(rep = rep(1:rep, each = dom_QTN_num * 3), results, check.names = FALSE, fix.empty.names = FALSE)
         if (!export_gt) {
           results <- results[, 1:6]
         }
