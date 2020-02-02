@@ -93,7 +93,7 @@ QTN_pleiotropic <-
         do.call(rbind, add_QTN_geno_info)
       add_QTN_geno_info <-
         data.frame(rep = rep(1:rep, each = add_QTN_num),
-                   add_QTN_geno_info)
+                   add_QTN_geno_info, check.names = FALSE, fix.empty.names = FALSE)
       if (!export_gt){
         add_QTN_geno_info <- add_QTN_geno_info[, 1:5]
       }
@@ -152,7 +152,7 @@ QTN_pleiotropic <-
           do.call(rbind, add_QTN_geno_info)
         add_QTN_geno_info <-
           data.frame(rep = rep(1:rep, each = add_QTN_num),
-                     add_QTN_geno_info)
+                     add_QTN_geno_info, check.names = FALSE, fix.empty.names = FALSE)
         if (!export_gt) {
           add_QTN_geno_info <- add_QTN_geno_info[, 1:5]
         }
@@ -211,7 +211,7 @@ QTN_pleiotropic <-
           do.call(rbind, dom_QTN_geno_info)
         dom_QTN_geno_info <-
           data.frame(rep = rep(1:rep, each = dom_QTN_num),
-                     dom_QTN_geno_info)
+                     dom_QTN_geno_info, check.names = FALSE, fix.empty.names = FALSE)
         if (!export_gt) {
           dom_QTN_geno_info <- dom_QTN_geno_info[, 1:5]
         }
@@ -271,7 +271,7 @@ QTN_pleiotropic <-
         do.call(rbind, epi_QTN_gen_infor)
       epi_QTN_gen_infor <-
         data.frame(rep = rep(rep(1:rep, each = epi_QTN_num), each = 2),
-                   epi_QTN_gen_infor)
+                   epi_QTN_gen_infor, check.names = FALSE, fix.empty.names = FALSE)
       if (!export_gt) {
         epi_QTN_gen_infor <- epi_QTN_gen_infor[, 1:5]
       }

@@ -114,14 +114,14 @@ QTN_partially_pleiotropic <-
         add_specific_gen_info[[j]] <-
           data.frame(trait = paste0("trait_", rep(1:ntraits,
                                                  trait_spec_a_QTN_num)),
-                     add_specific_gen_info_temp)
+                     add_specific_gen_info_temp, check.names = FALSE, fix.empty.names = FALSE)
       }
       add_object <- mapply(function(x, y) {
         p <- split(y, y[, 1])
         names(p) <- NULL
         lapply(p, function(z) {
-          x <- data.frame(type = "Pleiotropic", trait = unique(z[, 1]), x)
-          z <- data.frame(type = "trait_specific", z)
+          x <- data.frame(type = "Pleiotropic", trait = unique(z[, 1]), x, check.names = FALSE, fix.empty.names = FALSE)
+          z <- data.frame(type = "trait_specific", z, check.names = FALSE, fix.empty.names = FALSE)
           rbind(x, z)
         }
         )
@@ -137,7 +137,7 @@ QTN_partially_pleiotropic <-
                                     each = pleio_a * ntraits),
                                 rep(1:rep,
                                     each = sum(trait_spec_a_QTN_num)))),
-                   add_object)
+                   add_object, check.names = FALSE, fix.empty.names = FALSE)
       add_ef_trait_obj <-
         lapply(add_ef_trait_obj, function(x) {
           lapply(x, function(b){
@@ -220,14 +220,14 @@ QTN_partially_pleiotropic <-
             data.frame(trait = paste0("trait_",
                                       rep(1:ntraits,
                                           trait_spec_a_QTN_num)),
-                       add_specific_gen_info_temp)
+                       add_specific_gen_info_temp, check.names = FALSE, fix.empty.names = FALSE)
         }
         add_object <- mapply(function(x, y) {
           p <- split(y, y[, 1])
           names(p) <- NULL
           lapply(p, function(z) {
-            x <- data.frame(type = "Pleiotropic", trait = unique(z[, 1]), x)
-            z <- data.frame(type = "trait_specific", z)
+            x <- data.frame(type = "Pleiotropic", trait = unique(z[, 1]), x, check.names = FALSE, fix.empty.names = FALSE)
+            z <- data.frame(type = "trait_specific", z, check.names = FALSE, fix.empty.names = FALSE)
             rbind(x, z)
           }
           )
@@ -243,7 +243,7 @@ QTN_partially_pleiotropic <-
                                       each = pleio_a * ntraits),
                                   rep(1:rep,
                                       each = sum(trait_spec_a_QTN_num)))),
-                     add_object)
+                     add_object, check.names = FALSE, fix.empty.names = FALSE)
         add_ef_trait_obj <-
           lapply(add_ef_trait_obj, function(x) {
             lapply(x, function(b) {
@@ -326,14 +326,14 @@ QTN_partially_pleiotropic <-
             data.frame(trait = paste0("trait_",
                                       rep(1:ntraits,
                                           trait_spec_d_QTN_num)),
-                       dom_spec_gen_info_temp)
+                       dom_spec_gen_info_temp, check.names = FALSE, fix.empty.names = FALSE)
         }
         dom_object <- mapply(function(x, y) {
           p <- split(y, y[, 1])
           names(p) <- NULL
           lapply(p, function(z) {
-            x <- data.frame(type = "Pleiotropic", trait = unique(z[, 1]), x)
-            z <- data.frame(type = "trait_specific", z)
+            x <- data.frame(type = "Pleiotropic", trait = unique(z[, 1]), x, check.names = FALSE, fix.empty.names = FALSE)
+            z <- data.frame(type = "trait_specific", z, check.names = FALSE, fix.empty.names = FALSE)
             rbind(x, z)
           }
           )
@@ -349,7 +349,7 @@ QTN_partially_pleiotropic <-
                                       each = pleio_d * ntraits),
                                   rep(1:rep,
                                       each = sum(trait_spec_d_QTN_num)))),
-                     dom_object)
+                     dom_object, check.names = FALSE, fix.empty.names = FALSE)
         dom_ef_trait_obj <-
           lapply(dom_ef_trait_obj, function(x) {
             lapply(x, function(b){
@@ -433,14 +433,14 @@ QTN_partially_pleiotropic <-
           data.frame(trait = paste0("trait_",
                                     rep(1:ntraits,
                                         (2 * trait_spec_e_QTN_num))),
-                     epi_spec_QTN_gen_info_temp)
+                     epi_spec_QTN_gen_info_temp, check.names = FALSE, fix.empty.names = FALSE)
       }
       epi_object <- mapply(function(x, y) {
         p <- split(y, y[, 1])
         names(p) <- NULL
         lapply(p, function(z) {
-          x <- data.frame(type = "Pleiotropic", trait = unique(z[, 1]), x)
-          z <- data.frame(type = "trait_specific", z)
+          x <- data.frame(type = "Pleiotropic", trait = unique(z[, 1]), x, check.names = FALSE, fix.empty.names = FALSE)
+          z <- data.frame(type = "trait_specific", z, check.names = FALSE, fix.empty.names = FALSE)
           rbind(x, z)
         }
         )
@@ -456,7 +456,7 @@ QTN_partially_pleiotropic <-
                                     each = pleio_e * ntraits * 2),
                                 rep(1:rep,
                                     each = sum(trait_spec_e_QTN_num) * 2))),
-                   epi_object)
+                   epi_object, check.names = FALSE, fix.empty.names = FALSE)
       epi_ef_trait_obj <-
         lapply(epi_ef_trait_obj, function(x) {
           lapply(x, function(b) {
