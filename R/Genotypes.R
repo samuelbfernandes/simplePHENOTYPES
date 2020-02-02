@@ -51,7 +51,7 @@ genotypes <-
       geno_obj <-
         data.frame(hm$GI[-snps_below_maf,],
                    rep(NA, nrow(hm_GI_filtered)),
-                   t(hm$GD[, -snps_below_maf]))
+                   t(hm$GD[, -snps_below_maf]), check.names = FALSE, fix.empty.names = FALSE)
       colnames(geno_obj) <-
         c("snp", "allele", "chr", "pos", "cm", t(as.character(hm$GT)))
     } else {
@@ -59,12 +59,12 @@ genotypes <-
         geno_obj <-
           data.frame(hmp$GI,
                      rep(NA, nrow(hmp$GI)),
-                     hmp$GD)
+                     hmp$GD, check.names = FALSE, fix.empty.names = FALSE)
       }else{
         geno_obj <-
           data.frame(hmp$GI,
                      rep(NA, nrow(hmp$GI)),
-                     t(hmp$GD))
+                     t(hmp$GD), check.names = FALSE, fix.empty.names = FALSE)
       }
 
       colnames(geno_obj) <-
