@@ -57,7 +57,7 @@ phenotypes <-
               simulated_data[[z]] <-
                 data.frame(names,
                            matrix(NA, n, ntraits),
-                           rep = z)
+                           rep = z, check.names = FALSE, fix.empty.names = FALSE)
               colnames(simulated_data[[z]]) <- colnames
               if (!is.null(seed)) {
                 sss <- as.integer(seed + z)
@@ -156,7 +156,7 @@ phenotypes <-
               simulated_data[[z]] <-
                 data.frame(names,
                            matrix(NA, n, ntraits),
-                           rep = z)
+                           rep = z, check.names = FALSE, fix.empty.names = FALSE)
               colnames(simulated_data[[z]]) <- colnames
               if (!is.null(seed)) {
                 sss <-  as.integer((seed + z) * round(h2[i, 1] * 10))
@@ -270,7 +270,7 @@ phenotypes <-
           ss <- c()
           if (any(h2[i, ] == 0)) {
             simulated_data <-
-              data.frame(names, matrix(NA, n, rep))
+              data.frame(names, matrix(NA, n, rep), check.names = FALSE, fix.empty.names = FALSE)
             colnames(simulated_data) <-
               c("<Trait>", paste0("normal_random_variables_", 1:rep))
             for (j in 1:rep) {
@@ -351,7 +351,7 @@ phenotypes <-
           } else {
             residual.variance <- (va / h2[i, 1]) - va
             simulated_data <-
-              data.frame(names, matrix(NA, n, rep))
+              data.frame(names, matrix(NA, n, rep), check.names = FALSE, fix.empty.names = FALSE)
             colnames(simulated_data) <-
               c("<Trait>", c(paste0( "Heritability_", h2[i, ], "_Rep_", 1:rep)))
             for (j in 1:rep) {
@@ -460,7 +460,7 @@ phenotypes <-
               simulated_data[[z]] <-
                 data.frame(names,
                            matrix(NA, n, ntraits),
-                           rep = z)
+                           rep = z, check.names = FALSE, fix.empty.names = FALSE)
               colnames(simulated_data[[z]]) <- colnames
               if (!is.null(seed)) {
                 sss <- as.integer(seed + z)
@@ -558,7 +558,7 @@ phenotypes <-
               simulated_data[[z]] <-
                 data.frame(names,
                            matrix(NA, n, ntraits),
-                           rep = z)
+                           rep = z, check.names = FALSE, fix.empty.names = FALSE)
               colnames(simulated_data[[z]]) <- colnames
               if (!is.null(seed)) {
                 sss <- as.integer((seed + z) * round(h2[i, 1] * 10))
@@ -672,7 +672,7 @@ phenotypes <-
           ss <- c()
           if (any(h2[i, ] == 0)) {
             simulated_data <-
-              data.frame(names, matrix(NA, n, rep))
+              data.frame(names, matrix(NA, n, rep), check.names = FALSE, fix.empty.names = FALSE)
             colnames(simulated_data) <-
               c("<Trait>", paste0("normal_random_variables_", 1:rep))
             for (j in 1:rep) {
@@ -754,7 +754,7 @@ phenotypes <-
             }
           } else {
             simulated_data <-
-              data.frame(names, matrix(NA, n, rep))
+              data.frame(names, matrix(NA, n, rep), check.names = FALSE, fix.empty.names = FALSE)
             colnames(simulated_data) <-
               c("<Trait>", c(paste0(
                 "Heritability_", h2[i, ], "_Rep_", 1:rep
