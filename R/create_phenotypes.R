@@ -131,6 +131,7 @@
 #' GAPIT implementation, the default is FALSE.
 #' @param quiet Whether or not the log file should be opened once the simulation is done.
 #' @param verbose if FALSE, suppress prints.
+#' @param remove_QTN Whether or not a copy of the genotipic file should be saved without the simulated QTNs. Default is FALSE.
 #' @return Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits'
 #'  traits, log file.
 #' @references Rice, B., Lipka, A. E. (2019). Evaluation of RR-BLUP genomic selection models that incorporate peak genome-wide association study signals in maize and sorghum. Plant Genome 12, 1–14.\doi{10.3835/plantgenome2018.07.0052} \cr
@@ -202,7 +203,8 @@ create_phenotypes <-
            SNP_impute = "Middle",
            major_allele_zero = FALSE,
            quiet = FALSE,
-           verbose = TRUE) {
+           verbose = TRUE,
+           remove_QTN = FALSE) {
     # -------------------------------------------------------------------------
     x <- try({
       packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
@@ -844,6 +846,120 @@ create_phenotypes <-
             same_add_dom_QTN = same_add_dom_QTN,
             add = add,
             dom = dom)
+      }
+      if (remove_QTN) {
+        if (add)
+          selected_add_QTN <-
+            data.table::fread("Additive_selected_QTNs.txt", data.table = F)
+        if (dom)
+          selected_dom_QTN <-
+            data.table::fread("Dominance_selected_QTNs.txt", data.table = F)
+        if (epi)
+          selected_epi_QTN <-
+            data.table::fread("Epistatic_selected_QTNs.txt", data.table = F)
+        sel_a <- NULL
+        sel_d <- NULL
+        sel_e <- NULL
+        if (rep_by == "QTN") {
+          yes_no <- "NO"
+          yes_no <-
+            readline(prompt = "Are you sure that you want to save one genotypic file per replication (remove_QTN = TRUE and vary_QTN = TRUE)? yes/no: \n")
+          if (toupper(yes_no) != "YES" & toupper(yes_no) != "NO") {
+            yes_no <- readline(prompt = "Please answer yes or no: \n")
+          }
+          if (toupper(yes_no) != "YES" & toupper(yes_no) != "NO") {
+            yes_no <- "NO"
+          }
+          if (toupper(yes_no) == "YES") {
+            snps_to_remove <- vector("list", rep)
+            if (add)
+              sel_a <-
+                split(selected_add_QTN$snp, selected_add_QTN$rep)
+            if (dom)
+              sel_d <-
+                split(selected_dom_QTN$snp, selected_dom_QTN$rep)
+            if (epi)
+              sel_e <-
+                split(selected_epi_QTN$snp, selected_epi_QTN$rep)
+            if (out_geno == "plink" | out_geno == "gds") {
+              genofile <- SNPRelate::snpgdsOpen(gdsfile)
+              snpset <-
+                gdsfmt::read.gdsn(index.gdsn(genofile, "snp.id"))
+              for (i in 1:rep) {
+                snps_to_remove[[i]] <- unlist(c(sel_a[i], sel_d[i], sel_e[i]))
+                snpset_no_QTN <-
+                  setdiff(snpset, snps_to_remove[[i]])
+                SNPRelate::snpgdsGDS2BED(
+                  genofile,
+                  bed.fn = paste0("geno_noQTN_rep_", i),
+                  snp.id = snpset_no_QTN,
+                  verbose = F,
+                  snpfirstdim = F
+                )
+                if (verbose)
+                  cat("\nSaving genotype file ", i, "without QTNs")
+              }
+              gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
+            }
+            if (out_geno == "numeric") {
+              for (i in 1:rep) {
+                snps_to_remove[[i]] <- unlist(c(sel_a[i], sel_d[i], sel_e[i]))
+                data.table::fwrite(
+                  geno_obj[!geno_obj$snp %in% snps_to_remove[[i]],],
+                  paste0("geno_noQTN_rep", i, ".txt"),
+                  row.names = FALSE,
+                  sep = "\t",
+                  quote = FALSE,
+                  na = NA
+                )
+                if (verbose)
+                  cat("\nSaving numeric genotype file ", i, "without QTNs")
+              }
+            }
+          }
+        } else {
+            snps_to_remove <- list()
+            if (add)
+              sel_a <-
+                split(selected_add_QTN$snp, selected_add_QTN$rep)
+            if (dom)
+              sel_d <-
+                split(selected_dom_QTN$snp, selected_dom_QTN$rep)
+            if (epi)
+              sel_e <-
+                split(selected_epi_QTN$snp, selected_epi_QTN$rep)
+            if (out_geno == "plink" | out_geno == "gds") {
+              genofile <- SNPRelate::snpgdsOpen(gdsfile)
+              snpset <-
+                gdsfmt::read.gdsn(index.gdsn(genofile, "snp.id"))
+                snps_to_remove[[1]] <- unlist(c(sel_a[1], sel_d[1], sel_e[1]))
+                snpset_no_QTN <-
+                  setdiff(snpset, snps_to_remove[[1]])
+                SNPRelate::snpgdsGDS2BED(
+                  genofile,
+                  bed.fn = "geno_noQTN",
+                  snp.id = snpset_no_QTN,
+                  verbose = F,
+                  snpfirstdim = F
+                )
+                if (verbose)
+                  cat("\nSaving genotype file without QTNs!")
+              gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
+            }
+            if (out_geno == "numeric") {
+                snps_to_remove[[1]] <- unlist(c(sel_a[1], sel_d[1], sel_e[1]))
+                data.table::fwrite(
+                  geno_obj[!geno_obj$snp %in% snps_to_remove[[1]],],
+                  "geno_noQTN.txt",
+                  row.names = FALSE,
+                  sep = "\t",
+                  quote = FALSE,
+                  na = NA
+                )
+                if (verbose)
+                  cat("\nSaving numeric genotype file")
+            }
+        }
       }
       hets <- NULL
       if (dom & !is.null(dom_effect)) {
