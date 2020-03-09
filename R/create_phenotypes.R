@@ -863,7 +863,7 @@ create_phenotypes <-
         if (rep_by == "QTN") {
           yes_no <- "NO"
           yes_no <-
-            readline(prompt = "Are you sure that you want to save one genotypic file per replication (remove_QTN = TRUE and vary_QTN = TRUE)? yes/no: \n")
+            readline(prompt = "Are you sure that you want to save\none genotypic file per replication\n(remove_QTN = TRUE and vary_QTN = TRUE)? yes/no: \n")
           if (toupper(yes_no) != "YES" & toupper(yes_no) != "NO") {
             yes_no <- readline(prompt = "Please answer yes or no: \n")
           }
@@ -901,7 +901,7 @@ create_phenotypes <-
               }
               gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
             }
-            if (out_geno == "numeric") {
+            if (out_geno == "numeric" | is.null(out_geno)) {
               for (i in 1:rep) {
                 snps_to_remove[[i]] <- unlist(c(sel_a[i], sel_d[i], sel_e[i]))
                 data.table::fwrite(
@@ -946,7 +946,7 @@ create_phenotypes <-
                   cat("\nSaving genotype file without QTNs!")
               gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
             }
-            if (out_geno == "numeric") {
+            if (out_geno == "numeric" | is.null(out_geno)) {
                 snps_to_remove[[1]] <- unlist(c(sel_a[1], sel_d[1], sel_e[1]))
                 data.table::fwrite(
                   geno_obj[!geno_obj$snp %in% snps_to_remove[[1]],],
