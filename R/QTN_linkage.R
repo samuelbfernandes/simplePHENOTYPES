@@ -66,6 +66,7 @@ QTN_linkage <-
       add_gen_info_inf <- vector("list", rep)
       QTN_causing_ld <- vector("list", rep)
       results <- vector("list", rep)
+      LD_summary <- vector("list", rep)
       for (z in 1:rep){
         if (!is.null(seed)) {
           set.seed(seed + z)
@@ -76,6 +77,7 @@ QTN_linkage <-
         x <- 1
         sup_temp <- c()
         inf_temp <- c()
+        ld_between_QTNs_temp <- c()
         for (j in vector_of_add_QTN) {
           ldsup <- 1
           i <- j + 1
@@ -119,6 +121,19 @@ QTN_linkage <-
             i2 <- i2 - 1
           }
           inf_temp[x] <- i2
+          snp_sup <-
+            gdsfmt::read.gdsn(
+              gdsfmt::index.gdsn(genofile, "genotype"),
+              start = c(1, sup_temp[x]),
+              count = c(-1, 1)
+            )
+          snp_inf <-
+            gdsfmt::read.gdsn(
+              gdsfmt::index.gdsn(genofile, "genotype"),
+              start = c(1, inf_temp[x]),
+              count = c(-1, 1)
+            )
+          ld_between_QTNs_temp[x] <- SNPRelate::snpgdsLDpair(snp_sup, snp_inf, method = "composite")
           x <- x + 1
         }
         SNPRelate::snpgdsClose(genofile)
@@ -133,7 +148,31 @@ QTN_linkage <-
         results[[z]] <- rbind(QTN_causing_ld[[z]],
                               add_gen_info_sup[[z]],
                               add_gen_info_inf[[z]])
+        LD_summary[[z]] <- data.frame(z,
+                                          QTN_causing_ld[[z]][, 2],
+                                          ld,
+                                          add_gen_info_inf[[z]][, 2],
+                                          add_gen_info_sup[[z]][, 2],
+                                          ld_between_QTNs_temp
+        )
+        colnames(LD_summary[[z]]) <-
+          c("rep",
+            "SNP_causing_LD",
+            "input_LD (absolute value)",
+            "QTN_for_trait_1",
+            "QTN_for_trait_2",
+            "LD_between_QTNs"
+          )
       }
+      LD_summary <- do.call(rbind, LD_summary)
+      data.table::fwrite(
+        LD_summary,
+        "LD_summary.txt",
+        row.names = FALSE,
+        sep = "\t",
+        quote = FALSE,
+        na = NA
+      )
       results <- do.call(rbind, results)
       results <-
         data.frame(rep = rep(1:rep, each = add_QTN_num * 3), results, check.names = FALSE, fix.empty.names = FALSE)
@@ -186,7 +225,8 @@ QTN_linkage <-
         add_gen_info_sup <- vector("list", rep)
         add_gen_info_inf <- vector("list", rep)
         QTN_causing_ld <- vector("list", rep)
-        results <- vector("list", rep)
+        results_add <- vector("list", rep)
+        LD_summary_add <- vector("list", rep)
         for (z in 1:rep) {
           if (!is.null(seed)) {
             set.seed(seed + z)
@@ -197,6 +237,7 @@ QTN_linkage <-
           x <- 1
           sup_temp <- c()
           inf_temp <- c()
+          ld_between_QTNs_temp <- c()
           for (j in vector_of_add_QTN) {
             ldsup <- 1
             i <- j + 1
@@ -240,6 +281,19 @@ QTN_linkage <-
               i2 <- i2 - 1
             }
             inf_temp[x] <- i2
+            snp_sup <-
+              gdsfmt::read.gdsn(
+                gdsfmt::index.gdsn(genofile, "genotype"),
+                start = c(1, sup_temp[x]),
+                count = c(-1, 1)
+              )
+            snp_inf <-
+              gdsfmt::read.gdsn(
+                gdsfmt::index.gdsn(genofile, "genotype"),
+                start = c(1, inf_temp[x]),
+                count = c(-1, 1)
+              )
+            ld_between_QTNs_temp[x] <- SNPRelate::snpgdsLDpair(snp_sup, snp_inf, method = "composite")
             x <- x + 1
           }
           SNPRelate::snpgdsClose(genofile)
@@ -251,15 +305,39 @@ QTN_linkage <-
             data.frame(SNP = "QTN_upstream", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
           add_gen_info_inf[[z]] <-
             data.frame(SNP = "QTN_downstream", genotypes[inf[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
-          results[[z]] <- rbind(QTN_causing_ld[[z]],
+          results_add[[z]] <- rbind(QTN_causing_ld[[z]],
                                 add_gen_info_sup[[z]],
                                 add_gen_info_inf[[z]])
+          LD_summary_add[[z]] <- data.frame(z,
+            QTN_causing_ld[[z]][, 2],
+            ld,
+            add_gen_info_inf[[z]][, 2],
+            add_gen_info_sup[[z]][, 2],
+            ld_between_QTNs_temp
+          )
+          colnames(LD_summary_add[[z]]) <-
+            c("rep",
+              "SNP_causing_LD",
+              "input_LD (absolute value)",
+              "QTN_for_trait_1",
+              "QTN_for_trait_2",
+              "LD_between_QTNs"
+            )
         }
-        results <- do.call(rbind, results)
-        results <-
-          data.frame(rep = rep(1:rep, each = add_QTN_num * 3), results)
+        LD_summary_add <- do.call(rbind, LD_summary_add)
+        data.table::fwrite(
+          LD_summary_add,
+          "LD_summary_additive.txt",
+          row.names = FALSE,
+          sep = "\t",
+          quote = FALSE,
+          na = NA
+        )
+        results_add <- do.call(rbind, results_add)
+        results_add <-
+          data.frame(rep = rep(1:rep, each = add_QTN_num * 3), results_add, check.names = FALSE, fix.empty.names = FALSE)
         if (!export_gt) {
-          results <- results[, 1:6]
+          results_add <- results_add[, 1:6]
         }
         if (add_QTN) {
         write.table(
@@ -275,7 +353,7 @@ QTN_linkage <-
           quote = FALSE
         )
         data.table::fwrite(
-          results,
+          results_add,
           paste0(
             "Genotypic_info_for_",
             add_QTN_num,
@@ -307,7 +385,8 @@ QTN_linkage <-
         dom_gen_info_sup <- vector("list", rep)
         dom_gen_info_inf <- vector("list", rep)
         QTN_causing_ld <- vector("list", rep)
-        results <- vector("list", rep)
+        results_dom <- vector("list", rep)
+        LD_summary_dom <- vector("list", rep)
         for (z in 1:rep) {
           if (!is.null(seed)) {
             set.seed(seed + z + rep)
@@ -318,6 +397,7 @@ QTN_linkage <-
           x <- 1
           sup_temp <- c()
           inf_temp <- c()
+          ld_between_QTNs_temp <- c()
           for (j in vector_of_dom_QTN) {
             ldsup <- 1
             i <- j + 1
@@ -361,6 +441,19 @@ QTN_linkage <-
               i2 <- i2 - 1
             }
             inf_temp[x] <- i2
+            snp_sup <-
+              gdsfmt::read.gdsn(
+                gdsfmt::index.gdsn(genofile, "genotype"),
+                start = c(1, sup_temp[x]),
+                count = c(-1, 1)
+              )
+            snp_inf <-
+              gdsfmt::read.gdsn(
+                gdsfmt::index.gdsn(genofile, "genotype"),
+                start = c(1, inf_temp[x]),
+                count = c(-1, 1)
+              )
+            ld_between_QTNs_temp[x] <- SNPRelate::snpgdsLDpair(snp_sup, snp_inf, method = "composite")
             x <- x + 1
           }
           SNPRelate::snpgdsClose(genofile)
@@ -372,15 +465,39 @@ QTN_linkage <-
             data.frame(SNP = "QTN_upstream", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
           dom_gen_info_inf[[z]] <-
             data.frame(SNP = "QTN_downstream", genotypes[inf[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
-          results[[z]] <- rbind(QTN_causing_ld[[z]],
+          results_dom[[z]] <- rbind(QTN_causing_ld[[z]],
                                 dom_gen_info_sup[[z]],
                                 dom_gen_info_inf[[z]])
-        }
-        results <- do.call(rbind, results)
-        results <-
-          data.frame(rep = rep(1:rep, each = dom_QTN_num * 3), results, check.names = FALSE, fix.empty.names = FALSE)
+        LD_summary_dom[[z]] <- data.frame(z,
+                                          QTN_causing_ld[[z]][, 2],
+                                          ld,
+                                          dom_gen_info_inf[[z]][, 2],
+                                          dom_gen_info_sup[[z]][, 2],
+                                          ld_between_QTNs_temp
+        )
+        colnames(LD_summary_dom[[z]]) <-
+          c("rep",
+            "SNP_causing_LD",
+            "input_LD (absolute value)",
+            "QTN_for_trait_1",
+            "QTN_for_trait_2",
+            "LD_between_QTNs"
+          )
+      }
+      LD_summary_dom <- do.call(rbind, LD_summary_dom)
+      data.table::fwrite(
+        LD_summary_dom,
+        "LD_summary_dominance.txt",
+        row.names = FALSE,
+        sep = "\t",
+        quote = FALSE,
+        na = NA
+      )
+        results_dom <- do.call(rbind, results_dom)
+        results_dom <-
+          data.frame(rep = rep(1:rep, each = dom_QTN_num * 3), results_dom, check.names = FALSE, fix.empty.names = FALSE)
         if (!export_gt) {
-          results <- results[, 1:6]
+          results_dom <- results_dom[, 1:6]
         }
         if (add_QTN) {
         write.table(
@@ -396,7 +513,7 @@ QTN_linkage <-
           quote = FALSE
         )
         data.table::fwrite(
-          results,
+          results_dom,
           paste0(
             "Genotypic_info_for_",
             dom_QTN_num,
