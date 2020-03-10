@@ -17,7 +17,8 @@ QTN_linkage(
   export_gt = NULL,
   same_add_dom_QTN = NULL,
   add = NULL,
-  dom = NULL
+  dom = NULL,
+  type_of_ld = NULL
 )
 }
 \arguments{
@@ -46,6 +47,8 @@ QTN_linkage(
 \item{add}{= NULL,}
 
 \item{dom}{= NULL,}
+
+\item{type_of_ld}{= NULL}
 }
 \value{
 Genotype of selected SNPs

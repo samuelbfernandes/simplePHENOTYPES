@@ -51,7 +51,8 @@ create_phenotypes(
   quiet = FALSE,
   verbose = TRUE,
   remove_QTN = FALSE,
-  QTN_variance = FALSE
+  QTN_variance = FALSE,
+  type_of_ld = "indirect"
 )
 }
 \arguments{
@@ -228,6 +229,8 @@ GAPIT implementation, the default is FALSE.}
 \item{remove_QTN}{Whether or not a copy of the genotipic file should be saved without the simulated QTNs. Default is FALSE.}
 
 \item{QTN_variance}{Whether or not the percentage of the phenotypic variance explained by each QTN (QTN variance / phenotypic variance) should be exported. Default is FALSE.}
+
+\item{type_of_ld}{Should the spurious pleiotropy be due to "direct" or "indirect" LD? Default is "indirect".}
 }
 \value{
 Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits'
