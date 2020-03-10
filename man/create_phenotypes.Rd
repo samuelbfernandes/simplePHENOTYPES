@@ -49,7 +49,9 @@ create_phenotypes(
   SNP_impute = "Middle",
   major_allele_zero = FALSE,
   quiet = FALSE,
-  verbose = TRUE
+  verbose = TRUE,
+  remove_QTN = FALSE,
+  QTN_variance = FALSE
 )
 }
 \arguments{
@@ -222,6 +224,10 @@ GAPIT implementation, the default is FALSE.}
 \item{quiet}{Whether or not the log file should be opened once the simulation is done.}
 
 \item{verbose}{if FALSE, suppress prints.}
+
+\item{remove_QTN}{Whether or not a copy of the genotipic file should be saved without the simulated QTNs. Default is FALSE.}
+
+\item{QTN_variance}{Whether or not the percentage of the phenotypic variance explained by each QTN (QTN variance / phenotypic variance) should be exported. Default is FALSE.}
 }
 \value{
 Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits'

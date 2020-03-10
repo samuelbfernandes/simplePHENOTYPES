@@ -15,7 +15,11 @@ phenotypes(
   to_r = NULL,
   rep_by = NULL,
   hets = NULL,
-  verbose = TRUE
+  verbose = TRUE,
+  QTN_variance = FALSE,
+  add = NULL,
+  dom = NULL,
+  epi = NULL
 )
 }
 \arguments{
@@ -40,6 +44,8 @@ phenotypes(
 \item{hets}{= 'QTN'}
 
 \item{verbose}{= TRUE}
+
+\item{QTN_variance}{= FALSE}
 }
 \value{
 Phenotypes for ntraits traits
