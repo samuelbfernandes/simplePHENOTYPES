@@ -132,6 +132,7 @@
 #' @param quiet Whether or not the log file should be opened once the simulation is done.
 #' @param verbose if FALSE, suppress prints.
 #' @param remove_QTN Whether or not a copy of the genotipic file should be saved without the simulated QTNs. Default is FALSE.
+#' @param QTN_variance Whether or not the percentage of the phenotypic variance explained by each QTN (QTN variance / phenotypic variance) should be exported. Default is FALSE.
 #' @return Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits'
 #'  traits, log file.
 #' @references Rice, B., Lipka, A. E. (2019). Evaluation of RR-BLUP genomic selection models that incorporate peak genome-wide association study signals in maize and sorghum. Plant Genome 12, 1–14.\doi{10.3835/plantgenome2018.07.0052} \cr
@@ -204,7 +205,8 @@ create_phenotypes <-
            major_allele_zero = FALSE,
            quiet = FALSE,
            verbose = TRUE,
-           remove_QTN = FALSE) {
+           remove_QTN = FALSE,
+           QTN_variance = FALSE) {
     # -------------------------------------------------------------------------
     x <- try({
       packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
@@ -1203,7 +1205,11 @@ create_phenotypes <-
         to_r = to_r,
         rep_by = rep_by,
         hets = unlist(hets),
-        verbose = verbose
+        verbose = verbose,
+        QTN_variance = QTN_variance,
+        add  = add,
+        dom = dom,
+        epi = epi
       )
       cat("\n\nResults are saved at:", home_dir)
       sink()

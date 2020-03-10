@@ -44,6 +44,9 @@ base_line_multi_traits <-
     VD <- NULL
     VE <- NULL
     sample_cor <- NULL
+    QTN_var = list(var_add = list(),
+                   var_dom = list(),
+                   var_epi = list())
     if (rep_by != "QTN"){
       rep <- 1
       }
@@ -84,9 +87,18 @@ base_line_multi_traits <-
               )
             genetic_value[, j] <-
               trait_temp$base_line[[1]]
-            if (add) VA[j] <- trait_temp$VA
-            if (dom) VD[j] <- trait_temp$VD
-            if (epi) VE[j] <- trait_temp$VE
+            if (add) {
+              VA[j] <- trait_temp$VA
+              QTN_var$var_add[[j]] <- trait_temp$var_add
+            }
+            if (dom) {
+              VD[j] <- trait_temp$VD
+              QTN_var$var_dom[[j]] <- trait_temp$var_dom
+            }
+            if (epi) {
+              VE[j] <- trait_temp$VE
+              QTN_var$var_epi[[j]] <- trait_temp$var_epi
+            }
           }
           sdg <- apply(genetic_value, 2, sd)
           meang <- apply(genetic_value, 2, mean)
@@ -118,7 +130,8 @@ base_line_multi_traits <-
             VA = VA,
             VE = VE,
             VD = VD,
-            sample_cor = sample_cor
+            sample_cor = sample_cor,
+            QTN_var = QTN_var
           )
         } else {
           if (add) {
@@ -154,9 +167,18 @@ base_line_multi_traits <-
               )
             genetic_value[, j] <-
               trait_temp$base_line[[1]]
-            if (add) VA[j] <- trait_temp$VA
-            if (dom) VD[j] <- trait_temp$VD
-            if (epi) VE[j] <- trait_temp$VE
+            if (add) {
+              VA[j] <- trait_temp$VA
+              QTN_var$var_add[[j]] <- trait_temp$var_add
+            }
+            if (dom) {
+              VD[j] <- trait_temp$VD
+              QTN_var$var_dom[[j]] <- trait_temp$var_dom
+            }
+            if (epi) {
+              VE[j] <- trait_temp$VE
+              QTN_var$var_epi[[j]] <- trait_temp$var_epi
+            }
           }
           sdg <- apply(genetic_value, 2, sd)
           meang <- apply(genetic_value, 2, mean)
@@ -192,7 +214,8 @@ base_line_multi_traits <-
               VD = VD,
               VE = VE,
               sample_cor = sample_cor,
-              cor_original_trait = cor_original_trait
+              cor_original_trait = cor_original_trait,
+              QTN_var = QTN_var
             )
         }
       } else {
@@ -226,9 +249,18 @@ base_line_multi_traits <-
                 sim_method = sim_method
               )
             traits[, i] <- trait_temp$base_line[, 1]
-            if (add) VA[i] <- trait_temp$VA
-            if (dom) VD[i] <- trait_temp$VD
-            if (epi) VE[i] <- trait_temp$VE
+            if (add) {
+              VA[i] <- trait_temp$VA
+              QTN_var$var_add[[i]] <- trait_temp$var_add
+            }
+            if (dom) {
+              VD[i] <- trait_temp$VD
+              QTN_var$var_dom[[i]] <- trait_temp$var_dom
+            }
+            if (epi) {
+              VE[i] <- trait_temp$VE
+              QTN_var$var_epi[[i]] <- trait_temp$var_epi
+            }
           }
           rownames(traits) <- rownames
         } else {
@@ -264,9 +296,18 @@ base_line_multi_traits <-
                 sim_method = sim_method
               )
             traits[, i] <- trait_temp$base_line[, 1]
-            if (add) VA[i] <- trait_temp$VA
-            if (dom) VD[i] <- trait_temp$VD
-            if (epi) VE[i] <- trait_temp$VE
+            if (add) {
+              VA[i] <- trait_temp$VA
+              QTN_var$var_add[[i]] <- trait_temp$var_add
+              }
+            if (dom) {
+              VD[i] <- trait_temp$VD
+              QTN_var$var_dom[[i]] <- trait_temp$var_dom
+              }
+            if (epi) {
+              VE[i] <- trait_temp$VE
+              QTN_var$var_epi[[i]] <- trait_temp$var_epi
+              }
           }
           rownames(traits) <- rownames
         }
@@ -278,7 +319,8 @@ base_line_multi_traits <-
           VA = VA,
           VD = VD,
           VE = VE,
-          sample_cor = sample_cor
+          sample_cor = sample_cor,
+          QTN_var = QTN_var
         )
       }
     }

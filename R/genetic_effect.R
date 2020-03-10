@@ -44,12 +44,16 @@ genetic_effect <-
     add_component <- as.data.frame(matrix(0, nrow = n, ncol = 1))
     dom_component <- as.data.frame(matrix(0, nrow = n, ncol = 1))
     epi_component <- as.data.frame(matrix(0, nrow = n, ncol = 1))
+    var_add <- c()
+    var_dom <- c()
+    var_epi <- c()
     if (add) {
       additive_QTN_number <- ncol(add_obj)
       for (i in 1:additive_QTN_number) {
+        new_add_QTN_effect <- (add_obj[, i] * as.numeric(add_effect[i]))
         add_component <-
-          add_component +
-          (add_obj[, i] * as.numeric(add_effect[i]))
+          add_component + new_add_QTN_effect
+        var_add[i] <- var(new_add_QTN_effect)
       }
       rownames(add_component) <- rownames
       colnames(add_component) <- "additive_effect"
@@ -57,9 +61,13 @@ genetic_effect <-
     }
     if (dom) {
       dominance_QTN_number <- ncol(dom_obj)
+      dom_component_temp <- dom_component
       for (i in 1:dominance_QTN_number) {
-        dom_component[dom_obj[, i] == 1, 1] <-
-          dom_component[dom_obj[, i] == 1, 1] + dom_effect[i]
+        new_dom_QTN_effect <- dom_component_temp
+        new_dom_QTN_effect[dom_obj[, i] == 1, 1] <-
+          new_dom_QTN_effect[dom_obj[, i] == 1, 1] + dom_effect[i]
+        var_dom[i] <- var(new_dom_QTN_effect)
+        dom_component <- dom_component + new_dom_QTN_effect
       }
       rownames(dom_component) <- rownames
       colnames(dom_component) <- "dominance_effect"
@@ -68,11 +76,13 @@ genetic_effect <-
     if (epi) {
       epistatic_QTN_number <- ncol(epi_obj) / 2
       for (i in 0:(epistatic_QTN_number - 1)) {
-        epi_component <-
-          epi_component +
+        new_epi_QTN_effect <- 
           ( (epi_obj[, ( (2 * i) + 1)] *
                epi_obj[, ( (2 * i) + 2)]) *
               as.numeric(epi_effect[i + 1]))
+        epi_component <-
+          epi_component + new_epi_QTN_effect
+        var_epi[i+1] <- var(new_epi_QTN_effect)
       }
       rownames(epi_component) <- rownames
       colnames(epi_component) <- "epistatic_effect"
@@ -83,6 +93,9 @@ genetic_effect <-
       base_line = base_line_trait,
       VA = c(add_genetic_variance),
       VD = c(dom_genetic_variance),
-      VE = c(epi_genetic_variance)
+      VE = c(epi_genetic_variance),
+      var_add = var_add,
+      var_dom = var_dom,
+      var_epi = var_epi
     ))
   }
