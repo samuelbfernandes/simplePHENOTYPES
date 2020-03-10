@@ -133,6 +133,7 @@
 #' @param verbose if FALSE, suppress prints.
 #' @param remove_QTN Whether or not a copy of the genotipic file should be saved without the simulated QTNs. Default is FALSE.
 #' @param QTN_variance Whether or not the percentage of the phenotypic variance explained by each QTN (QTN variance / phenotypic variance) should be exported. Default is FALSE.
+#' @param type_of_ld Should the spurious pleiotropy be due to "direct" or "indirect" LD? Default is "indirect".
 #' @return Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits'
 #'  traits, log file.
 #' @references Rice, B., Lipka, A. E. (2019). Evaluation of RR-BLUP genomic selection models that incorporate peak genome-wide association study signals in maize and sorghum. Plant Genome 12, 1–14.\doi{10.3835/plantgenome2018.07.0052} \cr
@@ -206,7 +207,8 @@ create_phenotypes <-
            quiet = FALSE,
            verbose = TRUE,
            remove_QTN = FALSE,
-           QTN_variance = FALSE) {
+           QTN_variance = FALSE,
+           type_of_ld = "indirect") {
     # -------------------------------------------------------------------------
     x <- try({
       packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
@@ -231,6 +233,9 @@ create_phenotypes <-
       }
       if (architecture == "LD") {
         ntraits <- 2
+        if (type_of_ld != "indirect" & type_of_ld != "direct") {
+          stop("Parameter \'type_of_ld\' should be either \'direct\' or \'indirect\'.", call. = F)
+        }
       }
       if (is.null(out_geno)) {
         out_geno <- "none"
@@ -847,7 +852,8 @@ create_phenotypes <-
             export_gt = export_gt,
             same_add_dom_QTN = same_add_dom_QTN,
             add = add,
-            dom = dom)
+            dom = dom,
+            type_of_ld = type_of_ld)
       }
       if (remove_QTN) {
         if (add)

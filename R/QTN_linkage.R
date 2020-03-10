@@ -13,6 +13,7 @@
 #' @param rep = 1,
 #' @param rep_by = 'QTN',
 #' @param export_gt = FALSE
+#' @param type_of_ld = NULL
 #' @return Genotype of selected SNPs
 #' @author Samuel Fernandes
 #' Last update: Nov 05, 2019
@@ -31,7 +32,8 @@ QTN_linkage <-
            export_gt = NULL,
            same_add_dom_QTN = NULL,
            add = NULL,
-           dom = NULL) {
+           dom = NULL,
+           type_of_ld = NULL) {
     #---------------------------------------------------------------------------
     add_ef_trait_obj <- NULL
     dom_ef_trait_obj <- NULL
@@ -51,7 +53,7 @@ QTN_linkage <-
     }
     if (rep_by != "QTN") {
       rep <- 1
-      }
+    }
     if (any(lengths(constrains) > 0)) {
       index <- constrain(genotypes = genotypes,
                          maf_above = constrains$maf_above,
@@ -59,6 +61,7 @@ QTN_linkage <-
     } else {
       index <- 1:nrow(genotypes)
     }
+    if (type_of_ld == "indirect") {
     if (same_add_dom_QTN & add) {
       sup <- vector("list", rep)
       inf <- vector("list", rep)
@@ -78,10 +81,12 @@ QTN_linkage <-
         sup_temp <- c()
         inf_temp <- c()
         ld_between_QTNs_temp <- c()
+        actual_ld_sup <- c()
+        actual_ld_inf <- c()
         for (j in vector_of_add_QTN) {
           ldsup <- 1
           i <- j + 1
-          while (ldsup >= ld) {
+          while (ldsup > ld) {
             snp1 <-
               gdsfmt::read.gdsn(
                 gdsfmt::index.gdsn(genofile, "genotype"),
@@ -102,10 +107,11 @@ QTN_linkage <-
             }
             i <- i + 1
           }
+          actual_ld_sup[x] <- ldsup
           sup_temp[x] <- i
           ldinf <- 1
           i2 <- j - 1
-          while (ldinf >= ld) {
+          while (ldinf > ld) {
             snp3 <-
               gdsfmt::read.gdsn(
                 gdsfmt::index.gdsn(genofile, "genotype"),
@@ -120,6 +126,7 @@ QTN_linkage <-
             }
             i2 <- i2 - 1
           }
+          actual_ld_inf[x]  <- ldinf
           inf_temp[x] <- i2
           snp_sup <-
             gdsfmt::read.gdsn(
@@ -151,6 +158,8 @@ QTN_linkage <-
         LD_summary[[z]] <- data.frame(z,
                                           QTN_causing_ld[[z]][, 2],
                                           ld,
+                                          actual_ld_inf,
+                                          actual_ld_sup,
                                           add_gen_info_inf[[z]][, 2],
                                           add_gen_info_sup[[z]][, 2],
                                           ld_between_QTNs_temp
@@ -159,6 +168,8 @@ QTN_linkage <-
           c("rep",
             "SNP_causing_LD",
             "input_LD (absolute value)",
+            "Actual_LD_with_QTN_of_Trait_1",
+            "Actual_LD_with_QTN_of_Trait_2",
             "QTN_for_trait_1",
             "QTN_for_trait_2",
             "LD_between_QTNs"
@@ -238,10 +249,12 @@ QTN_linkage <-
           sup_temp <- c()
           inf_temp <- c()
           ld_between_QTNs_temp <- c()
+          actual_ld_sup <- c()
+          actual_ld_inf <- c()
           for (j in vector_of_add_QTN) {
             ldsup <- 1
             i <- j + 1
-            while (ldsup >= ld) {
+            while (ldsup > ld) {
               snp1 <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
@@ -262,10 +275,11 @@ QTN_linkage <-
               }
               i <- i + 1
             }
+            actual_ld_sup[x] <- ldsup
             sup_temp[x] <- i
             ldinf <- 1
             i2 <- j - 1
-            while (ldinf >= ld) {
+            while (ldinf > ld) {
               snp3 <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
@@ -280,6 +294,7 @@ QTN_linkage <-
               }
               i2 <- i2 - 1
             }
+            actual_ld_inf[x] <- ldinf
             inf_temp[x] <- i2
             snp_sup <-
               gdsfmt::read.gdsn(
@@ -309,16 +324,20 @@ QTN_linkage <-
                                 add_gen_info_sup[[z]],
                                 add_gen_info_inf[[z]])
           LD_summary_add[[z]] <- data.frame(z,
-            QTN_causing_ld[[z]][, 2],
-            ld,
-            add_gen_info_inf[[z]][, 2],
-            add_gen_info_sup[[z]][, 2],
-            ld_between_QTNs_temp
+                                        QTN_causing_ld[[z]][, 2],
+                                        ld,
+                                        actual_ld_inf,
+                                        actual_ld_sup,
+                                        add_gen_info_inf[[z]][, 2],
+                                        add_gen_info_sup[[z]][, 2],
+                                        ld_between_QTNs_temp
           )
           colnames(LD_summary_add[[z]]) <-
             c("rep",
               "SNP_causing_LD",
               "input_LD (absolute value)",
+              "Actual_LD_with_QTN_of_Trait_1",
+              "Actual_LD_with_QTN_of_Trait_2",
               "QTN_for_trait_1",
               "QTN_for_trait_2",
               "LD_between_QTNs"
@@ -398,10 +417,12 @@ QTN_linkage <-
           sup_temp <- c()
           inf_temp <- c()
           ld_between_QTNs_temp <- c()
+          actual_ld_sup <- c()
+          actual_ld_inf <- c()
           for (j in vector_of_dom_QTN) {
             ldsup <- 1
             i <- j + 1
-            while (ldsup >= ld) {
+            while (ldsup > ld) {
               snp1 <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
@@ -422,10 +443,11 @@ QTN_linkage <-
               }
               i <- i + 1
             }
+            actual_ld_sup[x] <- ldsup
             sup_temp[x] <- i
             ldinf <- 1
             i2 <- j - 1
-            while (ldinf >= ld) {
+            while (ldinf > ld) {
               snp3 <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
@@ -440,6 +462,7 @@ QTN_linkage <-
               }
               i2 <- i2 - 1
             }
+            actual_ld_inf[x] <- ldinf
             inf_temp[x] <- i2
             snp_sup <-
               gdsfmt::read.gdsn(
@@ -471,6 +494,8 @@ QTN_linkage <-
         LD_summary_dom[[z]] <- data.frame(z,
                                           QTN_causing_ld[[z]][, 2],
                                           ld,
+                                          actual_ld_inf,
+                                          actual_ld_sup,
                                           dom_gen_info_inf[[z]][, 2],
                                           dom_gen_info_sup[[z]][, 2],
                                           ld_between_QTNs_temp
@@ -479,6 +504,8 @@ QTN_linkage <-
           c("rep",
             "SNP_causing_LD",
             "input_LD (absolute value)",
+            "Actual_LD_with_QTN_of_Trait_1",
+            "Actual_LD_with_QTN_of_Trait_2",
             "QTN_for_trait_1",
             "QTN_for_trait_2",
             "LD_between_QTNs"
@@ -562,4 +589,398 @@ QTN_linkage <-
     }
     return(list(add_ef_trait_obj = add_ef_trait_obj,
                 dom_ef_trait_obj = dom_ef_trait_obj))
+    } else {
+      if (same_add_dom_QTN & add) {
+        sup <- vector("list", rep)
+        inf <- vector("list", rep)
+        add_gen_info_sup <- vector("list", rep)
+        add_gen_info_inf <- vector("list", rep)
+        results <- vector("list", rep)
+        LD_summary <- vector("list", rep)
+        for (z in 1:rep){
+          if (!is.null(seed)) {
+            set.seed(seed + z)
+          }
+          vector_of_add_QTN <-
+            sample(index, add_QTN_num, replace = FALSE)
+          genofile <- SNPRelate::snpgdsOpen(gdsfile)
+          x <- 1
+          sup_temp <- c()
+          ld_between_QTNs_temp <- c()
+          for (j in vector_of_add_QTN) {
+            ldsup <- 1
+            i <- j + 1
+            while (ldsup > ld) {
+              snp1 <-
+                gdsfmt::read.gdsn(
+                  gdsfmt::index.gdsn(genofile, "genotype"),
+                  start = c(1, j),
+                  count = c(-1, 1)
+                )
+              snp2 <-
+                gdsfmt::read.gdsn(
+                  gdsfmt::index.gdsn(genofile, "genotype"),
+                  start = c(1, i),
+                  count = c(-1, 1)
+                )
+              ldsup <-
+                abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = "composite"))
+              if (is.nan(ldsup)) {
+                SNPRelate::snpgdsClose(genofile)
+                stop("Monomorphic SNPs are not accepted", call. = F)
+              }
+              i <- i + 1
+            }
+            ld_between_QTNs_temp[x] <- ldsup
+            sup_temp[x] <- i
+            x <- x + 1
+          }
+          SNPRelate::snpgdsClose(genofile)
+          sup[[z]] <- sup_temp
+          inf[[z]] <- vector_of_add_QTN
+          add_gen_info_inf[[z]] <-
+            data.frame(SNP = "QTN_for_trait_1", genotypes[vector_of_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
+          add_gen_info_sup[[z]] <-
+            data.frame(SNP = "QTN_for_trait_2", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
+          results[[z]] <- rbind(add_gen_info_inf[[z]],
+                                add_gen_info_sup[[z]])
+          LD_summary[[z]] <- data.frame(z,
+                                        ld,
+                                        ld_between_QTNs_temp,
+                                        add_gen_info_inf[[z]][, 2],
+                                        add_gen_info_sup[[z]][, 2]
+          )
+          colnames(LD_summary[[z]]) <-
+            c("rep",
+              "Aimed_LD (absolute value)",
+              "Actual_LD ",
+              "QTN_for_trait_1",
+              "QTN_for_trait_2"
+            )
+        }
+        LD_summary <- do.call(rbind, LD_summary)
+        data.table::fwrite(
+          LD_summary,
+          "LD_summary.txt",
+          row.names = FALSE,
+          sep = "\t",
+          quote = FALSE,
+          na = NA
+        )
+        results <- do.call(rbind, results)
+        results <-
+          data.frame(rep = rep(1:rep, each = add_QTN_num * 2), results, check.names = FALSE, fix.empty.names = FALSE)
+        if (!export_gt){
+          results <- results[, 1:6]
+        }
+        if (add_QTN) {
+          write.table(
+            c(seed + 1:rep),
+            paste0(
+              "seed_num_for_", add_QTN_num,
+              "_Add_and_Dom_QTN",
+              ".txt"
+            ),
+            row.names = FALSE,
+            col.names = FALSE,
+            sep = "\t",
+            quote = FALSE
+          )
+          data.table::fwrite(
+            results,
+            paste0(
+              "Genotypic_info_for_",
+              add_QTN_num,
+              "_Add_and_Dom_QTN_with_LD_of_",
+              paste(ld, collapse = "_"),
+              ".txt"
+            ),
+            row.names = FALSE,
+            sep = "\t",
+            quote = FALSE,
+            na = NA
+          )
+        }
+        add_ef_trait_obj <- mapply(function(x, y) {
+          rownames(x) <-
+            paste0("Chr_", x$chr, "_", x$pos)
+          rownames(y) <-
+            paste0("Chr_", y$chr, "_", y$pos)
+          b <- list(t(x[, - (1:6)]), t(y[, - (1:6)]))
+          return(b)
+        },
+        x = add_gen_info_sup,
+        y = add_gen_info_inf,
+        SIMPLIFY = F)
+      } else {
+        if (add) {
+          sup <- vector("list", rep)
+          inf <- vector("list", rep)
+          add_gen_info_sup <- vector("list", rep)
+          add_gen_info_inf <- vector("list", rep)
+          results_add <- vector("list", rep)
+          LD_summary_add <- vector("list", rep)
+          for (z in 1:rep) {
+            if (!is.null(seed)) {
+              set.seed(seed + z)
+            }
+            vector_of_add_QTN <-
+              sample(index, add_QTN_num, replace = FALSE)
+            genofile <- SNPRelate::snpgdsOpen(gdsfile)
+            x <- 1
+            sup_temp <- c()
+            ld_between_QTNs_temp <- c()
+            for (j in vector_of_add_QTN) {
+              ldsup <- 1
+              i <- j + 1
+              while (ldsup > ld) {
+                snp1 <-
+                  gdsfmt::read.gdsn(
+                    gdsfmt::index.gdsn(genofile, "genotype"),
+                    start = c(1, j),
+                    count = c(-1, 1)
+                  )
+                snp2 <-
+                  gdsfmt::read.gdsn(
+                    gdsfmt::index.gdsn(genofile, "genotype"),
+                    start = c(1, i),
+                    count = c(-1, 1)
+                  )
+                ldsup <-
+                  abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = "composite"))
+                if (is.nan(ldsup)) {
+                  SNPRelate::snpgdsClose(genofile)
+                  stop("Monomorphic SNPs are not accepted", call. = F)
+                }
+                i <- i + 1
+              }
+              sup_temp[x] <- i
+              ld_between_QTNs_temp[x] <- ldsup
+              x <- x + 1
+            }
+            SNPRelate::snpgdsClose(genofile)
+            sup[[z]] <- sup_temp
+            inf[[z]] <- vector_of_add_QTN
+            add_gen_info_inf[[z]] <-
+              data.frame(SNP = "QTN_for_trait_1", genotypes[vector_of_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
+            add_gen_info_sup[[z]] <-
+              data.frame(SNP = "QTN_for_trait_2", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
+            results_add[[z]] <- rbind(add_gen_info_inf[[z]],
+                                  add_gen_info_sup[[z]])
+            LD_summary_add[[z]] <- data.frame(z,
+                                          ld,
+                                          ld_between_QTNs_temp,
+                                          add_gen_info_inf[[z]][, 2],
+                                          add_gen_info_sup[[z]][, 2]
+            )
+            colnames(LD_summary_add[[z]]) <-
+              c("rep",
+                "Aimed_LD (absolute value)",
+                "Actual_LD ",
+                "QTN_for_trait_1",
+                "QTN_for_trait_2"
+              )
+          }
+          LD_summary_add <- do.call(rbind, LD_summary_add)
+          data.table::fwrite(
+            LD_summary_add,
+            "LD_summary_Additive.txt",
+            row.names = FALSE,
+            sep = "\t",
+            quote = FALSE,
+            na = NA
+          )
+          results_add <- do.call(rbind, results_add)
+          results_add <-
+            data.frame(rep = rep(1:rep, each = add_QTN_num * 2), results_add, check.names = FALSE, fix.empty.names = FALSE)
+          if (!export_gt) {
+            results_add <- results_add[, 1:6]
+          }
+          if (add_QTN) {
+            write.table(
+              c(seed + 1:rep),
+              paste0(
+                "seed_num_for_", add_QTN_num,
+                "_Add_QTN",
+                ".txt"
+              ),
+              row.names = FALSE,
+              col.names = FALSE,
+              sep = "\t",
+              quote = FALSE
+            )
+            data.table::fwrite(
+              results_add,
+              paste0(
+                "Genotypic_info_for_",
+                add_QTN_num,
+                "Add_QTN_with_LD_of_",
+                paste(ld, collapse = "_"),
+                ".txt"
+              ),
+              row.names = FALSE,
+              sep = "\t",
+              quote = FALSE,
+              na = NA
+            )
+          }
+          add_ef_trait_obj <- mapply(function(x, y) {
+            rownames(x) <-
+              paste0("Chr_", x$chr, "_", x$pos)
+            rownames(y) <-
+              paste0("Chr_",  y$chr, "_", y$pos)
+            b <- list(t(x[, - (1:6)]), t(y[, - (1:6)]))
+            return(b)
+          },
+          x = add_gen_info_sup,
+          y = add_gen_info_inf,
+          SIMPLIFY = F)
+        }
+        if (dom) {
+          sup <- vector("list", rep)
+          inf <- vector("list", rep)
+          dom_gen_info_sup <- vector("list", rep)
+          dom_gen_info_inf <- vector("list", rep)
+          results_dom <- vector("list", rep)
+          LD_summary_dom <- vector("list", rep)
+          for (z in 1:rep) {
+            if (!is.null(seed)) {
+              set.seed(seed + z + rep)
+            }
+            vector_of_dom_QTN <-
+              sample(index, dom_QTN_num, replace = FALSE)
+            genofile <- SNPRelate::snpgdsOpen(gdsfile)
+            x <- 1
+            sup_temp <- c()
+            ld_between_QTNs_temp <- c()
+            for (j in vector_of_dom_QTN) {
+              ldsup <- 1
+              i <- j + 1
+              while (ldsup > ld) {
+                snp1 <-
+                  gdsfmt::read.gdsn(
+                    gdsfmt::index.gdsn(genofile, "genotype"),
+                    start = c(1, j),
+                    count = c(-1, 1)
+                  )
+                snp2 <-
+                  gdsfmt::read.gdsn(
+                    gdsfmt::index.gdsn(genofile, "genotype"),
+                    start = c(1, i),
+                    count = c(-1, 1)
+                  )
+                ldsup <-
+                  abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = "composite"))
+                if (is.nan(ldsup)) {
+                  SNPRelate::snpgdsClose(genofile)
+                  stop("Monomorphic SNPs are not accepted", call. = F)
+                }
+                i <- i + 1
+              }
+              sup_temp[x] <- i
+              ld_between_QTNs_temp[x] <- ldsup
+              x <- x + 1
+            }
+            SNPRelate::snpgdsClose(genofile)
+            sup[[z]] <- sup_temp
+            inf[[z]] <- vector_of_dom_QTN
+            dom_gen_info_inf[[z]] <-
+              data.frame(SNP = "QTN_for_trait_1", genotypes[vector_of_dom_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
+            dom_gen_info_sup[[z]] <-
+              data.frame(SNP = "QTN_for_trait_2", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
+            results_dom[[z]] <- rbind(dom_gen_info_inf[[z]],
+                                      dom_gen_info_sup[[z]])
+            LD_summary_dom[[z]] <- data.frame(z,
+                                              ld,
+                                              ld_between_QTNs_temp,
+                                              dom_gen_info_inf[[z]][, 2],
+                                              dom_gen_info_sup[[z]][, 2]
+            )
+            colnames(LD_summary_dom[[z]]) <-
+              c("rep",
+                "Aimed_LD (absolute value)",
+                "Actual_LD ",
+                "QTN_for_trait_1",
+                "QTN_for_trait_2"
+              )
+          }
+          LD_summary_dom <- do.call(rbind, LD_summary_dom)
+          data.table::fwrite(
+            LD_summary_dom,
+            "LD_summary_Dominance.txt",
+            row.names = FALSE,
+            sep = "\t",
+            quote = FALSE,
+            na = NA
+          )
+          results_dom <- do.call(rbind, results_dom)
+          results_dom <-
+            data.frame(rep = rep(1:rep, each = dom_QTN_num * 2), results_dom, check.names = FALSE, fix.empty.names = FALSE)
+          if (!export_gt) {
+            results_dom <- results_dom[, 1:6]
+          }
+          if (add_QTN) {
+            write.table(
+              c(seed + 1:rep + rep),
+              paste0(
+                "seed_num_for_", dom_QTN_num,
+                "_Dom_QTN",
+                ".txt"
+              ),
+              row.names = FALSE,
+              col.names = FALSE,
+              sep = "\t",
+              quote = FALSE
+            )
+            data.table::fwrite(
+              results_dom,
+              paste0(
+                "Genotypic_info_for_",
+                dom_QTN_num,
+                "Dom_QTN_with_LD_of_",
+                paste(ld, collapse = "_"),
+                ".txt"
+              ),
+              row.names = FALSE,
+              sep = "\t",
+              quote = FALSE,
+              na = NA
+            )
+          }
+          dom_ef_trait_obj <- mapply(function(x, y) {
+            rownames(x) <-
+              paste0("Chr_", x$chr, "_", x$pos)
+            rownames(y) <-
+              paste0("Chr_", y$chr, "_", y$pos)
+            b <- list(t(x[, - (1:6)]), t(y[, - (1:6)]))
+            return(b)
+          },
+          x = dom_gen_info_sup,
+          y = dom_gen_info_inf,
+          SIMPLIFY = F)
+        }
+      }
+      if (!is.null(add_ef_trait_obj) & !add_QTN) {
+        add_ef_trait_obj <- lapply(add_ef_trait_obj, function(x) {
+          lapply(x, function(y){
+            rnames <- rownames(y) 
+            y <- matrix(0, nrow = nrow(y), ncol =  1)
+            rownames(y)  <- rnames
+            return(y)
+          })
+        })
+      }
+      if (!is.null(dom_ef_trait_obj) & !dom_QTN) {
+        dom_ef_trait_obj <- lapply(dom_ef_trait_obj, function(x) {
+          lapply(x, function(y){
+            rnames <- rownames(y) 
+            y <- matrix(0, nrow = nrow(y), ncol =  1)
+            rownames(y)  <- rnames
+            return(y)
+          })
+        })
+      }
+      return(list(add_ef_trait_obj = add_ef_trait_obj,
+                  dom_ef_trait_obj = dom_ef_trait_obj))
+  }
   }
