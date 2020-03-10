@@ -11,6 +11,7 @@
 #' @param rep_by = 'QTN'
 #' @param hets = 'QTN'
 #' @param verbose = TRUE
+#' @param QTN_variance = FALSE
 #' @return Phenotypes for ntraits traits
 #' @author Samuel Fernandes and Alexander Lipka
 #' Last update: Nov 05, 2019
@@ -27,7 +28,11 @@ phenotypes <-
            to_r = NULL,
            rep_by = NULL,
            hets = NULL,
-           verbose = TRUE) {
+           verbose = TRUE,
+           QTN_variance = FALSE,
+           add  = NULL,
+           dom = NULL,
+           epi = NULL) {
     #---------------------------------------------------------------------------
     h <- 0
     n <- nrow(base_line_trait[[1]]$base_line)
@@ -43,10 +48,10 @@ phenotypes <-
           setwd("./Phenotypes")
         }
         H2 <- matrix(NA, nrow(h2), ntraits)
-        va <- apply(base_line_trait[[1]]$base_line, 2, var)
-        if (any(va == 0)) {
+        vg <- apply(base_line_trait[[1]]$base_line, 2, var)
+        if (any(vg == 0)) {
           warning("Genetic variance = 0 for at least one trait! This will result in h2 = 0!", call. = F)
-        h2[, which(va == 0)] <- 0
+        h2[, which(vg == 0)] <- 0
           }
         for (i in 1:nrow(h2)) {
           simulated_data <- vector("list", rep)
@@ -148,10 +153,11 @@ phenotypes <-
               quote = FALSE
             )
           } else {
-            residual_cov <-  diag( (va / h2[i, ]) - va)
+            residual_cov <-  diag( (vg / h2[i, ]) - vg)
             colnames <- c("<Trait>",
                           c(paste0("Trait_",
                                    1:ntraits, "_H2_", h2[i, ]), "Rep"))
+            vp <- matrix(NA, rep, ntraits)
             for (z in 1:rep) {
               simulated_data[[z]] <-
                 data.frame(names,
@@ -169,11 +175,89 @@ phenotypes <-
                   mean = rep(0, ntraits),
                   sigma = residual_cov
                 )
+              vp[z, ] <- diag(var(simulated_data[[z]][, 2:(ntraits + 1)]))
             }
-            H2_temp <- sapply(1:rep, function(x) {
-              va / apply(simulated_data[[x]][1:ntraits + 1], 2, var)
-            })
-                H2[i, ] <- apply(H2_temp, 1, mean)
+            H2_temp <- vg / t(vp)
+            if (QTN_variance){
+            if (add) {
+              add_var_per_QTN <- vector("list", ntraits)
+              for (u in 1:ntraits) {
+                lqtna <- length(base_line_trait[[1]]$QTN_var$var_add[[1]])
+                add_var_per_QTN_temp <-
+                  data.frame(matrix(NA, rep, lqtna))
+                colnames(add_var_per_QTN_temp) <- paste("QTN", 1:lqtna, sep = "_")
+                for (p in 1:rep) {
+                  add_var_per_QTN_temp[p, ] <-
+                    base_line_trait[[1]]$QTN_var$var_add[[u]] /
+                    vp[p, u]
+                }
+                add_var_per_QTN[[u]] <- add_var_per_QTN_temp
+              }
+              add_var_per_QTN <- 
+                data.frame(trait = rep(1:ntraits, each=rep),
+                           rep = rep(1:rep, times=ntraits),
+                           do.call(rbind, add_var_per_QTN))
+              data.table::fwrite(
+                add_var_per_QTN,
+                "Percent_variation_explained_by_ADD_QTNs.txt",
+                row.names = FALSE,
+                sep = "\t",
+                quote = FALSE,
+                na = NA
+              )
+              }
+            if (dom) {
+              dom_var_per_QTN <- vector("list", ntraits)
+              for (u in 1:ntraits) {
+                dom_var_per_QTN_temp <-
+                  data.frame(matrix(NA, rep, length(base_line_trait[[1]]$QTN_var$var_dom[[1]])))
+                for (p in 1:rep) {
+                  dom_var_per_QTN_temp[p, ] <-
+                    base_line_trait[[1]]$QTN_var$var_dom[[u]] /
+                    vp[p, u]
+                }
+                dom_var_per_QTN[[u]] <- dom_var_per_QTN_temp
+              }
+              dom_var_per_QTN <- 
+                data.frame(trait = rep(1:ntraits, each=rep),
+                           rep = rep(1:rep, times=ntraits),
+                           do.call(rbind, dom_var_per_QTN))
+              data.table::fwrite(
+                dom_var_per_QTN,
+                "Percent_variation_explained_by_DOM_QTNs.txt",
+                row.names = FALSE,
+                sep = "\t",
+                quote = FALSE,
+                na = NA
+              )
+            }
+            if (epi) {
+              epi_var_per_QTN <- vector("list", ntraits)
+              for (u in 1:ntraits) {
+                epi_var_per_QTN_temp <-
+                  data.frame(matrix(NA, rep, length(base_line_trait[[1]]$QTN_var$var_epi[[1]])))
+                for (p in 1:rep) {
+                  epi_var_per_QTN_temp[p, ] <-
+                    base_line_trait[[1]]$QTN_var$var_epi[[u]] /
+                    vp[p, u]
+                }
+                epi_var_per_QTN[[u]] <- epi_var_per_QTN_temp
+              }
+              epi_var_per_QTN <- 
+                data.frame(trait = rep(1:ntraits, each=rep),
+                           rep = rep(1:rep, times=ntraits),
+                           do.call(rbind, epi_var_per_QTN))
+              data.table::fwrite(
+                epi_var_per_QTN,
+                "Percent_variation_explained_by_EPI_QTNs.txt",
+                row.names = FALSE,
+                sep = "\t",
+                quote = FALSE,
+                na = NA
+              )
+            }
+            }
+            H2[i, ] <- apply(H2_temp, 1, mean)
             if (output_format == "multi-file") {
               invisible(lapply(1:rep, function(x) {
                 data.table::fwrite(
@@ -261,10 +345,10 @@ phenotypes <-
         }
       } else {
         H2 <- matrix(NA, nrow = rep, ncol = ncol(h2))
-        va <- var(base_line_trait[[1]]$base_line)
-        if (va == 0) {
+        vg <- var(base_line_trait[[1]]$base_line)
+        if (vg == 0) {
           warning("Genetic variance = 0! Please select a different set of QTNs", call. = F)
-          h2[, which(va == 0)] <- 0
+          h2[, which(vg == 0)] <- 0
           }
         for (i in 1:nrow(h2)) {
           ss <- c()
@@ -349,11 +433,12 @@ phenotypes <-
               )
             }
           } else {
-            residual.variance <- (va / h2[i, 1]) - va
+            residual.variance <- (vg / h2[i, 1]) - vg
             simulated_data <-
               data.frame(names, matrix(NA, n, rep), check.names = FALSE, fix.empty.names = FALSE)
             colnames(simulated_data) <-
               c("<Trait>", c(paste0( "Heritability_", h2[i, ], "_Rep_", 1:rep)))
+            vp <- c()
             for (j in 1:rep) {
               if (!is.null(seed)) {
                 sss <- as.integer((seed + j) * round(h2[i, 1] * 10))
@@ -364,7 +449,75 @@ phenotypes <-
                 rnorm(n, mean = 0, sd = sqrt(residual.variance))
               simulated_data[, j + 1] <-
                 base_line_trait[[1]]$base_line + normal_random_variables
-              H2[j, i] <- va / var(simulated_data[, j + 1])
+              vp[j] <- var(simulated_data[, j + 1])
+              H2[j, i] <- vg / vp[j]
+            }
+            if (QTN_variance){
+              if (add) {
+                  lqtna <- length(base_line_trait[[1]]$QTN_var$var_add[[1]])
+                  add_var_per_QTN <-
+                    data.frame(matrix(NA, rep, lqtna))
+                  colnames(add_var_per_QTN) <- paste("QTN", 1:lqtna, sep = "_")
+                  for (p in 1:rep) {
+                    add_var_per_QTN[p, ] <-
+                      base_line_trait[[1]]$QTN_var$var_add[[1]] /
+                      vp[p]
+                  }
+                add_var_per_QTN <- 
+                  data.frame(trait = rep(1:ntraits, each=rep),
+                             rep = rep(1:rep, times=ntraits),
+                             add_var_per_QTN)
+                data.table::fwrite(
+                  add_var_per_QTN,
+                  "Percent_variation_explained_by_ADD_QTNs.txt",
+                  row.names = FALSE,
+                  sep = "\t",
+                  quote = FALSE,
+                  na = NA
+                )
+              }
+              if (dom) {
+                  dom_var_per_QTN <-
+                    data.frame(matrix(NA, rep, length(base_line_trait[[1]]$QTN_var$var_dom[[1]])))
+                  for (p in 1:rep) {
+                    dom_var_per_QTN[p, ] <-
+                      base_line_trait[[1]]$QTN_var$var_dom[[1]] /
+                      vp[p]
+                  }
+                dom_var_per_QTN <- 
+                  data.frame(trait = rep(1:ntraits, each=rep),
+                             rep = rep(1:rep, times=ntraits),
+                             dom_var_per_QTN)
+                data.table::fwrite(
+                  dom_var_per_QTN,
+                  "Percent_variation_explained_by_DOM_QTNs.txt",
+                  row.names = FALSE,
+                  sep = "\t",
+                  quote = FALSE,
+                  na = NA
+                )
+              }
+              if (epi) {
+                  epi_var_per_QTN <-
+                    data.frame(matrix(NA, rep, length(base_line_trait[[1]]$QTN_var$var_epi[[1]])))
+                  for (p in 1:rep) {
+                    epi_var_per_QTN_temp[p, ] <-
+                      base_line_trait[[1]]$QTN_var$var_epi[[1]] /
+                      vp[p]
+                  }
+                epi_var_per_QTN <- 
+                  data.frame(trait = rep(1:ntraits, each=rep),
+                             rep = rep(1:rep, times=ntraits),
+                             epi_var_per_QTN)
+                data.table::fwrite(
+                  epi_var_per_QTN,
+                  "Percent_variation_explained_by_EPI_QTNs.txt",
+                  row.names = FALSE,
+                  sep = "\t",
+                  quote = FALSE,
+                  na = NA
+                )
+              }
             }
             write.table(
               ss,
@@ -453,6 +606,7 @@ phenotypes <-
         for (i in 1:nrow(h2)) {
           simulated_data <- vector("list", rep)
           H2_temp <- matrix(NA, rep, ntraits)
+          vp <- H2_temp
           ss <- c()
           if (any(h2[i, ] == 0)) {
             colnames <- c("<Trait>", paste0("Trait_", 1:ntraits), "Rep")
@@ -553,8 +707,8 @@ phenotypes <-
             colnames <- c("<Trait>",
                           paste0("Trait_", 1:ntraits, "_H2_", h2[i, ]), "Rep")
             for (z in 1:rep) {
-              va <- apply(base_line_trait[[z]]$base_line, 2, var)
-              residual_cov <- diag( (va / h2[i, ]) - va)
+              vg <- apply(base_line_trait[[z]]$base_line, 2, var)
+              residual_cov <- diag( (vg / h2[i, ]) - vg)
               simulated_data[[z]] <-
                 data.frame(names,
                            matrix(NA, n, ntraits),
@@ -571,13 +725,93 @@ phenotypes <-
                   mean = rep(0, ntraits),
                   sigma = residual_cov
                 )
-              if (any(va == 0)) {
+              if (any(vg == 0)) {
                 warning("Genetic variance = 0 for at least one trait in rep ",z,"! Please select a different set of QTNs", call. = F)
                 H2_temp[z, ] <- NA
                 h <- h + 1
               } else {
+                vp[z, ] <- apply(simulated_data[[z]][1:ntraits + 1], 2, var)
                 H2_temp[z, ] <-
-                  va / apply(simulated_data[[z]][1:ntraits + 1], 2, var)
+                  vg / vp[z, ]
+              }
+            }
+            if (QTN_variance){
+              if (add) {
+                add_var_per_QTN <- vector("list", ntraits)
+                for (u in 1:ntraits) {
+                  lqtna <- length(base_line_trait[[1]]$QTN_var$var_add[[1]])
+                  add_var_per_QTN_temp <-
+                    data.frame(matrix(NA, rep, lqtna))
+                  colnames(add_var_per_QTN_temp) <- paste("QTN", 1:lqtna, sep = "_")
+                  for (p in 1:rep) {
+                    add_var_per_QTN_temp[p, ] <-
+                      base_line_trait[[1]]$QTN_var$var_add[[u]] /
+                      vp[p, u]
+                  }
+                  add_var_per_QTN[[u]] <- add_var_per_QTN_temp
+                }
+                add_var_per_QTN <- 
+                  data.frame(trait = rep(1:ntraits, each=rep),
+                             rep = rep(1:rep, times=ntraits),
+                             do.call(rbind, add_var_per_QTN))
+                data.table::fwrite(
+                  add_var_per_QTN,
+                  "Percent_variation_explained_by_ADD_QTNs.txt",
+                  row.names = FALSE,
+                  sep = "\t",
+                  quote = FALSE,
+                  na = NA
+                )
+              }
+              if (dom) {
+                dom_var_per_QTN <- vector("list", ntraits)
+                for (u in 1:ntraits) {
+                  dom_var_per_QTN_temp <-
+                    data.frame(matrix(NA, rep, length(base_line_trait[[1]]$QTN_var$var_dom[[1]])))
+                  for (p in 1:rep) {
+                    dom_var_per_QTN_temp[p, ] <-
+                      base_line_trait[[1]]$QTN_var$var_dom[[u]] /
+                      vp[p, u]
+                  }
+                  dom_var_per_QTN[[u]] <- dom_var_per_QTN_temp
+                }
+                dom_var_per_QTN <- 
+                  data.frame(trait = rep(1:ntraits, each=rep),
+                             rep = rep(1:rep, times=ntraits),
+                             do.call(rbind, dom_var_per_QTN))
+                data.table::fwrite(
+                  dom_var_per_QTN,
+                  "Percent_variation_explained_by_DOM_QTNs.txt",
+                  row.names = FALSE,
+                  sep = "\t",
+                  quote = FALSE,
+                  na = NA
+                )
+              }
+              if (epi) {
+                epi_var_per_QTN <- vector("list", ntraits)
+                for (u in 1:ntraits) {
+                  epi_var_per_QTN_temp <-
+                    data.frame(matrix(NA, rep, length(base_line_trait[[1]]$QTN_var$var_epi[[1]])))
+                  for (p in 1:rep) {
+                    epi_var_per_QTN_temp[p, ] <-
+                      base_line_trait[[1]]$QTN_var$var_epi[[u]] /
+                      vp[p, u]
+                  }
+                  epi_var_per_QTN[[u]] <- epi_var_per_QTN_temp
+                }
+                epi_var_per_QTN <- 
+                  data.frame(trait = rep(1:ntraits, each=rep),
+                             rep = rep(1:rep, times=ntraits),
+                             do.call(rbind, epi_var_per_QTN))
+                data.table::fwrite(
+                  epi_var_per_QTN,
+                  "Percent_variation_explained_by_EPI_QTNs.txt",
+                  row.names = FALSE,
+                  sep = "\t",
+                  quote = FALSE,
+                  na = NA
+                )
               }
             }
             H2[i, ] <- apply(H2_temp, 2, mean, na.rm = T)
@@ -759,9 +993,10 @@ phenotypes <-
               c("<Trait>", c(paste0(
                 "Heritability_", h2[i, ], "_Rep_", 1:rep
               )))
+            vp <- c()
             for (j in 1:rep) {
-              va <- var(base_line_trait[[j]]$base_line)
-              residual.variance <-  (va / h2[i, 1]) - va
+              vg <- var(base_line_trait[[j]]$base_line)
+              residual.variance <-  (vg / h2[i, 1]) - vg
               if (!is.null(seed)) {
                 sss <-  as.integer((seed + j) * round(h2[i, 1] * 10))
                 ss <- c(ss, sss)
@@ -775,12 +1010,80 @@ phenotypes <-
                 )
               simulated_data[, j + 1] <-
                 base_line_trait[[j]]$base_line + normal_random_variables
-              if (va == 0) {
+              if (vg == 0) {
                 warning("Genetic variance = 0 in rep ",j,"! Please select a different set of QTNs", call. = F)
                 h <- h + 1
                 H2[j, i] <- NA
                 } else {
-                H2[j, i] <- va / var(simulated_data[, j + 1]) 
+                vp[j] <-  var(simulated_data[, j + 1]) 
+                H2[j, i] <- vg / vp[j]
+              }
+            }
+            if (QTN_variance){
+              if (add) {
+                lqtna <- length(base_line_trait[[1]]$QTN_var$var_add[[1]])
+                add_var_per_QTN <-
+                  data.frame(matrix(NA, rep, lqtna))
+                colnames(add_var_per_QTN) <- paste("QTN", 1:lqtna, sep = "_")
+                for (p in 1:rep) {
+                  add_var_per_QTN[p, ] <-
+                    base_line_trait[[1]]$QTN_var$var_add[[1]] /
+                    vp[p]
+                }
+                add_var_per_QTN <- 
+                  data.frame(trait = rep(1:ntraits, each=rep),
+                             rep = rep(1:rep, times=ntraits),
+                             add_var_per_QTN)
+                data.table::fwrite(
+                  add_var_per_QTN,
+                  "Percent_variation_explained_by_ADD_QTNs.txt",
+                  row.names = FALSE,
+                  sep = "\t",
+                  quote = FALSE,
+                  na = NA
+                )
+              }
+              if (dom) {
+                dom_var_per_QTN <-
+                  data.frame(matrix(NA, rep, length(base_line_trait[[1]]$QTN_var$var_dom[[1]])))
+                for (p in 1:rep) {
+                  dom_var_per_QTN[p, ] <-
+                    base_line_trait[[1]]$QTN_var$var_dom[[1]] /
+                    vp[p]
+                }
+                dom_var_per_QTN <- 
+                  data.frame(trait = rep(1:ntraits, each=rep),
+                             rep = rep(1:rep, times=ntraits),
+                             dom_var_per_QTN)
+                data.table::fwrite(
+                  dom_var_per_QTN,
+                  "Percent_variation_explained_by_DOM_QTNs.txt",
+                  row.names = FALSE,
+                  sep = "\t",
+                  quote = FALSE,
+                  na = NA
+                )
+              }
+              if (epi) {
+                epi_var_per_QTN <-
+                  data.frame(matrix(NA, rep, length(base_line_trait[[1]]$QTN_var$var_epi[[1]])))
+                for (p in 1:rep) {
+                  epi_var_per_QTN_temp[p, ] <-
+                    base_line_trait[[1]]$QTN_var$var_epi[[1]] /
+                    vp[p]
+                }
+                epi_var_per_QTN <- 
+                  data.frame(trait = rep(1:ntraits, each=rep),
+                             rep = rep(1:rep, times=ntraits),
+                             epi_var_per_QTN)
+                data.table::fwrite(
+                  epi_var_per_QTN,
+                  "Percent_variation_explained_by_EPI_QTNs.txt",
+                  row.names = FALSE,
+                  sep = "\t",
+                  quote = FALSE,
+                  na = NA
+                )
               }
             }
             write.table(
