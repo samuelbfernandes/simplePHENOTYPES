@@ -892,7 +892,7 @@ create_phenotypes <-
             if (out_geno == "plink" | out_geno == "gds") {
               genofile <- SNPRelate::snpgdsOpen(gdsfile)
               snpset <-
-                gdsfmt::read.gdsn(index.gdsn(genofile, "snp.id"))
+                gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.id"))
               for (i in 1:rep) {
                 snps_to_remove[[i]] <- unlist(c(sel_a[i], sel_d[i], sel_e[i]))
                 snpset_no_QTN <-
@@ -939,7 +939,7 @@ create_phenotypes <-
             if (out_geno == "plink" | out_geno == "gds") {
               genofile <- SNPRelate::snpgdsOpen(gdsfile)
               snpset <-
-                gdsfmt::read.gdsn(index.gdsn(genofile, "snp.id"))
+                gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.id"))
                 snps_to_remove[[1]] <- unlist(c(sel_a[1], sel_d[1], sel_e[1]))
                 snpset_no_QTN <-
                   setdiff(snpset, snps_to_remove[[1]])
