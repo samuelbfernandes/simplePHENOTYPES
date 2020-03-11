@@ -205,13 +205,7 @@ QTN_linkage <-
       )
       data.table::fwrite(
         results,
-        paste0(
-          "Genotypic_info_for_",
-          add_QTN_num,
-          "Add_and_Dom_QTN_with_LD_of_",
-          paste(ld, collapse = "_"),
-          ".txt"
-        ),
+        "Additive_selected_QTNs.txt",
         row.names = FALSE,
         sep = "\t",
         quote = FALSE,
@@ -373,13 +367,7 @@ QTN_linkage <-
         )
         data.table::fwrite(
           results_add,
-          paste0(
-            "Genotypic_info_for_",
-            add_QTN_num,
-            "Add_QTN_with_LD_of_",
-            paste(ld, collapse = "_"),
-            ".txt"
-          ),
+          "Additive_selected_QTNs.txt",
           row.names = FALSE,
           sep = "\t",
           quote = FALSE,
@@ -541,13 +529,7 @@ QTN_linkage <-
         )
         data.table::fwrite(
           results_dom,
-          paste0(
-            "Genotypic_info_for_",
-            dom_QTN_num,
-            "Dom_QTN_with_LD_of_",
-            paste(ld, collapse = "_"),
-            ".txt"
-          ),
+          "Dominance_selected_QTNs.txt",
           row.names = FALSE,
           sep = "\t",
           quote = FALSE,
@@ -688,13 +670,7 @@ QTN_linkage <-
           )
           data.table::fwrite(
             results,
-            paste0(
-              "Genotypic_info_for_",
-              add_QTN_num,
-              "_Add_and_Dom_QTN_with_LD_of_",
-              paste(ld, collapse = "_"),
-              ".txt"
-            ),
+            "Additive_selected_QTNs.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -811,13 +787,7 @@ QTN_linkage <-
             )
             data.table::fwrite(
               results_add,
-              paste0(
-                "Genotypic_info_for_",
-                add_QTN_num,
-                "Add_QTN_with_LD_of_",
-                paste(ld, collapse = "_"),
-                ".txt"
-              ),
+              "Additive_selected_QTNs.txt",
               row.names = FALSE,
               sep = "\t",
               quote = FALSE,
@@ -934,13 +904,7 @@ QTN_linkage <-
             )
             data.table::fwrite(
               results_dom,
-              paste0(
-                "Genotypic_info_for_",
-                dom_QTN_num,
-                "Dom_QTN_with_LD_of_",
-                paste(ld, collapse = "_"),
-                ".txt"
-              ),
+              "Dominance_selected_QTNs.txt",
               row.names = FALSE,
               sep = "\t",
               quote = FALSE,
