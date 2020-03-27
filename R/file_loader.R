@@ -72,7 +72,8 @@ file_loader <-
       }
     }else{
       if (is.null(geno_path)) {
-        if (!geno_file %in% dir()) {
+        if (!geno_file %in% dir() & 
+            (!sub(".*/", "",geno_file) %in%list.files(dirname(geno_file)))) {
           stop(paste("File ",geno_file," not found."), call. = F)
         }
         G <-
