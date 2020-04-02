@@ -28,8 +28,8 @@ GAPIT_numericalization <-
         x <- as.matrix(x)
       }
       # Genotype counts
-      count <- table(x)
-      lev <- setdiff(names(count), "N")
+      count <- table(x[x!="N"])
+      lev <- names(count)
       len <- length(lev)
       max_c <- which.max(count)
       min_c <- which.min(count)
@@ -55,8 +55,8 @@ GAPIT_numericalization <-
     if (bit == 2){
       x[x == "XX" | x == "--" | x == "++" | x == "//" | x == "NN"] <- "N"
       # Genotype counts
-      count <- table(x)
-      lev <- setdiff(names(count), "N")
+      count <- table(x[x!="N"])
+      lev <- names(count)
       len <- length(lev)
       if (major_allele_zero & (len > 1 & len <= 3)){
         max_c <- which.max(count)
@@ -78,42 +78,42 @@ GAPIT_numericalization <-
     if (len == 2){
       x1 <- 1:length(x)
       x1[x == "N"] <- NA
-      x1[x == lev[1]] <- 0
-      x1[x != lev[1]] <- 2
+      x1[x == lev[1]] <- -1
+      x1[x != lev[1]] <- 1
     }
     # 3 status
     if (len == 3){
       if (bit == 1){
         x1 <- 1:length(x)
         x1[x == "N"] <- NA
-        x1[x != lev[1] & x != lev[3]] <- 2
-        x1[x == lev[1]] <- 0
-        x1[x == lev[3]] <- 1
+        x1[x != lev[1] & x != lev[3] & !is.na(x1)] <- 1
+        x1[x == lev[1]] <- -1
+        x1[x == lev[3]] <- 0
       } else {
         x1 <- 1:length(x)
         x1[x == "N"] <- NA
-        x1[x != lev[1] & x != lev[3]] <- 1
-        x1[x == lev[1]] <- 0
-        x1[x == lev[3]] <- 2
+        x1[x != lev[1] & x != lev[3] & !is.na(x1)] <- 0
+        x1[x == lev[1]] <- -1
+        x1[x == lev[3]] <- 1
       }
     }
     # missing data imputation
     if (impute == "Middle") {
-      x1[is.na(x1)] <- 1
+      x1[is.na(x1)] <- 0
     }
     if (len == 3) {
       if (impute == "Minor") {
-        x1[is.na(x1)] <- position[1] - 1
+        x1[is.na(x1)] <- position[1] - 2
       }
       if (impute == "Major") {
-        x1[is.na(x1)] <- position[len] - 1
+        x1[is.na(x1)] <- position[len] - 2
       }
     } else {
       if (impute == "Minor") {
-        x1[is.na(x1)] <- 2 * (position[1] - 1)
+        x1[is.na(x1)] <- (2 * (position[1] - 1)) - 1
       }
       if (impute == "Major") {
-        x1[is.na(x1)] <- 2 * (position[len] - 1)
+        x1[is.na(x1)] <- (2 * (position[len] - 1)) - 1
       }
     }
     # alternative genetic models
@@ -122,9 +122,9 @@ GAPIT_numericalization <-
       x1[x1 != 1] <- 0
     }
     if (effect == "Left")
-      x1[x1 == 1] <- 0
+      x1[x1 == 0] <- -1
     if (effect == "Right")
-      x1[x1 == 1] <- 2
+      x1[x1 == 0] <- 1
     result <- matrix(x1, length(x1), 1)
     return(result)
   }  #end of GAPIT.numericalization function
