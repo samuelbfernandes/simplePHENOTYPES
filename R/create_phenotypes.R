@@ -569,6 +569,19 @@ create_phenotypes <-
                     SNP_impute = SNP_impute,
                     major_allele_zero = major_allele_zero,
                     verbose = verbose)
+      } else {
+        dose <- 0
+        counter <- 6
+        if (any(class(geno_obj) != "data.frame")) {
+          geno_obj <- as.data.frame(geno_obj)
+        }
+        while (all(dose != 2) & all(dose !=-1)) {
+          dose <- unique(geno_obj[,counter])
+          counter <- counter + 1
+        }
+        if (all(dose != -1) | any(dose == 2)) {
+          geno_obj[,-c(1:5)] <- geno_obj[,-c(1:5)] - 1
+        }
       }
       if (is.null(seed)) {
         seed <- as.integer(runif(1, 0, 1000000))

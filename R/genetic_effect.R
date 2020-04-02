@@ -64,8 +64,8 @@ genetic_effect <-
       dom_component_temp <- dom_component
       for (i in 1:dominance_QTN_number) {
         new_dom_QTN_effect <- dom_component_temp
-        new_dom_QTN_effect[dom_obj[, i] == 1, 1] <-
-          new_dom_QTN_effect[dom_obj[, i] == 1, 1] + dom_effect[i]
+        new_dom_QTN_effect[dom_obj[, i] == 0, 1] <-
+          new_dom_QTN_effect[dom_obj[, i] == 0, 1] + dom_effect[i]
         var_dom[i] <- var(new_dom_QTN_effect)
         dom_component <- dom_component + new_dom_QTN_effect
       }
@@ -74,20 +74,20 @@ genetic_effect <-
       dom_genetic_variance <- var(dom_component)
     }
     if (epi) {
-      epistatic_QTN_number <- ncol(epi_obj) / 2
-      for (i in 0:(epistatic_QTN_number - 1)) {
-        new_epi_QTN_effect <- 
-          ( (epi_obj[, ( (2 * i) + 1)] *
-               epi_obj[, ( (2 * i) + 2)]) *
-              as.numeric(epi_effect[i + 1]))
-        epi_component <-
-          epi_component + new_epi_QTN_effect
-        var_epi[i+1] <- var(new_epi_QTN_effect)
+        epistatic_QTN_number <- ncol(epi_obj) / 2
+        for (i in 0:(epistatic_QTN_number - 1)) {
+          new_epi_QTN_effect <- 
+            ( (epi_obj[, ( (2 * i) + 1)] *
+                 epi_obj[, ( (2 * i) + 2)]) *
+                as.numeric(epi_effect[i + 1]))
+          epi_component <-
+            epi_component + new_epi_QTN_effect
+          var_epi[i+1] <- var(new_epi_QTN_effect)
+        }
+        rownames(epi_component) <- rownames
+        colnames(epi_component) <- "epistatic_effect"
+        epi_genetic_variance <- var(epi_component)
       }
-      rownames(epi_component) <- rownames
-      colnames(epi_component) <- "epistatic_effect"
-      epi_genetic_variance <- var(epi_component)
-    }
     base_line_trait <- add_component + dom_component + epi_component
     return( list(
       base_line = base_line_trait,

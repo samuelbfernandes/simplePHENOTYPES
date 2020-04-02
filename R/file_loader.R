@@ -141,6 +141,15 @@ file_loader <-
         ))
       } else if (input_format == "numeric") {
         GD <- G[, -c(1:5)]
+        dose <- 0
+        counter <- 1
+        while (all(dose != 2) & all(dose !=-1)) {
+          dose <- c(unique(GD[,counter]), unique(GD[counter,]))
+          counter <- counter + 1
+        }
+        if (all(dose != -1) | any(dose == 2)) {
+          GD <- GD - 1
+        }
         GI <- G[, c(1, 2, 3, 4)]
         GT <- colnames(G)[-c(1:5)]
       }
