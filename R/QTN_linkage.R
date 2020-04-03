@@ -569,6 +569,30 @@ QTN_linkage <-
         })
       })
     }
+      if (!is.null(add_ef_trait_obj)) {
+        biallelic <- any(sapply(add_ef_trait_obj, function(x){
+          sapply(x, function(x2){
+            apply(x2, 2, function(y){
+              length(unique(y)) > 3
+            })})
+        }))
+        if (biallelic){
+          stop("Please use only biallelic markers.",
+               call. = F)
+        }
+      }
+      if (!is.null(dom_ef_trait_obj)) {
+        biallelic <- any(sapply(dom_ef_trait_obj, function(x){
+          sapply(x, function(x2){
+            apply(x2, 2, function(y){
+              length(unique(y)) > 3
+            })})
+        }))
+        if (biallelic){
+          stop("Please use only biallelic markers.",
+               call. = F)
+        }
+      }
     return(list(add_ef_trait_obj = add_ef_trait_obj,
                 dom_ef_trait_obj = dom_ef_trait_obj))
     } else {
@@ -943,6 +967,30 @@ QTN_linkage <-
             return(y)
           })
         })
+      }
+      if (!is.null(add_ef_trait_obj)) {
+        biallelic <- any(sapply(add_ef_trait_obj, function(x){
+          sapply(x, function(x2){
+            apply(x2, 2, function(y){
+              length(unique(y)) > 3
+            })})
+        }))
+        if (biallelic){
+          stop("Please use only biallelic markers.",
+               call. = F)
+        }
+      }
+      if (!is.null(dom_ef_trait_obj)) {
+        biallelic <- any(sapply(dom_ef_trait_obj, function(x){
+          sapply(x, function(x2){
+            apply(x2, 2, function(y){
+              length(unique(y)) > 3
+            })})
+        }))
+        if (biallelic){
+          stop("Please use only biallelic markers.",
+               call. = F)
+        }
       }
       return(list(add_ef_trait_obj = add_ef_trait_obj,
                   dom_ef_trait_obj = dom_ef_trait_obj))
