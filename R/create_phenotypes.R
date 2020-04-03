@@ -749,11 +749,17 @@ create_phenotypes <-
           message("Removing ", sum(dup), " markers for being duplicated!")
           geno_obj <- geno_obj[!dup, ]
         }
-        if (any(grepl("geno.gds", dir(home_dir)))) {
-          message("A file named geno.gds is already present in this folder, creating \'geno2\'.")
-          gdsfile <- "geno2"
-        }
         if (is.null(gdsfile))  gdsfile <- "geno"
+        if (file.exists(paste0(home_dir, "/",gdsfile,".gds"))) {
+          j <- 1
+          tempfile <- paste0(home_dir, "/",gdsfile, j, ".gds")
+          while (file.exists(tempfile)) {
+            tempfile <- paste0(home_dir, "/",gdsfile, j, ".gds")
+            j <- j + 1
+          }
+          message("A file named ", gdsfile, " is already present in this folder, creating ", paste0(gdsfile, j, ".gds"))
+          gdsfile <- paste0(gdsfile, j)
+        }
         if (!is.numeric(geno_obj$chr)) {
           geno_obj$chr <- as.numeric(
             gsub("\\D+", "", geno_obj$chr)
@@ -766,7 +772,7 @@ create_phenotypes <-
         }
         SNPRelate::snpgdsCreateGeno(
           paste0(home_dir, "/", gdsfile, ".gds"),
-          genmat = t(geno_obj[, -c(1:5)]),
+          genmat = t(geno_obj[, -c(1:5)]) + 1,
           sample.id = colnames(geno_obj)[-c(1:5)],
           snp.id = as.character(geno_obj$snp),
           snp.chromosome = geno_obj$chr,
