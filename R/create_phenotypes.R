@@ -127,8 +127,6 @@
 #' implementation, the default is 'Add'.
 #' @param SNP_impute Parameter used for numericalization. Following GAPIT 
 #' implementation, the default is 'Middle'.
-#' @param major_allele_zero Parameter used for numericalization. Following 
-#' GAPIT implementation, the default is FALSE.
 #' @param quiet Whether or not the log file should be opened once the simulation is done.
 #' @param verbose if FALSE, suppress prints.
 #' @param remove_QTN Whether or not a copy of the genotipic file should be saved without the simulated QTNs. Default is FALSE.
@@ -203,7 +201,6 @@ create_phenotypes <-
            na_string = "NA",
            SNP_effect = "Add",
            SNP_impute = "Middle",
-           major_allele_zero = FALSE,
            quiet = FALSE,
            verbose = TRUE,
            remove_QTN = FALSE,
@@ -557,7 +554,26 @@ create_phenotypes <-
       }
       setwd(home_dir)
       on.exit(setwd(home_dir), add = TRUE)
-      if (!is.null(geno_path) | !is.null(geno_file)) {
+      if (is.null(geno_obj) &
+          is.null(geno_file) &
+          is.null(geno_path)){
+        stop("Please provide one of: \'geno_obj\', \'geno_file\' or \'geno_path\'", call. = F)
+      }
+      if (!is.null(geno_obj)) {
+        if (any(class(geno_obj) != "data.frame")) {
+          geno_obj <- as.data.frame(geno_obj)
+        }
+        if (!is.numeric(unlist(geno_obj[, 6:7]))) {
+          if (any(colnames(geno_obj)[1:5] != c("snp", "allele", "chr",  "pos",  "cm"))) {
+            stop("If a numeric format is provided, the first 5 columns of \'geno_obj\' should have the following names:\n       c(\"snp\", \"allele\", \"chr\",  \"pos\",  \"cm\").\n       Please see data(SNP55K_maize282_maf04) for an example. ", call. = F)
+          }
+        } else {
+          nonnumeric <- TRUE
+        }
+      } else {
+        nonnumeric <- TRUE
+        }
+      if (!is.null(geno_path) | !is.null(geno_file) | nonnumeric) {
         geno_obj <-
           genotypes(geno_obj = geno_obj,
                     geno_path = geno_path,
@@ -567,14 +583,11 @@ create_phenotypes <-
                     prefix = prefix,
                     maf_cutoff = maf_cutoff,
                     SNP_impute = SNP_impute,
-                    major_allele_zero = major_allele_zero,
                     verbose = verbose)
       } else {
+        if (verbose) cat("File (geno_obj) loaded from memory. \n")
         dose <- 0
         counter <- 6
-        if (any(class(geno_obj) != "data.frame")) {
-          geno_obj <- as.data.frame(geno_obj)
-        }
         while (all(dose != 2) & all(dose !=-1)) {
           dose <- unique(geno_obj[,counter])
           counter <- counter + 1
