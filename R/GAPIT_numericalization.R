@@ -1,4 +1,4 @@
-#' convert character SNP genotype to numerical. 
+#' Converts character SNP genotype to numerical (-1, 0, 1) were 1 is the major allele. Modified from 
 #' Alexander E. Lipka, Feng Tian, Qishan Wang, Jason Peiffer, Meng Li,
 #' Peter J. Bradbury, Michael A. Gore, Edward S. Buckler, Zhiwu Zhang
 #' GAPIT: genome association and prediction integrated tool, Bioinformatics,
@@ -8,7 +8,6 @@
 #' @param bit = NULL,
 #' @param effect = 'Add',
 #' @param impute = 'None',
-#' @param major_allele_zero = FALSE,
 #' @return Corresponding numerical value
 #' @source \doi{10.1093/bioinformatics/bts444}
 #'--------------------------numericalization---------------------------------
@@ -16,59 +15,51 @@ GAPIT_numericalization <-
   function(x,
            bit = NULL,
            effect = "Add",
-           impute = "None",
-           major_allele_zero = FALSE){
+           impute = "None"){
     #---------------------------------------------------------------------------
     if (bit == 1){
       x[x == "X" | x == "-" | x == "+" | x == "/"] <- "N"
       # K (for GT genotype)is replaced by Z to ensure
       # heterozygose has the largest value
-      x[x == "K"] <- "Z"
+      x[x == "R" | x == "Y" | x == "S" | x == "W" | x == "K" | x == "M"] <- "Z"
       if (class(x) != "matrix"){
         x <- as.matrix(x)
       }
       # Genotype counts
       count <- table(x[x!="N"])
-      lev <- names(count)
-      len <- length(lev)
-      max_c <- which.max(count)
-      min_c <- which.min(count)
-      if (major_allele_zero){
-        if (len > 1 & len <= 3){
-          # One bit: Make sure that the SNP with the major allele is on the top,
-          # and the SNP with the minor allele is on the second position
-          order <-
-            c(max_c, min_c, setdiff(1:len, c(max_c, min_c)))
-          count <- count[order]
-          lev <- lev[order]
-        }
-      }  #End  if(major_allele_zero)
-      # make two bit order genotype as AA,AT and TT,
-      # one bit as A(AA),T(TT) and X(AT)
+      len <- length(count)
       if (len == 3){
-        temp <- count[2]
-        count[2] <- count[3]
-        count[3] <- temp
-      }
-      position <- order(count)
+        max_c <- names(which.max(count[names(count)!= "Z"]))
+        min_c <- names(which.min(count[names(count)!= "Z"]))
+        count <- count[c(max_c, min_c, "Z")]
+      } else if (len == 2) {
+        max_c <- which.max(count[names(count)!= "Z"])
+        count <- count[c(max_c, setdiff(1:len, max_c))]
+        }
+      lev <- names(count)
+      position <- order(count, decreasing = T)
     }
     if (bit == 2){
       x[x == "XX" | x == "--" | x == "++" | x == "//" | x == "NN"] <- "N"
       # Genotype counts
-      count <- table(x[x!="N"])
+      count <- table(x[x != "N"])
+      len <- length(count)
+      s <- lengths(sapply(strsplit(names(count), ""), unique)) > 1
+      if (any(s)) {
+        het <- which(s)
+      } else {
+        het <- 0
+      }
+      if (len == 3){
+        max_c <- names(which.max(count[setdiff(1:3, het)]))
+        min_c <- names(which.min(count[setdiff(1:3, het)]))
+        count <- count[c(max_c, min_c, names(count[het]))]
+      } else if (len == 2) {
+        max_c <- names(count[setdiff(1:2, het)])
+        count <- count[c(max_c, names(count[het]))]
+      }
       lev <- names(count)
-      len <- length(lev)
-      if (major_allele_zero & (len > 1 & len <= 3)){
-        max_c <- which.max(count)
-        min_c <- which.min(count)
-        # Two bit: Make sure that the SNP with the major allele is on the top,
-        # and the SNP with the minor allele is on the third position
-        order <-
-          c(max_c, setdiff(1:len, c(max_c, min_c)), min_c)
-        count <- count[order]
-        lev <- lev[order]
-      }  #End  if(major_allele_zero)
-      position <- order(count)
+      position <- order(count, decreasing = T)
     }
     # 1 status other than 2 or 3
     if (len <= 1 | len > 3){
@@ -86,15 +77,15 @@ GAPIT_numericalization <-
       if (bit == 1){
         x1 <- 1:length(x)
         x1[x == "N"] <- NA
-        x1[x != lev[1] & x != lev[3] & !is.na(x1)] <- 1
-        x1[x == lev[1]] <- -1
+        x1[x != lev[1] & x != lev[3] & !is.na(x1)] <- -1
+        x1[x == lev[1]] <- 1
         x1[x == lev[3]] <- 0
       } else {
         x1 <- 1:length(x)
         x1[x == "N"] <- NA
-        x1[x != lev[1] & x != lev[3] & !is.na(x1)] <- 0
-        x1[x == lev[1]] <- -1
-        x1[x == lev[3]] <- 1
+        x1[x != lev[1] & x != lev[3] & !is.na(x1)] <- -1
+        x1[x == lev[1]] <- 1
+        x1[x == lev[3]] <- 0
       }
     }
     # missing data imputation
