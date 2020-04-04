@@ -9,7 +9,6 @@
 #' @param maf_cutoff = NULL,
 #' @param SNP_effect = 'Add',
 #' @param SNP_impute = 'Middle',
-#' @param major_allele_zero = FALSE,
 #' @param verbose = verbose
 #' @return A numeric HapMap
 #' @author Samuel Fernandes and Alexander Lipka
@@ -26,7 +25,6 @@ genotypes <-
            maf_cutoff = NULL,
            SNP_effect = "Add",
            SNP_impute = "Middle",
-           major_allele_zero = FALSE,
            verbose = TRUE) {
     #---------------------------------------------------------------------------
     hmp <- file_loader(
