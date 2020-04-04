@@ -47,7 +47,6 @@ create_phenotypes(
   na_string = "NA",
   SNP_effect = "Add",
   SNP_impute = "Middle",
-  major_allele_zero = FALSE,
   quiet = FALSE,
   verbose = TRUE,
   remove_QTN = FALSE,
@@ -218,9 +217,6 @@ implementation, the default is 'Add'.}
 
 \item{SNP_impute}{Parameter used for numericalization. Following GAPIT 
 implementation, the default is 'Middle'.}
-
-\item{major_allele_zero}{Parameter used for numericalization. Following 
-GAPIT implementation, the default is FALSE.}
 
 \item{quiet}{Whether or not the log file should be opened once the simulation is done.}
 

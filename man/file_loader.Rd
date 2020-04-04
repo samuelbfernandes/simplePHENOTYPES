@@ -13,7 +13,6 @@ file_loader(
   prefix = NULL,
   SNP_impute = "Middle",
   SNP_effect = "Add",
-  major_allele_zero = FALSE,
   verbose = TRUE
 )
 }
@@ -33,8 +32,6 @@ file_loader(
 \item{SNP_impute}{= "Middle",}
 
 \item{SNP_effect}{= "Add",}
-
-\item{major_allele_zero}{= FALSE}
 
 \item{verbose}{= TRUE}
 }

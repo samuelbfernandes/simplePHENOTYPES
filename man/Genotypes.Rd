@@ -14,7 +14,6 @@ genotypes(
   maf_cutoff = NULL,
   SNP_effect = "Add",
   SNP_impute = "Middle",
-  major_allele_zero = FALSE,
   verbose = TRUE
 )
 }
@@ -36,8 +35,6 @@ genotypes(
 \item{SNP_effect}{= 'Add',}
 
 \item{SNP_impute}{= 'Middle',}
-
-\item{major_allele_zero}{= FALSE,}
 
 \item{verbose}{= verbose}
 }
