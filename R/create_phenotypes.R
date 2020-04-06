@@ -563,7 +563,7 @@ create_phenotypes <-
         if (any(class(geno_obj) != "data.frame")) {
           geno_obj <- as.data.frame(geno_obj)
         }
-        if (!is.numeric(unlist(geno_obj[, 6:7]))) {
+        if (is.numeric(unlist(geno_obj[, 6:7]))) {
           if (any(colnames(geno_obj)[1:5] != c("snp", "allele", "chr",  "pos",  "cm"))) {
             stop("If a numeric format is provided, the first 5 columns of \'geno_obj\' should have the following names:\n       c(\"snp\", \"allele\", \"chr\",  \"pos\",  \"cm\").\n       Please see data(SNP55K_maize282_maf04) for an example. ", call. = F)
           }
