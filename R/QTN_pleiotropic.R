@@ -91,11 +91,17 @@ QTN_pleiotropic <-
       }
       add_QTN_geno_info <-
         do.call(rbind, add_QTN_geno_info)
+      ns <- length(add_QTN_geno_info[1,-c(1:5)])
+      ss <- apply(add_QTN_geno_info[,-c(1:5)] + 1, 1, sum)
+      names(ss) <- add_QTN_geno_info[, 1]
+      maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
+      maf <- round(apply(maf_matrix, 2, min), 4)
+      add_QTN_geno_info <- data.frame(add_QTN_geno_info[, 1:5], maf = maf, add_QTN_geno_info[, -c(1:5)], check.names = FALSE, fix.empty.names = FALSE)
       add_QTN_geno_info <-
         data.frame(rep = rep(1:rep, each = add_QTN_num),
                    add_QTN_geno_info, check.names = FALSE, fix.empty.names = FALSE)
       if (!export_gt){
-        add_QTN_geno_info <- add_QTN_geno_info[, 1:5]
+        add_QTN_geno_info <- add_QTN_geno_info[, 1:7]
       }
       if (!is.null(seed)) {
         s <- as.matrix(seed + 1:rep)
@@ -150,11 +156,17 @@ QTN_pleiotropic <-
         }
         add_QTN_geno_info <-
           do.call(rbind, add_QTN_geno_info)
+        ns <- length(add_QTN_geno_info[1,-c(1:5)])
+        ss <- apply(add_QTN_geno_info[,-c(1:5)] + 1, 1, sum)
+        names(ss) <- add_QTN_geno_info[, 1]
+        maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
+        maf <- round(apply(maf_matrix, 2, min), 4)
+        add_QTN_geno_info <- data.frame(add_QTN_geno_info[, 1:5], maf = maf, add_QTN_geno_info[, -c(1:5)], check.names = FALSE, fix.empty.names = FALSE)
         add_QTN_geno_info <-
           data.frame(rep = rep(1:rep, each = add_QTN_num),
                      add_QTN_geno_info, check.names = FALSE, fix.empty.names = FALSE)
         if (!export_gt) {
-          add_QTN_geno_info <- add_QTN_geno_info[, 1:5]
+          add_QTN_geno_info <- add_QTN_geno_info[, 1:7]
         }
         if (!is.null(seed)) {
           s <- as.matrix(seed + 1:rep)
@@ -209,11 +221,17 @@ QTN_pleiotropic <-
         }
         dom_QTN_geno_info <-
           do.call(rbind, dom_QTN_geno_info)
+        ns <- length(dom_QTN_geno_info[1,-c(1:5)])
+        ss <- apply(dom_QTN_geno_info[,-c(1:5)] + 1, 1, sum)
+        names(ss) <- dom_QTN_geno_info[, 1]
+        maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
+        maf <- round(apply(maf_matrix, 2, min), 4)
+        dom_QTN_geno_info <- data.frame(dom_QTN_geno_info[, 1:5], maf = maf, dom_QTN_geno_info[, -c(1:5)], check.names = FALSE, fix.empty.names = FALSE)
         dom_QTN_geno_info <-
           data.frame(rep = rep(1:rep, each = dom_QTN_num),
                      dom_QTN_geno_info, check.names = FALSE, fix.empty.names = FALSE)
         if (!export_gt) {
-          dom_QTN_geno_info <- dom_QTN_geno_info[, 1:5]
+          dom_QTN_geno_info <- dom_QTN_geno_info[, 1:7]
         }
         if (!is.null(seed)) {
           s <- as.matrix(seed + 1:rep) + rep
@@ -269,11 +287,17 @@ QTN_pleiotropic <-
       }
       epi_QTN_gen_infor <-
         do.call(rbind, epi_QTN_gen_infor)
+      ns <- length(epi_QTN_gen_infor[1,-c(1:5)])
+      ss <- apply(epi_QTN_gen_infor[,-c(1:5)] + 1, 1, sum)
+      names(ss) <- epi_QTN_gen_infor[, 1]
+      maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
+      maf <- round(apply(maf_matrix, 2, min), 4)
+      epi_QTN_gen_infor <- data.frame(epi_QTN_gen_infor[, 1:5], maf = maf, epi_QTN_gen_infor[, -c(1:5)], check.names = FALSE, fix.empty.names = FALSE)
       epi_QTN_gen_infor <-
         data.frame(rep = rep(rep(1:rep, each = epi_QTN_num), each = 2),
                    epi_QTN_gen_infor, check.names = FALSE, fix.empty.names = FALSE)
       if (!export_gt) {
-        epi_QTN_gen_infor <- epi_QTN_gen_infor[, 1:5]
+        epi_QTN_gen_infor <- epi_QTN_gen_infor[, 1:7]
       }
       if (!is.null(seed)) {
         ss <- as.matrix( (seed + seed) + 1:rep + rep)
