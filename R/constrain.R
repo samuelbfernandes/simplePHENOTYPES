@@ -12,7 +12,7 @@ constrain <-
   function(genotypes = NULL,
            maf_above = NULL,
            maf_below = NULL) {
-    GD <- genotypes[, - (1:5)]
+    GD <- genotypes[, - (1:5)] + 1 
     ns <- ncol(GD)
     ss <- apply(GD, 1, sum)
     maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
