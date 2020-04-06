@@ -132,6 +132,12 @@ QTN_partially_pleiotropic <-
       add_ef_trait_obj <- add_object
       add_object <- unlist(add_object, recursive = FALSE)
       add_object <- do.call(rbind, add_object)
+      ns <- length(add_object[1,-c(1:7)])
+      ss <- apply(add_object[,-c(1:7)] + 1, 1, sum)
+      names(ss) <- add_object[, 2]
+      maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
+      maf <- round(apply(maf_matrix, 2, min), 4) 
+      add_object <- data.frame(add_object[, 1:7], maf = maf, add_object[, -c(1:7)], check.names = FALSE, fix.empty.names = FALSE )
       add_object <-
         data.frame(rep = sort(c(rep(1:rep,
                                     each = pleio_a * ntraits),
@@ -148,7 +154,7 @@ QTN_partially_pleiotropic <-
           })
         })
       if (!export_gt) {
-        add_object <- add_object[, 1:7]
+        add_object <- add_object[, 1:9]
       }
       if (add_QTN) {
       write.table(
@@ -238,6 +244,12 @@ QTN_partially_pleiotropic <-
         add_ef_trait_obj <- add_object
         add_object <- unlist(add_object, recursive = FALSE)
         add_object <- do.call(rbind, add_object)
+        ns <- length(add_object[1,-c(1:7)])
+        ss <- apply(add_object[,-c(1:7)] + 1, 1, sum)
+        names(ss) <- add_object[, 2]
+        maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
+        maf <- round(apply(maf_matrix, 2, min), 4) 
+        add_object <- data.frame(add_object[, 1:7], maf = maf, add_object[, -c(1:7)], check.names = FALSE, fix.empty.names = FALSE )
         add_object <-
           data.frame(rep = sort(c(rep(1:rep,
                                       each = pleio_a * ntraits),
@@ -254,7 +266,7 @@ QTN_partially_pleiotropic <-
             })
           })
         if (!export_gt) {
-          add_object <- add_object[, 1:7]
+          add_object <- add_object[, 1:9]
         }
         if (add_QTN) {
         write.table(
@@ -344,6 +356,12 @@ QTN_partially_pleiotropic <-
         dom_ef_trait_obj <- dom_object
         dom_object <- unlist(dom_object, recursive = FALSE)
         dom_object <- do.call(rbind, dom_object)
+        ns <- length(dom_object[1,-c(1:7)])
+        ss <- apply(dom_object[,-c(1:7)] + 1, 1, sum)
+        names(ss) <- dom_object[, 2]
+        maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
+        maf <- round(apply(maf_matrix, 2, min), 4) 
+        dom_object <- data.frame(dom_object[, 1:7], maf = maf, dom_object[, -c(1:7)], check.names = FALSE, fix.empty.names = FALSE )
         dom_object <-
           data.frame(rep = sort(c(rep(1:rep,
                                       each = pleio_d * ntraits),
@@ -360,7 +378,7 @@ QTN_partially_pleiotropic <-
             })
           })
         if (!export_gt){
-          dom_object <- dom_object[, 1:7]
+          dom_object <- dom_object[, 1:9]
         }
         if (dom_QTN) {
         write.table(
@@ -451,6 +469,12 @@ QTN_partially_pleiotropic <-
       epi_ef_trait_obj <- epi_object
       epi_object <- unlist(epi_object, recursive = FALSE)
       epi_object <- do.call(rbind, epi_object)
+      ns <- length(epi_object[1,-c(1:7)])
+      ss <- apply(epi_object[,-c(1:7)] + 1, 1, sum)
+      names(ss) <- epi_object[, 2]
+      maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
+      maf <- round(apply(maf_matrix, 2, min), 4) 
+      epi_object <- data.frame(epi_object[, 1:7], maf = maf, epi_object[, -c(1:7)], check.names = FALSE, fix.empty.names = FALSE )
       epi_object <-
         data.frame(rep = sort(c(rep(1:rep,
                                     each = pleio_e * ntraits * 2),
@@ -467,7 +491,7 @@ QTN_partially_pleiotropic <-
           })
         })
       if (!export_gt) {
-        epi_object <- epi_object[, 1:7]
+        epi_object <- epi_object[, 1:9]
       }
       if (epi_QTN) {
       write.table(

@@ -147,11 +147,11 @@ QTN_linkage <-
         sup[[z]] <- sup_temp
         inf[[z]] <- inf_temp
         QTN_causing_ld[[z]] <-
-          data.frame(SNP = "cause_of_LD", genotypes[vector_of_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
+          data.frame(snp_type = "cause_of_LD", genotypes[vector_of_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
         add_gen_info_sup[[z]] <-
-          data.frame(SNP = "QTN_upstream", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
+          data.frame(snp_type = "QTN_upstream", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
         add_gen_info_inf[[z]] <-
-          data.frame(SNP = "QTN_downstream", genotypes[inf[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
+          data.frame(snp_type = "QTN_downstream", genotypes[inf[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
         results[[z]] <- rbind(QTN_causing_ld[[z]],
                               add_gen_info_sup[[z]],
                               add_gen_info_inf[[z]])
@@ -162,8 +162,8 @@ QTN_linkage <-
                                           actual_ld_sup,
                                           add_gen_info_inf[[z]][, 2],
                                           add_gen_info_sup[[z]][, 2],
-                                          ld_between_QTNs_temp
-        )
+                                          ld_between_QTNs_temp, check.names = FALSE, fix.empty.names = FALSE
+                                      )
         colnames(LD_summary[[z]]) <-
           c("rep",
             "SNP_causing_LD",
@@ -185,10 +185,16 @@ QTN_linkage <-
         na = NA
       )
       results <- do.call(rbind, results)
+      ns <- length(results[1,-c(1:6)])
+      ss <- apply(results[,-c(1:6)] + 1, 1, sum)
+      names(ss) <- results[, 2]
+      maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
+      maf <- round(apply(maf_matrix, 2, min), 4) 
+      results <- data.frame(results[, 1:6], maf = maf, results[, -c(1:6)], check.names = FALSE, fix.empty.names = FALSE )
       results <-
         data.frame(rep = rep(1:rep, each = add_QTN_num * 3), results, check.names = FALSE, fix.empty.names = FALSE)
       if (!export_gt){
-        results <- results[, 1:6]
+        results <- results[, 1:8]
       }
       if (add_QTN) {
       write.table(
@@ -309,11 +315,11 @@ QTN_linkage <-
           sup[[z]] <- sup_temp
           inf[[z]] <- inf_temp
           QTN_causing_ld[[z]] <-
-            data.frame(SNP = "cause_of_LD", genotypes[vector_of_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
+            data.frame(snp_type = "cause_of_LD", genotypes[vector_of_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
           add_gen_info_sup[[z]] <-
-            data.frame(SNP = "QTN_upstream", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
+            data.frame(snp_type = "QTN_upstream", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
           add_gen_info_inf[[z]] <-
-            data.frame(SNP = "QTN_downstream", genotypes[inf[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
+            data.frame(snp_type = "QTN_downstream", genotypes[inf[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
           results_add[[z]] <- rbind(QTN_causing_ld[[z]],
                                 add_gen_info_sup[[z]],
                                 add_gen_info_inf[[z]])
@@ -324,7 +330,7 @@ QTN_linkage <-
                                         actual_ld_sup,
                                         add_gen_info_inf[[z]][, 2],
                                         add_gen_info_sup[[z]][, 2],
-                                        ld_between_QTNs_temp
+                                        ld_between_QTNs_temp, check.names = FALSE, fix.empty.names = FALSE
           )
           colnames(LD_summary_add[[z]]) <-
             c("rep",
@@ -347,10 +353,16 @@ QTN_linkage <-
           na = NA
         )
         results_add <- do.call(rbind, results_add)
+        ns <- length(results_add[1,-c(1:6)])
+        ss <- apply(results_add[,-c(1:6)] + 1, 1, sum)
+        names(ss) <- results_add[, 2]
+        maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
+        maf <- round(apply(maf_matrix, 2, min), 4)
+        results_add <- data.frame(results_add[, 1:6], maf = maf, results_add[, -c(1:6)], check.names = FALSE, fix.empty.names = FALSE)
         results_add <-
           data.frame(rep = rep(1:rep, each = add_QTN_num * 3), results_add, check.names = FALSE, fix.empty.names = FALSE)
         if (!export_gt) {
-          results_add <- results_add[, 1:6]
+          results_add <- results_add[, 1:8]
         }
         if (add_QTN) {
         write.table(
@@ -471,11 +483,11 @@ QTN_linkage <-
           sup[[z]] <- sup_temp
           inf[[z]] <- inf_temp
           QTN_causing_ld[[z]] <-
-            data.frame(SNP = "cause_of_LD", genotypes[vector_of_dom_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
+            data.frame(snp_type = "cause_of_LD", genotypes[vector_of_dom_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
           dom_gen_info_sup[[z]] <-
-            data.frame(SNP = "QTN_upstream", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
+            data.frame(snp_type = "QTN_upstream", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
           dom_gen_info_inf[[z]] <-
-            data.frame(SNP = "QTN_downstream", genotypes[inf[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
+            data.frame(snp_type = "QTN_downstream", genotypes[inf[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
           results_dom[[z]] <- rbind(QTN_causing_ld[[z]],
                                 dom_gen_info_sup[[z]],
                                 dom_gen_info_inf[[z]])
@@ -486,7 +498,7 @@ QTN_linkage <-
                                           actual_ld_sup,
                                           dom_gen_info_inf[[z]][, 2],
                                           dom_gen_info_sup[[z]][, 2],
-                                          ld_between_QTNs_temp
+                                          ld_between_QTNs_temp, check.names = FALSE, fix.empty.names = FALSE
         )
         colnames(LD_summary_dom[[z]]) <-
           c("rep",
@@ -509,10 +521,16 @@ QTN_linkage <-
         na = NA
       )
         results_dom <- do.call(rbind, results_dom)
+        ns <- length(results_dom[1,-c(1:6)])
+        ss <- apply(results_dom[,-c(1:6)] + 1, 1, sum)
+        names(ss) <- results_dom[, 2]
+        maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
+        maf <- round(apply(maf_matrix, 2, min), 4)
+        results_dom <- data.frame(results_dom[, 1:6], maf = maf, results_dom[, -c(1:6)], check.names = FALSE, fix.empty.names = FALSE )
         results_dom <-
           data.frame(rep = rep(1:rep, each = dom_QTN_num * 3), results_dom, check.names = FALSE, fix.empty.names = FALSE)
         if (!export_gt) {
-          results_dom <- results_dom[, 1:6]
+          results_dom <- results_dom[, 1:8]
         }
         if (add_QTN) {
         write.table(
@@ -645,16 +663,16 @@ QTN_linkage <-
           sup[[z]] <- sup_temp
           inf[[z]] <- vector_of_add_QTN
           add_gen_info_inf[[z]] <-
-            data.frame(SNP = "QTN_for_trait_1", genotypes[vector_of_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
+            data.frame(snp_type = "QTN_for_trait_1", genotypes[vector_of_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
           add_gen_info_sup[[z]] <-
-            data.frame(SNP = "QTN_for_trait_2", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
+            data.frame(snp_type = "QTN_for_trait_2", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
           results[[z]] <- rbind(add_gen_info_inf[[z]],
                                 add_gen_info_sup[[z]])
           LD_summary[[z]] <- data.frame(z,
                                         ld,
                                         ld_between_QTNs_temp,
                                         add_gen_info_inf[[z]][, 2],
-                                        add_gen_info_sup[[z]][, 2]
+                                        add_gen_info_sup[[z]][, 2], check.names = FALSE, fix.empty.names = FALSE
           )
           colnames(LD_summary[[z]]) <-
             c("rep",
@@ -674,10 +692,16 @@ QTN_linkage <-
           na = NA
         )
         results <- do.call(rbind, results)
+        ns <- length(results[1,-c(1:6)])
+        ss <- apply(results[,-c(1:6)] + 1, 1, sum)
+        names(ss) <- results[, 2]
+        maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
+        maf <- round(apply(maf_matrix, 2, min), 4)
+        results <- data.frame(results[, 1:6], maf = maf, results[, -c(1:6)], check.names = FALSE, fix.empty.names = FALSE )
         results <-
           data.frame(rep = rep(1:rep, each = add_QTN_num * 2), results, check.names = FALSE, fix.empty.names = FALSE)
         if (!export_gt){
-          results <- results[, 1:6]
+          results <- results[, 1:8]
         }
         if (add_QTN) {
           write.table(
@@ -762,16 +786,16 @@ QTN_linkage <-
             sup[[z]] <- sup_temp
             inf[[z]] <- vector_of_add_QTN
             add_gen_info_inf[[z]] <-
-              data.frame(SNP = "QTN_for_trait_1", genotypes[vector_of_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
+              data.frame(snp_type = "QTN_for_trait_1", genotypes[vector_of_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
             add_gen_info_sup[[z]] <-
-              data.frame(SNP = "QTN_for_trait_2", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
+              data.frame(snp_type = "QTN_for_trait_2", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
             results_add[[z]] <- rbind(add_gen_info_inf[[z]],
                                   add_gen_info_sup[[z]])
             LD_summary_add[[z]] <- data.frame(z,
                                           ld,
                                           ld_between_QTNs_temp,
                                           add_gen_info_inf[[z]][, 2],
-                                          add_gen_info_sup[[z]][, 2]
+                                          add_gen_info_sup[[z]][, 2], check.names = FALSE, fix.empty.names = FALSE
             )
             colnames(LD_summary_add[[z]]) <-
               c("rep",
@@ -791,10 +815,16 @@ QTN_linkage <-
             na = NA
           )
           results_add <- do.call(rbind, results_add)
+          ns <- length(results_add[1,-c(1:6)])
+          ss <- apply(results_add[,-c(1:6)] + 1, 1, sum)
+          names(ss) <- results_add[, 2]
+          maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
+          maf <- round(apply(maf_matrix, 2, min), 4)
+          results_add <- data.frame(results_add[, 1:6], maf = maf, results_add[, -c(1:6)], check.names = FALSE, fix.empty.names = FALSE )
           results_add <-
             data.frame(rep = rep(1:rep, each = add_QTN_num * 2), results_add, check.names = FALSE, fix.empty.names = FALSE)
           if (!export_gt) {
-            results_add <- results_add[, 1:6]
+            results_add <- results_add[, 1:8]
           }
           if (add_QTN) {
             write.table(
@@ -879,16 +909,16 @@ QTN_linkage <-
             sup[[z]] <- sup_temp
             inf[[z]] <- vector_of_dom_QTN
             dom_gen_info_inf[[z]] <-
-              data.frame(SNP = "QTN_for_trait_1", genotypes[vector_of_dom_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
+              data.frame(snp_type = "QTN_for_trait_1", genotypes[vector_of_dom_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
             dom_gen_info_sup[[z]] <-
-              data.frame(SNP = "QTN_for_trait_2", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
+              data.frame(snp_type = "QTN_for_trait_2", genotypes[sup[[z]], ], check.names = FALSE, fix.empty.names = FALSE)
             results_dom[[z]] <- rbind(dom_gen_info_inf[[z]],
                                       dom_gen_info_sup[[z]])
             LD_summary_dom[[z]] <- data.frame(z,
                                               ld,
                                               ld_between_QTNs_temp,
                                               dom_gen_info_inf[[z]][, 2],
-                                              dom_gen_info_sup[[z]][, 2]
+                                              dom_gen_info_sup[[z]][, 2], check.names = FALSE, fix.empty.names = FALSE
             )
             colnames(LD_summary_dom[[z]]) <-
               c("rep",
@@ -908,10 +938,16 @@ QTN_linkage <-
             na = NA
           )
           results_dom <- do.call(rbind, results_dom)
+          ns <- length(results_dom[1,-c(1:6)])
+          ss <- apply(results_dom[,-c(1:6)] + 1, 1, sum)
+          names(ss) <- results_dom[, 2]
+          maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
+          maf <- round(apply(maf_matrix, 2, min), 4)
+          results_dom <- data.frame(results_dom[, 1:6], maf, results_dom[, -c(1:6)], check.names = FALSE, fix.empty.names = FALSE )
           results_dom <-
             data.frame(rep = rep(1:rep, each = dom_QTN_num * 2), results_dom, check.names = FALSE, fix.empty.names = FALSE)
           if (!export_gt) {
-            results_dom <- results_dom[, 1:6]
+            results_dom <- results_dom[, 1:8]
           }
           if (add_QTN) {
             write.table(
