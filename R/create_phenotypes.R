@@ -85,8 +85,11 @@
 #' effect quantitative trait nucleotide. If `ntraits` > 1, 
 #' big_add_QTN_effect should have length equals `ntraits`.
 #' If `add_QTN_num` > 1, the fist QTN will have the large effect.
-#' @param cor Option to simulate traits with a pre-defined cor. 
-#' It should be a square matrix with number of rows = `ntraits`.
+#' @param cor Option to simulate traits with a pre-defined genetic correlation. 
+#' It should be a correlation matrix with number of rows = `ntraits`. Default = NULL.
+#' @param cor_res Option to simulate traits with a pre-defined residual correlation. 
+#' It should be a correlation matrix with number of rows = `ntraits`. 
+#' If NULL, an identity matrix (independent residuals) will be used.
 #' @param seed Value to be used by set.seed. If NULL (default),
 #'  runif(1, 0, 1000000) will be used. Notice that at each sampling step, 
 #' a different seed generated based on the `seed` parameter is used. For example, 
@@ -185,6 +188,7 @@ create_phenotypes <-
            vary_QTN = FALSE,
            big_add_QTN_effect = NULL,
            cor = NULL,
+           cor_res = NULL,
            seed = NULL,
            export_gt = FALSE,
            home_dir = NULL,
@@ -456,8 +460,21 @@ create_phenotypes <-
         }
       }
       if (ntraits > 1) {
-        if (!is.null(cor) & !all(ntraits == dim(cor))) {
-          stop("ntraits do not match with dim of cor matrix!", call. = F)
+        if (!is.null(cor)) {
+          if (!all(ntraits == dim(cor))) {
+            stop("The dimension of the \'cor\' matrix must be equal to \'ntraits\'!", call. = F)
+          }
+          if (unique(diag(cor)) != 1 | any(abs(cor) > 1)) {
+            stop("\'cor\' must be a correlation matrix!", call. = F)
+          }
+        }
+        if (!is.null(cor_res)) {
+          if (!all(ntraits == dim(cor_res))) {
+            stop("The dimension of the \'cor_res\' matrix must be equal to ntraits!", call. = F)
+          }
+          if (unique(diag(cor_res)) != 1 | any(abs(cor_res) > 1)) {
+            stop("\'cor_res\' must be a correlation matrix!", call. = F)
+          }
         }
         if (architecture == "LD") {
           if (ncol(h2) > 2) {
@@ -535,7 +552,7 @@ create_phenotypes <-
             if (exists("a_var")) w <- a_var
             if (exists("d_var")) w <- c(w, d_var)
             if (exists("e_var")) w <- c(w, e_var)
-            if (all(w)) warning("If \'cor = NULL\', allelic effect must be different to generate different correlated traits!",call. = F, immediate. = T)
+            if (all(w)) warning("If \'cor = NULL\', allelic effect must be different among traits to generate different correlated traits!",call. = F, immediate. = T)
           }
         }
         mm <-
@@ -1212,27 +1229,6 @@ create_phenotypes <-
               verbose = verbose
             )
         }
-        if (!is.null(cor)) {
-          cat("Population cor \n")
-          colnames(cor) <- paste0("Trait_", 1:ntraits)
-          rownames(cor) <- paste0("Trait_", 1:ntraits)
-          print(cor)
-        }
-        if (rep_by == "QTN") {
-          sample_cor <- matrix(0, ntraits, ntraits)
-          for (v in 1:rep) {
-            sample_cor <- (sample_cor + genetic_value[[v]]$sample_cor)
-          }
-          sample_cor <- sample_cor / rep
-        } else {
-          sample_cor <- genetic_value[[1]]$sample_cor
-        }
-        if (!is.null(sample_cor) & length(sample_cor) > 0){
-        cat("\nSample cor \n")
-        colnames(sample_cor) <- paste0("Trait_", 1:ntraits)
-        rownames(sample_cor) <- paste0("Trait_", 1:ntraits)
-        print(sample_cor)
-      }
       }
       results <- phenotypes(
         seed = seed,
@@ -1249,8 +1245,42 @@ create_phenotypes <-
         QTN_variance = QTN_variance,
         add  = add,
         dom = dom,
-        epi = epi
+        epi = epi,
+        cor_res = cor_res
       )
+      if (ntraits > 1) {
+        if (!is.null(cor)) {
+          cat("Population Genetic Correlation \n")
+          colnames(cor) <- paste0("Trait_", 1:ntraits)
+          rownames(cor) <- paste0("Trait_", 1:ntraits)
+          print(cor)
+        }
+        if (rep_by == "QTN") {
+          sample_cor <- matrix(0, ntraits, ntraits)
+          for (v in 1:rep) {
+            sample_cor <- (sample_cor + genetic_value[[v]]$sample_cor)
+          }
+          sample_cor <- sample_cor / rep
+        } else {
+          sample_cor <- genetic_value[[1]]$sample_cor
+        }
+        if (!is.null(sample_cor) & length(sample_cor) > 0){
+          cat("\nSample Genetic Correlation \n")
+          colnames(sample_cor) <- paste0("Trait_", 1:ntraits)
+          rownames(sample_cor) <- paste0("Trait_", 1:ntraits)
+          print(sample_cor)
+        }
+        if (!is.null(cor_res)){
+          cat("\nPopulation Residual Correlation \n")
+          colnames(cor_res) <- paste0("Trait_", 1:ntraits)
+          rownames(cor_res) <- paste0("Trait_", 1:ntraits)
+          print(cor_res)
+        }
+        cat("\nSample Residual Correlation \n")
+        colnames(results$sample_cor) <- paste0("Trait_", 1:ntraits)
+        rownames(results$sample_cor) <- paste0("Trait_", 1:ntraits)
+        print(results$sample_cor)
+      }
       cat("\n\nResults are saved at:", home_dir)
       sink()
       close(zz)
@@ -1258,7 +1288,7 @@ create_phenotypes <-
       if (out_geno != "gds") {
         unlink(gdsfile, force = TRUE)
       }
-      if (to_r) return(results)
+      if (to_r) return(results$simulated_data)
     },
     silent = FALSE)
     if (class(x) == "try-error" & sunk) {

@@ -32,6 +32,7 @@ create_phenotypes(
   vary_QTN = FALSE,
   big_add_QTN_effect = NULL,
   cor = NULL,
+  cor_res = NULL,
   seed = NULL,
   export_gt = FALSE,
   home_dir = NULL,
@@ -160,8 +161,12 @@ effect quantitative trait nucleotide. If `ntraits` > 1,
 big_add_QTN_effect should have length equals `ntraits`.
 If `add_QTN_num` > 1, the fist QTN will have the large effect.}
 
-\item{cor}{Option to simulate traits with a pre-defined cor. 
-It should be a square matrix with number of rows = `ntraits`.}
+\item{cor}{Option to simulate traits with a pre-defined genetic correlation. 
+It should be a correlation matrix with number of rows = `ntraits`. Default = NULL.}
+
+\item{cor_res}{Option to simulate traits with a pre-defined residual correlation. 
+It should be a correlation matrix with number of rows = `ntraits`. 
+If NULL, an identity matrix (independent residuals) will be used.}
 
 \item{seed}{Value to be used by set.seed. If NULL (default),
  runif(1, 0, 1000000) will be used. Notice that at each sampling step, 

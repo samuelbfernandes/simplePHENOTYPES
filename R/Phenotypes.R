@@ -12,6 +12,7 @@
 #' @param hets = 'QTN'
 #' @param verbose = TRUE
 #' @param QTN_variance = FALSE
+#' @param cor_res = NULL
 #' @return Phenotypes for ntraits traits
 #' @author Samuel Fernandes and Alexander Lipka
 #' Last update: Nov 05, 2019
@@ -32,10 +33,14 @@ phenotypes <-
            QTN_variance = FALSE,
            add  = NULL,
            dom = NULL,
-           epi = NULL) {
+           epi = NULL,
+           cor_res = NULL) {
     #---------------------------------------------------------------------------
     h <- 0
     n <- nrow(base_line_trait[[1]]$base_line)
+    if (is.null(cor_res)) {
+      cor_res <- diag(1, ntraits)
+    }
     names <- if (output_format == "gemma"){
       fam[,1]
     } else {
@@ -55,6 +60,7 @@ phenotypes <-
           }
         for (i in 1:nrow(h2)) {
           simulated_data <- vector("list", rep)
+          simulated_cor <- vector("list", rep)
           ss <- c()
           if (any(h2[i, ] == 0)) {
             colnames <- c("<Trait>", paste0("Trait_", 1:ntraits), "Rep")
@@ -69,12 +75,13 @@ phenotypes <-
                 ss <- c(ss, sss)
                 set.seed(sss)
               }
+              sigma <- sqrt(diag(1, ntraits)) %*% cor_res %*% sqrt(diag(1, ntraits))
+              simulated_cor[[z]] <- sigma
               simulated_data[[z]][, 2:(ntraits + 1)] <-
                 mvtnorm::rmvnorm(
                   n = n,
                   mean = rep(0, ntraits),
-                  sigma = diag(1,
-                               ntraits)
+                  sigma = sigma
                 )
             }
             H2 <- matrix(0, 1, ntraits)
@@ -169,11 +176,13 @@ phenotypes <-
                 set.seed(sss)
                 ss <- c(ss, sss)
               }
+              sigma <- sqrt(residual_cov) %*% cor_res %*% sqrt(residual_cov)
+              simulated_cor[[z]] <- sigma
               simulated_data[[z]][, 2:(ntraits + 1)] <-
                 base_line_trait[[1]]$base_line + mvtnorm::rmvnorm(
                   n = n,
                   mean = rep(0, ntraits),
-                  sigma = residual_cov
+                  sigma = sigma
                 )
               vp[z, ] <- diag(var(simulated_data[[z]][, 2:(ntraits + 1)]))
             }
@@ -339,9 +348,18 @@ phenotypes <-
               rep,
               " replications): \n")
         if (verbose) print(H2)
+        sample_cor <- matrix(0, ntraits, ntraits)
+        for (v in 1:rep) {
+          sample_cor <- (sample_cor + simulated_cor[[v]])
+        }
+        sample_cor <- stats::cov2cor(sample_cor / rep)
+        
         if (to_r) {
           simulated_data <- do.call(rbind, simulated_data)
-          return(simulated_data)
+          return(list(simulated_data = simulated_data,
+                      sample_cor = sample_cor))
+        } else {
+          return(sample_cor = sample_cor)
         }
       } else {
         H2 <- matrix(NA, nrow = rep, ncol = ncol(h2))
@@ -593,7 +611,7 @@ phenotypes <-
           )
           if (verbose) print(H2)
         if (to_r) {
-          return(simulated_data)
+          return(list(simulated_data = simulated_data))
         }
       }
     } else {
@@ -604,6 +622,7 @@ phenotypes <-
         }
         H2 <- matrix(NA, nrow(h2), ntraits)
         for (i in 1:nrow(h2)) {
+          simulated_cor <- vector("list", rep)
           simulated_data <- vector("list", rep)
           H2_temp <- matrix(NA, rep, ntraits)
           vp <- H2_temp
@@ -621,11 +640,13 @@ phenotypes <-
                 ss <- c(ss, sss)
                 set.seed(sss)
               }
+              sigma <- sqrt(diag(1, ntraits)) %*% cor_res %*% sqrt(diag(1, ntraits))
+              simulated_cor[[z]] <- sigma
               simulated_data[[z]][, 2:(ntraits + 1)] <-
                 mvtnorm::rmvnorm(
                   n = n,
                   mean = rep(0, ntraits),
-                  sigma = diag(1, ntraits)
+                  sigma = sigma
                 )
             }
             H2 <- matrix(0, 1, ntraits)
@@ -719,11 +740,13 @@ phenotypes <-
                 set.seed(sss)
                 ss <- c(ss, sss)
               }
+              sigma <- sqrt(residual_cov) %*% cor_res %*% sqrt(residual_cov)
+              simulated_cor[[z]] <- sigma
               simulated_data[[z]][, 2:(ntraits + 1)] <-
                 base_line_trait[[z]]$base_line + mvtnorm::rmvnorm(
                   n = n,
                   mean = rep(0, ntraits),
-                  sigma = residual_cov
+                  sigma = sigma
                 )
               if (any(vg == 0)) {
                 warning("Genetic variance = 0 for at least one trait in rep ",z,"! Please select a different set of QTNs", call. = F)
@@ -896,9 +919,17 @@ phenotypes <-
             rep - h,
             " replications): \n")
         if (verbose) print(H2)
+        sample_cor <- matrix(0, ntraits, ntraits)
+        for (v in 1:rep) {
+          sample_cor <- (sample_cor + simulated_cor[[v]])
+        }
+        sample_cor <- stats::cov2cor(sample_cor / rep)
         if (to_r) {
           simulated_data <- do.call(rbind, simulated_data)
-          return(simulated_data)
+          return(list(simulated_data = simulated_data,
+                      sample_cor = sample_cor))
+        } else {
+          return(sample_cor = sample_cor)
         }
       } else {
         H2 <- matrix(NA, nrow = rep, ncol = ncol(h2))
@@ -1159,7 +1190,7 @@ phenotypes <-
             " replications): \n")
         if (verbose) print(H2)
         if (to_r) {
-          return(simulated_data)
+          return(list(simulated_data = simulated_data))
         }
       }
     }
