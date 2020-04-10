@@ -19,7 +19,8 @@ phenotypes(
   QTN_variance = FALSE,
   add = NULL,
   dom = NULL,
-  epi = NULL
+  epi = NULL,
+  cor_res = NULL
 )
 }
 \arguments{
@@ -46,6 +47,8 @@ phenotypes(
 \item{verbose}{= TRUE}
 
 \item{QTN_variance}{= FALSE}
+
+\item{cor_res}{= NULL}
 }
 \value{
 Phenotypes for ntraits traits
