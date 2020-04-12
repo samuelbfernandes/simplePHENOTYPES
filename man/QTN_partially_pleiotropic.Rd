@@ -14,7 +14,7 @@ QTN_partially_pleiotropic(
   trait_spec_d_QTN_num = NULL,
   trait_spec_e_QTN_num = NULL,
   ntraits = NULL,
-  constrains = list(maf_above = NULL, maf_below = NULL),
+  constrain = list(maf_above = NULL, maf_below = NULL),
   rep = NULL,
   rep_by = NULL,
   export_gt = NULL,
@@ -43,7 +43,7 @@ QTN_partially_pleiotropic(
 
 \item{ntraits}{= NULL}
 
-\item{constrains}{= list(maf_above = NULL, maf_below = NULL)}
+\item{constrain}{= list(maf_above = NULL, maf_below = NULL)}
 
 \item{rep}{= 1,}
 

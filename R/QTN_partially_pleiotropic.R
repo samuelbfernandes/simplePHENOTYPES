@@ -13,7 +13,7 @@
 #' @param trait_spec_d_QTN_num = NULL,
 #' @param trait_spec_e_QTN_num = NULL,
 #' @param ntraits = NULL
-#' @param constrains = list(maf_above = NULL, maf_below = NULL)
+#' @param constrain = list(maf_above = NULL, maf_below = NULL)
 #' @param rep = 1,
 #' @param rep_by = 'QTN',
 #' @param export_gt = FALSE
@@ -32,7 +32,7 @@ QTN_partially_pleiotropic <-
            trait_spec_d_QTN_num = NULL,
            trait_spec_e_QTN_num = NULL,
            ntraits = NULL,
-           constrains = list(maf_above = NULL,
+           constrain = list(maf_above = NULL,
                              maf_below = NULL),
            rep = NULL,
            rep_by = NULL,
@@ -72,10 +72,10 @@ QTN_partially_pleiotropic <-
         trait_spec_e_QTN_num <- rep(1, ntraits)
       }
     }
-    if (any(lengths(constrains) > 0)) {
-      index <- constrain(genotypes = genotypes,
-                         maf_above = constrains$maf_above,
-                         maf_below = constrains$maf_below)
+    if (any(lengths(constrain) > 0)) {
+      index <- Constrain(genotypes = genotypes,
+                         maf_above = constrain$maf_above,
+                         maf_below = constrain$maf_below)
     } else {
       index <- 1:nrow(genotypes)
     }
