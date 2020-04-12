@@ -34,7 +34,8 @@ genotypes <-
       nrows = nrows,
       na_string = na_string,
       prefix = prefix,
-      verbose = verbose
+      verbose = verbose,
+      SNP_impute = SNP_impute
     )
     if (!is.null(maf_cutoff)) {
       hm <- list(GT = hmp$GT,

@@ -403,5 +403,18 @@ file_loader <-
       GT <- NULL
       GI <- NULL
     }
+    if (input_format != "hapmap") {
+      if (any(is.na(GD))) {
+        if (SNP_impute == "Middle") {
+          GD[is.na(GD)] <- 0
+        } else
+          if (SNP_impute == "Minor") {
+            GD[is.na(GD)] <- -1
+          } else
+            if (SNP_impute == "Major") {
+              GD[is.na(GD)] <- 1
+            }
+      } 
+    }
     return(list(GT = GT, GD = GD, GI = GI))
   }

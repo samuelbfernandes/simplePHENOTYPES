@@ -113,7 +113,7 @@
 #' "gds". Default is NULL.
 #' @param gdsfile Points to a gds file (in case there is one already created) to
 #' be used with option architecture = "LD". Default is NULL.
-#' @param constrains Set constrains for QTN selection. Currently, only minor 
+#' @param constrain Set constrain for QTN selection. Currently, only minor 
 #' allelic frequency is implemented. Either one or both of the following options 
 #' may be non-null: 'list(maf_above = NULL, maf_below = NULL)'.
 #' @param prefix If `geno_path` points to a folder with files other than the
@@ -197,7 +197,7 @@ create_phenotypes <-
            output_format = "long",
            out_geno = NULL,
            gdsfile = NULL,
-           constrains = list(maf_above = NULL,
+           constrain = list(maf_above = NULL,
                              maf_below = NULL),
            prefix = NULL,
            maf_cutoff = NULL,
@@ -614,6 +614,17 @@ create_phenotypes <-
         if (all(dose != -1) | any(dose == 2)) {
           geno_obj[,-c(1:5)] <- geno_obj[,-c(1:5)] - 1
         }
+        if (any(is.na(geno_obj[, -c(1:5)]))) {
+          if (SNP_impute == "Middle") {
+            geno_obj[,-c(1:5)][is.na(geno_obj[,-c(1:5)])] <- 0
+          } else
+            if (SNP_impute == "Minor") {
+              geno_obj[,-c(1:5)][is.na(geno_obj[,-c(1:5)])] <- -1
+            } else
+              if (SNP_impute == "Major") {
+                geno_obj[,-c(1:5)][is.na(geno_obj[,-c(1:5)])] <- 1
+              }
+        }
       }
       if (is.null(seed)) {
         seed <- as.integer(runif(1, 0, 1000000))
@@ -857,7 +868,7 @@ create_phenotypes <-
             add_QTN_num = add_QTN_num,
             dom_QTN_num = dom_QTN_num,
             epi_QTN_num = epi_QTN_num,
-            constrains = constrains,
+            constrain = constrain,
             rep = rep,
             rep_by = rep_by,
             export_gt = export_gt,
@@ -878,7 +889,7 @@ create_phenotypes <-
             trait_spec_d_QTN_num = trait_spec_d_QTN_num,
             trait_spec_e_QTN_num = trait_spec_e_QTN_num,
             ntraits = ntraits,
-            constrains = constrains,
+            constrain = constrain,
             rep = rep,
             rep_by = rep_by,
             export_gt = export_gt,
@@ -897,7 +908,7 @@ create_phenotypes <-
             dom_QTN_num = dom_QTN_num,
             ld = ld,
             gdsfile = gdsfile,
-            constrains = constrains,
+            constrain = constrain,
             rep = rep,
             rep_by = rep_by,
             export_gt = export_gt,
