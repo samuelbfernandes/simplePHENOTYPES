@@ -41,7 +41,7 @@ create_phenotypes(
   output_format = "long",
   out_geno = NULL,
   gdsfile = NULL,
-  constrains = list(maf_above = NULL, maf_below = NULL),
+  constrain = list(maf_above = NULL, maf_below = NULL),
   prefix = NULL,
   maf_cutoff = NULL,
   nrows = Inf,
@@ -199,7 +199,7 @@ to be used by gemma with plink bed files (renaming .fam file might be necessary)
 \item{gdsfile}{Points to a gds file (in case there is one already created) to
 be used with option architecture = "LD". Default is NULL.}
 
-\item{constrains}{Set constrains for QTN selection. Currently, only minor 
+\item{constrain}{Set constrain for QTN selection. Currently, only minor 
 allelic frequency is implemented. Either one or both of the following options 
 may be non-null: 'list(maf_above = NULL, maf_below = NULL)'.}
 
