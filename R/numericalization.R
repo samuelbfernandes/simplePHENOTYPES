@@ -11,7 +11,7 @@
 #' @return Corresponding numerical value
 #' @source \doi{10.1093/bioinformatics/bts444}
 #'--------------------------numericalization---------------------------------
-GAPIT_numericalization <-
+numericalization <-
   function(x,
            bit = NULL,
            effect = "Add",
