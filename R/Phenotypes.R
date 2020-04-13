@@ -359,7 +359,7 @@ phenotypes <-
           return(list(simulated_data = simulated_data,
                       sample_cor = sample_cor))
         } else {
-          return(sample_cor = sample_cor)
+          return(list(sample_cor = sample_cor))
         }
       } else {
         H2 <- matrix(NA, nrow = rep, ncol = ncol(h2))
@@ -929,7 +929,7 @@ phenotypes <-
           return(list(simulated_data = simulated_data,
                       sample_cor = sample_cor))
         } else {
-          return(sample_cor = sample_cor)
+          return(list(sample_cor = sample_cor))
         }
       } else {
         H2 <- matrix(NA, nrow = rep, ncol = ncol(h2))
