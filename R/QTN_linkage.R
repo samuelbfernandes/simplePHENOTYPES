@@ -9,7 +9,7 @@
 #' @param add = NULL,
 #' @param ld = NULL,
 #' @param gdsfile NULL
-#' @param constrain = list(maf_above = NULL, maf_below = NULL)
+#' @param const = list(maf_above = NULL, maf_below = NULL)
 #' @param rep = 1,
 #' @param rep_by = 'QTN',
 #' @param export_gt = FALSE
@@ -19,14 +19,14 @@
 #' Last update: Nov 05, 2019
 #'
 #'----------------------------- QTN_linkage ------------------------------------
-QTN_linkage <-
+qtn_linkage <-
   function(genotypes = NULL,
            seed = NULL,
            add_QTN_num = NULL,
            dom_QTN_num = NULL,
            ld = NULL,
            gdsfile = NULL,
-           constrain = list(maf_above = NULL, maf_below = NULL),
+           const = list(maf_above = NULL, maf_below = NULL),
            rep = NULL,
            rep_by = NULL,
            export_gt = NULL,
@@ -54,10 +54,10 @@ QTN_linkage <-
     if (rep_by != "QTN") {
       rep <- 1
     }
-    if (any(lengths(constrain) > 0)) {
-      index <- Constrain(genotypes = genotypes,
-                         maf_above = constrain$maf_above,
-                         maf_below = constrain$maf_below)
+    if (any(lengths(const) > 0)) {
+      index <- constrain(genotypes = genotypes,
+                         maf_above = const$maf_above,
+                         maf_below = const$maf_below)
       if (add) {
         if (length(index) < add_QTN_num) {
           stop("Not enough SNP left after applying the selected constrain!", call. = F)
