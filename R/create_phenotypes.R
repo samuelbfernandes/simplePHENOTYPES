@@ -1299,7 +1299,7 @@ create_phenotypes <-
       close(zz)
       if (!quiet) {file.show(paste0(path_out, "/Log_Sim.txt"))}
       if (out_geno != "gds" & file.exists(gdsfile)) {
-        unlink(temp, force = TRUE)
+        unlink(gdsfile, force = TRUE)
       } else if (file.exists(gdsfile)) {
           tempfile <- paste0(home_dir,
                              "/",
