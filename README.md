@@ -38,7 +38,7 @@ be installed:
 
 ``` r
 setRepositories(ind = 1:2)
-devtools::install_github("samuelbfernandes/simplePHENOTYPES")
+devtools::install_github("samuelbfernandes/simplePHENOTYPES", build_vignettes = TRUE)
 ```
 
 # Load sample dataset
@@ -51,15 +51,15 @@ may also be used with options `geno_obj`, `genotypes_file` or
 library(simplePHENOTYPES)
 data("SNP55K_maize282_maf04")
 SNP55K_maize282_maf04[1:8, 1:10]
-#>            snp allele chr     pos cm 4226 4722 33-16 38-11 A188
-#> 1: ss196422159    A/G   1  379844 NA    0    0     0     0    0
-#> 2: ss196422171    G/A   1  613257 NA    0    0     0     0    0
-#> 3: ss196422173    G/A   1  659354 NA    2    2     0     0    0
-#> 4: ss196422186    G/C   1  992572 NA    2    0     0     0    0
-#> 5: ss196500940    G/A   1 2044264 NA    2    2     2     2    2
-#> 6: ss196422234    A/G   1 2044555 NA    0    0     0     0    0
-#> 7: ss196422236    G/A   1 2045035 NA    2    2     2     2    2
-#> 8: ss196422248    G/A   1 2428671 NA    0    2     2     0    2
+#>           snp allele chr     pos cm 4226 4722 33-16 38-11 A188
+#> 1 ss196422159    A/G   1  379844 NA   -1   -1    -1    -1   -1
+#> 2 ss196422171    G/A   1  613257 NA   -1   -1    -1    -1   -1
+#> 3 ss196422173    G/A   1  659354 NA    1    1    -1    -1   -1
+#> 4 ss196422186    G/C   1  992572 NA    1   -1    -1    -1   -1
+#> 5 ss196500940    G/A   1 2044264 NA    1    1     1     1    1
+#> 6 ss196422234    A/G   1 2044555 NA   -1   -1    -1    -1   -1
+#> 7 ss196422236    G/A   1 2045035 NA    1    1     1     1    1
+#> 8 ss196422248    G/A   1 2428671 NA   -1    1     1    -1    1
 ```
 
 # Single Trait
@@ -123,7 +123,8 @@ used to generate allelic effects for each one of the three additive QTNs
     seed = 10,
     model = "AD",
     sim_method = "geometric",
-    home_dir = getwd()
+    home_dir = getwd(),
+    
   )
 ```
 
@@ -208,7 +209,9 @@ sim_results <- create_phenotypes(
   out_geno = "numeric",
   to_r = TRUE,
   model = "AED",
-  home_dir = getwd()
+  home_dir = getwd(),
+  remove_QTN = FALSE,
+  QTN_variance = FALSE
 )
 ```
 
@@ -239,7 +242,8 @@ create_phenotypes(
   out_geno = "plink",
   ld=0.8,
   model = "A",
-  home_dir = getwd()
+  home_dir = getwd(),
+  type_of_ld = "indirect"
 )
 ```
 
