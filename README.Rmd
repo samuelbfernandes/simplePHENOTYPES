@@ -44,7 +44,7 @@ In order to install simplePHENOTYPES, the following r packages will also be inst
 
 ```{r installation, results = "hide", eval = FALSE}
 setRepositories(ind = 1:2)
-devtools::install_github("samuelbfernandes/simplePHENOTYPES")
+devtools::install_github("samuelbfernandes/simplePHENOTYPES", build_vignettes = TRUE)
 ```
 
 # Load sample dataset
@@ -91,7 +91,8 @@ Simulating three traits `ntraits = 3` controlled by the same three additive QTN 
     seed = 10,
     model = "AD",
     sim_method = "geometric",
-    home_dir = getwd()
+    home_dir = getwd(),
+    
   )
 ```
 Optionally, users may input a list of allelic effects (`sim_method = "custom"`). In the example below, a geometric series (custom_geometric) is being assigned and should generate the same simulated data as the previous example (all.equal(test1, test2)). Notice that since `big_add_QTN_effect` is provided, the user only needs to provide effects for two out of the three additive QTNs being simulated. On the other hand, all four dominance QTN must have an effect assigned on the custom_geometric_d list.
@@ -154,7 +155,9 @@ sim_results <- create_phenotypes(
   out_geno = "numeric",
   to_r = TRUE,
   model = "AED",
-  home_dir = getwd()
+  home_dir = getwd(),
+  remove_QTN = FALSE,
+  QTN_variance = FALSE
 )
 ```
 
@@ -176,7 +179,8 @@ create_phenotypes(
   out_geno = "plink",
   ld=0.8,
   model = "A",
-  home_dir = getwd()
+  home_dir = getwd(),
+  type_of_ld = "indirect"
 )
 ```
 
