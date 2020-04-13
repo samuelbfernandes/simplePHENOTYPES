@@ -1287,18 +1287,18 @@ create_phenotypes <-
         rownames(results$sample_cor) <- paste0("Trait_", 1:ntraits)
         print(results$sample_cor)
       }
+      if (out_geno == "gds") {
+        cat("GDS files saved at:", home_dir, "\n") 
+      } else if (out_geno == "plink") {
+        cat("\nPlink bed files saved at:", home_dir, "\n")
+      } else if (out_geno == "numeric") {
+        cat("\nNumeric Genotypes saved at:", home_dir, "\n")
+      }
       cat("\n\nResults are saved at:", home_dir)
       sink()
       close(zz)
       if (!quiet) {file.show(paste0(path_out, "/Log_Sim.txt"))}
-      if (out_geno == "gds") {
-        cat("GDS files saved at:", home_dir, "\n") 
-        } else if (out_geno == "plink") {
-          cat("\nPlink bed files saved at:", home_dir, "\n")
-          } else if (out_geno == "numeric") {
-            cat("\nNumeric Genotypes saved at:", home_dir, "\n")
-            }
-      if (out_geno != "gds" & file.exists(temp)) {
+      if (out_geno != "gds" & file.exists(gdsfile)) {
         unlink(temp, force = TRUE)
       } else if (file.exists(gdsfile)) {
           tempfile <- paste0(home_dir,
