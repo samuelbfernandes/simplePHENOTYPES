@@ -27,6 +27,9 @@ file_loader <-
     hap_names <- c("rs#", "alleles", "chrom", "pos",
                    "strand", "assembly#", "center",
                    "protLSID", "assayLSID", "panelLSID", "QCcode")
+    temp <- paste0(paste0(unlist(strsplit(date(), " "))[1:3], collapse = ""), "temp.gds")
+    input_format <- NULL
+    out_name <- NULL
     if (!is.null(geno_obj)){
       if (sum(colnames(geno_obj)[1:11] ==  hap_names) > 8 &
           !is.numeric(unlist(geno_obj[, 12]))) { 
@@ -50,7 +53,7 @@ file_loader <-
         bit <- nchar(as.character(geno_obj[2, 12]))
         if (verbose) print("Performing numericalization")
         GD <- apply(geno_obj[, - (1:11)], 1, function(one)
-          GAPIT_numericalization(
+          numericalization(
             one,
             bit = bit,
             effect = SNP_effect,
@@ -60,17 +63,52 @@ file_loader <-
           GT <- NULL
           GI <- NULL
         }
-        return(list(GT = GT, GD = GD, GI = GI))
+        return(list(GT = GT, GD = GD, GI = GI, input_format = input_format, out_name = out_name))
       }
     } else if (is.null(geno_path)) {
       if (!geno_file %in% dir() & 
           (!sub(".*/", "",geno_file) %in% list.files(dirname(geno_file)))) {
         stop(paste("File ",geno_file," not found."), call. = F)
       }
+      out_name <- gsub(
+          ".vcf|.hmp.txt|.bed|.txt|.gds|.ped",
+          "",
+          sub(".*/", "", geno_file)
+        )
       if (grepl(".VCF$", toupper(geno_file))) {
         input_format <- "VCF"
-      } else if (grepl("HMP.TXT$", toupper(geno_file))) {
-        input_format <- "hapmap"
+      } else if (grepl(".TXT$", toupper(geno_file))) {
+        data.type <- try(data.table::fread(
+          file = geno_file,
+          header = T,
+          skip = 0,
+          nrows = 1,
+          na.strings = na_string,
+          data.table = F
+        ),
+        silent = TRUE)
+        if ( sum(hap_names %in% colnames(data.type)) > 8) {
+          input_format <- "hapmap"
+        } else if (all(colnames(data.type)[1:5] == c("snp", "allele", "chr", "pos", "cm"))) {
+          G <-
+            try(data.table::fread(
+              file = geno_file,
+              head = TRUE,
+              skip = 0,
+              nrows = nrows,
+              na.strings = na_string,
+              data.table = F
+            ),
+            silent = TRUE)
+          GT <- as.matrix(colnames(G)[- (1:5)])
+          GI <- G[, c(1, 2, 3, 4)]
+          colnames(GT) <- "taxa"
+          colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
+          GD <- G[, -c(1:5)]
+          return(list(GT = GT, GD = GD, GI = GI, input_format = input_format, out_name = out_name))
+        } else {
+          stop("File format provied by \'geno_file\' was not recognized! Please provied one of: Numeric, VCF, HapMap, gds, or plink bed or ped files.", call. = F)
+        } 
       }  else if (grepl(".GDS$", toupper(geno_file))) {
         input_format <- "gds"
       } else if (grepl(".BED$", toupper(geno_file))) {
@@ -113,7 +151,7 @@ file_loader <-
         GD <- NULL
         bit <- nchar(as.character(G[2, 12]))
         GD <- apply(G[, - (1:11)], 1, function(one)
-          GAPIT_numericalization(
+          numericalization(
             one,
             bit = bit,
             effect = SNP_effect,
@@ -121,12 +159,12 @@ file_loader <-
           ))
       } else if (input_format == "VCF") {
         SNPRelate::snpgdsVCF2GDS(vcf.fn = geno_file,
-                                 out.fn = paste0(gsub(".vcf", "", geno_file), ".gds"),
+                                 out.fn = temp,
                                  method ="biallelic.only",
                                  snpfirstdim = FALSE,
                                  verbose = FALSE
                                  )
-        genofile <- SNPRelate::snpgdsOpen(paste0(gsub(".vcf", "", geno_file), ".gds"))
+        genofile <- SNPRelate::snpgdsOpen(temp)
         GD <-  SNPRelate::snpgdsGetGeno(genofile, snpfirstdim=FALSE,
                                         verbose = FALSE) - 1
         GT <-  as.matrix(gdsfmt::read.gdsn(
@@ -149,11 +187,11 @@ file_loader <-
         SNPRelate::snpgdsBED2GDS(bed.fn = geno_file,
                                  fam.fn = paste0(gsub(".bed", "", geno_file), ".fam"),
                                  bim.fn = paste0(gsub(".bed", "", geno_file), ".bim"),
-                                 out.gdsfn = paste0(gsub(".bed", "", geno_file), ".gds"),
+                                 out.gdsfn = temp,
                                  snpfirstdim = FALSE,
                                  verbose = FALSE
                                  )
-        genofile <- SNPRelate::snpgdsOpen(paste0(gsub(".bed", "", geno_file), ".gds"))
+        genofile <- SNPRelate::snpgdsOpen(temp)
         GD <-  (SNPRelate::snpgdsGetGeno(genofile, snpfirstdim=FALSE,
                                         verbose = FALSE) - 1) * - 1
         GT <-  as.matrix(gdsfmt::read.gdsn(
@@ -177,11 +215,11 @@ file_loader <-
       } else if (input_format == "ped") {
         SNPRelate::snpgdsPED2GDS(ped.fn = geno_file,
                                  map.fn = paste0(gsub(".ped", "", geno_file), ".map"),
-                                 out.gdsfn = paste0(gsub(".ped", "", geno_file), ".gds"),
+                                 out.gdsfn = temp,
                                  snpfirstdim = FALSE,
                                  verbose = FALSE
                                  )
-        genofile <- SNPRelate::snpgdsOpen(paste0(gsub(".ped", "", geno_file), ".gds"))
+        genofile <- SNPRelate::snpgdsOpen(temp)
         GD <-  SNPRelate::snpgdsGetGeno(genofile, snpfirstdim=FALSE,
                                         verbose = FALSE) - 1
         GT <-  as.matrix(gdsfmt::read.gdsn(
@@ -229,11 +267,49 @@ file_loader <-
                         dir(geno_path)[grepl(prefix,
                                              dir(geno_path))])
       }
+      files <- sort(files)
+      nn <- strsplit(files[c(1,length(files))],"")
+      nn_com <- match(FALSE, do.call("==", nn)) - 1
+      if (nn_com == 0) {
+        out_name <- "out_geno"
+      } else {
+        out_name <- substr(files[1],1,nn_com)
+      }
       if (grepl(".VCF$", toupper(files[1]))) {
         input_format <- "VCF"
-      } else if (grepl("HMP.TXT$", toupper(files[1]))) {
-        input_format <- "hapmap"
-      }  else if (grepl(".GDS$", toupper(files[1]))) {
+      } else if (grepl(".TXT$", toupper(files[1]))) {
+        data.type <- try(data.table::fread(
+          file = files[1],
+          header = T,
+          skip = 0,
+          nrows = 1,
+          na.strings = na_string,
+          data.table = F
+        ),
+        silent = TRUE)
+        if ( sum(hap_names %in% colnames(data.type)) > 8) {
+          input_format <- "hapmap"
+        } else if (all(colnames(data.type)[1:5] == c("snp", "allele", "chr", "pos", "cm"))) {
+          G <-
+            try(data.table::fread(
+              file = files[1],
+              head = TRUE,
+              skip = 0,
+              nrows = nrows,
+              na.strings = na_string,
+              data.table = F
+            ),
+            silent = TRUE)
+          GT <- as.matrix(colnames(G)[- (1:5)])
+          GI <- G[, c(1, 2, 3, 4)]
+          colnames(GT) <- "taxa"
+          colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
+          GD <- G[, -c(1:5)]
+          return(list(GT = GT, GD = GD, GI = GI, input_format = input_format, out_name = out_name))
+        } else {
+          stop("File format provied by \'geno_file\' was not recognized! Please provied one of: Numeric, VCF, HapMap, gds, or plink bed or ped files.", call. = F)
+        }
+      } else if (grepl(".GDS$", toupper(files[1]))) {
         input_format <- "gds"
       } else if (grepl(".BED$", toupper(files[1]))) {
         input_format <- "bed"
@@ -288,7 +364,7 @@ file_loader <-
         GD <- NULL
         bit <- nchar(as.character(G[2, 12]))
         GD <- apply(G[, - (1:11)], 1, function(one)
-          GAPIT_numericalization(
+          numericalization(
             one,
             bit = bit,
             effect = SNP_effect,
@@ -298,12 +374,12 @@ file_loader <-
         if (verbose) cat("Reading the following VCF files: \n")
         if (verbose) cat( files, sep = "\n")
         SNPRelate::snpgdsVCF2GDS(vcf.fn = files,
-                                 out.fn = "temp.gds",
+                                 out.fn = temp,
                                  method ="biallelic.only",
                                  snpfirstdim = FALSE,
                                  verbose = FALSE
                                  )
-        genofile <- SNPRelate::snpgdsOpen("temp.gds")
+        genofile <- SNPRelate::snpgdsOpen(temp)
         GD <-  SNPRelate::snpgdsGetGeno(genofile, snpfirstdim=FALSE,
                                         verbose = FALSE) - 1
         GT <-  as.matrix(gdsfmt::read.gdsn(
@@ -326,11 +402,11 @@ file_loader <-
         SNPRelate::snpgdsBED2GDS(bed.fn = files,
                                  fam.fn = paste0(gsub(".bed", "", files), ".fam"),
                                  bim.fn = paste0(gsub(".bed", "", files), ".bim"),
-                                 out.gdsfn = paste0(gsub(".bed", "", files), ".gds"),
+                                 out.gdsfn = temp,
                                  snpfirstdim = FALSE,
                                  verbose = FALSE
         )
-        genofile <- SNPRelate::snpgdsOpen(paste0(gsub(".bed", "", files), ".gds"))
+        genofile <- SNPRelate::snpgdsOpen(temp)
         GD <-  (SNPRelate::snpgdsGetGeno(genofile, snpfirstdim=FALSE,
                                         verbose = FALSE) - 1) * -1
         GT <-  as.matrix(gdsfmt::read.gdsn(
@@ -354,11 +430,11 @@ file_loader <-
       } else if (input_format == "ped") {
         SNPRelate::snpgdsPED2GDS(ped.fn = files,
                                  map.fn = paste0(gsub(".ped", "", files), ".map"),
-                                 out.gdsfn = paste0(gsub(".ped", "", files), ".gds"),
+                                 out.gdsfn = temp,
                                  snpfirstdim = FALSE,
                                  verbose = FALSE
         )
-        genofile <- SNPRelate::snpgdsOpen(paste0(gsub(".ped", "", files), ".gds"))
+        genofile <- SNPRelate::snpgdsOpen(temp)
         GD <-  SNPRelate::snpgdsGetGeno(genofile, snpfirstdim=FALSE,
                                         verbose = FALSE) - 1
         GT <-  as.matrix(gdsfmt::read.gdsn(
@@ -416,5 +492,5 @@ file_loader <-
             }
       } 
     }
-    return(list(GT = GT, GD = GD, GI = GI))
+    return(list(GT = GT, GD = GD, GI = GI, input_format = input_format, out_name = out_name))
   }

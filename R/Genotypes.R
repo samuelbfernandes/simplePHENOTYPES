@@ -69,5 +69,5 @@ genotypes <-
       colnames(geno_obj) <-
         c("snp", "allele", "chr", "pos", "cm", t(as.character(hmp$GT)))
     }
-    return(geno_obj)
+    return(list(geno_obj = geno_obj, input_format =  hmp$input_format, out_name =  hmp$out_name))
   }
