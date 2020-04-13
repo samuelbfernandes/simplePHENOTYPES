@@ -6,7 +6,7 @@
 #' @param dom_QTN_num = NULL,
 #' @param epi_QTN_num = NULL
 #' @param same_add_dom_QTN = NULL,
-#' @param constrain = list(maf_above = NULL, maf_below = NULL)
+#' @param const = list(maf_above = NULL, maf_below = NULL)
 #' @param rep = 1,
 #' @param rep_by = 'QTN',
 #' @param export_gt = FALSE
@@ -18,14 +18,14 @@
 #' Last update: Nov 05, 2019
 #'
 #------------------------------  QTN_pleiotropic -------------------------------
-QTN_pleiotropic <-
+qtn_pleiotropic <-
   function(genotypes = NULL,
            seed = NULL,
            same_add_dom_QTN = NULL,
            add_QTN_num = NULL,
            dom_QTN_num = NULL,
            epi_QTN_num = NULL,
-           constrain = list(maf_above = NULL, maf_below = NULL),
+           const = list(maf_above = NULL, maf_below = NULL),
            rep = NULL,
            rep_by = NULL,
            export_gt = NULL,
@@ -58,10 +58,10 @@ QTN_pleiotropic <-
         epi_QTN_num <- 1
       }
     }
-    if (any(lengths(constrain) > 0)) {
-      index <- Constrain(genotypes = genotypes,
-                         maf_above = constrain$maf_above,
-                         maf_below = constrain$maf_below)
+    if (any(lengths(const) > 0)) {
+      index <- constrain(genotypes = genotypes,
+                         maf_above = const$maf_above,
+                         maf_below = const$maf_below)
     } else {
       index <- 1:nrow(genotypes)
     }
