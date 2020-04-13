@@ -576,7 +576,9 @@ create_phenotypes <-
           is.null(geno_path)){
         stop("Please provide one of: \'geno_obj\', \'geno_file\' or \'geno_path\'", call. = F)
       }
+      out_name <- NULL
       if (!is.null(geno_obj)) {
+        out_name <- deparse(substitute(geno_obj))
         if (any(class(geno_obj) != "data.frame")) {
           geno_obj <- as.data.frame(geno_obj)
         }
@@ -591,7 +593,7 @@ create_phenotypes <-
         }
       } else {
         nonnumeric <- TRUE
-        }
+      }
       if (!is.null(geno_path) | !is.null(geno_file) | nonnumeric) {
         geno_obj <-
           genotypes(geno_obj = geno_obj,
@@ -603,6 +605,9 @@ create_phenotypes <-
                     maf_cutoff = maf_cutoff,
                     SNP_impute = SNP_impute,
                     verbose = verbose)
+        input_format <- geno_obj$input_format
+        if(is.null(out_name)) out_name <- geno_obj$out_name
+        geno_obj <-  geno_obj$geno_obj
       } else {
         if (verbose) cat("File (geno_obj) loaded from memory. \n")
         dose <- 0
@@ -626,6 +631,7 @@ create_phenotypes <-
               }
         }
       }
+      if (is.null(input_format)) input_format <- "numeric"
       if (is.null(seed)) {
         seed <- as.integer(runif(1, 0, 1000000))
       }
@@ -787,45 +793,37 @@ create_phenotypes <-
       }
       if (architecture == "LD" | out_geno == "plink" |
           out_geno == "gds" | output_format == "gemma") {
-        dup <- duplicated(geno_obj$snp)
-        if (any(dup)) {
-          message("Removing ", sum(dup), " markers for being duplicated!")
-          geno_obj <- geno_obj[!dup, ]
-        }
-        if (is.null(gdsfile))  gdsfile <- "geno"
-        if (file.exists(paste0(home_dir, "/",gdsfile,".gds"))) {
-          j <- 1
-          tempfile <- paste0(home_dir, "/",gdsfile, j, ".gds")
-          while (file.exists(tempfile)) {
-            tempfile <- paste0(home_dir, "/",gdsfile, j, ".gds")
-            j <- j + 1
+        temp <- paste0(paste0(unlist(strsplit(date(), " "))[1:3], collapse = ""), "temp.gds")
+        if (input_format == "hapmap" |
+            input_format == "numeric") {
+          dup <- duplicated(geno_obj$snp)
+          if (any(dup)) {
+            message("Removing ", sum(dup), " markers for being duplicated!")
+            geno_obj <- geno_obj[!dup, ]
           }
-          message("A file named ", gdsfile, " is already present in this folder, creating ", paste0(gdsfile, j, ".gds"))
-          gdsfile <- paste0(gdsfile, j)
-        }
-        if (!is.numeric(geno_obj$chr)) {
-          geno_obj$chr <- as.numeric(
-            gsub("\\D+", "", geno_obj$chr)
+          if (!is.numeric(geno_obj$chr)) {
+            geno_obj$chr <- as.numeric(
+              gsub("\\D+", "", geno_obj$chr)
+            )
+          }
+          al_na <- is.na(geno_obj$allele)
+          if (any(al_na)) {
+            stop("Allele information must be provided to create GDS file.",
+                 call. = F, immediate. = T)
+          }
+          SNPRelate::snpgdsCreateGeno(
+            paste0(home_dir, "/", temp),
+            genmat = t(geno_obj[, -c(1:5)]) + 1,
+            sample.id = colnames(geno_obj)[-c(1:5)],
+            snp.id = as.character(geno_obj$snp),
+            snp.chromosome = geno_obj$chr,
+            snp.position = geno_obj$pos,
+            snp.allele = as.character(geno_obj$allele),
+            snpfirstdim = FALSE
           )
+          gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
         }
-        al_na <- is.na(geno_obj$allele)
-        if (any(al_na)) {
-          stop("Allele information must be provided to create GDS file.",
-                  call. = F, immediate. = T)
-        }
-        SNPRelate::snpgdsCreateGeno(
-          paste0(home_dir, "/", gdsfile, ".gds"),
-          genmat = t(geno_obj[, -c(1:5)]) + 1,
-          sample.id = colnames(geno_obj)[-c(1:5)],
-          snp.id = as.character(geno_obj$snp),
-          snp.chromosome = geno_obj$chr,
-          snp.position = geno_obj$pos,
-          snp.allele = as.character(geno_obj$allele),
-          snpfirstdim = FALSE
-        )
-        gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
-        gdsfile <- paste0(home_dir, "/", gdsfile, ".gds")
-        if (out_geno == "gds") cat("GDS files saved at:", home_dir, "\n")
+        gdsfile <- paste0(home_dir, "/",temp)
         if (out_geno == "plink" |
             output_format == "gemma") {
           genofile <- SNPRelate::snpgdsOpen(gdsfile)
@@ -837,7 +835,6 @@ create_phenotypes <-
                                    verbose = F, 
                                    snpfirstdim = F)
           gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
-          cat("\nPlink bed files saved at:", home_dir, "\n")
         }
       }
       if (output_format == "gemma") {
@@ -849,26 +846,26 @@ create_phenotypes <-
           geno_obj,
           paste0(
             ifelse(is.null(output_dir), "", "../"),
-            "Numeric_SNP_File.txt"
+            out_name,
+            "_numeric.txt"
           ),
           row.names = FALSE,
           sep = "\t",
           quote = FALSE,
           na = NA
         )
-        print(paste0("Numeric Genotypes saved at:", home_dir))
       }
       cat("\n\nDIAGNOSTICS:\n\n")
       if (ntraits == 1 | !any(architecture != "pleiotropic")) {
         QTN <-
-          QTN_pleiotropic(
+          qtn_pleiotropic(
             genotypes = geno_obj,
             seed = seed,
             same_add_dom_QTN = same_add_dom_QTN,
             add_QTN_num = add_QTN_num,
             dom_QTN_num = dom_QTN_num,
             epi_QTN_num = epi_QTN_num,
-            constrain = constrain,
+            const = constrain,
             rep = rep,
             rep_by = rep_by,
             export_gt = export_gt,
@@ -879,7 +876,7 @@ create_phenotypes <-
       }
       if (ntraits > 1 & !any(architecture != "partially")) {
         QTN <-
-          QTN_partially_pleiotropic(
+          qtn_partially_pleiotropic(
             genotypes = geno_obj,
             seed = seed,
             pleio_a = pleio_a,
@@ -889,7 +886,7 @@ create_phenotypes <-
             trait_spec_d_QTN_num = trait_spec_d_QTN_num,
             trait_spec_e_QTN_num = trait_spec_e_QTN_num,
             ntraits = ntraits,
-            constrain = constrain,
+            const = constrain,
             rep = rep,
             rep_by = rep_by,
             export_gt = export_gt,
@@ -901,14 +898,14 @@ create_phenotypes <-
       }
       if (ntraits > 1 & !any(architecture != "LD")) {
         QTN <-
-          QTN_linkage(
+          qtn_linkage(
             genotypes = geno_obj,
             seed = seed,
             add_QTN_num = add_QTN_num,
             dom_QTN_num = dom_QTN_num,
             ld = ld,
             gdsfile = gdsfile,
-            constrain = constrain,
+            const = constrain,
             rep = rep,
             rep_by = rep_by,
             export_gt = export_gt,
@@ -933,7 +930,7 @@ create_phenotypes <-
         if (rep_by == "QTN") {
           yes_no <- "NO"
           yes_no <-
-            readline(prompt = "Are you sure that you want to save\none genotypic file per replication\n(remove_QTN = TRUE and vary_QTN = TRUE)? yes/no: \n")
+            readline(prompt = "Are you sure that you want to save one genotypic file/rep (remove_QTN = TRUE and vary_QTN = TRUE) [type yes or no] ?\n")
           if (toupper(yes_no) != "YES" & toupper(yes_no) != "NO") {
             yes_no <- readline(prompt = "Please answer yes or no: \n")
           }
@@ -951,7 +948,7 @@ create_phenotypes <-
             if (epi)
               sel_e <-
                 split(selected_epi_QTN$snp, selected_epi_QTN$rep)
-            if (out_geno == "plink" | out_geno == "gds") {
+            if (out_geno == "plink" | out_geno == "gds" | output_format == "gemma") {
               genofile <- SNPRelate::snpgdsOpen(gdsfile)
               snpset <-
                 gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.id"))
@@ -961,7 +958,7 @@ create_phenotypes <-
                   setdiff(snpset, snps_to_remove[[i]])
                 SNPRelate::snpgdsGDS2BED(
                   genofile,
-                  bed.fn = paste0("geno_noQTN_rep_", i),
+                  bed.fn = paste0(out_name, "_noQTN_rep_", i),
                   snp.id = snpset_no_QTN,
                   verbose = F,
                   snpfirstdim = F
@@ -970,13 +967,12 @@ create_phenotypes <-
                   cat("\nSaving genotype file ", i, "without QTNs")
               }
               gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
-            }
-            if (out_geno == "numeric" | is.null(out_geno)) {
+            } else if (out_geno == "numeric" | out_geno == "none") {
               for (i in 1:rep) {
                 snps_to_remove[[i]] <- unlist(c(sel_a[i], sel_d[i], sel_e[i]))
                 data.table::fwrite(
                   geno_obj[!geno_obj$snp %in% snps_to_remove[[i]],],
-                  paste0("geno_noQTN_rep", i, ".txt"),
+                  paste0(out_name, "_noQTN_rep", i, ".txt"),
                   row.names = FALSE,
                   sep = "\t",
                   quote = FALSE,
@@ -998,7 +994,7 @@ create_phenotypes <-
             if (epi)
               sel_e <-
                 split(selected_epi_QTN$snp, selected_epi_QTN$rep)
-            if (out_geno == "plink" | out_geno == "gds") {
+            if (out_geno == "plink" | out_geno == "gds" | output_format == "gemma") {
               genofile <- SNPRelate::snpgdsOpen(gdsfile)
               snpset <-
                 gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.id"))
@@ -1007,7 +1003,7 @@ create_phenotypes <-
                   setdiff(snpset, snps_to_remove[[1]])
                 SNPRelate::snpgdsGDS2BED(
                   genofile,
-                  bed.fn = "geno_noQTN",
+                  bed.fn = paste0(out_name, "_noQTN"),
                   snp.id = snpset_no_QTN,
                   verbose = F,
                   snpfirstdim = F
@@ -1015,12 +1011,11 @@ create_phenotypes <-
                 if (verbose)
                   cat("\nSaving genotype file without QTNs!")
               gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
-            }
-            if (out_geno == "numeric" | is.null(out_geno)) {
+            } else if (out_geno == "numeric" | out_geno == "none") {
                 snps_to_remove[[1]] <- unlist(c(sel_a[1], sel_d[1], sel_e[1]))
                 data.table::fwrite(
                   geno_obj[!geno_obj$snp %in% snps_to_remove[[1]],],
-                  "geno_noQTN.txt",
+                  paste0(out_name, "_noQTN.txt"),
                   row.names = FALSE,
                   sep = "\t",
                   quote = FALSE,
@@ -1296,8 +1291,32 @@ create_phenotypes <-
       sink()
       close(zz)
       if (!quiet) {file.show(paste0(path_out, "/Log_Sim.txt"))}
-      if (out_geno != "gds") {
-        unlink(gdsfile, force = TRUE)
+      if (out_geno == "gds") {
+        cat("GDS files saved at:", home_dir, "\n") 
+        } else if (out_geno == "plink") {
+          cat("\nPlink bed files saved at:", home_dir, "\n")
+          } else if (out_geno == "numeric") {
+            cat("\nNumeric Genotypes saved at:", home_dir, "\n")
+            }
+      if (out_geno != "gds" & file.exists(temp)) {
+        unlink(temp, force = TRUE)
+      } else if (file.exists(gdsfile)) {
+          tempfile <- paste0(home_dir,
+                             "/",
+                             out_name,
+                             ".gds")
+          if (file.exists(tempfile)) {
+            while (file.exists(tempfile)) {
+              tempfile <- paste0(home_dir,
+                                 "/",
+                                 out_name, "(", j,
+                                 ").gds")
+              j <- j + 1
+            }
+            message("A file named ", paste0(home_dir, "/", out_name, ".gds"), " is already present in this folder, creating ", paste0(out_name, "(",j, ").gds"))
+          }
+          j <- 1
+         invisible(file.rename(gdsfile,tempfile))
       }
       if (to_r) return(results$simulated_data)
     },
