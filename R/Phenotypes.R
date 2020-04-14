@@ -348,12 +348,15 @@ phenotypes <-
               rep,
               " replications): \n")
         if (verbose) print(H2)
+        if (all(H2 != 1)) {
         sample_cor <- matrix(0, ntraits, ntraits)
         for (v in 1:rep) {
           sample_cor <- (sample_cor + simulated_cor[[v]])
         }
         sample_cor <- stats::cov2cor(sample_cor / rep)
-        
+        } else {
+          sample_cor <- NULL
+        }
         if (to_r) {
           simulated_data <- do.call(rbind, simulated_data)
           return(list(simulated_data = simulated_data,
@@ -919,11 +922,15 @@ phenotypes <-
             rep - h,
             " replications): \n")
         if (verbose) print(H2)
-        sample_cor <- matrix(0, ntraits, ntraits)
-        for (v in 1:rep) {
-          sample_cor <- (sample_cor + simulated_cor[[v]])
+        if (all(H2 != 1)) {
+          sample_cor <- matrix(0, ntraits, ntraits)
+          for (v in 1:rep) {
+            sample_cor <- (sample_cor + simulated_cor[[v]])
+          }
+          sample_cor <- stats::cov2cor(sample_cor / rep)
+        } else {
+          sample_cor <- NULL
         }
-        sample_cor <- stats::cov2cor(sample_cor / rep)
         if (to_r) {
           simulated_data <- do.call(rbind, simulated_data)
           return(list(simulated_data = simulated_data,
