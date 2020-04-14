@@ -52,7 +52,8 @@ create_phenotypes(
   verbose = TRUE,
   remove_QTN = FALSE,
   QTN_variance = FALSE,
-  type_of_ld = "indirect"
+  type_of_ld = "indirect",
+  warning_file_saver = TRUE
 )
 }
 \arguments{
@@ -232,6 +233,10 @@ implementation, the default is 'Middle'.}
 \item{QTN_variance}{Whether or not the percentage of the phenotypic variance explained by each QTN (QTN variance / phenotypic variance) should be exported. Default is FALSE.}
 
 \item{type_of_ld}{Should the spurious pleiotropy be due to "direct" or "indirect" LD? Default is "indirect".}
+
+\item{warning_file_saver}{When vary_QTN = TRUE and remove_QTN = TRUE, one file/rep will be saved.
+This option (Default = TRUE) asks whether the user is sure about saving all these possibly big files.
+If FALSE, genotype files without the QTNs it will be saved without asking.}
 }
 \value{
 Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits'
