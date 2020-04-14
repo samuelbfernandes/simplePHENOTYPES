@@ -135,6 +135,9 @@
 #' @param remove_QTN Whether or not a copy of the genotipic file should be saved without the simulated QTNs. Default is FALSE.
 #' @param QTN_variance Whether or not the percentage of the phenotypic variance explained by each QTN (QTN variance / phenotypic variance) should be exported. Default is FALSE.
 #' @param type_of_ld Should the spurious pleiotropy be due to "direct" or "indirect" LD? Default is "indirect".
+#' @param warning_file_saver When vary_QTN = TRUE and remove_QTN = TRUE, one file/rep will be saved.
+#' This option (Default = TRUE) asks whether the user is sure about saving all these possibly big files.
+#' If FALSE, genotype files without the QTNs it will be saved without asking.
 #' @return Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits'
 #'  traits, log file.
 #' @references Rice, B., Lipka, A. E. (2019). Evaluation of RR-BLUP genomic selection models that incorporate peak genome-wide association study signals in maize and sorghum. Plant Genome 12, 1–14.\doi{10.3835/plantgenome2018.07.0052} \cr
@@ -209,7 +212,8 @@ create_phenotypes <-
            verbose = TRUE,
            remove_QTN = FALSE,
            QTN_variance = FALSE,
-           type_of_ld = "indirect") {
+           type_of_ld = "indirect",
+           warning_file_saver = TRUE) {
     # -------------------------------------------------------------------------
     x <- try({
       packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
@@ -577,6 +581,7 @@ create_phenotypes <-
         stop("Please provide one of: \'geno_obj\', \'geno_file\' or \'geno_path\'", call. = F)
       }
       out_name <- NULL
+      input_format <- NULL
       if (!is.null(geno_obj)) {
         out_name <- deparse(substitute(geno_obj))
         if (any(class(geno_obj) != "data.frame")) {
@@ -792,7 +797,7 @@ create_phenotypes <-
         cat(paste0("\nOutput file format: \'", output_format, "\'\n"))
       }
       if (architecture == "LD" | out_geno == "plink" |
-          out_geno == "gds" | output_format == "gemma") {
+          out_geno == "gds" | (output_format == "gemma" & remove_QTN == FALSE)) {
         temp <- paste0(paste0(unlist(strsplit(date(), " "))[1:3], collapse = ""), "temp.gds")
         if (input_format == "hapmap" |
             input_format == "numeric") {
@@ -824,8 +829,8 @@ create_phenotypes <-
           gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
         }
         gdsfile <- paste0(home_dir, "/",temp)
-        if (out_geno == "plink" |
-            output_format == "gemma") {
+        if ((out_geno == "plink" |
+            output_format == "gemma") & remove_QTN == FALSE) {
           genofile <- SNPRelate::snpgdsOpen(gdsfile)
           snpset <-
             SNPRelate::snpgdsSelectSNP(genofile, remove.monosnp = F, verbose = F)
@@ -838,8 +843,12 @@ create_phenotypes <-
         }
       }
       if (output_format == "gemma") {
-        fam <- data.table::fread("geno.fam", drop = 6)
-        fam$V1 <- fam$V2
+        fam <- data.frame(colnames(geno_obj)[-(1:5)],
+                          colnames(geno_obj)[-(1:5)],
+                          0,
+                          0,
+                          0,check.names = FALSE, fix.empty.names = FALSE)
+        colnames(fam) <- paste0("V", 1:5)
       }
       if (out_geno == "numeric") {
         data.table::fwrite(
@@ -928,14 +937,18 @@ create_phenotypes <-
         sel_d <- NULL
         sel_e <- NULL
         if (rep_by == "QTN") {
-          yes_no <- "NO"
-          yes_no <-
-            readline(prompt = "Are you sure that you want to save one genotypic file/rep (remove_QTN = TRUE and vary_QTN = TRUE) [type yes or no] ?\n")
-          if (toupper(yes_no) != "YES" & toupper(yes_no) != "NO") {
-            yes_no <- readline(prompt = "Please answer yes or no: \n")
-          }
-          if (toupper(yes_no) != "YES" & toupper(yes_no) != "NO") {
+          if (warning_file_saver) {
             yes_no <- "NO"
+            yes_no <-
+              readline(prompt = "Are you sure that you want to save one genotypic file/rep (remove_QTN = TRUE and vary_QTN = TRUE) [type yes or no] ?\n")
+            if (toupper(yes_no) != "YES" & toupper(yes_no) != "NO") {
+              yes_no <- readline(prompt = "Please answer yes or no: \n")
+            }
+            if (toupper(yes_no) != "YES" & toupper(yes_no) != "NO") {
+              yes_no <- "NO"
+            } 
+          } else {
+            yes_no <- "YES"
           }
           if (toupper(yes_no) == "YES") {
             snps_to_remove <- vector("list", rep)
@@ -1261,6 +1274,7 @@ create_phenotypes <-
           rownames(cor) <- paste0("Trait_", 1:ntraits)
           print(cor)
         }
+        if (all(h2 != 1)) {
         if (rep_by == "QTN") {
           sample_cor <- matrix(0, ntraits, ntraits)
           for (v in 1:rep) {
@@ -1286,7 +1300,8 @@ create_phenotypes <-
         colnames(results$sample_cor) <- paste0("Trait_", 1:ntraits)
         rownames(results$sample_cor) <- paste0("Trait_", 1:ntraits)
         print(results$sample_cor)
-      }
+        }
+        }
       if (out_geno == "gds") {
         cat("GDS files saved at:", home_dir, "\n") 
       } else if (out_geno == "plink") {
@@ -1298,9 +1313,10 @@ create_phenotypes <-
       sink()
       close(zz)
       if (!quiet) {file.show(paste0(path_out, "/Log_Sim.txt"))}
-      if (out_geno != "gds" & file.exists(gdsfile)) {
-        unlink(gdsfile, force = TRUE)
-      } else if (file.exists(gdsfile)) {
+      if (!is.null(gdsfile)) {
+        if (out_geno != "gds" & file.exists(gdsfile)) {
+          unlink(gdsfile, force = TRUE)
+        } else if (file.exists(gdsfile)) {
           tempfile <- paste0(home_dir,
                              "/",
                              out_name,
@@ -1313,10 +1329,16 @@ create_phenotypes <-
                                  ").gds")
               j <- j + 1
             }
-            message("A file named ", paste0(home_dir, "/", out_name, ".gds"), " is already present in this folder, creating ", paste0(out_name, "(",j, ").gds"))
+            message(
+              "A file named ",
+              paste0(home_dir, "/", out_name, ".gds"),
+              " is already present in this folder, creating ",
+              paste0(out_name, "(", j, ").gds")
+            )
           }
           j <- 1
-         invisible(file.rename(gdsfile,tempfile))
+          invisible(file.rename(gdsfile, tempfile))
+        }
       }
       if (to_r) return(results$simulated_data)
     },
