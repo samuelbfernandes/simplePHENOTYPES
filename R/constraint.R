@@ -8,7 +8,7 @@
 #' Last update: Nov 25, 2019
 #'
 #'----------------------------- constrain ---------------------------------
-constrain <-
+constraint <-
   function(genotypes = NULL,
            maf_above = NULL,
            maf_below = NULL) {
