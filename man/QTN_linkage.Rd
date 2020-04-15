@@ -11,7 +11,7 @@ qtn_linkage(
   dom_QTN_num = NULL,
   ld = NULL,
   gdsfile = NULL,
-  const = list(maf_above = NULL, maf_below = NULL),
+  constraints = list(maf_above = NULL, maf_below = NULL),
   rep = NULL,
   rep_by = NULL,
   export_gt = NULL,
@@ -34,7 +34,7 @@ qtn_linkage(
 
 \item{gdsfile}{NULL}
 
-\item{const}{= list(maf_above = NULL, maf_below = NULL)}
+\item{constraints}{= list(maf_above = NULL, maf_below = NULL)}
 
 \item{rep}{= 1,}
 

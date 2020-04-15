@@ -11,7 +11,7 @@ qtn_pleiotropic(
   add_QTN_num = NULL,
   dom_QTN_num = NULL,
   epi_QTN_num = NULL,
-  const = list(maf_above = NULL, maf_below = NULL),
+  constraints = list(maf_above = NULL, maf_below = NULL),
   rep = NULL,
   rep_by = NULL,
   export_gt = NULL,
@@ -33,7 +33,7 @@ qtn_pleiotropic(
 
 \item{epi_QTN_num}{= NULL}
 
-\item{const}{= list(maf_above = NULL, maf_below = NULL)}
+\item{constraints}{= list(maf_above = NULL, maf_below = NULL)}
 
 \item{rep}{= 1,}
 
