@@ -9,7 +9,7 @@
 #' @param add = NULL,
 #' @param ld = NULL,
 #' @param gdsfile NULL
-#' @param const = list(maf_above = NULL, maf_below = NULL)
+#' @param constraints = list(maf_above = NULL, maf_below = NULL)
 #' @param rep = 1,
 #' @param rep_by = 'QTN',
 #' @param export_gt = FALSE
@@ -26,7 +26,7 @@ qtn_linkage <-
            dom_QTN_num = NULL,
            ld = NULL,
            gdsfile = NULL,
-           const = list(maf_above = NULL, maf_below = NULL),
+           constraints = list(maf_above = NULL, maf_below = NULL),
            rep = NULL,
            rep_by = NULL,
            export_gt = NULL,
@@ -54,16 +54,15 @@ qtn_linkage <-
     if (rep_by != "QTN") {
       rep <- 1
     }
-    if (any(lengths(const) > 0)) {
-      index <- constrain(genotypes = genotypes,
-                         maf_above = const$maf_above,
-                         maf_below = const$maf_below)
+    if (any(lengths(constraints) > 0)) {
+      index <- constraint(genotypes = genotypes,
+                         maf_above = constraints$maf_above,
+                         maf_below = constraints$maf_below)
       if (add) {
         if (length(index) < add_QTN_num) {
           stop("Not enough SNP left after applying the selected constrain!", call. = F)
         } 
       }
-
     } else {
       index <- 1:nrow(genotypes)
     }
@@ -93,6 +92,10 @@ qtn_linkage <-
           ldsup <- 1
           i <- j + 1
           while (ldsup > ld) {
+            if (i > length(index)) {
+              stop("There is no SNPs downstream. Please select a different seed number.",
+                   call. = F, immediate. = T)
+            }
             snp1 <-
               gdsfmt::read.gdsn(
                 gdsfmt::index.gdsn(genofile, "genotype"),
@@ -118,6 +121,10 @@ qtn_linkage <-
           ldinf <- 1
           i2 <- j - 1
           while (ldinf > ld) {
+            if (i2 < 1) {
+              stop("There is no SNPs upstream. Please select a different seed number.",
+                   call. = F, immediate. = T)
+            }
             snp3 <-
               gdsfmt::read.gdsn(
                 gdsfmt::index.gdsn(genofile, "genotype"),
@@ -207,8 +214,7 @@ qtn_linkage <-
         c(seed + 1:rep),
         paste0(
           "seed_num_for_", add_QTN_num,
-          "_Add_and_Dom_QTN",
-          ".txt"
+          "_Add_and_Dom_QTN.txt"
         ),
         row.names = FALSE,
         col.names = FALSE,
@@ -217,7 +223,7 @@ qtn_linkage <-
       )
       data.table::fwrite(
         results,
-        "Additive_selected_QTNs.txt",
+        "Additive_and_Dominance_selected_QTNs.txt",
         row.names = FALSE,
         sep = "\t",
         quote = FALSE,
@@ -261,6 +267,10 @@ qtn_linkage <-
             ldsup <- 1
             i <- j + 1
             while (ldsup > ld) {
+              if (i > length(index)) {
+                stop("There is no SNPs downstream. Please select a different seed number.",
+                     call. = F, immediate. = T)
+              }
               snp1 <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
@@ -286,6 +296,10 @@ qtn_linkage <-
             ldinf <- 1
             i2 <- j - 1
             while (ldinf > ld) {
+              if (i2 < 1) {
+                stop("There is no SNPs upstream. Please select a different seed number.",
+                     call. = F, immediate. = T)
+              }
               snp3 <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
@@ -375,8 +389,7 @@ qtn_linkage <-
           c(seed + 1:rep),
           paste0(
             "seed_num_for_", add_QTN_num,
-            "_Add_QTN",
-            ".txt"
+            "_Add_QTN.txt"
           ),
           row.names = FALSE,
           col.names = FALSE,
@@ -429,6 +442,10 @@ qtn_linkage <-
             ldsup <- 1
             i <- j + 1
             while (ldsup > ld) {
+              if (i > length(index)) {
+                stop("There is no SNPs downstream. Please select a different seed number.",
+                     call. = F, immediate. = T)
+              }
               snp1 <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
@@ -454,6 +471,10 @@ qtn_linkage <-
             ldinf <- 1
             i2 <- j - 1
             while (ldinf > ld) {
+              if (i2 < 1) {
+                stop("There is no SNPs upstream. Please select a different seed number.",
+                     call. = F, immediate. = T)
+              }
               snp3 <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
@@ -543,8 +564,7 @@ qtn_linkage <-
           c(seed + 1:rep + rep),
           paste0(
             "seed_num_for_", dom_QTN_num,
-            "_Dom_QTN",
-            ".txt"
+            "_Dom_QTN.txt"
           ),
           row.names = FALSE,
           col.names = FALSE,
@@ -641,6 +661,10 @@ qtn_linkage <-
             ldsup <- 1
             i <- j + 1
             while (ldsup > ld) {
+              if (i > length(index)) {
+                stop("There is no SNPs downstream. Please select a different seed number.",
+                     call. = F, immediate. = T)
+              }
               snp1 <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
@@ -764,6 +788,10 @@ qtn_linkage <-
               ldsup <- 1
               i <- j + 1
               while (ldsup > ld) {
+                if (i > length(index)) {
+                  stop("There is no SNPs downstream. Please select a different seed number.",
+                       call. = F, immediate. = T)
+                }
                 snp1 <-
                   gdsfmt::read.gdsn(
                     gdsfmt::index.gdsn(genofile, "genotype"),
@@ -887,6 +915,10 @@ qtn_linkage <-
               ldsup <- 1
               i <- j + 1
               while (ldsup > ld) {
+                if (i > length(index)) {
+                  stop("There is no SNPs downstream. Please select a different seed number.",
+                       call. = F, immediate. = T)
+                }
                 snp1 <-
                   gdsfmt::read.gdsn(
                     gdsfmt::index.gdsn(genofile, "genotype"),
