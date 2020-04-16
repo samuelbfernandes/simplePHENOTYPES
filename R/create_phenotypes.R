@@ -113,7 +113,7 @@
 #' "gds". Default is NULL.
 #' @param gdsfile Points to a gds file (in case there is one already created) to
 #' be used with option architecture = "LD". Default is NULL.
-#' @param constrain Set constrain for QTN selection. Currently, only minor 
+#' @param constraints Set constraints for QTN selection. Currently, only minor 
 #' allelic frequency is implemented. Either one or both of the following options 
 #' may be non-null: 'list(maf_above = NULL, maf_below = NULL)'.
 #' @param prefix If `geno_path` points to a folder with files other than the
@@ -121,7 +121,7 @@
 #' files (e.g. prefix = "Chr" would read files Chr1.hmp.txt, ..., Chr10.hmp.txt 
 #' but not HapMap.hmp.txt).
 #' @param maf_cutoff Optional filter for minor allele frequency 
-#' (The dataset will be filtered. Not to be confounded with the constrain option
+#' (The dataset will be filtered. Not to be confounded with the constraints option
 #' which will only filter possible QTNs).
 #' @param nrows Option for loading only part of a dataset. Please see 
 #' data.table::fread for details.
@@ -200,7 +200,7 @@ create_phenotypes <-
            output_format = "long",
            out_geno = NULL,
            gdsfile = NULL,
-           constrain = list(maf_above = NULL,
+           constraints = list(maf_above = NULL,
                              maf_below = NULL),
            prefix = NULL,
            maf_cutoff = NULL,
@@ -874,7 +874,7 @@ create_phenotypes <-
             add_QTN_num = add_QTN_num,
             dom_QTN_num = dom_QTN_num,
             epi_QTN_num = epi_QTN_num,
-            const = constrain,
+            constraints = constraints,
             rep = rep,
             rep_by = rep_by,
             export_gt = export_gt,
@@ -895,7 +895,7 @@ create_phenotypes <-
             trait_spec_d_QTN_num = trait_spec_d_QTN_num,
             trait_spec_e_QTN_num = trait_spec_e_QTN_num,
             ntraits = ntraits,
-            const = constrain,
+            constraints = constraints,
             rep = rep,
             rep_by = rep_by,
             export_gt = export_gt,
@@ -914,7 +914,7 @@ create_phenotypes <-
             dom_QTN_num = dom_QTN_num,
             ld = ld,
             gdsfile = gdsfile,
-            const = constrain,
+            constraints = constraints,
             rep = rep,
             rep_by = rep_by,
             export_gt = export_gt,
@@ -1346,5 +1346,12 @@ create_phenotypes <-
     if (class(x) == "try-error" & sunk) {
       sink()
       close(zz)
+      gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
+      if (!is.null(gdsfile)) {
+        if (out_geno != "gds" & file.exists(gdsfile)) {
+          unlink(gdsfile, force = TRUE)
+        }
+      }
+      unlink(output_dir, force = TRUE, recursive = TRUE)
     }
   }

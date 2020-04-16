@@ -41,7 +41,7 @@ create_phenotypes(
   output_format = "long",
   out_geno = NULL,
   gdsfile = NULL,
-  constrain = list(maf_above = NULL, maf_below = NULL),
+  constraints = list(maf_above = NULL, maf_below = NULL),
   prefix = NULL,
   maf_cutoff = NULL,
   nrows = Inf,
@@ -200,7 +200,7 @@ to be used by gemma with plink bed files (renaming .fam file might be necessary)
 \item{gdsfile}{Points to a gds file (in case there is one already created) to
 be used with option architecture = "LD". Default is NULL.}
 
-\item{constrain}{Set constrain for QTN selection. Currently, only minor 
+\item{constraints}{Set constraints for QTN selection. Currently, only minor 
 allelic frequency is implemented. Either one or both of the following options 
 may be non-null: 'list(maf_above = NULL, maf_below = NULL)'.}
 
@@ -210,7 +210,7 @@ files (e.g. prefix = "Chr" would read files Chr1.hmp.txt, ..., Chr10.hmp.txt
 but not HapMap.hmp.txt).}
 
 \item{maf_cutoff}{Optional filter for minor allele frequency 
-(The dataset will be filtered. Not to be confounded with the constrain option
+(The dataset will be filtered. Not to be confounded with the constraints option
 which will only filter possible QTNs).}
 
 \item{nrows}{Option for loading only part of a dataset. Please see 
