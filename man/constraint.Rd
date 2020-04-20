@@ -4,7 +4,7 @@
 \alias{constraint}
 \title{Select SNPs to be assigned as QTNs: To be included LD, FST}
 \usage{
-constraint(genotypes = NULL, maf_above = NULL, maf_below = NULL)
+constraint(genotypes = NULL, maf_above = NULL, maf_below = NULL, hets = NULL)
 }
 \arguments{
 \item{genotypes}{a numericalized genotype object (geno_obj).}
@@ -12,6 +12,8 @@ constraint(genotypes = NULL, maf_above = NULL, maf_below = NULL)
 \item{maf_above}{Threshold for the minimum value of minor allele frequency.}
 
 \item{maf_below}{Threshold for the maximum value of minor allele frequency.}
+
+\item{hets}{Option of including (\'include\') and removing (\'remove\') only heterozygotes.}
 }
 \value{
 Return a filtered dataset to be used when selecting QTNs.

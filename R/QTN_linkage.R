@@ -56,8 +56,10 @@ qtn_linkage <-
     }
     if (any(lengths(constraints) > 0)) {
       index <- constraint(genotypes = genotypes,
-                         maf_above = constraints$maf_above,
-                         maf_below = constraints$maf_below)
+                          maf_above = constraints$maf_above,
+                          maf_below = constraints$maf_below,
+                          hets = constraints$hets
+                          )
       if (add) {
         if (length(index) < add_QTN_num) {
           stop("Not enough SNP left after applying the selected constrain!", call. = F)
@@ -88,13 +90,17 @@ qtn_linkage <-
         ld_between_QTNs_temp <- c()
         actual_ld_sup <- c()
         actual_ld_inf <- c()
+        again <- TRUE
+        times <- 1
+        dif <- c()
+        while (again) {
         for (j in vector_of_add_QTN) {
           ldsup <- 1
           i <- j + 1
           while (ldsup > ld) {
             if (i > length(index)) {
-              stop("There is no SNPs downstream. Please select a different seed number.",
-                   call. = F, immediate. = T)
+              stop("There are no SNPs downstream. Please select a different seed number.",
+                   call. = F)
             }
             snp1 <-
               gdsfmt::read.gdsn(
@@ -122,8 +128,8 @@ qtn_linkage <-
           i2 <- j - 1
           while (ldinf > ld) {
             if (i2 < 1) {
-              stop("There is no SNPs upstream. Please select a different seed number.",
-                   call. = F, immediate. = T)
+              stop("There are no SNPs upstream. Please select a different seed number.",
+                   call. = F)
             }
             snp3 <-
               gdsfmt::read.gdsn(
@@ -155,6 +161,26 @@ qtn_linkage <-
             )
           ld_between_QTNs_temp[x] <- SNPRelate::snpgdsLDpair(snp_sup, snp_inf, method = "composite")
           x <- x + 1
+        }
+          if ((!any(genotypes[sup_temp,-(1:5)] == 0) |
+               !any(genotypes[inf_temp,-(1:5)] == 0)) &
+              times <= 10 & dom){
+            if (!is.null(seed)) {
+              set.seed(seed + z + rep)
+            }
+            dif <- c(dif, vector_of_add_QTN)
+            vector_of_dom_QTN <-
+              sample(setdiff(index, dif), dom_QTN_num, replace = FALSE)
+            again <- TRUE
+          } else {
+            again <- FALSE
+          }
+          times <- times + 1
+        }
+        if ((!any(genotypes[sup_temp,-(1:5)] == 0) |
+            !any(genotypes[inf_temp,-(1:5)] == 0)) & dom ){
+          warning("All individuals are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
+                  call. = F, immediate. = T)
         }
         SNPRelate::snpgdsClose(genofile)
         sup[[z]] <- sup_temp
@@ -268,8 +294,8 @@ qtn_linkage <-
             i <- j + 1
             while (ldsup > ld) {
               if (i > length(index)) {
-                stop("There is no SNPs downstream. Please select a different seed number.",
-                     call. = F, immediate. = T)
+                stop("There are no SNPs downstream. Please select a different seed number.",
+                     call. = F)
               }
               snp1 <-
                 gdsfmt::read.gdsn(
@@ -297,8 +323,8 @@ qtn_linkage <-
             i2 <- j - 1
             while (ldinf > ld) {
               if (i2 < 1) {
-                stop("There is no SNPs upstream. Please select a different seed number.",
-                     call. = F, immediate. = T)
+                stop("There are no SNPs upstream. Please select a different seed number.",
+                     call. = F)
               }
               snp3 <-
                 gdsfmt::read.gdsn(
@@ -438,73 +464,103 @@ qtn_linkage <-
           ld_between_QTNs_temp <- c()
           actual_ld_sup <- c()
           actual_ld_inf <- c()
-          for (j in vector_of_dom_QTN) {
-            ldsup <- 1
-            i <- j + 1
-            while (ldsup > ld) {
-              if (i > length(index)) {
-                stop("There is no SNPs downstream. Please select a different seed number.",
-                     call. = F, immediate. = T)
+          again <- TRUE
+          times <- 1
+          dif <- c()
+          while (again) {
+            for (j in vector_of_dom_QTN) {
+              ldsup <- 1
+              i <- j + 1
+              while (ldsup > ld) {
+                if (i > length(index)) {
+                  stop(
+                    "There are no SNPs downstream. Please select a different seed number.",
+                    call. = F
+                  )
+                }
+                snp1 <-
+                  gdsfmt::read.gdsn(
+                    gdsfmt::index.gdsn(genofile, "genotype"),
+                    start = c(1, j),
+                    count = c(-1, 1)
+                  )
+                snp2 <-
+                  gdsfmt::read.gdsn(
+                    gdsfmt::index.gdsn(genofile, "genotype"),
+                    start = c(1, i),
+                    count = c(-1, 1)
+                  )
+                ldsup <-
+                  abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = "composite"))
+                if (is.nan(ldsup)) {
+                  SNPRelate::snpgdsClose(genofile)
+                  stop("Monomorphic SNPs are not accepted", call. = F)
+                }
+                i <- i + 1
               }
-              snp1 <-
+              actual_ld_sup[x] <- ldsup
+              sup_temp[x] <- i
+              ldinf <- 1
+              i2 <- j - 1
+              while (ldinf > ld) {
+                if (i2 < 1) {
+                  stop(
+                    "There are no SNPs upstream. Please select a different seed number.",
+                    call. = F,
+                    immediate. = T
+                  )
+                }
+                snp3 <-
+                  gdsfmt::read.gdsn(
+                    gdsfmt::index.gdsn(genofile, "genotype"),
+                    start = c(1, i2),
+                    count = c(-1, 1)
+                  )
+                ldinf <-
+                  abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = "composite"))
+                if (is.nan(ldinf)) {
+                  SNPRelate::snpgdsClose(genofile)
+                  stop("Monomorphic SNPs are not accepted", call. = F)
+                }
+                i2 <- i2 - 1
+              }
+              actual_ld_inf[x] <- ldinf
+              inf_temp[x] <- i2
+              snp_sup <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
-                  start = c(1, j),
+                  start = c(1, sup_temp[x]),
                   count = c(-1, 1)
                 )
-              snp2 <-
+              snp_inf <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
-                  start = c(1, i),
+                  start = c(1, inf_temp[x]),
                   count = c(-1, 1)
                 )
-              ldsup <-
-                abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = "composite"))
-              if (is.nan(ldsup)) {
-                SNPRelate::snpgdsClose(genofile)
-                stop("Monomorphic SNPs are not accepted", call. = F)
-              }
-              i <- i + 1
+              ld_between_QTNs_temp[x] <-
+                SNPRelate::snpgdsLDpair(snp_sup, snp_inf, method = "composite")
+              x <- x + 1
             }
-            actual_ld_sup[x] <- ldsup
-            sup_temp[x] <- i
-            ldinf <- 1
-            i2 <- j - 1
-            while (ldinf > ld) {
-              if (i2 < 1) {
-                stop("There is no SNPs upstream. Please select a different seed number.",
-                     call. = F, immediate. = T)
+            if ((!any(genotypes[sup_temp,-(1:5)] == 0) |
+                !any(genotypes[inf_temp,-(1:5)] == 0)) &
+                times <= 10){
+              if (!is.null(seed)) {
+                set.seed(seed + z + rep)
               }
-              snp3 <-
-                gdsfmt::read.gdsn(
-                  gdsfmt::index.gdsn(genofile, "genotype"),
-                  start = c(1, i2),
-                  count = c(-1, 1)
-                )
-              ldinf <-
-                abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = "composite"))
-              if (is.nan(ldinf)) {
-                SNPRelate::snpgdsClose(genofile)
-                stop("Monomorphic SNPs are not accepted", call. = F)
-              }
-              i2 <- i2 - 1
+              dif <- c(dif, vector_of_dom_QTN)
+              vector_of_dom_QTN <-
+                sample(setdiff(index, dif), dom_QTN_num, replace = FALSE)
+              again <- TRUE
+            } else {
+              again <- FALSE
             }
-            actual_ld_inf[x] <- ldinf
-            inf_temp[x] <- i2
-            snp_sup <-
-              gdsfmt::read.gdsn(
-                gdsfmt::index.gdsn(genofile, "genotype"),
-                start = c(1, sup_temp[x]),
-                count = c(-1, 1)
-              )
-            snp_inf <-
-              gdsfmt::read.gdsn(
-                gdsfmt::index.gdsn(genofile, "genotype"),
-                start = c(1, inf_temp[x]),
-                count = c(-1, 1)
-              )
-            ld_between_QTNs_temp[x] <- SNPRelate::snpgdsLDpair(snp_sup, snp_inf, method = "composite")
-            x <- x + 1
+            times <- times + 1
+          }
+          if (!any(genotypes[sup_temp,-(1:5)] == 0) |
+               !any(genotypes[inf_temp,-(1:5)] == 0)){
+            warning("All individuals are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
+                    call. = F, immediate. = T)
           }
           SNPRelate::snpgdsClose(genofile)
           sup[[z]] <- sup_temp
@@ -657,13 +713,17 @@ qtn_linkage <-
           x <- 1
           sup_temp <- c()
           ld_between_QTNs_temp <- c()
+          again <- TRUE
+          times <- 1
+          dif <- c()
+          while (again) {
           for (j in vector_of_add_QTN) {
             ldsup <- 1
             i <- j + 1
             while (ldsup > ld) {
               if (i > length(index)) {
-                stop("There is no SNPs downstream. Please select a different seed number.",
-                     call. = F, immediate. = T)
+                stop("There are no SNPs downstream. Please select a different seed number.",
+                     call. = F)
               }
               snp1 <-
                 gdsfmt::read.gdsn(
@@ -688,6 +748,26 @@ qtn_linkage <-
             ld_between_QTNs_temp[x] <- ldsup
             sup_temp[x] <- i
             x <- x + 1
+          }
+            if ((!any(genotypes[sup_temp,-(1:5)] == 0) |
+                 !any(genotypes[vector_of_dom_QTN,-(1:5)] == 0)) &
+                times <= 10 & dom){
+              if (!is.null(seed)) {
+                set.seed(seed + z + rep)
+              }
+              dif <- c(dif, vector_of_add_QTN)
+              vector_of_add_QTN <-
+                sample(setdiff(index, dif), dom_QTN_num, replace = FALSE)
+              again <- TRUE
+            } else {
+              again <- FALSE
+            }
+            times <- times + 1
+          }
+          if ((!any(genotypes[sup_temp,-(1:5)] == 0) |
+              !any(genotypes[vector_of_add_QTN,-(1:5)] == 0)) & dom){
+            warning("All individuals are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
+                    call. = F, immediate. = T)
           }
           SNPRelate::snpgdsClose(genofile)
           sup[[z]] <- sup_temp
@@ -789,8 +869,8 @@ qtn_linkage <-
               i <- j + 1
               while (ldsup > ld) {
                 if (i > length(index)) {
-                  stop("There is no SNPs downstream. Please select a different seed number.",
-                       call. = F, immediate. = T)
+                  stop("There are no SNPs downstream. Please select a different seed number.",
+                       call. = F)
                 }
                 snp1 <-
                   gdsfmt::read.gdsn(
@@ -911,13 +991,17 @@ qtn_linkage <-
             x <- 1
             sup_temp <- c()
             ld_between_QTNs_temp <- c()
+            again <- TRUE
+            times <- 1
+            dif <- c()
+            while (again) {
             for (j in vector_of_dom_QTN) {
               ldsup <- 1
               i <- j + 1
               while (ldsup > ld) {
                 if (i > length(index)) {
-                  stop("There is no SNPs downstream. Please select a different seed number.",
-                       call. = F, immediate. = T)
+                  stop("There are no SNPs downstream. Please select a different seed number.",
+                       call. = F)
                 }
                 snp1 <-
                   gdsfmt::read.gdsn(
@@ -942,6 +1026,26 @@ qtn_linkage <-
               sup_temp[x] <- i
               ld_between_QTNs_temp[x] <- ldsup
               x <- x + 1
+            }
+              if ((!any(genotypes[sup_temp,-(1:5)] == 0) |
+                   !any(genotypes[vector_of_dom_QTN,-(1:5)] == 0)) &
+                  times <= 10){
+                if (!is.null(seed)) {
+                  set.seed(seed + z + rep)
+                }
+                dif <- c(dif, vector_of_dom_QTN)
+                vector_of_dom_QTN <-
+                  sample(setdiff(index, dif), dom_QTN_num, replace = FALSE)
+                again <- TRUE
+              } else {
+                again <- FALSE
+              }
+              times <- times + 1
+            }
+            if (!any(genotypes[sup_temp,-(1:5)] == 0) |
+                !any(genotypes[vector_of_dom_QTN,-(1:5)] == 0)){
+              warning("All individuals are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
+                      call. = F, immediate. = T)
             }
             SNPRelate::snpgdsClose(genofile)
             sup[[z]] <- sup_temp

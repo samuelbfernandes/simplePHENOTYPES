@@ -115,7 +115,10 @@
 #' be used with option architecture = "LD". Default is NULL.
 #' @param constraints Set constraints for QTN selection. Currently, only minor
 #' allelic frequency is implemented. Either one or both of the following options
-#' may be non-null: 'list(maf_above = NULL, maf_below = NULL)'.
+#' may be non-null: 'list(maf_above = NULL, maf_below = NULL, hets = NULL )'.
+#' maf_above is the threshold for the minimum value of minor allele frequency.
+#' maf_below Threshold for the maximum value of minor allele frequency.
+#' For hets, the option ar for including (\'include\') and removing (\'remove\') only heterozygotes.
 #' @param prefix If `geno_path` points to a folder with files other than the
 #' marker dataset, a part of the dataset name may be used to select the desired
 #' files (e.g. prefix = "Chr" would read files Chr1.hmp.txt, ..., Chr10.hmp.txt
@@ -201,7 +204,8 @@ create_phenotypes <-
            out_geno = NULL,
            gdsfile = NULL,
            constraints = list(maf_above = NULL,
-                              maf_below = NULL),
+                              maf_below = NULL,
+                              hets = NULL),
            prefix = NULL,
            maf_cutoff = NULL,
            nrows = Inf,
@@ -217,7 +221,6 @@ create_phenotypes <-
     # -------------------------------------------------------------------------
     tryCatch({
       packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
-      sunk <- FALSE
       if (is.null(home_dir)) {
         stop("Please provide a path to output results (It may be getwd())!.",
              call. = F)
@@ -749,7 +752,6 @@ create_phenotypes <-
       } else {
         path_out <- home_dir
       }
-      sunk <- TRUE
       zz <- file("Log_Sim.txt", open = "wt")
       sink(zz, type = "output")
       if (ntraits > 1) {
@@ -1499,12 +1501,13 @@ create_phenotypes <-
           invisible(file.rename(gdsfile, tempfile))
         }
       }
+      message("Simulation completed!")
       if (to_r) {
         return(results$simulated_data)
       }
     },
     error = function(cnd) {
-      conditionMessage(cnd)
+      message(paste("Error: ",cnd))
       unlink(path_out, force = TRUE, recursive = TRUE)
       if (!is.null(gdsfile)) {
         if (out_geno != "gds" & file.exists(gdsfile)) {

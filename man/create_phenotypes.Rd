@@ -41,7 +41,7 @@ create_phenotypes(
   output_format = "long",
   out_geno = NULL,
   gdsfile = NULL,
-  constraints = list(maf_above = NULL, maf_below = NULL),
+  constraints = list(maf_above = NULL, maf_below = NULL, hets = NULL),
   prefix = NULL,
   maf_cutoff = NULL,
   nrows = Inf,
@@ -202,7 +202,10 @@ be used with option architecture = "LD". Default is NULL.}
 
 \item{constraints}{Set constraints for QTN selection. Currently, only minor
 allelic frequency is implemented. Either one or both of the following options
-may be non-null: 'list(maf_above = NULL, maf_below = NULL)'.}
+may be non-null: 'list(maf_above = NULL, maf_below = NULL, hets = NULL )'.
+maf_above is the threshold for the minimum value of minor allele frequency.
+maf_below Threshold for the maximum value of minor allele frequency.
+For hets, the option ar for including (\'include\') and removing (\'remove\') only heterozygotes.}
 
 \item{prefix}{If `geno_path` points to a folder with files other than the
 marker dataset, a part of the dataset name may be used to select the desired

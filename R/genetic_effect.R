@@ -63,11 +63,15 @@ genetic_effect <-
       dominance_QTN_number <- ncol(dom_obj)
       dom_component_temp <- dom_component
       for (i in 1:dominance_QTN_number) {
-        new_dom_QTN_effect <- dom_component_temp
-        new_dom_QTN_effect[dom_obj[, i] == 0, 1] <-
-          new_dom_QTN_effect[dom_obj[, i] == 0, 1] + dom_effect[i]
-        var_dom[i] <- var(new_dom_QTN_effect)
-        dom_component <- dom_component + new_dom_QTN_effect
+        if (any(dom_obj[, i] == 0)) {
+          new_dom_QTN_effect <- dom_component_temp
+          new_dom_QTN_effect[dom_obj[, i] == 0, 1] <-
+            new_dom_QTN_effect[dom_obj[, i] == 0, 1] + dom_effect[i]
+          var_dom[i] <- var(new_dom_QTN_effect)
+          dom_component <- dom_component + new_dom_QTN_effect
+        } else {
+          var_dom[i] <- 0
+        }
       }
       rownames(dom_component) <- rownames
       colnames(dom_component) <- "dominance_effect"
@@ -89,6 +93,13 @@ genetic_effect <-
         epi_genetic_variance <- var(epi_component)
       }
     base_line_trait <- add_component + dom_component + epi_component
+    if (all(base_line_trait==0)) {
+      if (dom & !add & !epi & all(var_dom == 0) & any(unlist(dom_effect) != 0)) {
+        stop("No heterozygotes were found to simulate a dominance model (model = \"D\"). Please consider using the option constraints = list(hets = \'include\'). ", call. = F)
+      } else if (dom & !add & !epi & any(unlist(dom_effect) == 0)) {
+        stop("Please select dominance effects different than zero. ", call. = F)
+      }
+    }
     return( list(
       base_line = base_line_trait,
       VA = c(add_genetic_variance),
