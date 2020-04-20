@@ -13,7 +13,7 @@
 #' @param trait_spec_d_QTN_num = NULL,
 #' @param trait_spec_e_QTN_num = NULL,
 #' @param ntraits = NULL
-#' @param const = list(maf_above = NULL, maf_below = NULL)
+#' @param constraints = list(maf_above = NULL, maf_below = NULL)
 #' @param rep = 1,
 #' @param rep_by = 'QTN',
 #' @param export_gt = FALSE
@@ -32,8 +32,9 @@ qtn_partially_pleiotropic <-
            trait_spec_d_QTN_num = NULL,
            trait_spec_e_QTN_num = NULL,
            ntraits = NULL,
-           const = list(maf_above = NULL,
-                             maf_below = NULL),
+           constraints = list(maf_above = NULL,
+                             maf_below = NULL,
+                             hets = NULL),
            rep = NULL,
            rep_by = NULL,
            export_gt = NULL,
@@ -72,10 +73,12 @@ qtn_partially_pleiotropic <-
         trait_spec_e_QTN_num <- rep(1, ntraits)
       }
     }
-    if (any(lengths(const) > 0)) {
-      index <- constrain(genotypes = genotypes,
-                         maf_above = const$maf_above,
-                         maf_below = const$maf_below)
+    if (any(lengths(constraints) > 0)) {
+      index <- constraint(genotypes = genotypes,
+                         maf_above = constraints$maf_above,
+                         maf_below = constraints$maf_below,
+                         hets = constraints$hets
+                         )
     } else {
       index <- 1:nrow(genotypes)
     }
@@ -91,8 +94,24 @@ qtn_partially_pleiotropic <-
         }
         vec_of_pleio_add_QTN <-
           sample(index, pleio_a, replace = FALSE)
+        times <- 1
+        dif <- c()
+        while (!any(genotypes[vec_of_pleio_add_QTN,-(1:5)] == 0) &
+               times <= 10 & dom) {
+          if (!is.null(seed)) {
+            set.seed(seed + j)
+          }
+          dif <- c(dif, vec_of_pleio_add_QTN)
+          vec_of_pleio_add_QTN <-
+            sample(setdiff(index, dif), pleio_a, replace = FALSE)
+          times <- times + 1
+        }
         add_pleio_gen_info[[j]] <-
-          as.data.frame(genotypes[vec_of_pleio_add_QTN, ])
+          as.data.frame(genotypes[vec_of_pleio_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
+        if (!any(genotypes[vec_of_pleio_add_QTN,-(1:5)] == 0) & dom){
+          warning("All individuals in rep ",j ," are homozygote for the selected pleiotropic QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
+                  call. = F, immediate. = T)
+        }
         snps <-
           setdiff(index, vec_of_pleio_add_QTN)
         vec_spec_add_QTN_temp <- vector("list", ntraits)
@@ -106,8 +125,25 @@ qtn_partially_pleiotropic <-
           vec_spec_add_QTN_temp[[i]] <-
             sample(snps, trait_spec_a_QTN_num[i], replace = FALSE)
           snps <- setdiff(snps, vec_spec_add_QTN_temp[[i]])
+          times <- 1
+          dif <- c()
+          while (!any(genotypes[vec_spec_add_QTN_temp[[i]],-(1:5)] == 0) &
+                 times <= 10 & dom) {
+            if (!is.null(seed)) {
+              ss[i] <- seed + i + j
+              set.seed(seed + i + j)
+            }
+            dif <- c(dif, vec_spec_add_QTN_temp[[i]])
+            vec_spec_add_QTN_temp[[i]] <-
+              sample(setdiff(snps, dif), trait_spec_a_QTN_num[i], replace = FALSE)
+            times <- times + 1
+          }
           add_specific_gen_info_temp[[i]] <-
-            as.data.frame(genotypes[vec_spec_add_QTN_temp[[i]], ])
+            as.data.frame(genotypes[vec_spec_add_QTN_temp[[i]], ], check.names = FALSE, fix.empty.names = FALSE)
+          if (!any(genotypes[vec_spec_add_QTN_temp[[i]],-(1:5)] == 0) & dom){
+            warning("All individuals in rep ",j ," are homozygote for the selected QTNs of trait ", i,". Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
+                    call. = F, immediate. = T)
+          }
         }
         add_specific_gen_info_temp <-
           do.call(rbind, add_specific_gen_info_temp)
@@ -203,7 +239,7 @@ qtn_partially_pleiotropic <-
           vec_of_pleio_add_QTN <-
             sample(index, pleio_a, replace = FALSE)
           add_pleio_gen_info[[j]] <-
-            as.data.frame(genotypes[vec_of_pleio_add_QTN, ])
+            as.data.frame(genotypes[vec_of_pleio_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
           snps <-
             setdiff(index, vec_of_pleio_add_QTN)
           vec_spec_add_QTN_temp <- vector("list", ntraits)
@@ -218,7 +254,7 @@ qtn_partially_pleiotropic <-
               sample(snps, trait_spec_a_QTN_num[i], replace = FALSE)
             snps <- setdiff(snps, vec_spec_add_QTN_temp[[i]])
             add_specific_gen_info_temp[[i]] <-
-              as.data.frame(genotypes[vec_spec_add_QTN_temp[[i]], ])
+              as.data.frame(genotypes[vec_spec_add_QTN_temp[[i]], ], check.names = FALSE, fix.empty.names = FALSE)
           }
           add_specific_gen_info_temp <-
             do.call(rbind, add_specific_gen_info_temp)
@@ -314,13 +350,30 @@ qtn_partially_pleiotropic <-
           }
           vec_pleio_dom_QTN <-
             sample(index, pleio_d, replace = FALSE)
+          times <- 1
+          dif <- c()
+          while (!any(genotypes[vec_pleio_dom_QTN,-(1:5)] == 0) &
+                 times <= 10) {
+            if (!is.null(seed)) {
+              set.seed(seed + j + rep)
+            }
+            dif <- c(dif, vec_pleio_dom_QTN)
+            vec_pleio_dom_QTN <-
+              sample(setdiff(index, dif), pleio_d, replace = FALSE)
+            times <- times + 1
+          }
           dom_pleio_gen_info[[j]] <-
-            as.data.frame(genotypes[vec_pleio_dom_QTN, ])
+            as.data.frame(genotypes[vec_pleio_dom_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
+          if (!any(genotypes[vec_pleio_dom_QTN,-(1:5)] == 0)){
+            warning("All individuals in rep ",j ," are homozygote for the selected pleiotropic QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
+                    call. = F, immediate. = T)
+          }
           snpsd <-
-            setdiff(index, vec_pleio_dom_QTN)
+            setdiff(index, c(dif, vec_pleio_dom_QTN))
           vec_spec_dom_QTN_temp <- vector("list", ntraits)
           dom_spec_gen_info_temp <- vector("list", ntraits)
           ssd <- c()
+          dif <- c()
           for (i in 1:ntraits) {
             if (!is.null(seed)) {
               ssd[i] <- seed + i + j + rep
@@ -329,9 +382,25 @@ qtn_partially_pleiotropic <-
             vec_spec_dom_QTN_temp[[i]] <-
               sample(snpsd, trait_spec_d_QTN_num[i], replace = FALSE)
             snpsd <- setdiff(snpsd, vec_spec_dom_QTN_temp[[i]])
+            times <- 1
+            while (!any(genotypes[vec_spec_dom_QTN_temp[[i]],-(1:5)] == 0) &
+                   times <= 10) {
+              if (!is.null(seed)) {
+                ssd[i] <- seed + i + j + rep
+                set.seed(seed + i + j + rep)
+              }
+              dif <- c(dif, vec_spec_dom_QTN_temp[[i]])
+              vec_spec_dom_QTN_temp[[i]] <-
+                sample(setdiff(snpsd, dif), trait_spec_d_QTN_num[i], replace = FALSE)
+              times <- times + 1
+            }
             dom_spec_gen_info_temp[[i]] <-
-              as.data.frame(genotypes[vec_spec_dom_QTN_temp[[i]], ])
-          }
+              as.data.frame(genotypes[vec_spec_dom_QTN_temp[[i]], ], check.names = FALSE, fix.empty.names = FALSE)
+            if (!any(genotypes[vec_spec_dom_QTN_temp[[i]],-(1:5)] == 0)){
+              warning("All individuals in rep ",j ," are homozygote for the selected QTNs of trait ", i,". Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
+                      call. = F, immediate. = T)
+            }
+            }
           dom_spec_gen_info_temp <-
             do.call(rbind, dom_spec_gen_info_temp)
           dom_spec_gen_info[[j]] <-
@@ -428,7 +497,7 @@ qtn_partially_pleiotropic <-
         vec_pleio_epi_QTN <-
           sample(index, (2 * pleio_e), replace = FALSE)
         epi_pleio_QTN_gen_info[[j]] <-
-          as.data.frame(genotypes[vec_pleio_epi_QTN, ])
+          as.data.frame(genotypes[vec_pleio_epi_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
         snps_e <-
           setdiff(index, vec_pleio_epi_QTN)
         vec_spec_epi_QTN_temp <- vector("list", ntraits)
@@ -443,7 +512,7 @@ qtn_partially_pleiotropic <-
             sample(snps_e, (2 * trait_spec_e_QTN_num[i]), replace = FALSE)
           snps_e <- setdiff(snps_e, vec_spec_epi_QTN_temp[[i]])
           epi_spec_QTN_gen_info_temp[[i]] <-
-            as.data.frame(genotypes[vec_spec_epi_QTN_temp[[i]], ])
+            as.data.frame(genotypes[vec_spec_epi_QTN_temp[[i]], ], check.names = FALSE, fix.empty.names = FALSE)
         }
         epi_spec_QTN_gen_info_temp <-
           do.call(rbind, epi_spec_QTN_gen_info_temp)

@@ -6,7 +6,7 @@
 #' @param dom_QTN_num = NULL,
 #' @param epi_QTN_num = NULL
 #' @param same_add_dom_QTN = NULL,
-#' @param const = list(maf_above = NULL, maf_below = NULL)
+#' @param constraints = list(maf_above = NULL, maf_below = NULL)
 #' @param rep = 1,
 #' @param rep_by = 'QTN',
 #' @param export_gt = FALSE
@@ -25,7 +25,7 @@ qtn_pleiotropic <-
            add_QTN_num = NULL,
            dom_QTN_num = NULL,
            epi_QTN_num = NULL,
-           const = list(maf_above = NULL, maf_below = NULL),
+           constraints = list(maf_above = NULL, maf_below = NULL),
            rep = NULL,
            rep_by = NULL,
            export_gt = NULL,
@@ -58,10 +58,12 @@ qtn_pleiotropic <-
         epi_QTN_num <- 1
       }
     }
-    if (any(lengths(const) > 0)) {
-      index <- constrain(genotypes = genotypes,
-                         maf_above = const$maf_above,
-                         maf_below = const$maf_below)
+    if (any(lengths(constraints) > 0)) {
+      index <- constraint(genotypes = genotypes,
+                          maf_above = constraints$maf_above,
+                          maf_below = constraints$maf_below,
+                          hets = constraints$hets
+      )
     } else {
       index <- 1:nrow(genotypes)
     }
@@ -77,8 +79,24 @@ qtn_pleiotropic <-
         }
         vector_of_add_QTN <-
           sample(index, add_QTN_num, replace = FALSE)
+        times <- 1
+        dif <- c()
+        while (!any(genotypes[vector_of_add_QTN,-(1:5)] == 0) &
+               times <= 10 & dom) {
+          if (!is.null(seed)) {
+            set.seed(seed + i)
+          }
+          dif <- c(dif, vector_of_add_QTN)
+          vector_of_add_QTN <-
+            sample(setdiff(index, dif), add_QTN_num, replace = FALSE)
+        times <- times + 1
+        }
         add_QTN_geno_info[[i]] <-
-          as.data.frame(genotypes[vector_of_add_QTN, ])
+          as.data.frame(genotypes[vector_of_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
+        if (!any(genotypes[vector_of_add_QTN,-(1:5)] == 0)){
+          warning("All individuals in rep ",i ," are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
+                  call. = F, immediate. = T)
+        }
         add_ef_trait_obj[[i]] <-
           t(add_QTN_geno_info[[i]][, -c(1:5)])
         colnames(add_ef_trait_obj[[i]]) <-
@@ -111,8 +129,10 @@ qtn_pleiotropic <-
       if (add_QTN) {
         write.table(
           s,
-          paste0("seed_num_for_", rep, "_reps_and_", add_QTN_num,
-                 "_Add_and_Dom_QTN", ".txt"),
+          paste0(
+            "seed_num_for_", add_QTN_num,
+            "_Add_and_Dom_QTN.txt"
+          ),
           row.names = FALSE,
           col.names = FALSE,
           sep = "\t",
@@ -120,12 +140,7 @@ qtn_pleiotropic <-
         )
         data.table::fwrite(
           add_QTN_geno_info,
-          paste0(
-            "geno_info_for_", rep, "_reps_and_",
-            add_QTN_num,
-            "_Add_and_Dom_QTN",
-            ".txt"
-          ),
+          "Additive_and_Dominance_selected_QTNs.txt",
           row.names = FALSE,
           sep = "\t",
           quote = FALSE,
@@ -143,7 +158,7 @@ qtn_pleiotropic <-
           vector_of_add_QTN <-
             sample(index, add_QTN_num, replace = FALSE)
           add_QTN_geno_info[[i]] <-
-            as.data.frame(genotypes[vector_of_add_QTN, ])
+            as.data.frame(genotypes[vector_of_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
           add_ef_trait_obj[[i]] <-
             t(add_QTN_geno_info[[i]][, -c(1:5)])
           colnames(add_ef_trait_obj[[i]]) <-
@@ -176,8 +191,10 @@ qtn_pleiotropic <-
         if (add_QTN) {
           write.table(
             s,
-            paste0("seed_num_for_", rep, "_reps_and_", add_QTN_num,
-                   "_Add_QTN", ".txt"),
+            paste0(
+              "seed_num_for_", add_QTN_num,
+              "_Add_QTN.txt"
+            ),
             row.names = FALSE,
             col.names = FALSE,
             sep = "\t",
@@ -185,12 +202,7 @@ qtn_pleiotropic <-
           )
           data.table::fwrite(
             add_QTN_geno_info,
-            paste0(
-              "geno_info_for_", rep, "_reps_and_",
-              add_QTN_num,
-              "_Add_QTN",
-              ".txt"
-            ),
+            "Additive_selected_QTNs.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -207,8 +219,24 @@ qtn_pleiotropic <-
           }
           vector_of_dom_QTN <-
             sample(index, dom_QTN_num, replace = FALSE)
+          times <- 1
+          dif <- c()
+          while (!any(genotypes[vector_of_dom_QTN,-(1:5)] == 0) &
+                 times <= 10) {
+            if (!is.null(seed)) {
+              set.seed(seed + i + rep)
+            }
+            dif <- c(dif, vector_of_dom_QTN)
+            vector_of_dom_QTN <-
+              sample(setdiff(index, dif), dom_QTN_num, replace = FALSE)
+            times <- times + 1
+          }
           dom_QTN_geno_info[[i]] <-
-            as.data.frame(genotypes[vector_of_dom_QTN, ])
+            as.data.frame(genotypes[vector_of_dom_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
+          if (!any(genotypes[vector_of_dom_QTN,-(1:5)] == 0)){
+            warning("All individuals in rep ",i ," are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
+                    call. = F, immediate. = T)
+          }
           dom_ef_trait_obj[[i]] <-
             t(dom_QTN_geno_info[[i]][, -c(1:5)])
           colnames(dom_ef_trait_obj[[i]]) <-
@@ -241,8 +269,10 @@ qtn_pleiotropic <-
         if (dom_QTN) {
           write.table(
             s,
-            paste0("seed_num_for_", rep, "_reps_and_", dom_QTN_num,
-                   "Dom_QTN", ".txt"),
+            paste0(
+              "seed_num_for_", dom_QTN_num,
+              "_Dom_QTN.txt"
+            ),
             row.names = FALSE,
             col.names = FALSE,
             sep = "\t",
@@ -250,12 +280,7 @@ qtn_pleiotropic <-
           )
           data.table::fwrite(
             dom_QTN_geno_info,
-            paste0(
-              "geno_info_for_", rep, "_reps_and_",
-              dom_QTN_num,
-              "_dom_QTN",
-              ".txt"
-            ),
+            "Dominance_selected_QTNs.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -274,7 +299,7 @@ qtn_pleiotropic <-
         vector_of_epi_QTN <-
           sample(index, (2 * epi_QTN_num), replace = FALSE)
         epi_QTN_gen_infor[[i]] <-
-          as.data.frame(genotypes[vector_of_epi_QTN, ])
+          as.data.frame(genotypes[vector_of_epi_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
         epi_ef_trait_obj[[i]] <-
           t(epi_QTN_gen_infor[[i]][, -c(1:5)])
         colnames(epi_ef_trait_obj[[i]]) <-
@@ -308,10 +333,8 @@ qtn_pleiotropic <-
         write.table(
           ss,
           paste0(
-            "seed_num_for_", rep, "_reps_and_",
-            epi_QTN_num,
-            "Epi_QTN",
-            ".txt"
+            "seed_num_for_", epi_QTN_num,
+            "_Epi_QTN.txt"
           ),
           row.names = FALSE,
           col.names = FALSE,
@@ -320,12 +343,7 @@ qtn_pleiotropic <-
         )
         data.table::fwrite(
           epi_QTN_gen_infor,
-          paste0(
-            "geno_info_for_",
-            epi_QTN_num,
-            "_epi_QTN",
-            ".txt"
-          ),
+          "Epistatic_selected_QTNs.txt",
           row.names = FALSE,
           sep = "\t",
           quote = FALSE,

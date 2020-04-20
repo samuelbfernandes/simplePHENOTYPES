@@ -14,7 +14,7 @@ qtn_partially_pleiotropic(
   trait_spec_d_QTN_num = NULL,
   trait_spec_e_QTN_num = NULL,
   ntraits = NULL,
-  constraints = list(maf_above = NULL, maf_below = NULL),
+  constraints = list(maf_above = NULL, maf_below = NULL, hets = NULL),
   rep = NULL,
   rep_by = NULL,
   export_gt = NULL,
