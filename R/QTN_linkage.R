@@ -14,6 +14,7 @@
 #' @param rep_by = 'QTN',
 #' @param export_gt = FALSE
 #' @param type_of_ld = NULL
+#' @param verbose = verbose
 #' @return Genotype of selected SNPs
 #' @author Samuel Fernandes
 #' Last update: Nov 05, 2019
@@ -33,7 +34,8 @@ qtn_linkage <-
            same_add_dom_QTN = NULL,
            add = NULL,
            dom = NULL,
-           type_of_ld = NULL) {
+           type_of_ld = NULL,
+           verbose = verbose) {
     #---------------------------------------------------------------------------
     add_ef_trait_obj <- NULL
     dom_ef_trait_obj <- NULL
@@ -58,16 +60,24 @@ qtn_linkage <-
       index <- constraint(genotypes = genotypes,
                           maf_above = constraints$maf_above,
                           maf_below = constraints$maf_below,
-                          hets = constraints$hets
+                          hets = constraints$hets,
+                          verbose = verbose
                           )
       if (add) {
         if (length(index) < add_QTN_num) {
           stop("Not enough SNP left after applying the selected constrain!", call. = F)
         } 
       }
+      if (dom) {
+        if (length(index) < dom_QTN_num) {
+          stop("Not enough SNP left after applying the selected constrain!", call. = F)
+        } 
+      }
     } else {
       index <- 1:nrow(genotypes)
     }
+    n <- max(index)
+    if (verbose) message("* Selecting QTNs")
     if (type_of_ld == "indirect") {
     if (same_add_dom_QTN & add) {
       sup <- vector("list", rep)
@@ -77,14 +87,18 @@ qtn_linkage <-
       QTN_causing_ld <- vector("list", rep)
       results <- vector("list", rep)
       LD_summary <- vector("list", rep)
+      seed_num <- c()
       for (z in 1:rep){
+        s <- 1
+        border <- TRUE
+        genofile <- SNPRelate::snpgdsOpen(gdsfile)
+        while (s <= 10 & border) {
         if (!is.null(seed)) {
-          set.seed(seed + z)
+          seed_num[z] <- (seed * s) + z
+          set.seed(seed_num[z])
         }
         vector_of_add_QTN <-
           sample(index, add_QTN_num, replace = FALSE)
-        genofile <- SNPRelate::snpgdsOpen(gdsfile)
-        x <- 1
         sup_temp <- c()
         inf_temp <- c()
         ld_between_QTNs_temp <- c()
@@ -94,13 +108,14 @@ qtn_linkage <-
         times <- 1
         dif <- c()
         while (again) {
+          x <- 1
         for (j in vector_of_add_QTN) {
           ldsup <- 1
           i <- j + 1
           while (ldsup > ld) {
-            if (i > length(index)) {
-              stop("There are no SNPs downstream. Please select a different seed number.",
-                   call. = F)
+            if (i > n) {
+              if (verbose) warning("There are no SNPs downstream. Selecting a different seed number", call. = F, immediate. = T)
+              break
             }
             snp1 <-
               gdsfmt::read.gdsn(
@@ -123,13 +138,13 @@ qtn_linkage <-
             i <- i + 1
           }
           actual_ld_sup[x] <- ldsup
-          sup_temp[x] <- i
+          sup_temp[x] <- i -1
           ldinf <- 1
           i2 <- j - 1
           while (ldinf > ld) {
             if (i2 < 1) {
-              stop("There are no SNPs upstream. Please select a different seed number.",
-                   call. = F)
+              if (verbose) warning("There are no SNPs uptream. Selecting a different seed number", call. = F, immediate. = T)
+              break
             }
             snp3 <-
               gdsfmt::read.gdsn(
@@ -146,7 +161,7 @@ qtn_linkage <-
             i2 <- i2 - 1
           }
           actual_ld_inf[x]  <- ldinf
-          inf_temp[x] <- i2
+          inf_temp[x] <- i2 + 1
           snp_sup <-
             gdsfmt::read.gdsn(
               gdsfmt::index.gdsn(genofile, "genotype"),
@@ -166,21 +181,24 @@ qtn_linkage <-
                !any(genotypes[inf_temp,-(1:5)] == 0)) &
               times <= 10 & dom){
             if (!is.null(seed)) {
-              set.seed(seed + z + rep)
+              seed_num[z] <- (seed * s) + z
+              set.seed(seed_num[z])
             }
             dif <- c(dif, vector_of_add_QTN)
-            vector_of_dom_QTN <-
-              sample(setdiff(index, dif), dom_QTN_num, replace = FALSE)
+            vector_of_add_QTN <-
+              sample(setdiff(index, dif), add_QTN_num, replace = FALSE)
             again <- TRUE
           } else {
             again <- FALSE
           }
           times <- times + 1
         }
-        if ((!any(genotypes[sup_temp,-(1:5)] == 0) |
-            !any(genotypes[inf_temp,-(1:5)] == 0)) & dom ){
-          warning("All individuals are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
-                  call. = F, immediate. = T)
+        if (i > n | i2 < 1 ) {
+          border <- TRUE
+        } else {
+          border <- FALSE
+        }
+        s <- s + 1
         }
         SNPRelate::snpgdsClose(genofile)
         sup[[z]] <- sup_temp
@@ -224,11 +242,12 @@ qtn_linkage <-
         na = NA
       )
       results <- do.call(rbind, results)
-      ns <- length(results[1,-c(1:6)])
-      ss <- apply(results[,-c(1:6)] + 1, 1, sum)
-      names(ss) <- results[, 2]
-      maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-      maf <- round(apply(maf_matrix, 2, min), 4) 
+      ns <- nrow(genotypes) - 5
+      maf <- round(apply(results[,-c(1:6)], 1, function(x){ 
+        sumx <- ((sum (x) + ns) / ns * 0.5)
+        min(sumx,  (1 - sumx))
+      }), 4)
+      names(maf) <- results[, 2]
       results <- data.frame(results[, 1:6], maf = maf, results[, -c(1:6)], check.names = FALSE, fix.empty.names = FALSE )
       results <-
         data.frame(rep = rep(1:rep, each = add_QTN_num * 3), results, check.names = FALSE, fix.empty.names = FALSE)
@@ -237,7 +256,7 @@ qtn_linkage <-
       }
       if (add_QTN) {
       write.table(
-        c(seed + 1:rep),
+        seed_num,
         paste0(
           "seed_num_for_", add_QTN_num,
           "_Add_and_Dom_QTN.txt"
@@ -276,13 +295,18 @@ qtn_linkage <-
         QTN_causing_ld <- vector("list", rep)
         results_add <- vector("list", rep)
         LD_summary_add <- vector("list", rep)
+        seed_num <- c()
         for (z in 1:rep) {
-          if (!is.null(seed)) {
-            set.seed(seed + z)
-          }
+          s <- 1
+          border <- TRUE
+          genofile <- SNPRelate::snpgdsOpen(gdsfile)
+          while (s <= 10 & border) {
+            if (!is.null(seed)) {
+              seed_num[z] <-  (seed * s) + z
+              set.seed(seed_num[z])
+            }
           vector_of_add_QTN <-
             sample(index, add_QTN_num, replace = FALSE)
-          genofile <- SNPRelate::snpgdsOpen(gdsfile)
           x <- 1
           sup_temp <- c()
           inf_temp <- c()
@@ -293,9 +317,9 @@ qtn_linkage <-
             ldsup <- 1
             i <- j + 1
             while (ldsup > ld) {
-              if (i > length(index)) {
-                stop("There are no SNPs downstream. Please select a different seed number.",
-                     call. = F)
+              if (i > n) {
+                if (verbose) warning("There are no SNPs downstream. Selecting a different seed number", call. = F, immediate. = T)
+                break
               }
               snp1 <-
                 gdsfmt::read.gdsn(
@@ -318,13 +342,13 @@ qtn_linkage <-
               i <- i + 1
             }
             actual_ld_sup[x] <- ldsup
-            sup_temp[x] <- i
+            sup_temp[x] <- i -1
             ldinf <- 1
             i2 <- j - 1
             while (ldinf > ld) {
               if (i2 < 1) {
-                stop("There are no SNPs upstream. Please select a different seed number.",
-                     call. = F)
+                if (verbose) warning("There are no SNPs upstream. Selecting a different seed number", call. = F, immediate. = T)
+                break
               }
               snp3 <-
                 gdsfmt::read.gdsn(
@@ -341,7 +365,7 @@ qtn_linkage <-
               i2 <- i2 - 1
             }
             actual_ld_inf[x] <- ldinf
-            inf_temp[x] <- i2
+            inf_temp[x] <- i2 + 1
             snp_sup <-
               gdsfmt::read.gdsn(
                 gdsfmt::index.gdsn(genofile, "genotype"),
@@ -356,6 +380,13 @@ qtn_linkage <-
               )
             ld_between_QTNs_temp[x] <- SNPRelate::snpgdsLDpair(snp_sup, snp_inf, method = "composite")
             x <- x + 1
+          }       
+          if (i > n | i2 < 1 ) {
+            border <- TRUE
+          } else {
+            border <- FALSE
+          }
+          s <- s + 1
           }
           SNPRelate::snpgdsClose(genofile)
           sup[[z]] <- sup_temp
@@ -399,11 +430,12 @@ qtn_linkage <-
           na = NA
         )
         results_add <- do.call(rbind, results_add)
-        ns <- length(results_add[1,-c(1:6)])
-        ss <- apply(results_add[,-c(1:6)] + 1, 1, sum)
-        names(ss) <- results_add[, 2]
-        maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-        maf <- round(apply(maf_matrix, 2, min), 4)
+        ns <- nrow(genotypes) - 5
+        maf <- round(apply(results_add[,-c(1:6)], 1, function(x){ 
+          sumx <- ((sum (x) + ns) / ns * 0.5)
+          min(sumx,  (1 - sumx))
+        }), 4)
+        names(maf) <- results_add[, 2]
         results_add <- data.frame(results_add[, 1:6], maf = maf, results_add[, -c(1:6)], check.names = FALSE, fix.empty.names = FALSE)
         results_add <-
           data.frame(rep = rep(1:rep, each = add_QTN_num * 3), results_add, check.names = FALSE, fix.empty.names = FALSE)
@@ -412,7 +444,7 @@ qtn_linkage <-
         }
         if (add_QTN) {
         write.table(
-          c(seed + 1:rep),
+          seed_num,
           paste0(
             "seed_num_for_", add_QTN_num,
             "_Add_QTN.txt"
@@ -451,14 +483,18 @@ qtn_linkage <-
         QTN_causing_ld <- vector("list", rep)
         results_dom <- vector("list", rep)
         LD_summary_dom <- vector("list", rep)
+        seed_num <- c()
         for (z in 1:rep) {
+          s <- 1
+          border <- TRUE
+          genofile <- SNPRelate::snpgdsOpen(gdsfile)
+          while (s <= 10 & border) {
           if (!is.null(seed)) {
-            set.seed(seed + z + rep)
+            seed_num[z] <- (seed * s) + z + rep
+            set.seed(seed_num[z])
           }
           vector_of_dom_QTN <-
             sample(index, dom_QTN_num, replace = FALSE)
-          genofile <- SNPRelate::snpgdsOpen(gdsfile)
-          x <- 1
           sup_temp <- c()
           inf_temp <- c()
           ld_between_QTNs_temp <- c()
@@ -468,15 +504,14 @@ qtn_linkage <-
           times <- 1
           dif <- c()
           while (again) {
+            x <- 1
             for (j in vector_of_dom_QTN) {
               ldsup <- 1
               i <- j + 1
               while (ldsup > ld) {
-                if (i > length(index)) {
-                  stop(
-                    "There are no SNPs downstream. Please select a different seed number.",
-                    call. = F
-                  )
+                if (i > n) {
+                  if (verbose) warning("There are no SNPs downstream. Selecting a different seed number", call. = F, immediate. = T)
+                  break
                 }
                 snp1 <-
                   gdsfmt::read.gdsn(
@@ -499,16 +534,13 @@ qtn_linkage <-
                 i <- i + 1
               }
               actual_ld_sup[x] <- ldsup
-              sup_temp[x] <- i
+              sup_temp[x] <- i - 1
               ldinf <- 1
               i2 <- j - 1
               while (ldinf > ld) {
                 if (i2 < 1) {
-                  stop(
-                    "There are no SNPs upstream. Please select a different seed number.",
-                    call. = F,
-                    immediate. = T
-                  )
+                  if (verbose) warning("There are no SNPs upstream. Selecting a different seed number", call. = F, immediate. = T)
+                  break
                 }
                 snp3 <-
                   gdsfmt::read.gdsn(
@@ -525,7 +557,7 @@ qtn_linkage <-
                 i2 <- i2 - 1
               }
               actual_ld_inf[x] <- ldinf
-              inf_temp[x] <- i2
+              inf_temp[x] <- i2 + 1
               snp_sup <-
                 gdsfmt::read.gdsn(
                   gdsfmt::index.gdsn(genofile, "genotype"),
@@ -546,7 +578,8 @@ qtn_linkage <-
                 !any(genotypes[inf_temp,-(1:5)] == 0)) &
                 times <= 10){
               if (!is.null(seed)) {
-                set.seed(seed + z + rep)
+                seed_num[z] <- (seed * s) + z + rep
+                set.seed(seed_num[z])
               }
               dif <- c(dif, vector_of_dom_QTN)
               vector_of_dom_QTN <-
@@ -557,10 +590,12 @@ qtn_linkage <-
             }
             times <- times + 1
           }
-          if (!any(genotypes[sup_temp,-(1:5)] == 0) |
-               !any(genotypes[inf_temp,-(1:5)] == 0)){
-            warning("All individuals are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
-                    call. = F, immediate. = T)
+          if (i > n | i2 < 1 ) {
+            border <- TRUE
+          } else {
+            border <- FALSE
+          }
+          s <- s + 1
           }
           SNPRelate::snpgdsClose(genofile)
           sup[[z]] <- sup_temp
@@ -604,11 +639,12 @@ qtn_linkage <-
         na = NA
       )
         results_dom <- do.call(rbind, results_dom)
-        ns <- length(results_dom[1,-c(1:6)])
-        ss <- apply(results_dom[,-c(1:6)] + 1, 1, sum)
-        names(ss) <- results_dom[, 2]
-        maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-        maf <- round(apply(maf_matrix, 2, min), 4)
+        ns <- nrow(genotypes) - 5
+        maf <- round(apply(results_dom[,-c(1:6)], 1, function(x){ 
+          sumx <- ((sum (x) + ns) / ns * 0.5)
+          min(sumx,  (1 - sumx))
+        }), 4)
+        names(maf) <- results_dom[, 2]
         results_dom <- data.frame(results_dom[, 1:6], maf = maf, results_dom[, -c(1:6)], check.names = FALSE, fix.empty.names = FALSE )
         results_dom <-
           data.frame(rep = rep(1:rep, each = dom_QTN_num * 3), results_dom, check.names = FALSE, fix.empty.names = FALSE)
@@ -617,7 +653,7 @@ qtn_linkage <-
         }
         if (add_QTN) {
         write.table(
-          c(seed + 1:rep + rep),
+          seed_num,
           paste0(
             "seed_num_for_", dom_QTN_num,
             "_Dom_QTN.txt"
@@ -703,9 +739,15 @@ qtn_linkage <-
         add_gen_info_inf <- vector("list", rep)
         results <- vector("list", rep)
         LD_summary <- vector("list", rep)
+        seed_num <- c()
         for (z in 1:rep){
+          s <- 1
+          border <- TRUE
+          genofile <- SNPRelate::snpgdsOpen(gdsfile)
+          while (s <= 10 & border) {
           if (!is.null(seed)) {
-            set.seed(seed + z)
+            seed_num[z] <- (seed* s) + z
+            set.seed(seed_num[z])
           }
           vector_of_add_QTN <-
             sample(index, add_QTN_num, replace = FALSE)
@@ -721,9 +763,9 @@ qtn_linkage <-
             ldsup <- 1
             i <- j + 1
             while (ldsup > ld) {
-              if (i > length(index)) {
-                stop("There are no SNPs downstream. Please select a different seed number.",
-                     call. = F)
+              if (i > n) {
+                if (verbose) warning("There are no SNPs downstream. Selecting a different seed number", call. = F, immediate. = T)
+                break
               }
               snp1 <-
                 gdsfmt::read.gdsn(
@@ -746,28 +788,31 @@ qtn_linkage <-
               i <- i + 1
             }
             ld_between_QTNs_temp[x] <- ldsup
-            sup_temp[x] <- i
+            sup_temp[x] <- i -1
             x <- x + 1
           }
             if ((!any(genotypes[sup_temp,-(1:5)] == 0) |
                  !any(genotypes[vector_of_dom_QTN,-(1:5)] == 0)) &
                 times <= 10 & dom){
               if (!is.null(seed)) {
-                set.seed(seed + z + rep)
+                seed_num[z] <- (seed* s) + z
+                set.seed(seed_num[z])
               }
               dif <- c(dif, vector_of_add_QTN)
               vector_of_add_QTN <-
-                sample(setdiff(index, dif), dom_QTN_num, replace = FALSE)
+                sample(setdiff(index, dif), add_QTN_num, replace = FALSE)
               again <- TRUE
             } else {
               again <- FALSE
             }
             times <- times + 1
           }
-          if ((!any(genotypes[sup_temp,-(1:5)] == 0) |
-              !any(genotypes[vector_of_add_QTN,-(1:5)] == 0)) & dom){
-            warning("All individuals are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
-                    call. = F, immediate. = T)
+          if (i > n | i2 < 1 ) {
+            border <- TRUE
+          } else {
+            border <- FALSE
+          }
+          s <- s + 1
           }
           SNPRelate::snpgdsClose(genofile)
           sup[[z]] <- sup_temp
@@ -802,11 +847,12 @@ qtn_linkage <-
           na = NA
         )
         results <- do.call(rbind, results)
-        ns <- length(results[1,-c(1:6)])
-        ss <- apply(results[,-c(1:6)] + 1, 1, sum)
-        names(ss) <- results[, 2]
-        maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-        maf <- round(apply(maf_matrix, 2, min), 4)
+        ns <- nrow(genotypes) - 5
+        maf <- round(apply(results[,-c(1:6)], 1, function(x){ 
+          sumx <- ((sum (x) + ns) / ns * 0.5)
+          min(sumx,  (1 - sumx))
+        }), 4)
+        names(maf) <- results[, 2]
         results <- data.frame(results[, 1:6], maf = maf, results[, -c(1:6)], check.names = FALSE, fix.empty.names = FALSE )
         results <-
           data.frame(rep = rep(1:rep, each = add_QTN_num * 2), results, check.names = FALSE, fix.empty.names = FALSE)
@@ -815,7 +861,7 @@ qtn_linkage <-
         }
         if (add_QTN) {
           write.table(
-            c(seed + 1:rep),
+            seed_num,
             paste0(
               "seed_num_for_", add_QTN_num,
               "_Add_and_Dom_QTN",
@@ -854,9 +900,15 @@ qtn_linkage <-
           add_gen_info_inf <- vector("list", rep)
           results_add <- vector("list", rep)
           LD_summary_add <- vector("list", rep)
+          seed_num <- c()
           for (z in 1:rep) {
+            s <- 1
+            border <- TRUE
+            genofile <- SNPRelate::snpgdsOpen(gdsfile)
+            while (s <= 10 & border) {
             if (!is.null(seed)) {
-              set.seed(seed + z)
+              seed_num[z] <- (seed * s) + z
+              set.seed(seed_num[z])
             }
             vector_of_add_QTN <-
               sample(index, add_QTN_num, replace = FALSE)
@@ -868,9 +920,9 @@ qtn_linkage <-
               ldsup <- 1
               i <- j + 1
               while (ldsup > ld) {
-                if (i > length(index)) {
-                  stop("There are no SNPs downstream. Please select a different seed number.",
-                       call. = F)
+                if (i > n) {
+                  if (verbose) warning("There are no SNPs downstream. Selecting a different seed number", call. = F, immediate. = T)
+                  break
                 }
                 snp1 <-
                   gdsfmt::read.gdsn(
@@ -892,9 +944,16 @@ qtn_linkage <-
                 }
                 i <- i + 1
               }
-              sup_temp[x] <- i
+              sup_temp[x] <- i - 1
               ld_between_QTNs_temp[x] <- ldsup
               x <- x + 1
+            }
+            if (i > n | i2 < 1 ) {
+              border <- TRUE
+            } else {
+              border <- FALSE
+            }
+            s <- s + 1
             }
             SNPRelate::snpgdsClose(genofile)
             sup[[z]] <- sup_temp
@@ -929,11 +988,12 @@ qtn_linkage <-
             na = NA
           )
           results_add <- do.call(rbind, results_add)
-          ns <- length(results_add[1,-c(1:6)])
-          ss <- apply(results_add[,-c(1:6)] + 1, 1, sum)
-          names(ss) <- results_add[, 2]
-          maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-          maf <- round(apply(maf_matrix, 2, min), 4)
+          ns <- nrow(genotypes) - 5
+          maf <- round(apply(results_add[,-c(1:6)], 1, function(x){ 
+            sumx <- ((sum (x) + ns) / ns * 0.5)
+            min(sumx,  (1 - sumx))
+          }), 4)
+          names(maf) <- results_add[, 2]
           results_add <- data.frame(results_add[, 1:6], maf = maf, results_add[, -c(1:6)], check.names = FALSE, fix.empty.names = FALSE )
           results_add <-
             data.frame(rep = rep(1:rep, each = add_QTN_num * 2), results_add, check.names = FALSE, fix.empty.names = FALSE)
@@ -942,7 +1002,7 @@ qtn_linkage <-
           }
           if (add_QTN) {
             write.table(
-              c(seed + 1:rep),
+              seed_num,
               paste0(
                 "seed_num_for_", add_QTN_num,
                 "_Add_QTN",
@@ -981,9 +1041,15 @@ qtn_linkage <-
           dom_gen_info_inf <- vector("list", rep)
           results_dom <- vector("list", rep)
           LD_summary_dom <- vector("list", rep)
+          seed_num <- c()
           for (z in 1:rep) {
+            s <- 1
+            border <- TRUE
+            genofile <- SNPRelate::snpgdsOpen(gdsfile)
+            while (s <= 10 & border) {
             if (!is.null(seed)) {
-              set.seed(seed + z + rep)
+              seed_num[z] <-(seed * s) + z + rep
+              set.seed(seed_num[z])
             }
             vector_of_dom_QTN <-
               sample(index, dom_QTN_num, replace = FALSE)
@@ -999,9 +1065,9 @@ qtn_linkage <-
               ldsup <- 1
               i <- j + 1
               while (ldsup > ld) {
-                if (i > length(index)) {
-                  stop("There are no SNPs downstream. Please select a different seed number.",
-                       call. = F)
+                if (i > n) {
+                  if (verbose) warning("There are no SNPs downstream. Selecting a different seed number", call. = F, immediate. = T)
+                  break
                 }
                 snp1 <-
                   gdsfmt::read.gdsn(
@@ -1023,7 +1089,7 @@ qtn_linkage <-
                 }
                 i <- i + 1
               }
-              sup_temp[x] <- i
+              sup_temp[x] <- i - 1
               ld_between_QTNs_temp[x] <- ldsup
               x <- x + 1
             }
@@ -1031,7 +1097,8 @@ qtn_linkage <-
                    !any(genotypes[vector_of_dom_QTN,-(1:5)] == 0)) &
                   times <= 10){
                 if (!is.null(seed)) {
-                  set.seed(seed + z + rep)
+                  seed_num[z] <-(seed * s) + z + rep
+                  set.seed(seed_num[z])
                 }
                 dif <- c(dif, vector_of_dom_QTN)
                 vector_of_dom_QTN <-
@@ -1042,10 +1109,12 @@ qtn_linkage <-
               }
               times <- times + 1
             }
-            if (!any(genotypes[sup_temp,-(1:5)] == 0) |
-                !any(genotypes[vector_of_dom_QTN,-(1:5)] == 0)){
-              warning("All individuals are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
-                      call. = F, immediate. = T)
+            if (i > n | i2 < 1 ) {
+              border <- TRUE
+            } else {
+              border <- FALSE
+            }
+            s <- s + 1
             }
             SNPRelate::snpgdsClose(genofile)
             sup[[z]] <- sup_temp
@@ -1080,11 +1149,12 @@ qtn_linkage <-
             na = NA
           )
           results_dom <- do.call(rbind, results_dom)
-          ns <- length(results_dom[1,-c(1:6)])
-          ss <- apply(results_dom[,-c(1:6)] + 1, 1, sum)
-          names(ss) <- results_dom[, 2]
-          maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-          maf <- round(apply(maf_matrix, 2, min), 4)
+          ns <- nrow(genotypes) - 5
+          maf <- round(apply(results_dom[,-c(1:6)], 1, function(x){ 
+            sumx <- ((sum (x) + ns) / ns * 0.5)
+            min(sumx,  (1 - sumx))
+          }), 4)
+          names(maf) <- results_dom[, 2]
           results_dom <- data.frame(results_dom[, 1:6], maf, results_dom[, -c(1:6)], check.names = FALSE, fix.empty.names = FALSE )
           results_dom <-
             data.frame(rep = rep(1:rep, each = dom_QTN_num * 2), results_dom, check.names = FALSE, fix.empty.names = FALSE)
@@ -1093,7 +1163,7 @@ qtn_linkage <-
           }
           if (add_QTN) {
             write.table(
-              c(seed + 1:rep + rep),
+              seed_num,
               paste0(
                 "seed_num_for_", dom_QTN_num,
                 "_Dom_QTN",

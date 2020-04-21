@@ -18,7 +18,8 @@ qtn_linkage(
   same_add_dom_QTN = NULL,
   add = NULL,
   dom = NULL,
-  type_of_ld = NULL
+  type_of_ld = NULL,
+  verbose = verbose
 )
 }
 \arguments{
@@ -49,6 +50,8 @@ qtn_linkage(
 \item{dom}{= NULL,}
 
 \item{type_of_ld}{= NULL}
+
+\item{verbose}{= verbose}
 }
 \value{
 Genotype of selected SNPs
