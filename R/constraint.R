@@ -4,6 +4,7 @@
 #' @param maf_above Threshold for the minimum value of minor allele frequency.
 #' @param maf_below Threshold for the maximum value of minor allele frequency.
 #' @param hets Option of including (\'include\') and removing (\'remove\') only heterozygotes.
+#' @param verbose = verbose
 #' @return Return a filtered dataset to be used when selecting QTNs.
 #' @author Samuel Fernandes
 #' Last update: Nov 25, 2019
@@ -13,7 +14,8 @@ constraint <-
   function(genotypes = NULL,
            maf_above = NULL,
            maf_below = NULL,
-           hets = NULL) {
+           hets = NULL,
+           verbose = verbose) {
     GD <- genotypes[,-(1:5)]
     list_h <- NULL
     list_maf <- NULL
@@ -22,24 +24,21 @@ constraint <-
         stop("hets option must be either \'include\' or \'remove\'.",
              call. = F)
       } else if (hets == "include") {
-        h <- apply(GD, 1, table)
-        list_h <-  unlist(lapply(h, function(x) {
-          any(names(x) == "0")
-        }))
+        if (verbose) message("* Filtering variants without heterozygotes.")
+        list_h <- apply(GD, 1, function(x) any(unique(x) == 0))
       } else {
-        h <- apply(GD, 1, table)
-        list_h <-  !unlist(lapply(h, function(x) {
-          any(names(x) == "0")
-        }))
+        if (verbose) message("* Filtering heterozygote variants.")
+        list_h <- !apply(GD, 1, function(x) any(unique(x) == 0))
       }
     }
     if (!is.null(maf_above) |
         !is.null(maf_below)) {
-      GD <- GD + 1
+      if (verbose) message("* Filtering variants based on MAF.")
       ns <- ncol(GD)
-      ss <- apply(GD, 1, sum)
-      maf_matrix <- rbind((0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-      maf_calc <- apply(maf_matrix, 2, min)
+      maf_calc <- apply(GD, 1, function(x){ 
+        sumx <- ((sum (x) + ns) / ns * 0.5)
+        min(sumx,  (1 - sumx))
+      })
       if (!is.null(maf_above) &
           !is.null(maf_below)) {
         list_maf <- (maf_calc > maf_above & maf_calc < maf_below)
