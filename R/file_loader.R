@@ -39,11 +39,11 @@ file_loader <-
       } else {
         stop("File format provied by \'geno_obj\' was not recognized! Please provied one of: numeric, VCF or HapMap.", call. = F)
       }
-      if (verbose) cat("File (geno_obj) loaded from memory. \n")
+      if (verbose) message("File (geno_obj) loaded from memory.")
       if (input_format == "hapmap") {
         GT <- as.matrix(colnames(geno_obj)[- (1:11)])
         GI <- geno_obj[, c(1, 2, 3, 4)]
-        if (verbose) print(paste0(
+        if (verbose) message(paste0(
           "Converting HapMap format to numerical under model of ",
           SNP_impute
         ))
@@ -51,7 +51,7 @@ file_loader <-
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         GD <- NULL
         bit <- nchar(as.character(geno_obj[2, 12]))
-        if (verbose) print("Performing numericalization")
+        if (verbose) message("Performing numericalization")
         GD <- apply(geno_obj[, - (1:11)], 1, function(one)
           numericalization(
             one,
@@ -150,6 +150,7 @@ file_loader <-
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         GD <- NULL
         bit <- nchar(as.character(G[2, 12]))
+        if (verbose) message("Performing numericalization")
         GD <- apply(G[, - (1:11)], 1, function(one)
           numericalization(
             one,
@@ -334,8 +335,8 @@ file_loader <-
           } 
       }
       if (input_format == "hapmap") {
-        if (verbose) cat("Reading the following HapMap files: \n")
-        if (verbose) cat( files, sep = "\n")
+        if (verbose) message("Reading the following HapMap files: \n")
+        if (verbose) message( files, sep = "\n")
         G <- vector("list", length(files))
         count <- 1
         for (i in files) {
@@ -363,6 +364,7 @@ file_loader <-
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         GD <- NULL
         bit <- nchar(as.character(G[2, 12]))
+        if (verbose) message("Performing numericalization")
         GD <- apply(G[, - (1:11)], 1, function(one)
           numericalization(
             one,
@@ -371,8 +373,8 @@ file_loader <-
             impute = SNP_impute
           ))
       } else if (input_format == "VCF") {
-        if (verbose) cat("Reading the following VCF files: \n")
-        if (verbose) cat( files, sep = "\n")
+        if (verbose) message("Reading the following VCF files: \n")
+        if (verbose) message( files, sep = "\n")
         SNPRelate::snpgdsVCF2GDS(vcf.fn = files,
                                  out.fn = temp,
                                  method ="biallelic.only",

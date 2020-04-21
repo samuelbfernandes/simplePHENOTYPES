@@ -705,7 +705,7 @@ create_phenotypes <-
         geno_obj <-  geno_obj$geno_obj
       } else {
         if (verbose)
-          cat("File (geno_obj) loaded from memory. \n")
+          message("File (geno_obj) loaded from memory.")
         dose <- 0
         counter <- 6
         while (all(dose != 2) & all(dose != -1)) {
@@ -740,7 +740,7 @@ create_phenotypes <-
             tempdir <- paste0(home_dir, "/", output_dir, "(", j, ")")
             j <- j + 1
           }
-          message("Directory alredy exists! Creating ", tempdir)
+          message("Directory name in \'output_dir\' alredy exists! \nCreating: ", tempdir)
           path_out <- tempdir
           dir.create(path_out)
           setwd(path_out)
@@ -1027,7 +1027,8 @@ create_phenotypes <-
             export_gt = export_gt,
             add = add,
             dom = dom,
-            epi = epi
+            epi = epi,
+            verbose = verbose
           )
       }
       if (ntraits > 1 & !any(architecture != "partially")) {
@@ -1049,7 +1050,8 @@ create_phenotypes <-
             same_add_dom_QTN = same_add_dom_QTN,
             add = add,
             dom = dom,
-            epi = epi
+            epi = epi,
+            verbose = verbose
           )
       }
       if (ntraits > 1 & !any(architecture != "LD")) {
@@ -1068,7 +1070,8 @@ create_phenotypes <-
             same_add_dom_QTN = same_add_dom_QTN,
             add = add,
             dom = dom,
-            type_of_ld = type_of_ld
+            type_of_ld = type_of_ld,
+            verbose = verbose
           )
       }
       if (remove_QTN) {
@@ -1406,6 +1409,7 @@ create_phenotypes <-
             )
         }
       }
+      if (verbose) message("* Creating phenotypes")
       results <- phenotypes(
         seed = seed,
         base_line_trait = genetic_value,
@@ -1507,7 +1511,7 @@ create_phenotypes <-
       }
     },
     error = function(cnd) {
-      message(paste("Error: ",cnd))
+      message(cnd)
       unlink(path_out, force = TRUE, recursive = TRUE)
       if (!is.null(gdsfile)) {
         if (out_geno != "gds" & file.exists(gdsfile)) {
