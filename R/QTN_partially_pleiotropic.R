@@ -17,6 +17,7 @@
 #' @param rep = 1,
 #' @param rep_by = 'QTN',
 #' @param export_gt = FALSE
+#' @param verbose = verbose
 #' @return Genotype of selected SNPs
 #' @author Samuel Fernandes and Alexander Lipka
 #' Last update: Nov 05, 2019
@@ -41,7 +42,8 @@ qtn_partially_pleiotropic <-
            same_add_dom_QTN = NULL,
            add = NULL,
            dom = NULL,
-           epi = NULL) {
+           epi = NULL,
+           verbose = verbose) {
     #---------------------------------------------------------------------------
     add_ef_trait_obj <- NULL
     dom_ef_trait_obj <- NULL
@@ -77,11 +79,13 @@ qtn_partially_pleiotropic <-
       index <- constraint(genotypes = genotypes,
                          maf_above = constraints$maf_above,
                          maf_below = constraints$maf_below,
-                         hets = constraints$hets
+                         hets = constraints$hets,
+                         verbose = verbose
                          )
     } else {
       index <- 1:nrow(genotypes)
     }
+    if (verbose) message("* Selecting QTNs")
     if (rep_by != "QTN"){
       rep <- 1
       }
@@ -108,10 +112,6 @@ qtn_partially_pleiotropic <-
         }
         add_pleio_gen_info[[j]] <-
           as.data.frame(genotypes[vec_of_pleio_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
-        if (!any(genotypes[vec_of_pleio_add_QTN,-(1:5)] == 0) & dom){
-          warning("All individuals in rep ",j ," are homozygote for the selected pleiotropic QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
-                  call. = F, immediate. = T)
-        }
         snps <-
           setdiff(index, vec_of_pleio_add_QTN)
         vec_spec_add_QTN_temp <- vector("list", ntraits)
@@ -140,10 +140,6 @@ qtn_partially_pleiotropic <-
           }
           add_specific_gen_info_temp[[i]] <-
             as.data.frame(genotypes[vec_spec_add_QTN_temp[[i]], ], check.names = FALSE, fix.empty.names = FALSE)
-          if (!any(genotypes[vec_spec_add_QTN_temp[[i]],-(1:5)] == 0) & dom){
-            warning("All individuals in rep ",j ," are homozygote for the selected QTNs of trait ", i,". Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
-                    call. = F, immediate. = T)
-          }
         }
         add_specific_gen_info_temp <-
           do.call(rbind, add_specific_gen_info_temp)
@@ -168,11 +164,12 @@ qtn_partially_pleiotropic <-
       add_ef_trait_obj <- add_object
       add_object <- unlist(add_object, recursive = FALSE)
       add_object <- do.call(rbind, add_object)
-      ns <- length(add_object[1,-c(1:7)])
-      ss <- apply(add_object[,-c(1:7)] + 1, 1, sum)
-      names(ss) <- add_object[, 2]
-      maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-      maf <- round(apply(maf_matrix, 2, min), 4) 
+      ns <- ncol(genotypes) - 5
+      maf <- round(apply(add_object[,-c(1:7)], 1, function(x){ 
+        sumx <- ((sum (x) + ns) / ns * 0.5)
+        min(sumx,  (1 - sumx))
+      }), 4)
+      names(maf) <- add_object[, 2]
       add_object <- data.frame(add_object[, 1:7], maf = maf, add_object[, -c(1:7)], check.names = FALSE, fix.empty.names = FALSE )
       add_object <-
         data.frame(rep = sort(c(rep(1:rep,
@@ -280,11 +277,12 @@ qtn_partially_pleiotropic <-
         add_ef_trait_obj <- add_object
         add_object <- unlist(add_object, recursive = FALSE)
         add_object <- do.call(rbind, add_object)
-        ns <- length(add_object[1,-c(1:7)])
-        ss <- apply(add_object[,-c(1:7)] + 1, 1, sum)
-        names(ss) <- add_object[, 2]
-        maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-        maf <- round(apply(maf_matrix, 2, min), 4) 
+        ns <- ncol(genotypes) - 5
+        maf <- round(apply(add_object[,-c(1:7)], 1, function(x){ 
+          sumx <- ((sum (x) + ns) / ns * 0.5)
+          min(sumx,  (1 - sumx))
+        }), 4)
+        names(maf) <- add_object[, 2]
         add_object <- data.frame(add_object[, 1:7], maf = maf, add_object[, -c(1:7)], check.names = FALSE, fix.empty.names = FALSE )
         add_object <-
           data.frame(rep = sort(c(rep(1:rep,
@@ -364,10 +362,6 @@ qtn_partially_pleiotropic <-
           }
           dom_pleio_gen_info[[j]] <-
             as.data.frame(genotypes[vec_pleio_dom_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
-          if (!any(genotypes[vec_pleio_dom_QTN,-(1:5)] == 0)){
-            warning("All individuals in rep ",j ," are homozygote for the selected pleiotropic QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
-                    call. = F, immediate. = T)
-          }
           snpsd <-
             setdiff(index, c(dif, vec_pleio_dom_QTN))
           vec_spec_dom_QTN_temp <- vector("list", ntraits)
@@ -396,10 +390,6 @@ qtn_partially_pleiotropic <-
             }
             dom_spec_gen_info_temp[[i]] <-
               as.data.frame(genotypes[vec_spec_dom_QTN_temp[[i]], ], check.names = FALSE, fix.empty.names = FALSE)
-            if (!any(genotypes[vec_spec_dom_QTN_temp[[i]],-(1:5)] == 0)){
-              warning("All individuals in rep ",j ," are homozygote for the selected QTNs of trait ", i,". Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
-                      call. = F, immediate. = T)
-            }
             }
           dom_spec_gen_info_temp <-
             do.call(rbind, dom_spec_gen_info_temp)
@@ -425,11 +415,12 @@ qtn_partially_pleiotropic <-
         dom_ef_trait_obj <- dom_object
         dom_object <- unlist(dom_object, recursive = FALSE)
         dom_object <- do.call(rbind, dom_object)
-        ns <- length(dom_object[1,-c(1:7)])
-        ss <- apply(dom_object[,-c(1:7)] + 1, 1, sum)
-        names(ss) <- dom_object[, 2]
-        maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-        maf <- round(apply(maf_matrix, 2, min), 4) 
+        ns <- ncol(genotypes) - 5
+        maf <- round(apply(dom_object[,-c(1:7)], 1, function(x){ 
+          sumx <- ((sum (x) + ns) / ns * 0.5)
+          min(sumx,  (1 - sumx))
+        }), 4)
+        names(maf) <- dom_object[, 2]
         dom_object <- data.frame(dom_object[, 1:7], maf = maf, dom_object[, -c(1:7)], check.names = FALSE, fix.empty.names = FALSE )
         dom_object <-
           data.frame(rep = sort(c(rep(1:rep,
@@ -538,11 +529,12 @@ qtn_partially_pleiotropic <-
       epi_ef_trait_obj <- epi_object
       epi_object <- unlist(epi_object, recursive = FALSE)
       epi_object <- do.call(rbind, epi_object)
-      ns <- length(epi_object[1,-c(1:7)])
-      ss <- apply(epi_object[,-c(1:7)] + 1, 1, sum)
-      names(ss) <- epi_object[, 2]
-      maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-      maf <- round(apply(maf_matrix, 2, min), 4) 
+      ns <- ncol(genotypes) - 5
+      maf <- round(apply(epi_object[,-c(1:7)], 1, function(x){ 
+        sumx <- ((sum (x) + ns) / ns * 0.5)
+        min(sumx,  (1 - sumx))
+      }), 4)
+      names(maf) <- epi_object[, 2]
       epi_object <- data.frame(epi_object[, 1:7], maf = maf, epi_object[, -c(1:7)], check.names = FALSE, fix.empty.names = FALSE )
       epi_object <-
         data.frame(rep = sort(c(rep(1:rep,
