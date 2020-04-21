@@ -13,6 +13,7 @@
 #' @param add = NULL,
 #' @param dom = NULL,
 #' @param epi = NULL
+#' @param verbose = verbose
 #' @return Genotype of selected SNPs
 #' @author Samuel Fernandes and Alexander Lipka
 #' Last update: Nov 05, 2019
@@ -31,7 +32,8 @@ qtn_pleiotropic <-
            export_gt = NULL,
            add = NULL,
            dom = NULL,
-           epi = NULL
+           epi = NULL,
+           verbose = verbose
   ) {
     #---------------------------------------------------------------------------
     add_ef_trait_obj <- NULL
@@ -62,11 +64,13 @@ qtn_pleiotropic <-
       index <- constraint(genotypes = genotypes,
                           maf_above = constraints$maf_above,
                           maf_below = constraints$maf_below,
-                          hets = constraints$hets
-      )
+                          hets = constraints$hets,
+                          verbose = verbose
+                          )
     } else {
       index <- 1:nrow(genotypes)
     }
+    if (verbose) message("* Selecting QTNs")
     if (rep_by != "QTN") {
       rep <- 1
     }
@@ -93,10 +97,10 @@ qtn_pleiotropic <-
         }
         add_QTN_geno_info[[i]] <-
           as.data.frame(genotypes[vector_of_add_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
-        if (!any(genotypes[vector_of_add_QTN,-(1:5)] == 0)){
-          warning("All individuals in rep ",i ," are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
-                  call. = F, immediate. = T)
-        }
+        # if (!any(genotypes[vector_of_add_QTN,-(1:5)] == 0)){
+        #   warning("All individuals in rep ",i ," are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
+        #           call. = F, immediate. = T)
+        # }
         add_ef_trait_obj[[i]] <-
           t(add_QTN_geno_info[[i]][, -c(1:5)])
         colnames(add_ef_trait_obj[[i]]) <-
@@ -109,11 +113,12 @@ qtn_pleiotropic <-
       }
       add_QTN_geno_info <-
         do.call(rbind, add_QTN_geno_info)
-      ns <- length(add_QTN_geno_info[1,-c(1:5)])
-      ss <- apply(add_QTN_geno_info[,-c(1:5)] + 1, 1, sum)
-      names(ss) <- add_QTN_geno_info[, 1]
-      maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-      maf <- round(apply(maf_matrix, 2, min), 4)
+      ns <- ncol(genotypes) - 5
+      maf <- round(apply(add_QTN_geno_info[,-c(1:5)], 1, function(x){ 
+        sumx <- ((sum (x) + ns) / ns * 0.5)
+        min(sumx,  (1 - sumx))
+      }), 4)
+      names(maf) <- add_QTN_geno_info[, 1]
       add_QTN_geno_info <- data.frame(add_QTN_geno_info[, 1:5], maf = maf, add_QTN_geno_info[, -c(1:5)], check.names = FALSE, fix.empty.names = FALSE)
       add_QTN_geno_info <-
         data.frame(rep = rep(1:rep, each = add_QTN_num),
@@ -171,11 +176,12 @@ qtn_pleiotropic <-
         }
         add_QTN_geno_info <-
           do.call(rbind, add_QTN_geno_info)
-        ns <- length(add_QTN_geno_info[1,-c(1:5)])
-        ss <- apply(add_QTN_geno_info[,-c(1:5)] + 1, 1, sum)
-        names(ss) <- add_QTN_geno_info[, 1]
-        maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-        maf <- round(apply(maf_matrix, 2, min), 4)
+        ns <- ncol(genotypes) - 5
+        maf <- round(apply(add_QTN_geno_info[,-c(1:5)], 1, function(x){ 
+          sumx <- ((sum (x) + ns) / ns * 0.5)
+          min(sumx,  (1 - sumx))
+        }), 4)
+        names(maf) <- add_QTN_geno_info[, 1]
         add_QTN_geno_info <- data.frame(add_QTN_geno_info[, 1:5], maf = maf, add_QTN_geno_info[, -c(1:5)], check.names = FALSE, fix.empty.names = FALSE)
         add_QTN_geno_info <-
           data.frame(rep = rep(1:rep, each = add_QTN_num),
@@ -233,10 +239,10 @@ qtn_pleiotropic <-
           }
           dom_QTN_geno_info[[i]] <-
             as.data.frame(genotypes[vector_of_dom_QTN, ], check.names = FALSE, fix.empty.names = FALSE)
-          if (!any(genotypes[vector_of_dom_QTN,-(1:5)] == 0)){
-            warning("All individuals in rep ",i ," are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
-                    call. = F, immediate. = T)
-          }
+          # if (!any(genotypes[vector_of_dom_QTN,-(1:5)] == 0)){
+          #   warning("All individuals in rep ",i ," are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
+          #           call. = F, immediate. = T)
+          # }
           dom_ef_trait_obj[[i]] <-
             t(dom_QTN_geno_info[[i]][, -c(1:5)])
           colnames(dom_ef_trait_obj[[i]]) <-
@@ -249,11 +255,12 @@ qtn_pleiotropic <-
         }
         dom_QTN_geno_info <-
           do.call(rbind, dom_QTN_geno_info)
-        ns <- length(dom_QTN_geno_info[1,-c(1:5)])
-        ss <- apply(dom_QTN_geno_info[,-c(1:5)] + 1, 1, sum)
-        names(ss) <- dom_QTN_geno_info[, 1]
-        maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-        maf <- round(apply(maf_matrix, 2, min), 4)
+        ns <- ncol(genotypes) - 5
+        maf <- round(apply(dom_QTN_geno_info[,-c(1:5)], 1, function(x){ 
+          sumx <- ((sum (x) + ns) / ns * 0.5)
+          min(sumx,  (1 - sumx))
+        }), 4)
+        names(maf) <- dom_QTN_geno_info[, 1]
         dom_QTN_geno_info <- data.frame(dom_QTN_geno_info[, 1:5], maf = maf, dom_QTN_geno_info[, -c(1:5)], check.names = FALSE, fix.empty.names = FALSE)
         dom_QTN_geno_info <-
           data.frame(rep = rep(1:rep, each = dom_QTN_num),
@@ -312,11 +319,12 @@ qtn_pleiotropic <-
       }
       epi_QTN_gen_infor <-
         do.call(rbind, epi_QTN_gen_infor)
-      ns <- length(epi_QTN_gen_infor[1,-c(1:5)])
-      ss <- apply(epi_QTN_gen_infor[,-c(1:5)] + 1, 1, sum)
-      names(ss) <- epi_QTN_gen_infor[, 1]
-      maf_matrix <- rbind( (0.5 * ss / ns), (1 - (0.5 * ss / ns)))
-      maf <- round(apply(maf_matrix, 2, min), 4)
+      ns <- ncol(genotypes) - 5
+      maf <- round(apply(epi_QTN_gen_infor[,-c(1:5)], 1, function(x){ 
+        sumx <- ((sum (x) + ns) / ns * 0.5)
+        min(sumx,  (1 - sumx))
+      }), 4)
+      names(maf) <- epi_QTN_gen_infor[, 1]
       epi_QTN_gen_infor <- data.frame(epi_QTN_gen_infor[, 1:5], maf = maf, epi_QTN_gen_infor[, -c(1:5)], check.names = FALSE, fix.empty.names = FALSE)
       epi_QTN_gen_infor <-
         data.frame(rep = rep(rep(1:rep, each = epi_QTN_num), each = 2),

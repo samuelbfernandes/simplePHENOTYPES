@@ -17,7 +17,8 @@ qtn_pleiotropic(
   export_gt = NULL,
   add = NULL,
   dom = NULL,
-  epi = NULL
+  epi = NULL,
+  verbose = verbose
 )
 }
 \arguments{
@@ -46,6 +47,8 @@ qtn_pleiotropic(
 \item{dom}{= NULL,}
 
 \item{epi}{= NULL}
+
+\item{verbose}{= verbose}
 }
 \value{
 Genotype of selected SNPs
