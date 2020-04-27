@@ -27,12 +27,13 @@ file_loader <-
     hap_names <- c("rs#", "alleles", "chrom", "pos",
                    "strand", "assembly#", "center",
                    "protLSID", "assayLSID", "panelLSID", "QCcode")
-    temp <- paste0(paste0(unlist(strsplit(date(), " "))[1:3], collapse = ""), "temp.gds")
+    nucleotide <- c("A", "C", "T", "G", "R", "Y", "S", "W", "K", "M", "N", "+", "-", "0")
+    temp <- tempfile(pattern = "", fileext = ".gds")
     input_format <- NULL
     out_name <- NULL
     if (!is.null(geno_obj)){
-      if (sum(colnames(geno_obj)[1:11] ==  hap_names) > 8 &
-          !is.numeric(unlist(geno_obj[, 12]))) { 
+      if (sum(colnames(geno_obj)[1:11] ==  hap_names) > 8 |
+          all(unlist(strsplit(unique(geno_obj[, 12]),"")) %in% nucleotide) ) { 
         input_format <- "hapmap"
       } else if (any(grepl("[/]|[|]",geno_obj[, 10]))) {
         stop("Please read VCF files as \'geno_file\' or \'geno_path\'.", call. = F)
@@ -87,7 +88,8 @@ file_loader <-
           data.table = F
         ),
         silent = TRUE)
-        if ( sum(hap_names %in% colnames(data.type)) > 8) {
+        if ( sum(hap_names %in% colnames(data.type)) > 8 |
+             all(unlist(strsplit(unique(data.type[, 12]),"")) %in% nucleotide)) {
           input_format <- "hapmap"
         } else if (all(colnames(data.type)[1:5] == c("snp", "allele", "chr", "pos", "cm"))) {
           G <-
@@ -127,7 +129,8 @@ file_loader <-
         silent = TRUE)
         if (any(grepl("VCF", data.type))) {
           input_format <- "VCF"
-        } else if ( sum(hap_names %in% data.type) > 8) {
+        } else if ( sum(hap_names %in% data.type) > 8 |
+                    all(unlist(strsplit(unique(data.type[, 12]),"")) %in% nucleotide)) {
           input_format <- "hapmap"
         } else {
           stop("File format provied by \'geno_file\' was not recognized! Please provied one of: Numeric, VCF, HapMap, gds, or plink bed or ped files.", call. = F)
@@ -288,7 +291,8 @@ file_loader <-
           data.table = F
         ),
         silent = TRUE)
-        if ( sum(hap_names %in% colnames(data.type)) > 8) {
+        if ( sum(hap_names %in% colnames(data.type)) > 8 |
+             all(unlist(strsplit(unique(data.type[, 12]),"")) %in% nucleotide)) {
           input_format <- "hapmap"
         } else if (all(colnames(data.type)[1:5] == c("snp", "allele", "chr", "pos", "cm"))) {
           G <-
@@ -328,7 +332,8 @@ file_loader <-
         silent = TRUE)
         if (any(grepl("VCF", data.type))) {
           input_format <- "VCF"
-        } else if ( sum(hap_names %in% data.type) > 8) {
+        } else if ( sum(hap_names %in% data.type) > 8 |
+                    all(unlist(strsplit(unique(data.type[, 12]),"")) %in% nucleotide)) {
           input_format <- "hapmap"
         } else {
            stop("File format found in \'geno_path\' was not recognized! Please provied one of: Numeric, VCF, HapMap, gds, or plink bed or ped files.", call. = F)
