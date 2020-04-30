@@ -1512,7 +1512,8 @@ create_phenotypes <-
     },
     error = function(cnd) {
       message(cnd)
-      unlink(path_out, force = TRUE, recursive = TRUE)
+      dir <- dir(home_dir, full.names = T)
+      unlink(dir[!dir %in% files_in_dir], force = TRUE, recursive = TRUE) 
       if (!is.null(gdsfile)) {
         if (out_geno != "gds" & file.exists(gdsfile)) {
           unlink(gdsfile, force = TRUE)
@@ -1525,7 +1526,8 @@ create_phenotypes <-
       }
     },
     interrupt = function(int) {
-      unlink(path_out, force = TRUE, recursive = TRUE)
+      dir <- dir(home_dir, full.names = T)
+      unlink(dir[!dir %in% files_in_dir], force = TRUE, recursive = TRUE) 
       if (!is.null(gdsfile)) {
         if (out_geno != "gds" & file.exists(gdsfile)) {
           unlink(gdsfile, force = TRUE)
@@ -1537,4 +1539,3 @@ create_phenotypes <-
         }
       }
     })
-  }
