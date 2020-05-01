@@ -122,4 +122,4 @@ numericalization <-
       x1[x1 == 0] <- 1
     result <- matrix(x1, length(x1), 1)
     return(result)
-  }  #end of GAPIT.numericalization function
+  }
