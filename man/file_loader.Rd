@@ -43,7 +43,7 @@ Function used by create_phenotypes to load marker dataset.
 }
 \author{
 Samuel Fernandes
-Last update: Nov 05, 2019
+Last update: Apr 20, 2020
 ------------------------------------------------------------------------------
 --------------------------------------------------------------------------
 }

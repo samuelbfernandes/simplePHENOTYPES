@@ -46,7 +46,7 @@ Calculate genetic value based on QTN objects.
 }
 \author{
 Samuel Fernandes
-Last update: Nov 05, 2019
+Last update: Apr 20, 2020
 
 -----------------------------genetic_effect----------------------------
 }

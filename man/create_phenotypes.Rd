@@ -2,7 +2,8 @@
 % Please edit documentation in R/create_phenotypes.R
 \name{create_phenotypes}
 \alias{create_phenotypes}
-\title{Simulation of single/multiple traits under different models and genetic architectures.}
+\title{Simulation of single/multiple traits under different models and genetic
+architectures.}
 \usage{
 create_phenotypes(
   geno_obj = NULL,
@@ -59,8 +60,9 @@ create_phenotypes(
 \arguments{
 \item{geno_obj}{Marker dataset loaded as an R object.
 Currently either HapMap or numericalized files
-(code as aa = 0, Aa = 1 and AA = 2, e.g. `data("SNP55K_maize282_maf04")`) are accepted. Only one of
-`geno_obj`, `geno_file` or `geno_path` should be provided.}
+(code as aa = 0, Aa = 1 and AA = 2, e.g. `data("SNP55K_maize282_maf04")`)
+are accepted. Only one of `geno_obj`, `geno_file` or `geno_path` should be
+provided.}
 
 \item{geno_file}{Name of a marker data set to be read from file.}
 
@@ -79,8 +81,8 @@ It could be either a vector with length equals to `ntraits`,
 or a matrix with ncol equals to ntraits. If the later is used, the simulation
 will loop over the number of rows and will generate a result for each row.
 If a single trait is being simulated and h2 is a vector,
-one simulation of each heritability value will be conducted. Either none or all
-traits are expected to have a `h2 = 0`.}
+one simulation of each heritability value will be conducted. Either none or
+all traits are expected to have a `h2 = 0`.}
 
 \item{model}{The genetic model to be assumed. The options are:
 "A" (additive), "D" (dominance), "E" (epistatic)
@@ -93,7 +95,8 @@ to be simulated.}
 to be simulated.}
 
 \item{epi_QTN_num}{Number of epistatic (Currently, only additive x
-additive epistasis are simulated) quantitative trait nucleotide to be simulated.}
+additive epistasis are simulated) quantitative trait nucleotide to be
+simulated.}
 
 \item{add_effect}{Additive effect size to be simulated. It may be either
 a vector (assuming `ntraits` = 1 or one allelic effect per trait) or a list
@@ -163,36 +166,42 @@ big_add_QTN_effect should have length equals `ntraits`.
 If `add_QTN_num` > 1, the fist QTN will have the large effect.}
 
 \item{cor}{Option to simulate traits with a pre-defined genetic correlation.
-It should be a correlation matrix with number of rows = `ntraits`. Default = NULL.}
-
-\item{cor_res}{Option to simulate traits with a pre-defined residual correlation.
 It should be a correlation matrix with number of rows = `ntraits`.
-If NULL, an identity matrix (independent residuals) will be used.}
+Default = NULL.}
+
+\item{cor_res}{Option to simulate traits with a pre-defined residual
+correlation. It should be a correlation matrix with number of
+rows = `ntraits`. If NULL, an identity matrix (independent residuals)
+will be used.}
 
 \item{seed}{Value to be used by set.seed. If NULL (default),
  runif(1, 0, 1000000) will be used. Notice that at each sampling step,
-a different seed generated based on the `seed` parameter is used. For example,
-if one uses `seed = 123`, when simulating the 10th replication of trait 1,
-the seed to be used is `round( (123 * 10 * 10) * 1)`. On the other hand,
-for simulating the 21st replication of trait 2, the seed to be used will be
-`round( (123 * 21 * 21) * 2)`.The actual seed used in every simulation is
-exported along with simulated phenotypes.}
+a different seed generated based on the `seed` parameter is used.
+For example, if one uses `seed = 123`, when simulating the 10th replication
+of trait 1, the seed to be used is `round( (123 * 10 * 10) * 1)`. On the
+other hand, for simulating the 21st replication of trait 2, the seed to be
+used will be `round( (123 * 21 * 21) * 2)`.The actual seed used in every
+simulation is exported along with simulated phenotypes.}
 
 \item{export_gt}{If TRUE genotypes of selected QTNs will be saved at file.
 If FALSE (default), only the QTN information will be saved.}
 
-\item{home_dir}{Directory where files will be saved. It might be home_dir = getwd().}
+\item{home_dir}{Directory where files will be saved. It might be
+home_dir = getwd().}
 
 \item{output_dir}{Name to be used to create a folder and save output files.}
 
 \item{to_r}{Option for saving simulated results into R in addition to saving
-it to file. If TRUE, results need to be assigned to an R object (see vignette).}
+it to file. If TRUE, results need to be assigned to an R object
+(see vignette).}
 
 \item{output_format}{Four options for saving outputs: 'multi-file',
-saves one simulation setting in a separate file; 'long' (default for multiple
-traits), appends each experiment (rep) to the last one (by row); 'wide', saves
-experiments by column (default for single trait) and 'gemma', saves .fam files
-to be used by gemma with plink bed files (renaming .fam file might be necessary).}
+saves one simulation setting in a separate file; 'long' (default for
+multiple traits), appends each experiment (rep) to the last one (by row);
+'wide', saves experiments by column (default for single trait) and 'gemma',
+saves .fam files
+to be used by gemma with plink bed files (renaming .fam file might be
+necessary).}
 
 \item{out_geno}{Saves numericalized genotype either as "numeric", "plink" or
 "gds". Default is NULL.}
@@ -205,7 +214,8 @@ allelic frequency is implemented. Either one or both of the following options
 may be non-null: 'list(maf_above = NULL, maf_below = NULL, hets = NULL )'.
 maf_above is the threshold for the minimum value of minor allele frequency.
 maf_below Threshold for the maximum value of minor allele frequency.
-For hets, the option ar for including (\'include\') and removing (\'remove\') only heterozygotes.}
+For hets, the option ar for including (\'include\') and removing (\'remove\')
+only heterozygotes.}
 
 \item{prefix}{If `geno_path` points to a folder with files other than the
 marker dataset, a part of the dataset name may be used to select the desired
@@ -213,8 +223,8 @@ files (e.g. prefix = "Chr" would read files Chr1.hmp.txt, ..., Chr10.hmp.txt
 but not HapMap.hmp.txt).}
 
 \item{maf_cutoff}{Optional filter for minor allele frequency
-(The dataset will be filtered. Not to be confounded with the constraints option
-which will only filter possible QTNs).}
+(The dataset will be filtered. Not to be confounded with the constraints
+option which will only filter possible QTNs).}
 
 \item{nrows}{Option for loading only part of a dataset. Please see
 data.table::fread for details.}
@@ -227,18 +237,25 @@ implementation, the default is 'Add'.}
 \item{SNP_impute}{Parameter used for numericalization. Following GAPIT
 implementation, the default is 'Middle'.}
 
-\item{quiet}{Whether or not the log file should be opened once the simulation is done.}
+\item{quiet}{Whether or not the log file should be opened once the simulation
+is done.}
 
 \item{verbose}{if FALSE, suppress prints.}
 
-\item{remove_QTN}{Whether or not a copy of the genotipic file should be saved without the simulated QTNs. Default is FALSE.}
+\item{remove_QTN}{Whether or not a copy of the genotipic file should be saved
+without the simulated QTNs. Default is FALSE.}
 
-\item{QTN_variance}{Whether or not the percentage of the phenotypic variance explained by each QTN (QTN variance / phenotypic variance) should be exported. Default is FALSE.}
+\item{QTN_variance}{Whether or not the percentage of the phenotypic variance
+explained by each QTN (QTN variance / phenotypic variance) should be
+exported. Default is FALSE.}
 
-\item{type_of_ld}{Should the spurious pleiotropy be due to "direct" or "indirect" LD? Default is "indirect".}
+\item{type_of_ld}{Should the spurious pleiotropy be due to "direct" or
+"indirect" LD? Default is "indirect".}
 
-\item{warning_file_saver}{When vary_QTN = TRUE and remove_QTN = TRUE, one file/rep will be saved.
-This option (Default = TRUE) asks whether the user is sure about saving all these possibly big files.
+\item{warning_file_saver}{When vary_QTN = TRUE and remove_QTN = TRUE, one
+file/rep will be saved.
+This option (Default = TRUE) asks whether the user is sure about saving all
+these possibly big files.
 If FALSE, genotype files without the QTNs it will be saved without asking.}
 }
 \value{
@@ -246,7 +263,8 @@ Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits'
  traits, log file.
 }
 \description{
-Simulation of single/multiple traits under different models and genetic architectures.
+Simulation of single/multiple traits under different models and genetic
+architectures.
 }
 \examples{
 # Simulate 50 replications of a single phenotype.
@@ -268,11 +286,11 @@ pheno <- create_phenotypes(
 
 }
 \references{
-Rice, B., Lipka, A. E. (2019). Evaluation of RR-BLUP genomic selection models that incorporate peak genome-wide association study signals in maize and sorghum. Plant Genome 12, 1–14.\doi{10.3835/plantgenome2018.07.0052} \cr
-
-Alexander E. Lipka, Feng Tian, Qishan Wang, Jason Peiffer, Meng Li, Peter J. Bradbury, Michael A. Gore, Edward S. Buckler, Zhiwu Zhang, GAPIT: genome association and prediction integrated tool, Bioinformatics, Volume 28, Issue 18, 15 September 2012, Pages 2397–2399, \doi{10.1093/bioinformatics/bts444}
+Fernandes, S.B and Lipka, A.E (2020). simplePHENOTYPES:
+SIMulation of Pleiotropic, Linked and Epistatic PHENOTYPES. bioRxiv,
+\doi{https://doi.org/10.1101/2020.01.11.902874} \cr
 }
 \author{
 Samuel B Fernandes and Alexander E Lipka
-Last update: Nov 14, 2019
+Last update: Apr 29, 2020
 }

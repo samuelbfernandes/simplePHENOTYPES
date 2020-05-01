@@ -46,7 +46,7 @@ Generate a numeric (dosage) HapMap file
 }
 \author{
 Samuel Fernandes and Alexander Lipka
-Last update: Nov 05, 2019
+Last update: Apr 20, 2020
 
 ------------------------------------------------------------------------------
 }
