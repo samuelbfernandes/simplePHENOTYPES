@@ -19,20 +19,18 @@ constraint(
 
 \item{maf_below}{Threshold for the maximum value of minor allele frequency.}
 
-\item{hets}{Option of including (\'include\') and removing (\'remove\') only heterozygotes.}
+\item{hets}{Option of including (\'include\') and removing (\'remove\') only
+heterozygotes.}
 
 \item{verbose}{= verbose}
 }
 \value{
 Return a filtered dataset to be used when selecting QTNs.
+Last update: Apr 20, 2020
+
+----------------------------- constrain ---------------------------------
 }
 \description{
 Select SNPs to be assigned as QTNs: To be included LD, FST
-}
-\author{
-Samuel Fernandes
-Last update: Nov 25, 2019
-
------------------------------ constrain ---------------------------------
 }
 \keyword{internal}

@@ -58,7 +58,7 @@ Generate environmental effects based on a given heritability
 }
 \author{
 Samuel Fernandes and Alexander Lipka
-Last update: Nov 05, 2019
+Last update: Apr 20, 2020
 
 ----------------------------phenotypes---------------------------------------
 }
