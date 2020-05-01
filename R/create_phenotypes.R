@@ -1,4 +1,5 @@
-#' Simulation of single/multiple traits under different models and genetic architectures.
+#' Simulation of single/multiple traits under different models and genetic
+#' architectures.
 #' @export
 #' @import utils
 #' @import stats
@@ -8,8 +9,9 @@
 #' @importFrom lqmm is.positive.definite make.positive.definite
 #' @param geno_obj Marker dataset loaded as an R object.
 #' Currently either HapMap or numericalized files
-#' (code as aa = 0, Aa = 1 and AA = 2, e.g. `data("SNP55K_maize282_maf04")`) are accepted. Only one of
-#' `geno_obj`, `geno_file` or `geno_path` should be provided.
+#' (code as aa = 0, Aa = 1 and AA = 2, e.g. `data("SNP55K_maize282_maf04")`)
+#' are accepted. Only one of `geno_obj`, `geno_file` or `geno_path` should be
+#' provided.
 #' @param geno_file Name of a marker data set to be read from file.
 #' @param geno_path Path to a folder containing the marker dataset
 #' file/files (e.g. separated by chromosome).
@@ -23,8 +25,8 @@
 #' or a matrix with ncol equals to ntraits. If the later is used, the simulation
 #' will loop over the number of rows and will generate a result for each row.
 #' If a single trait is being simulated and h2 is a vector,
-#' one simulation of each heritability value will be conducted. Either none or all
-#' traits are expected to have a `h2 = 0`.
+#' one simulation of each heritability value will be conducted. Either none or
+#' all traits are expected to have a `h2 = 0`.
 #' @param model The genetic model to be assumed. The options are:
 #' "A" (additive), "D" (dominance), "E" (epistatic)
 #' as well as any combination of those models such as "AE", "DE" or "ADE".
@@ -33,7 +35,8 @@
 #' @param dom_QTN_num Number of dominance quantitative trait nucleotide
 #' to be simulated.
 #' @param epi_QTN_num Number of epistatic (Currently, only additive x
-#' additive epistasis are simulated) quantitative trait nucleotide to be simulated.
+#' additive epistasis are simulated) quantitative trait nucleotide to be
+#' simulated.
 #' @param add_effect Additive effect size to be simulated. It may be either
 #' a vector (assuming `ntraits` = 1 or one allelic effect per trait) or a list
 #' of length = `ntraits`, i.e., if `ntraits` > 1, one set of additive effects
@@ -86,29 +89,35 @@
 #' big_add_QTN_effect should have length equals `ntraits`.
 #' If `add_QTN_num` > 1, the fist QTN will have the large effect.
 #' @param cor Option to simulate traits with a pre-defined genetic correlation.
-#' It should be a correlation matrix with number of rows = `ntraits`. Default = NULL.
-#' @param cor_res Option to simulate traits with a pre-defined residual correlation.
 #' It should be a correlation matrix with number of rows = `ntraits`.
-#' If NULL, an identity matrix (independent residuals) will be used.
+#' Default = NULL.
+#' @param cor_res Option to simulate traits with a pre-defined residual
+#' correlation. It should be a correlation matrix with number of
+#' rows = `ntraits`. If NULL, an identity matrix (independent residuals)
+#' will be used.
 #' @param seed Value to be used by set.seed. If NULL (default),
 #'  runif(1, 0, 1000000) will be used. Notice that at each sampling step,
-#' a different seed generated based on the `seed` parameter is used. For example,
-#' if one uses `seed = 123`, when simulating the 10th replication of trait 1,
-#' the seed to be used is `round( (123 * 10 * 10) * 1)`. On the other hand,
-#' for simulating the 21st replication of trait 2, the seed to be used will be
-#' `round( (123 * 21 * 21) * 2)`.The actual seed used in every simulation is
-#' exported along with simulated phenotypes.
+#' a different seed generated based on the `seed` parameter is used.
+#' For example, if one uses `seed = 123`, when simulating the 10th replication
+#' of trait 1, the seed to be used is `round( (123 * 10 * 10) * 1)`. On the
+#' other hand, for simulating the 21st replication of trait 2, the seed to be
+#' used will be `round( (123 * 21 * 21) * 2)`.The actual seed used in every
+#' simulation is exported along with simulated phenotypes.
 #' @param export_gt If TRUE genotypes of selected QTNs will be saved at file.
 #' If FALSE (default), only the QTN information will be saved.
-#' @param home_dir Directory where files will be saved. It might be home_dir = getwd().
+#' @param home_dir Directory where files will be saved. It might be
+#' home_dir = getwd().
 #' @param output_dir Name to be used to create a folder and save output files.
 #' @param to_r Option for saving simulated results into R in addition to saving
-#' it to file. If TRUE, results need to be assigned to an R object (see vignette).
+#' it to file. If TRUE, results need to be assigned to an R object
+#' (see vignette).
 #' @param output_format Four options for saving outputs: 'multi-file',
-#' saves one simulation setting in a separate file; 'long' (default for multiple
-#' traits), appends each experiment (rep) to the last one (by row); 'wide', saves
-#' experiments by column (default for single trait) and 'gemma', saves .fam files
-#' to be used by gemma with plink bed files (renaming .fam file might be necessary).
+#' saves one simulation setting in a separate file; 'long' (default for
+#' multiple traits), appends each experiment (rep) to the last one (by row);
+#' 'wide', saves experiments by column (default for single trait) and 'gemma',
+#' saves .fam files
+#' to be used by gemma with plink bed files (renaming .fam file might be
+#' necessary).
 #' @param out_geno Saves numericalized genotype either as "numeric", "plink" or
 #' "gds". Default is NULL.
 #' @param gdsfile Points to a gds file (in case there is one already created) to
@@ -118,14 +127,15 @@
 #' may be non-null: 'list(maf_above = NULL, maf_below = NULL, hets = NULL )'.
 #' maf_above is the threshold for the minimum value of minor allele frequency.
 #' maf_below Threshold for the maximum value of minor allele frequency.
-#' For hets, the option ar for including (\'include\') and removing (\'remove\') only heterozygotes.
+#' For hets, the option ar for including (\'include\') and removing (\'remove\')
+#' only heterozygotes.
 #' @param prefix If `geno_path` points to a folder with files other than the
 #' marker dataset, a part of the dataset name may be used to select the desired
 #' files (e.g. prefix = "Chr" would read files Chr1.hmp.txt, ..., Chr10.hmp.txt
 #' but not HapMap.hmp.txt).
 #' @param maf_cutoff Optional filter for minor allele frequency
-#' (The dataset will be filtered. Not to be confounded with the constraints option
-#' which will only filter possible QTNs).
+#' (The dataset will be filtered. Not to be confounded with the constraints
+#' option which will only filter possible QTNs).
 #' @param nrows Option for loading only part of a dataset. Please see
 #' data.table::fread for details.
 #' @param na_string Sets missing data as "NA".
@@ -133,21 +143,28 @@
 #' implementation, the default is 'Add'.
 #' @param SNP_impute Parameter used for numericalization. Following GAPIT
 #' implementation, the default is 'Middle'.
-#' @param quiet Whether or not the log file should be opened once the simulation is done.
+#' @param quiet Whether or not the log file should be opened once the simulation
+#' is done.
 #' @param verbose if FALSE, suppress prints.
-#' @param remove_QTN Whether or not a copy of the genotipic file should be saved without the simulated QTNs. Default is FALSE.
-#' @param QTN_variance Whether or not the percentage of the phenotypic variance explained by each QTN (QTN variance / phenotypic variance) should be exported. Default is FALSE.
-#' @param type_of_ld Should the spurious pleiotropy be due to "direct" or "indirect" LD? Default is "indirect".
-#' @param warning_file_saver When vary_QTN = TRUE and remove_QTN = TRUE, one file/rep will be saved.
-#' This option (Default = TRUE) asks whether the user is sure about saving all these possibly big files.
+#' @param remove_QTN Whether or not a copy of the genotipic file should be saved
+#'  without the simulated QTNs. Default is FALSE.
+#' @param QTN_variance Whether or not the percentage of the phenotypic variance
+#' explained by each QTN (QTN variance / phenotypic variance) should be
+#' exported. Default is FALSE.
+#' @param type_of_ld Should the spurious pleiotropy be due to "direct" or
+#' "indirect" LD? Default is "indirect".
+#' @param warning_file_saver When vary_QTN = TRUE and remove_QTN = TRUE, one
+#' file/rep will be saved.
+#' This option (Default = TRUE) asks whether the user is sure about saving all
+#' these possibly big files.
 #' If FALSE, genotype files without the QTNs it will be saved without asking.
 #' @return Numericalized marker dataset, selected QTNs, phenotypes for 'ntraits'
 #'  traits, log file.
-#' @references Rice, B., Lipka, A. E. (2019). Evaluation of RR-BLUP genomic selection models that incorporate peak genome-wide association study signals in maize and sorghum. Plant Genome 12, 1–14.\doi{10.3835/plantgenome2018.07.0052} \cr
-#'
-#' Alexander E. Lipka, Feng Tian, Qishan Wang, Jason Peiffer, Meng Li, Peter J. Bradbury, Michael A. Gore, Edward S. Buckler, Zhiwu Zhang, GAPIT: genome association and prediction integrated tool, Bioinformatics, Volume 28, Issue 18, 15 September 2012, Pages 2397–2399, \doi{10.1093/bioinformatics/bts444}
+#' @references Fernandes, S.B and Lipka, A.E (2020). simplePHENOTYPES:
+#' SIMulation of Pleiotropic, Linked and Epistatic PHENOTYPES. bioRxiv,
+#' \doi{https://doi.org/10.1101/2020.01.11.902874} \cr
 #' @author Samuel B Fernandes and Alexander E Lipka
-#' Last update: Nov 14, 2019
+#' Last update: Apr 29, 2020
 #' @examples
 #' # Simulate 50 replications of a single phenotype.
 #'\dontrun{
@@ -221,12 +238,15 @@ create_phenotypes <-
     # -------------------------------------------------------------------------
     tryCatch({
       packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
+      sunk <- FALSE
       if (is.null(home_dir)) {
         stop("Please provide a path to output results (It may be getwd())!.",
              call. = F)
+      } else {
+        files_in_dir <- dir(home_dir, full.names = T)
       }
       if (!is.null(model)) {
-        if (any(!toupper(unlist(strsplit(model , ""))) %in% c("A", "D", "E")) |
+        if (any(!toupper(unlist(strsplit(model, ""))) %in% c("A", "D", "E")) |
             nchar(model) > 3) {
           stop(
             "Please assign a \'model\'. Options:\'A\', \'D\', \'E\' or combinations such as \'ADE\'.",
@@ -239,6 +259,21 @@ create_phenotypes <-
           call. = F
         )
       }
+      mm <-
+        ifelse(
+          architecture == "pleiotropic",
+          "Pleiotropic",
+          ifelse(
+            architecture == "partially",
+            "Partially Pleiotropic",
+            ifelse(architecture == "LD", "Linkage Disequilibrium", {
+              stop(
+                "The genetic architecture used is not valid! Please choose one of: \'pleiotropic\', \'partially\' or \'LD\' ",
+                call. = F
+              )
+            })
+          )
+        )
       if (grepl("A", model)) {
         add <- TRUE
       } else {
@@ -350,9 +385,7 @@ create_phenotypes <-
         }
       }
       if (sum(c(
-        !is.null(geno_obj),
-        !is.null(geno_file),
-        !is.null(geno_path)
+        !is.null(geno_obj), !is.null(geno_file), !is.null(geno_path)
       )) != 1) {
         stop("Please provide (only) one of `geno_obj`, `geno_file` or `geno_path`.",
              call. = F)
@@ -634,27 +667,14 @@ create_phenotypes <-
               )
           }
         }
-        mm <-
-          ifelse(
-            architecture == "pleiotropic",
-            "Pleiotropic",
-            ifelse(
-              architecture == "partially",
-              "Partially Pleiotropic",
-              ifelse(architecture == "LD", "Linkage Disequilibrium", {
-                stop(
-                  "The genetic architecture used is not valid!
-                   Please choose one of: \'pleiotropic\', \'partially\' or \'LD\' ",
-                  call. = F
-                )
-              })
-            )
-          )
       }
       setwd(home_dir)
       on.exit({
         setwd(home_dir)
-        closeAllConnections()
+        if (sunk) {
+          sink()
+          close(zz)
+        }
         gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
         gc()
       }, add = TRUE)
@@ -686,6 +706,7 @@ create_phenotypes <-
       } else {
         nonnumeric <- TRUE
       }
+      path_out <- NULL
       if (!is.null(geno_path) | !is.null(geno_file) | nonnumeric) {
         geno_obj <-
           genotypes(
@@ -713,17 +734,17 @@ create_phenotypes <-
           counter <- counter + 1
         }
         if (all(dose != -1) | any(dose == 2)) {
-          geno_obj[,-c(1:5)] <- geno_obj[,-c(1:5)] - 1
+          geno_obj[, -c(1:5)] <- geno_obj[, -c(1:5)] - 1
         }
         if (any(is.na(geno_obj[, -c(1:5)]))) {
           if (SNP_impute == "Middle") {
-            geno_obj[,-c(1:5)][is.na(geno_obj[,-c(1:5)])] <- 0
+            geno_obj[, -c(1:5)][is.na(geno_obj[, -c(1:5)])] <- 0
           } else
             if (SNP_impute == "Minor") {
-              geno_obj[,-c(1:5)][is.na(geno_obj[,-c(1:5)])] <- -1
+              geno_obj[, -c(1:5)][is.na(geno_obj[, -c(1:5)])] <- -1
             } else
               if (SNP_impute == "Major") {
-                geno_obj[,-c(1:5)][is.na(geno_obj[,-c(1:5)])] <- 1
+                geno_obj[, -c(1:5)][is.na(geno_obj[, -c(1:5)])] <- 1
               }
         }
       }
@@ -740,7 +761,8 @@ create_phenotypes <-
             tempdir <- paste0(home_dir, "/", output_dir, "(", j, ")")
             j <- j + 1
           }
-          message("Directory name in \'output_dir\' alredy exists! \nCreating: ", tempdir)
+          message("Directory name in \'output_dir\' alredy exists! \nCreating: ",
+                  tempdir)
           path_out <- tempdir
           dir.create(path_out)
           setwd(path_out)
@@ -754,6 +776,7 @@ create_phenotypes <-
       }
       zz <- file("Log_Sim.txt", open = "wt")
       sink(zz, type = "output")
+      sunk <- TRUE
       if (ntraits > 1) {
         if (add & !dom & !epi) {
           cat("Simulation of a",
@@ -878,7 +901,6 @@ create_phenotypes <-
       cat("\nReplicating set of QTNs every simulation (vary_QTN): ",
           vary_QTN)
       if (ntraits == 1) {
-        cat("\nPopulation Heritability:", h2)
         if (add) {
           names(add_effect) <- paste0("Trait_", 1:ntraits)
           cat("\nAdditive genetic effect:\n")
@@ -896,13 +918,6 @@ create_phenotypes <-
         }
         cat(paste0("\nOutput file format: \'", output_format, "\'\n"))
       } else {
-        if (nrow(h2) > 1) {
-          cat("\nPopulation Heritability:")
-          print(h2)
-        } else {
-          cat("\nPopulation Heritability:\n")
-          print(h2)
-        }
         if (add) {
           names(add_effect) <- paste0("Trait_", 1:ntraits)
           cat("\nAdditive genetic effects:\n")
@@ -934,11 +949,8 @@ create_phenotypes <-
       }
       if (architecture == "LD" | out_geno == "plink" |
           out_geno == "gds" |
-          (output_format == "gemma" & remove_QTN == FALSE)) {
-        temp <-
-          paste0(paste0(unlist(strsplit(date(
-            
-          ), " "))[1:3], collapse = ""), "temp.gds")
+          (output_format == "gemma" & remove_QTN == TRUE)) {
+        temp <- tempfile(pattern = "", fileext = ".gds")
         if (input_format == "hapmap" |
             input_format == "numeric") {
           dup <- duplicated(geno_obj$snp)
@@ -958,7 +970,7 @@ create_phenotypes <-
             )
           }
           SNPRelate::snpgdsCreateGeno(
-            paste0(home_dir, "/", temp),
+            temp,
             genmat = t(geno_obj[, -c(1:5)]) + 1,
             sample.id = colnames(geno_obj)[-c(1:5)],
             snp.id = as.character(geno_obj$snp),
@@ -969,7 +981,7 @@ create_phenotypes <-
           )
           gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
         }
-        gdsfile <- paste0(home_dir, "/", temp)
+        gdsfile <- temp
         if ((out_geno == "plink" |
              output_format == "gemma") & remove_QTN == FALSE) {
           genofile <- SNPRelate::snpgdsOpen(gdsfile)
@@ -979,7 +991,7 @@ create_phenotypes <-
                                        verbose = F)
           SNPRelate::snpgdsGDS2BED(
             genofile,
-            bed.fn = "geno",
+            bed.fn = out_name,
             snp.id = snpset,
             verbose = F,
             snpfirstdim = F
@@ -989,8 +1001,8 @@ create_phenotypes <-
       }
       if (output_format == "gemma") {
         fam <- data.frame(
-          colnames(geno_obj)[-(1:5)],
-          colnames(geno_obj)[-(1:5)],
+          colnames(geno_obj)[- (1:5)],
+          colnames(geno_obj)[- (1:5)],
           0,
           0,
           0,
@@ -999,11 +1011,10 @@ create_phenotypes <-
         )
         colnames(fam) <- paste0("V", 1:5)
       }
-      if (out_geno == "numeric") {
+      if (out_geno == "numeric" & remove_QTN == FALSE) {
         data.table::fwrite(
           geno_obj,
-          paste0(ifelse(is.null(output_dir), "", "../"),
-                 out_name,
+          paste0(out_name,
                  "_numeric.txt"),
           row.names = FALSE,
           sep = "\t",
@@ -1075,10 +1086,17 @@ create_phenotypes <-
           )
       }
       if (remove_QTN) {
-        if (add)
-          selected_add_QTN <-
-            data.table::fread("Additive_selected_QTNs.txt", data.table = F)
-        if (dom)
+        if (add) {
+          if (dom & same_add_dom_QTN) {
+            selected_add_QTN <-
+              data.table::fread("Additive_and_Dominance_selected_QTNs.txt",
+                                data.table = F)
+          } else {
+            selected_add_QTN <-
+              data.table::fread("Additive_selected_QTNs.txt", data.table = F)
+          }
+        }
+        if (dom & !same_add_dom_QTN)
           selected_dom_QTN <-
             data.table::fread("Dominance_selected_QTNs.txt", data.table = F)
         if (epi)
@@ -1108,7 +1126,7 @@ create_phenotypes <-
             if (add)
               sel_a <-
                 split(selected_add_QTN$snp, selected_add_QTN$rep)
-            if (dom)
+            if (dom & !same_add_dom_QTN)
               sel_d <-
                 split(selected_dom_QTN$snp, selected_dom_QTN$rep)
             if (epi)
@@ -1138,7 +1156,7 @@ create_phenotypes <-
               for (i in 1:rep) {
                 snps_to_remove[[i]] <- unlist(c(sel_a[i], sel_d[i], sel_e[i]))
                 data.table::fwrite(
-                  geno_obj[!geno_obj$snp %in% snps_to_remove[[i]],],
+                  geno_obj[!geno_obj$snp %in% snps_to_remove[[i]], ],
                   paste0(out_name, "_noQTN_rep", i, ".txt"),
                   row.names = FALSE,
                   sep = "\t",
@@ -1157,7 +1175,7 @@ create_phenotypes <-
           if (add)
             sel_a <-
               split(selected_add_QTN$snp, selected_add_QTN$rep)
-          if (dom)
+          if (dom & !same_add_dom_QTN)
             sel_d <-
               split(selected_dom_QTN$snp, selected_dom_QTN$rep)
           if (epi)
@@ -1185,7 +1203,7 @@ create_phenotypes <-
           } else if (out_geno == "numeric" | out_geno == "none") {
             snps_to_remove[[1]] <- unlist(c(sel_a[1], sel_d[1], sel_e[1]))
             data.table::fwrite(
-              geno_obj[!geno_obj$snp %in% snps_to_remove[[1]],],
+              geno_obj[!geno_obj$snp %in% snps_to_remove[[1]], ],
               paste0(out_name, "_noQTN.txt"),
               row.names = FALSE,
               sep = "\t",
@@ -1212,8 +1230,8 @@ create_phenotypes <-
                 architecture == "LD") {
               if (class(QTN$add_ef_trait_obj[[1]]) == "matrix") {
                 hets <- lapply(QTN$add_ef_trait_obj,
-                               function (x) {
-                                 f <- apply(x, 2, function (b) {
+                               function(x) {
+                                 f <- apply(x, 2, function(b) {
                                    b == 1
                                  })
                                  hrow <- sum(apply(f, 1, sum)) > 0
@@ -1221,9 +1239,9 @@ create_phenotypes <-
                                })
               } else {
                 hets <- lapply(QTN$add_ef_trait_obj,
-                               function (x) {
-                                 lapply(x, function (x2) {
-                                   f <- apply(x2, 2, function (b) {
+                               function(x) {
+                                 lapply(x, function(x2) {
+                                   f <- apply(x2, 2, function(b) {
                                      b == 1
                                    })
                                    hrow <- sum(apply(f, 1, sum)) > 0
@@ -1238,9 +1256,6 @@ create_phenotypes <-
                                  b == 1
                                })
                                hrow <- sum(apply(f, 1, sum)) > 0
-                               #TODO count number of het QTNs
-                               #hcol <- apply(f, 2, sum)
-                               #sum(hcol > 0)
                                return(hrow)
                              })
             }
@@ -1250,8 +1265,8 @@ create_phenotypes <-
                 architecture == "LD") {
               if (class(QTN$dom_ef_trait_obj[[1]]) == "matrix") {
                 hets <- lapply(QTN$dom_ef_trait_obj,
-                               function (x) {
-                                 f <- apply(x, 2, function (b) {
+                               function(x) {
+                                 f <- apply(x, 2, function(b) {
                                    b == 1
                                  })
                                  hrow <- sum(apply(f, 1, sum)) > 0
@@ -1259,9 +1274,9 @@ create_phenotypes <-
                                })
               } else {
                 hets <- lapply(QTN$dom_ef_trait_obj,
-                               function (x) {
-                                 lapply(x, function (x2) {
-                                   f <- apply(x2, 2, function (b) {
+                               function(x) {
+                                 lapply(x, function(x2) {
+                                   f <- apply(x2, 2, function(b) {
                                      b == 1
                                    })
                                    hrow <- sum(apply(f, 1, sum)) > 0
@@ -1409,7 +1424,8 @@ create_phenotypes <-
             )
         }
       }
-      if (verbose) message("* Creating phenotypes")
+      if (verbose)
+        message("* Creating phenotypes")
       results <- phenotypes(
         seed = seed,
         base_line_trait = genetic_value,
@@ -1465,16 +1481,10 @@ create_phenotypes <-
           print(results$sample_cor)
         }
       }
-      if (out_geno == "gds") {
-        cat("GDS files saved at:", home_dir, "\n")
-      } else if (out_geno == "plink") {
-        cat("\nPlink bed files saved at:", home_dir, "\n")
-      } else if (out_geno == "numeric") {
-        cat("\nNumeric Genotypes saved at:", home_dir, "\n")
-      }
-      cat("\n\nResults are saved at:", home_dir)
+      cat("\n\nResults are saved at:", path_out)
       sink()
       close(zz)
+      sunk <- FALSE
       if (!quiet) {
         file.show(paste0(path_out, "/Log_Sim.txt"))
       }
@@ -1482,13 +1492,13 @@ create_phenotypes <-
         if (out_geno != "gds" & file.exists(gdsfile)) {
           unlink(gdsfile, force = TRUE)
         } else if (file.exists(gdsfile)) {
-          tempfile <- paste0(home_dir,
+          tempfile <- paste0(path_out,
                              "/",
                              out_name,
                              ".gds")
           if (file.exists(tempfile)) {
             while (file.exists(tempfile)) {
-              tempfile <- paste0(home_dir,
+              tempfile <- paste0(path_out,
                                  "/",
                                  out_name, "(", j,
                                  ").gds")
@@ -1539,3 +1549,4 @@ create_phenotypes <-
         }
       }
     })
+  }
