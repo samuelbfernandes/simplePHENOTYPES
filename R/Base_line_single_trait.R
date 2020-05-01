@@ -15,7 +15,7 @@
 #' @param sim_method = NULL,
 #' @return A vector of Genetic values
 #' @author Samuel Fernandes and Alexander Lipka
-#' Last update: Nov 05, 2019
+#' Last update: Apr 20, 2020
 #'
 #'-----------------------------Base_line_single_trait---------------------------
 base_line_single_trait <-
@@ -31,37 +31,40 @@ base_line_single_trait <-
            add = NULL,
            dom = NULL,
            epi = NULL,
-           sim_method = NULL
-  ) {
+           sim_method = NULL) {
     #'--------------------------------------------------------------------------
     if (rep_by != "QTN") {
       rep <- 1
     }
     if (ntraits > 1) {
-      results <- genetic_effect(add_obj = add_obj,
-                                dom_obj = dom_obj,
-                                epi_obj = epi_obj,
-                                add_effect = add_effect,
-                                dom_effect = dom_effect,
-                                epi_effect = epi_effect,
-                                sim_method = sim_method,
-                                add = add,
-                                dom = dom,
-                                epi = epi)
+      results <- genetic_effect(
+        add_obj = add_obj,
+        dom_obj = dom_obj,
+        epi_obj = epi_obj,
+        add_effect = add_effect,
+        dom_effect = dom_effect,
+        epi_effect = epi_effect,
+        sim_method = sim_method,
+        add = add,
+        dom = dom,
+        epi = epi
+      )
     } else {
       results <- vector("list", rep)
-      for (z in 1:rep){
+      for (z in 1:rep) {
         results[[z]] <-
-          genetic_effect(add_obj = add_obj[[z]],
-                         dom_obj = dom_obj[[z]],
-                         epi_obj = epi_obj[[z]],
-                         add_effect = add_effect[[1]],
-                         dom_effect = dom_effect[[1]],
-                         epi_effect = epi_effect[[1]],
-                         sim_method = sim_method,
-                         add = add,
-                         dom = dom,
-                         epi = epi)
+          genetic_effect(
+            add_obj = add_obj[[z]],
+            dom_obj = dom_obj[[z]],
+            epi_obj = epi_obj[[z]],
+            add_effect = add_effect[[1]],
+            dom_effect = dom_effect[[1]],
+            epi_effect = epi_effect[[1]],
+            sim_method = sim_method,
+            add = add,
+            dom = dom,
+            epi = epi
+          )
       }
     }
     return(results)

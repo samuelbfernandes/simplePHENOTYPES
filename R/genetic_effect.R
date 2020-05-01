@@ -12,7 +12,7 @@
 #' @param epi = NULL
 #' @return A vector of Genetic values
 #' @author Samuel Fernandes
-#' Last update: Nov 05, 2019
+#' Last update: Apr 20, 2020
 #'
 #'-----------------------------genetic_effect----------------------------
 genetic_effect <-
@@ -78,35 +78,42 @@ genetic_effect <-
       dom_genetic_variance <- var(dom_component)
     }
     if (epi) {
-        epistatic_QTN_number <- ncol(epi_obj) / 2
-        for (i in 0:(epistatic_QTN_number - 1)) {
-          new_epi_QTN_effect <- 
-            ( (epi_obj[, ( (2 * i) + 1)] *
-                 epi_obj[, ( (2 * i) + 2)]) *
-                as.numeric(epi_effect[i + 1]))
-          epi_component <-
-            epi_component + new_epi_QTN_effect
-          var_epi[i+1] <- var(new_epi_QTN_effect)
-        }
-        rownames(epi_component) <- rownames
-        colnames(epi_component) <- "epistatic_effect"
-        epi_genetic_variance <- var(epi_component)
+      epistatic_QTN_number <- ncol(epi_obj) / 2
+      for (i in 0:(epistatic_QTN_number - 1)) {
+        new_epi_QTN_effect <-
+          ((epi_obj[, ((2 * i) + 1)] *
+              epi_obj[, ((2 * i) + 2)]) *
+             as.numeric(epi_effect[i + 1]))
+        epi_component <-
+          epi_component + new_epi_QTN_effect
+        var_epi[i + 1] <- var(new_epi_QTN_effect)
       }
+      rownames(epi_component) <- rownames
+      colnames(epi_component) <- "epistatic_effect"
+      epi_genetic_variance <- var(epi_component)
+    }
     base_line_trait <- add_component + dom_component + epi_component
-    if (all(base_line_trait==0)) {
-      if (dom & !add & !epi & all(var_dom == 0) & any(unlist(dom_effect) != 0)) {
-        stop("No heterozygotes were found to simulate a dominance model (model = \"D\"). Please consider using the option constraints = list(hets = \'include\'). ", call. = F)
+    if (all(base_line_trait == 0)) {
+      if (dom &
+          !add & !epi & all(var_dom == 0) & any(unlist(dom_effect) != 0)) {
+        stop(
+          "No heterozygotes were found to simulate a dominance model (model = \"D\"). Please consider using the option constraints = list(hets = \'include\'). ",
+          call. = F
+        )
       } else if (dom & !add & !epi & any(unlist(dom_effect) == 0)) {
-        stop("Please select dominance effects different than zero. ", call. = F)
+        stop("Please select dominance effects different than zero. ",
+             call. = F)
       }
     }
-    return( list(
-      base_line = base_line_trait,
-      VA = c(add_genetic_variance),
-      VD = c(dom_genetic_variance),
-      VE = c(epi_genetic_variance),
-      var_add = var_add,
-      var_dom = var_dom,
-      var_epi = var_epi
-    ))
+    return(
+      list(
+        base_line = base_line_trait,
+        VA = c(add_genetic_variance),
+        VD = c(dom_genetic_variance),
+        VE = c(epi_genetic_variance),
+        var_add = var_add,
+        var_dom = var_dom,
+        var_epi = var_epi
+      )
+    )
   }
