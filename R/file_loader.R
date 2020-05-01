@@ -11,7 +11,7 @@
 #' @param verbose = TRUE
 #' @return genotype data sampled
 #' @author  Samuel Fernandes
-#' Last update: Nov 05, 2019
+#' Last update: Apr 20, 2020
 #'------------------------------------------------------------------------------
 file_loader <-
   function(geno_obj = NULL,
@@ -24,35 +24,53 @@ file_loader <-
            SNP_effect = "Add",
            verbose = TRUE) {
     #'--------------------------------------------------------------------------
-    hap_names <- c("rs#", "alleles", "chrom", "pos",
-                   "strand", "assembly#", "center",
-                   "protLSID", "assayLSID", "panelLSID", "QCcode")
-    nucleotide <- c("A", "C", "T", "G", "R", "Y", "S", "W", "K", "M", "N", "+", "-", "0")
+    hap_names <- c(
+      "rs#",
+      "alleles",
+      "chrom",
+      "pos",
+      "strand",
+      "assembly#",
+      "center",
+      "protLSID",
+      "assayLSID",
+      "panelLSID",
+      "QCcode"
+    )
+    nucleotide <-
+      c("A", "C", "T", "G", "R", "Y", "S", "W", "K", "M", "N", "+", "-", "0")
     temp <- tempfile(pattern = "", fileext = ".gds")
     input_format <- NULL
     out_name <- NULL
-    if (!is.null(geno_obj)){
-      if (sum(colnames(geno_obj)[1:11] ==  hap_names) > 8 |
-          all(unlist(strsplit(unique(geno_obj[, 12]),"")) %in% nucleotide) ) { 
+    if (!is.null(geno_obj)) {
+      if (sum(colnames(geno_obj)[1:11] == hap_names) > 8 |
+          all(unlist(strsplit(unique(geno_obj[, 12]), "")) %in% nucleotide)) {
         input_format <- "hapmap"
-      } else if (any(grepl("[/]|[|]",geno_obj[, 10]))) {
-        stop("Please read VCF files as \'geno_file\' or \'geno_path\'.", call. = F)
+      } else if (any(grepl("[/]|[|]", geno_obj[, 10]))) {
+        stop("Please read VCF files as \'geno_file\' or \'geno_path\'.",
+             call. = F)
       } else {
-        stop("File format provied by \'geno_obj\' was not recognized! Please provied one of: numeric, VCF or HapMap.", call. = F)
+        stop(
+          "File format provied by \'geno_obj\' was not recognized! Please provied one of: numeric, VCF or HapMap.",
+          call. = F
+        )
       }
-      if (verbose) message("File (geno_obj) loaded from memory.")
+      if (verbose)
+        message("File (geno_obj) loaded from memory.")
       if (input_format == "hapmap") {
         GT <- as.matrix(colnames(geno_obj)[- (1:11)])
         GI <- geno_obj[, c(1, 2, 3, 4)]
-        if (verbose) message(paste0(
-          "Converting HapMap format to numerical under model of ",
-          SNP_impute
-        ))
+        if (verbose)
+          message(paste0(
+            "Converting HapMap format to numerical under model of ",
+            SNP_impute
+          ))
         colnames(GT) <- "taxa"
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         GD <- NULL
         bit <- nchar(as.character(geno_obj[2, 12]))
-        if (verbose) message("Performing numericalization")
+        if (verbose)
+          message("Performing numericalization")
         GD <- apply(geno_obj[, - (1:11)], 1, function(one)
           numericalization(
             one,
@@ -64,22 +82,26 @@ file_loader <-
           GT <- NULL
           GI <- NULL
         }
-        return(list(GT = GT, GD = GD, GI = GI, input_format = input_format, out_name = out_name))
+        return(list(
+          GT = GT,
+          GD = GD,
+          GI = GI,
+          input_format = input_format,
+          out_name = out_name
+        ))
       }
     } else if (is.null(geno_path)) {
-      if (!geno_file %in% dir() & 
-          (!sub(".*/", "",geno_file) %in% list.files(dirname(geno_file)))) {
-        stop(paste("File ",geno_file," not found."), call. = F)
+      if (!geno_file %in% dir() &
+          (!sub(".*/", "", geno_file) %in% list.files(dirname(geno_file)))) {
+        stop(paste("File ", geno_file, " not found."), call. = F)
       }
-      out_name <- gsub(
-          ".vcf|.hmp.txt|.bed|.txt|.gds|.ped",
-          "",
-          sub(".*/", "", geno_file)
-        )
+      out_name <- gsub(".vcf|.hmp.txt|.bed|.txt|.gds|.ped",
+                       "",
+                       sub(".*/", "", geno_file))
       if (grepl(".VCF$", toupper(geno_file))) {
         input_format <- "VCF"
       } else if (grepl(".TXT$", toupper(geno_file))) {
-        data.type <- try(data.table::fread(
+        data_type <- try(data.table::fread(
           file = geno_file,
           header = T,
           skip = 0,
@@ -88,10 +110,10 @@ file_loader <-
           data.table = F
         ),
         silent = TRUE)
-        if ( sum(hap_names %in% colnames(data.type)) > 8 |
-             all(unlist(strsplit(unique(data.type[, 12]),"")) %in% nucleotide)) {
+        if (sum(hap_names %in% colnames(data_type)) > 8 |
+            all(unlist(strsplit(unique(data_type[, 12]), "")) %in% nucleotide)) {
           input_format <- "hapmap"
-        } else if (all(colnames(data.type)[1:5] == c("snp", "allele", "chr", "pos", "cm"))) {
+        } else if (all(colnames(data_type)[1:5] == c("snp", "allele", "chr", "pos", "cm"))) {
           G <-
             try(data.table::fread(
               file = geno_file,
@@ -105,12 +127,22 @@ file_loader <-
           GT <- as.matrix(colnames(G)[- (1:5)])
           GI <- G[, c(1, 2, 3, 4)]
           colnames(GT) <- "taxa"
-          colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
-          GD <- G[, -c(1:5)]
-          return(list(GT = GT, GD = GD, GI = GI, input_format = input_format, out_name = out_name))
+          colnames(GI) <-
+            c("SNP", "allele", "Chromosome", "Position")
+          GD <- G[, - c(1:5)]
+          return(list(
+            GT = GT,
+            GD = GD,
+            GI = GI,
+            input_format = input_format,
+            out_name = out_name
+          ))
         } else {
-          stop("File format provied by \'geno_file\' was not recognized! Please provied one of: Numeric, VCF, HapMap, gds, or plink bed or ped files.", call. = F)
-        } 
+          stop(
+            "File format provied by \'geno_file\' was not recognized! Please provied one of: Numeric, VCF, HapMap, gds, or plink bed or ped files.",
+            call. = F
+          )
+        }
       }  else if (grepl(".GDS$", toupper(geno_file))) {
         input_format <- "gds"
       } else if (grepl(".BED$", toupper(geno_file))) {
@@ -118,7 +150,7 @@ file_loader <-
       } else if (grepl(".PED$", toupper(geno_file))) {
         input_format <- "ped"
       } else {
-        data.type <- try(data.table::fread(
+        data_type <- try(data.table::fread(
           file = geno_file,
           header = F,
           skip = 0,
@@ -127,14 +159,17 @@ file_loader <-
           data.table = F
         ),
         silent = TRUE)
-        if (any(grepl("VCF", data.type))) {
+        if (any(grepl("VCF", data_type))) {
           input_format <- "VCF"
-        } else if ( sum(hap_names %in% data.type) > 8 |
-                    all(unlist(strsplit(unique(data.type[, 12]),"")) %in% nucleotide)) {
+        } else if (sum(hap_names %in% data_type) > 8 |
+                   all(unlist(strsplit(unique(data_type[, 12]), "")) %in% nucleotide)) {
           input_format <- "hapmap"
         } else {
-          stop("File format provied by \'geno_file\' was not recognized! Please provied one of: Numeric, VCF, HapMap, gds, or plink bed or ped files.", call. = F)
-        } 
+          stop(
+            "File format provied by \'geno_file\' was not recognized! Please provied one of: Numeric, VCF, HapMap, gds, or plink bed or ped files.",
+            call. = F
+          )
+        }
       }
       if (input_format == "hapmap") {
         G <-
@@ -153,7 +188,8 @@ file_loader <-
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         GD <- NULL
         bit <- nchar(as.character(G[2, 12]))
-        if (verbose) message("Performing numericalization")
+        if (verbose)
+          message("Performing numericalization")
         GD <- apply(G[, - (1:11)], 1, function(one)
           numericalization(
             one,
@@ -162,81 +198,74 @@ file_loader <-
             impute = SNP_impute
           ))
       } else if (input_format == "VCF") {
-        SNPRelate::snpgdsVCF2GDS(vcf.fn = geno_file,
-                                 out.fn = temp,
-                                 method ="biallelic.only",
-                                 snpfirstdim = FALSE,
-                                 verbose = FALSE
-                                 )
+        SNPRelate::snpgdsVCF2GDS(
+          vcf.fn = geno_file,
+          out.fn = temp,
+          method = "biallelic.only",
+          snpfirstdim = FALSE,
+          verbose = FALSE
+        )
         genofile <- SNPRelate::snpgdsOpen(temp)
-        GD <-  SNPRelate::snpgdsGetGeno(genofile, snpfirstdim=FALSE,
-                                        verbose = FALSE) - 1
-        GT <-  as.matrix(gdsfmt::read.gdsn(
-          gdsfmt::index.gdsn(genofile, "sample.id")))
+        GD <-
+          SNPRelate::snpgdsGetGeno(genofile, snpfirstdim = FALSE,
+                                   verbose = FALSE) - 1
+        GT <-  as.matrix(gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "sample.id")))
         GI <- data.frame(
-          SNP = gdsfmt::read.gdsn(
-          gdsfmt::index.gdsn(genofile, "snp.rs.id")),
-          allele = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.allele")),
-          Chromosome = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.chromosome")),
-          Position = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.position")),
-            stringsAsFactors = FALSE
-          )
+          SNP = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.rs.id")),
+          allele = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.allele")),
+          Chromosome = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.chromosome")),
+          Position = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.position")),
+          stringsAsFactors = FALSE
+        )
         colnames(GT) <- "taxa"
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
       } else if (input_format == "bed") {
-        SNPRelate::snpgdsBED2GDS(bed.fn = geno_file,
-                                 fam.fn = paste0(gsub(".bed", "", geno_file), ".fam"),
-                                 bim.fn = paste0(gsub(".bed", "", geno_file), ".bim"),
-                                 out.gdsfn = temp,
-                                 snpfirstdim = FALSE,
-                                 verbose = FALSE
-                                 )
+        SNPRelate::snpgdsBED2GDS(
+          bed.fn = geno_file,
+          fam.fn = paste0(gsub(".bed", "", geno_file), ".fam"),
+          bim.fn = paste0(gsub(".bed", "", geno_file), ".bim"),
+          out.gdsfn = temp,
+          snpfirstdim = FALSE,
+          verbose = FALSE
+        )
         genofile <- SNPRelate::snpgdsOpen(temp)
-        GD <-  (SNPRelate::snpgdsGetGeno(genofile, snpfirstdim=FALSE,
-                                        verbose = FALSE) - 1) * - 1
-        GT <-  as.matrix(gdsfmt::read.gdsn(
-          gdsfmt::index.gdsn(genofile, "sample.id")))
+        GD <-
+          (SNPRelate::snpgdsGetGeno(genofile, snpfirstdim = FALSE,
+                                    verbose = FALSE) - 1) * -1
+        GT <- as.matrix(gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "sample.id")))
         allele <- unlist(strsplit(gdsfmt::read.gdsn(
-          gdsfmt::index.gdsn(genofile, "snp.allele")), "/"))
+          gdsfmt::index.gdsn(genofile, "snp.allele")
+        ), "/"))
         l <- length(allele)
         GI <- data.frame(
-          SNP = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.id")),
-          allele = paste0(allele[seq(2, l, 2 )],"/", allele[seq(1, l, 2 )]),
-          Chromosome = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.chromosome")),
-          Position = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.position")),
+          SNP = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.id")),
+          allele = paste0(allele[seq(2, l, 2)], "/", allele[seq(1, l, 2)]),
+          Chromosome = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.chromosome")),
+          Position = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.position")),
           stringsAsFactors = FALSE
         )
         colnames(GT) <- "taxa"
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
       } else if (input_format == "ped") {
-        SNPRelate::snpgdsPED2GDS(ped.fn = geno_file,
-                                 map.fn = paste0(gsub(".ped", "", geno_file), ".map"),
-                                 out.gdsfn = temp,
-                                 snpfirstdim = FALSE,
-                                 verbose = FALSE
-                                 )
+        SNPRelate::snpgdsPED2GDS(
+          ped.fn = geno_file,
+          map.fn = paste0(gsub(".ped", "", geno_file), ".map"),
+          out.gdsfn = temp,
+          snpfirstdim = FALSE,
+          verbose = FALSE
+        )
         genofile <- SNPRelate::snpgdsOpen(temp)
-        GD <-  SNPRelate::snpgdsGetGeno(genofile, snpfirstdim=FALSE,
-                                        verbose = FALSE) - 1
-        GT <-  as.matrix(gdsfmt::read.gdsn(
-          gdsfmt::index.gdsn(genofile, "sample.id")))
+        GD <-
+          SNPRelate::snpgdsGetGeno(genofile, snpfirstdim = FALSE,
+                                   verbose = FALSE) - 1
+        GT <-  as.matrix(gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "sample.id")))
         GI <- data.frame(
-          SNP = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.rs.id")),
-          allele = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.allele")),
-          Chromosome = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.chromosome")),
-          Position = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.position")),
+          SNP = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.rs.id")),
+          allele = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.allele")),
+          Chromosome = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.chromosome")),
+          Position = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.position")),
           stringsAsFactors = FALSE
         )
         colnames(GT) <- "taxa"
@@ -244,19 +273,15 @@ file_loader <-
         gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
       } else if (input_format == "gds") {
         genofile <- SNPRelate::snpgdsOpen(geno_file)
-        GD <-  SNPRelate::snpgdsGetGeno(genofile, snpfirstdim=FALSE,
-                                        verbose = FALSE) - 1
-        GT <-  as.matrix(gdsfmt::read.gdsn(
-          gdsfmt::index.gdsn(genofile, "sample.id")))
+        GD <-
+          SNPRelate::snpgdsGetGeno(genofile, snpfirstdim = FALSE,
+                                   verbose = FALSE) - 1
+        GT <- as.matrix(gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "sample.id")))
         GI <- data.frame(
-          SNP = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.rs.id")),
-          allele = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.allele")),
-          Chromosome = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.chromosome")),
-          Position = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.position")),
+          SNP = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.rs.id")),
+          allele = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.allele")),
+          Chromosome = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.chromosome")),
+          Position = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.position")),
           stringsAsFactors = FALSE
         )
         colnames(GT) <- "taxa"
@@ -272,17 +297,17 @@ file_loader <-
                                              dir(geno_path))])
       }
       files <- sort(files)
-      nn <- strsplit(files[c(1,length(files))],"")
+      nn <- strsplit(files[c(1, length(files))], "")
       nn_com <- match(FALSE, do.call("==", nn)) - 1
       if (nn_com == 0) {
         out_name <- "out_geno"
       } else {
-        out_name <- substr(files[1],1,nn_com)
+        out_name <- substr(files[1], 1, nn_com)
       }
       if (grepl(".VCF$", toupper(files[1]))) {
         input_format <- "VCF"
       } else if (grepl(".TXT$", toupper(files[1]))) {
-        data.type <- try(data.table::fread(
+        data_type <- try(data.table::fread(
           file = files[1],
           header = T,
           skip = 0,
@@ -291,10 +316,10 @@ file_loader <-
           data.table = F
         ),
         silent = TRUE)
-        if ( sum(hap_names %in% colnames(data.type)) > 8 |
-             all(unlist(strsplit(unique(data.type[, 12]),"")) %in% nucleotide)) {
+        if (sum(hap_names %in% colnames(data_type)) > 8 |
+            all(unlist(strsplit(unique(data_type[, 12]), "")) %in% nucleotide)) {
           input_format <- "hapmap"
-        } else if (all(colnames(data.type)[1:5] == c("snp", "allele", "chr", "pos", "cm"))) {
+        } else if (all(colnames(data_type)[1:5] == c("snp", "allele", "chr", "pos", "cm"))) {
           G <-
             try(data.table::fread(
               file = files[1],
@@ -308,11 +333,21 @@ file_loader <-
           GT <- as.matrix(colnames(G)[- (1:5)])
           GI <- G[, c(1, 2, 3, 4)]
           colnames(GT) <- "taxa"
-          colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
-          GD <- G[, -c(1:5)]
-          return(list(GT = GT, GD = GD, GI = GI, input_format = input_format, out_name = out_name))
+          colnames(GI) <-
+            c("SNP", "allele", "Chromosome", "Position")
+          GD <- G[, - c(1:5)]
+          return(list(
+            GT = GT,
+            GD = GD,
+            GI = GI,
+            input_format = input_format,
+            out_name = out_name
+          ))
         } else {
-          stop("File format provied by \'geno_file\' was not recognized! Please provied one of: Numeric, VCF, HapMap, gds, or plink bed or ped files.", call. = F)
+          stop(
+            "File format provied by \'geno_file\' was not recognized! Please provied one of: Numeric, VCF, HapMap, gds, or plink bed or ped files.",
+            call. = F
+          )
         }
       } else if (grepl(".GDS$", toupper(files[1]))) {
         input_format <- "gds"
@@ -321,7 +356,7 @@ file_loader <-
       } else if (grepl(".PED$", toupper(files[1]))) {
         input_format <- "ped"
       } else {
-        data.type <- try(data.table::fread(
+        data_type <- try(data.table::fread(
           file = files[1],
           header = F,
           skip = 0,
@@ -330,18 +365,23 @@ file_loader <-
           data.table = F
         ),
         silent = TRUE)
-        if (any(grepl("VCF", data.type))) {
+        if (any(grepl("VCF", data_type))) {
           input_format <- "VCF"
-        } else if ( sum(hap_names %in% data.type) > 8 |
-                    all(unlist(strsplit(unique(data.type[, 12]),"")) %in% nucleotide)) {
+        } else if (sum(hap_names %in% data_type) > 8 |
+                   all(unlist(strsplit(unique(data_type[, 12]), "")) %in% nucleotide)) {
           input_format <- "hapmap"
         } else {
-           stop("File format found in \'geno_path\' was not recognized! Please provied one of: Numeric, VCF, HapMap, gds, or plink bed or ped files.", call. = F)
-          } 
+          stop(
+            "File format found in \'geno_path\' was not recognized! Please provied one of: Numeric, VCF, HapMap, gds, or plink bed or ped files.",
+            call. = F
+          )
+        }
       }
       if (input_format == "hapmap") {
-        if (verbose) message("Reading the following HapMap files: \n")
-        if (verbose) message( files, sep = "\n")
+        if (verbose)
+          message("Reading the following HapMap files: \n")
+        if (verbose)
+          message(files, sep = "\n")
         G <- vector("list", length(files))
         count <- 1
         for (i in files) {
@@ -369,7 +409,8 @@ file_loader <-
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         GD <- NULL
         bit <- nchar(as.character(G[2, 12]))
-        if (verbose) message("Performing numericalization")
+        if (verbose)
+          message("Performing numericalization")
         GD <- apply(G[, - (1:11)], 1, function(one)
           numericalization(
             one,
@@ -378,83 +419,78 @@ file_loader <-
             impute = SNP_impute
           ))
       } else if (input_format == "VCF") {
-        if (verbose) message("Reading the following VCF files: \n")
-        if (verbose) message( files, sep = "\n")
-        SNPRelate::snpgdsVCF2GDS(vcf.fn = files,
-                                 out.fn = temp,
-                                 method ="biallelic.only",
-                                 snpfirstdim = FALSE,
-                                 verbose = FALSE
-                                 )
+        if (verbose)
+          message("Reading the following VCF files: \n")
+        if (verbose)
+          message(files, sep = "\n")
+        SNPRelate::snpgdsVCF2GDS(
+          vcf.fn = files,
+          out.fn = temp,
+          method = "biallelic.only",
+          snpfirstdim = FALSE,
+          verbose = FALSE
+        )
         genofile <- SNPRelate::snpgdsOpen(temp)
-        GD <-  SNPRelate::snpgdsGetGeno(genofile, snpfirstdim=FALSE,
-                                        verbose = FALSE) - 1
-        GT <-  as.matrix(gdsfmt::read.gdsn(
-          gdsfmt::index.gdsn(genofile, "sample.id")))
+        GD <-
+          SNPRelate::snpgdsGetGeno(genofile, snpfirstdim = FALSE,
+                                   verbose = FALSE) - 1
+        GT <- as.matrix(gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "sample.id")))
         GI <- data.frame(
-          SNP = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.rs.id")),
-          allele = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.allele")),
-          Chromosome = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.chromosome")),
-          Position = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.position")),
+          SNP = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.rs.id")),
+          allele = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.allele")),
+          Chromosome = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.chromosome")),
+          Position = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.position")),
           stringsAsFactors = FALSE
         )
         colnames(GT) <- "taxa"
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
-      }  else if (input_format == "bed") {
-        SNPRelate::snpgdsBED2GDS(bed.fn = files,
-                                 fam.fn = paste0(gsub(".bed", "", files), ".fam"),
-                                 bim.fn = paste0(gsub(".bed", "", files), ".bim"),
-                                 out.gdsfn = temp,
-                                 snpfirstdim = FALSE,
-                                 verbose = FALSE
+      } else if (input_format == "bed") {
+        SNPRelate::snpgdsBED2GDS(
+          bed.fn = files,
+          fam.fn = paste0(gsub(".bed", "", files), ".fam"),
+          bim.fn = paste0(gsub(".bed", "", files), ".bim"),
+          out.gdsfn = temp,
+          snpfirstdim = FALSE,
+          verbose = FALSE
         )
         genofile <- SNPRelate::snpgdsOpen(temp)
-        GD <-  (SNPRelate::snpgdsGetGeno(genofile, snpfirstdim=FALSE,
-                                        verbose = FALSE) - 1) * -1
-        GT <-  as.matrix(gdsfmt::read.gdsn(
-          gdsfmt::index.gdsn(genofile, "sample.id")))
+        GD <-
+          (SNPRelate::snpgdsGetGeno(genofile, snpfirstdim = FALSE,
+                                    verbose = FALSE) - 1) * -1
+        GT <-  as.matrix(gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "sample.id")))
         allele <- unlist(strsplit(gdsfmt::read.gdsn(
-          gdsfmt::index.gdsn(genofile, "snp.allele")), "/"))
+          gdsfmt::index.gdsn(genofile, "snp.allele")
+        ), "/"))
         l <- length(allele)
         GI <- data.frame(
-          SNP = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.id")),
-          allele = paste0(allele[seq(2, l, 2 )],"/", allele[seq(1, l, 2 )]),
-          Chromosome = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.chromosome")),
-          Position = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.position")),
+          SNP = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.id")),
+          allele = paste0(allele[seq(2, l, 2)], "/", allele[seq(1, l, 2)]),
+          Chromosome = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.chromosome")),
+          Position = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.position")),
           stringsAsFactors = FALSE
         )
         colnames(GT) <- "taxa"
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
       } else if (input_format == "ped") {
-        SNPRelate::snpgdsPED2GDS(ped.fn = files,
-                                 map.fn = paste0(gsub(".ped", "", files), ".map"),
-                                 out.gdsfn = temp,
-                                 snpfirstdim = FALSE,
-                                 verbose = FALSE
+        SNPRelate::snpgdsPED2GDS(
+          ped.fn = files,
+          map.fn = paste0(gsub(".ped", "", files), ".map"),
+          out.gdsfn = temp,
+          snpfirstdim = FALSE,
+          verbose = FALSE
         )
         genofile <- SNPRelate::snpgdsOpen(temp)
-        GD <-  SNPRelate::snpgdsGetGeno(genofile, snpfirstdim=FALSE,
-                                        verbose = FALSE) - 1
-        GT <-  as.matrix(gdsfmt::read.gdsn(
-          gdsfmt::index.gdsn(genofile, "sample.id")))
+        GD <-
+          SNPRelate::snpgdsGetGeno(genofile, snpfirstdim = FALSE,
+                                   verbose = FALSE) - 1
+        GT <-  as.matrix(gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "sample.id")))
         GI <- data.frame(
-          SNP = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.rs.id")),
-          allele = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.allele")),
-          Chromosome = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.chromosome")),
-          Position = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.position")),
+          SNP = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.rs.id")),
+          allele = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.allele")),
+          Chromosome = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.chromosome")),
+          Position = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.position")),
           stringsAsFactors = FALSE
         )
         colnames(GT) <- "taxa"
@@ -462,19 +498,14 @@ file_loader <-
         gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
       } else if (input_format == "gds") {
         genofile <- SNPRelate::snpgdsOpen(files)
-        GD <-  SNPRelate::snpgdsGetGeno(genofile, snpfirstdim=FALSE,
+        GD <-  SNPRelate::snpgdsGetGeno(genofile, snpfirstdim = FALSE,
                                         verbose = FALSE) - 1
-        GT <-  as.matrix(gdsfmt::read.gdsn(
-          gdsfmt::index.gdsn(genofile, "sample.id")))
+        GT <-  as.matrix(gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "sample.id")))
         GI <- data.frame(
-          SNP = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.rs.id")),
-          allele = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.allele")),
-          Chromosome = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.chromosome")),
-          Position = gdsfmt::read.gdsn(
-            gdsfmt::index.gdsn(genofile, "snp.position")),
+          SNP = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.rs.id")),
+          allele = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.allele")),
+          Chromosome = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.chromosome")),
+          Position = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.position")),
           stringsAsFactors = FALSE
         )
         colnames(GT) <- "taxa"
@@ -497,7 +528,13 @@ file_loader <-
             if (SNP_impute == "Major") {
               GD[is.na(GD)] <- 1
             }
-      } 
+      }
     }
-    return(list(GT = GT, GD = GD, GI = GI, input_format = input_format, out_name = out_name))
+    return(list(
+      GT = GT,
+      GD = GD,
+      GI = GI,
+      input_format = input_format,
+      out_name = out_name
+    ))
   }

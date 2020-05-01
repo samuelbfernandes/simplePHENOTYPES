@@ -1,7 +1,7 @@
-#' Genotypic data for 282 inbred association panel using the 55K SNP array 
-#' (filtered by MAF>0.4 to reduce file size). 
-#' Reference: Cook et al. 2012. Genetic architecture of maize kernel 
-#' composition in the nested association mapping and inbred association panels. 
+#' Genotypic data for 282 inbred association panel using the 55K SNP array
+#' (filtered by MAF>0.4 to reduce file size).
+#' Reference: Cook et al. 2012. Genetic architecture of maize kernel
+#' composition in the nested association mapping and inbred association panels.
 #' Plant Physiology 158:824-834
 #' @keywords internal
 #' @docType data
