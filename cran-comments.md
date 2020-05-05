@@ -3,12 +3,11 @@
 * Windows 10, R 3.5.0
 * Ubuntu Linux 16.04 LTS, R-release, GCC
 
-
 ## R CMD check results
 There were no ERRORs or WARNINGs. 
 
 There was 1 NOTE:
 
-* This is a New submission
+* Possibly mis-spelled words (Fernandes) is a name that has been checked.
 
 

@@ -15,7 +15,7 @@
 #' `geno_obj`, `geno_file` or `geno_path` should be provided.
 #' @param geno_file Name of a marker data set to be read from a file. If in a 
 #' different folder, the whole path should be provided. Formats accepted are
-#' Numeric, HapMap, VCF, GDS, and Plink Bed/Ped fiels. Notice that the major
+#' Numeric, HapMap, VCF, GDS, and Plink Bed/Ped files. Notice that the major
 #' allele will always be 1 and the minor allele -1. Thus, when using Plink Bed
 #' files, the dosage information will be converted to the opposite value.
 #' @param geno_path Path to a folder containing the marker data set
@@ -117,14 +117,14 @@
 #' nucleotide (QTN) should be used to generate genetic effects for each
 #' experiment (`vary_QTN = FALSE`) or  if a different set of QTNs should be
 #' used for each replication (`vary_QTN = TRUE`).
-#' @param cor Option to simulate traits with a pre-defined genetic correlation.
+#' @param cor Option to simulate traits with a predefined genetic correlation.
 #' It should be a correlation matrix with a number of rows = `ntraits`.
 #' Default = NULL. Notice that when opting for controlling the correlation, the
 #' genetic effects are transformed using Cholesky decomposition. In this case,
 #' the correlation of genetic effects for different traits will be as provided, 
 #' but due to the transformation, the actual allelic effects of correlated
 #' traits may be different than the input allelic effect.
-#' @param cor_res Option to simulate traits with a pre-defined residual
+#' @param cor_res Option to simulate traits with a predefined residual
 #' correlation. It should be a correlation matrix with number of
 #' rows = `ntraits`. If NULL, an identity matrix (independent residuals)
 #' will be used.
@@ -206,6 +206,7 @@
 #' @examples
 #' # Simulate 50 replications of a single phenotype.
 #'\dontrun{
+#' data("SNP55K_maize282_maf04")
 #' pheno <- 
 #'   create_phenotypes(
 #'     geno_obj = SNP55K_maize282_maf04,

@@ -11,7 +11,6 @@
 #' @param effect = 'Add',
 #' @param impute = 'None',
 #' @return Corresponding numerical value
-#' @source \doi{10.1093/bioinformatics/bts444}
 #' Last update: Apr 20, 2020
 #'--------------------------numericalization---------------------------------
 numericalization <-
