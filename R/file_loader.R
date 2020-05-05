@@ -44,14 +44,18 @@ file_loader <-
     out_name <- NULL
     if (!is.null(geno_obj)) {
       if (sum(colnames(geno_obj)[1:11] == hap_names) > 8 |
-          all(unlist(strsplit(unique(geno_obj[, 12]), "")) %in% nucleotide)) {
+          all(unlist(ifelse(
+            is.character(geno_obj[, 12]),
+            strsplit(unique(geno_obj[, 12]), ""),
+            unique(geno_obj[, 12])
+          )) %in% nucleotide)) {
         input_format <- "hapmap"
-      } else if (any(grepl("[/]|[|]", geno_obj[, 10]))) {
+      } else if (any(grepl("[/]|[|]", tail(geno_obj)[1, - (1:5)]))) {
         stop("Please read VCF files as \'geno_file\' or \'geno_path\'.",
              call. = F)
       } else {
         stop(
-          "File format provied by \'geno_obj\' was not recognized! Please provied one of: numeric, VCF or HapMap.",
+          "File format provied by \'geno_obj\' was not recognized! Please provied one of: numeric or HapMap.",
           call. = F
         )
       }
@@ -111,13 +115,17 @@ file_loader <-
         ),
         silent = TRUE)
         if (sum(hap_names %in% colnames(data_type)) > 8 |
-            all(unlist(strsplit(unique(data_type[, 12]), "")) %in% nucleotide)) {
+            all(unlist(ifelse(
+              is.character(data_type[, 12]),
+              strsplit(unique(data_type[, 12]), ""),
+              unique(data_type[, 12])
+            )) %in% nucleotide)) {
           input_format <- "hapmap"
         } else if (all(colnames(data_type)[1:5] == c("snp", "allele", "chr", "pos", "cm"))) {
           G <-
             try(data.table::fread(
               file = geno_file,
-              head = TRUE,
+              header = TRUE,
               skip = 0,
               nrows = nrows,
               na.strings = na_string,
@@ -130,6 +138,27 @@ file_loader <-
           colnames(GI) <-
             c("SNP", "allele", "Chromosome", "Position")
           GD <- G[, - c(1:5)]
+          dose <- 0
+          counter <- 1
+          while (all(dose != 2) & all(dose != -1)) {
+            dose <- unique(GD[, counter])
+            counter <- counter + 1
+          }
+          if (all(dose != -1) | any(dose == 2)) {
+            GD <- GD - 1
+          }
+          isna <- is.na(GD)
+          if (any(isna)) {
+            if (SNP_impute == "Middle") {
+              GD[isna] <- 0
+            } else
+              if (SNP_impute == "Minor") {
+                GD[isna] <- -1
+              } else
+                if (SNP_impute == "Major") {
+                  GD[isna] <- 1
+                }
+          }
           return(list(
             GT = GT,
             GD = GD,
@@ -162,7 +191,11 @@ file_loader <-
         if (any(grepl("VCF", data_type))) {
           input_format <- "VCF"
         } else if (sum(hap_names %in% data_type) > 8 |
-                   all(unlist(strsplit(unique(data_type[, 12]), "")) %in% nucleotide)) {
+                   all(unlist(ifelse(
+                     is.character(data_type[, 12]),
+                     strsplit(unique(data_type[, 12]), ""),
+                     unique(data_type[, 12])
+                   )) %in% nucleotide)) {
           input_format <- "hapmap"
         } else {
           stop(
@@ -175,7 +208,7 @@ file_loader <-
         G <-
           try(data.table::fread(
             file = geno_file,
-            head = TRUE,
+            header = TRUE,
             skip = 0,
             nrows = nrows,
             na.strings = na_string,
@@ -317,13 +350,17 @@ file_loader <-
         ),
         silent = TRUE)
         if (sum(hap_names %in% colnames(data_type)) > 8 |
-            all(unlist(strsplit(unique(data_type[, 12]), "")) %in% nucleotide)) {
+            all(unlist(ifelse(
+              is.character(data_type[, 12]),
+              strsplit(unique(data_type[, 12]), ""),
+              unique(data_type[, 12])
+            )) %in% nucleotide)) {
           input_format <- "hapmap"
         } else if (all(colnames(data_type)[1:5] == c("snp", "allele", "chr", "pos", "cm"))) {
           G <-
             try(data.table::fread(
               file = files[1],
-              head = TRUE,
+              header = TRUE,
               skip = 0,
               nrows = nrows,
               na.strings = na_string,
@@ -368,7 +405,11 @@ file_loader <-
         if (any(grepl("VCF", data_type))) {
           input_format <- "VCF"
         } else if (sum(hap_names %in% data_type) > 8 |
-                   all(unlist(strsplit(unique(data_type[, 12]), "")) %in% nucleotide)) {
+                   all(unlist(ifelse(
+                     is.character(data_type[, 12]),
+                     strsplit(unique(data_type[, 12]), ""),
+                     unique(data_type[, 12])
+                   )) %in% nucleotide)) {
           input_format <- "hapmap"
         } else {
           stop(
@@ -388,7 +429,7 @@ file_loader <-
           G[[count]] <-
             try(data.table::fread(
               file = i,
-              head = TRUE,
+              header = TRUE,
               skip = 0,
               nrows = nrows,
               na.strings = na_string,
