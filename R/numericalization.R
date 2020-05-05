@@ -113,13 +113,12 @@ numericalization <-
     }
     # alternative genetic models
     if (effect == "Dom") {
-      x1[x1 == 1] <- 1
-      x1[x1 != 1] <- 0
-    }
-    if (effect == "Left")
-      x1[x1 == 0] <- -1
-    if (effect == "Right")
+      x1[x1 != 0] <- -1
+    } else if (effect == "Left") {
+      x1[x1 == 0] <- -1 
+    } else if (effect == "Right") {
       x1[x1 == 0] <- 1
+    }
     result <- matrix(x1, length(x1), 1)
     return(result)
   }
