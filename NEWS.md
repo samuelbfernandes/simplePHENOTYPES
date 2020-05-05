@@ -18,21 +18,17 @@
 
 ## Minor changes
 
-Bug fix when geno\_obj is hapmap.
-Bug fix when model includes dominance and there's no hets.
-Bug fix when reaching the end of the file while looking for SNPs in LD.
-Bug fix with residual correlation and h2=1.
-Bug fix in importing geno_file from other folders.
-Bug fix in numeric input format.
-Bug fix in selecting QTNs when marker data < 6 SNPs.
-Remove files when simulation does not complete.
+Fixed bug that didn't recognize geno\_obj as HapMap.
+Fixed bug when simulating dominance will all SNPs being homozygotes.
+Fixed bug when reaching the end of the file while looking for SNPs in LD.
+Fixed bug in importing geno\_file from other directories.
+Fixed bug in selecting QTNs when marker data < 6 SNPs.
+Included file removal when simulation do not complete.
 Renamed file outputted as numeric.
-Input missing data from.
 Renamed constrain option.
-Renamed gds files.
-Check if QTNs are biallelic.
+Implemented check for biallelic markers.
 Changed QTN file name.
-Check to remove QTNs with vary\_QTN = T.
+Implemented interactive question before Check to remove QTNs with vary\_QTN = T.
 Dont check names in data.frame.
 Check if geno\_file and geno\_path are NULL.
 Incorrect output name.
