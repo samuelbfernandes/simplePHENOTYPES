@@ -9,11 +9,6 @@ Alexander E. Lipka, Feng Tian, Qishan Wang, Jason Peiffer, Meng Li,
 Peter J. Bradbury, Michael A. Gore, Edward S. Buckler, Zhiwu Zhang
 GAPIT: genome association and prediction integrated tool, Bioinformatics,
 Volume 28, Issue 18, 15 September 2012, Pages 2397–2399.}
-\source{
-\doi{10.1093/bioinformatics/bts444}
-Last update: Apr 20, 2020
---------------------------numericalization---------------------------------
-}
 \usage{
 numericalization(x, bit = NULL, effect = "Add", impute = "None")
 }
@@ -28,6 +23,8 @@ numericalization(x, bit = NULL, effect = "Add", impute = "None")
 }
 \value{
 Corresponding numerical value
+Last update: Apr 20, 2020
+--------------------------numericalization---------------------------------
 }
 \description{
 Converts character SNP genotype to numerical (-1, 0, 1) were 1 is the major

@@ -1,11 +1,11 @@
 Package: simplePHENOTYPES
-Date: 2019-11-06
+Date: 2020-05-05
 Type: Package
 Version: 1.2.4
 Title: Simulation of Pleiotropic, Linked and Epistatic Phenotypes
-Description: The number of studies involving correlated traits and the availability of tools to handle this type of data has increased considerably in the last decade. With such a demand, we need tools for testing hypotheses related to single and multi-trait (correlated) phenotypes based on many genetic settings. Thus, we implemented various options for simulation of pleiotropy and Linkage Disequilibrium under additive, dominance and epistatic models. The simulation currently takes a HapMap file as an input and numericalize it with GAPIT.numericalization Lipka et al. (2012) <doi:10.1093/bioinformatics/bts444>. The numericalized dataset is then used by a framework adapted from Rice and Lipka (2019) <doi:10.3835/plantgenome2018.07.0052> for simulating multiple traits.
+Description: The number of studies involving correlated traits and the availability of tools to handle this type of data has increased considerably in the last decade. With such a demand, we need tools for testing hypotheses related to single and multi-trait (correlated) phenotypes based on many genetic settings. Thus, we implemented various options for simulation of pleiotropy and Linkage Disequilibrium under additive, dominance and epistatic models. The simulation currently takes a marker data set as an input and then uses it for simulating multiple traits as described in Fernandes and Lipka (2020) <doi:10.1101/2020.01.11.902874>.
 Authors@R: c(
-    person("Samuel", "Fernandes", email = "samuelf@illinois.edu", role = c("aut", "cre"),
+    person("Samuel", "Fernandes", email = "samuelf@illinois.edu", role = c("aut", "cre"),		
     	comment = c(ORCID = "0000-0001-8269-535X")),
     person("Alexander", "Lipka", email = "alipka@illinois.edu" , role = "aut",
     	comment = c(ORCID = "0000-0003-1571-8528"))
