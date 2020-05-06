@@ -305,6 +305,7 @@ architectures.
 \examples{
 # Simulate 50 replications of a single phenotype.
 \dontrun{
+data("SNP55K_maize282_maf04")
 pheno <- 
   create_phenotypes(
     geno_obj = SNP55K_maize282_maf04,
