@@ -12,12 +12,9 @@ MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.or
 [![Downloads](https://cranlogs.r-pkg.org/badges/grand-total/simplePHENOTYPES?color=blue)](https://cran.r-project.org/package=simplePHENOTYPES)
 [![Downloads](https://cranlogs.r-pkg.org/badges/simplePHENOTYPES?color=blue)](https://cran.r-project.org/package=simplePHENOTYPES)
 
-## <span style="color:green;">Sim</span>ulation of <span style="color:green;">P</span>leiotropic, <span style="color:green;">L</span>inked and <span style="color:green;">E</span>pistatic <span style="color:green;">Phenotypes</span>
-
 <p align="center">
 
-<a href="SP_logo.png">
-<img src="SP_logo.png" height="200px" width="200px"> </a>
+<a href="SP_logo.png"> <img src="SP_logo.png"> </a>
 
 </p>
 
