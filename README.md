@@ -1,7 +1,7 @@
+simplePHENOTYPES
+================
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
-
-# simplePHENOTYPES
 
 <!-- badges: start -->
 
@@ -10,11 +10,35 @@
 [![License:
 MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Downloads](https://cranlogs.r-pkg.org/badges/grand-total/simplePHENOTYPES?color=blue)](https://cran.r-project.org/package=simplePHENOTYPES)
+[![Downloads](https://cranlogs.r-pkg.org/badges/simplePHENOTYPES?color=blue)](https://cran.r-project.org/package=simplePHENOTYPES)
+
+## <span style="color:green;">Sim</span>ulation of <span style="color:green;">P</span>leiotropic, <span style="color:green;">L</span>inked and <span style="color:green;">E</span>pistatic <span style="color:green;">Phenotypes</span>
+
+<p align="center">
+
+<a href="SP_logo.png">
+<img src="SP_logo.png" height="200px" width="200px"> </a>
+
+</p>
 
 <!-- badges: end -->
 
-simplePHENOTYPES aims to make it simple to simulate traits under
-pleiotropy, partial-pleiotropy and linkage disequilibrium.
+### Contents
+
+  - [Installation](#installation)
+  - [Load Sample Data set](#load-sample-data-set)
+  - [Single Trait](#single-trait)
+  - [Multiple Traits: Pleiotropy
+    Architecture](#multiple-traits-pleiotropy-architecture)
+  - [Multiple Traits: Partial Pleiotropy
+    Architecture](#multiple-traits-partial-pleiotropy-architecture)
+  - [Multiple Traits: Spurious Pleiotropy
+    Architecture](#multiple-traits-spurious-pleiotropy-architecture)
+  - [Multiple Traits: Partial Pleiotropy Architecture with other useful
+    parameters](#multiple-traits-partial-pleiotropy-architecture-with-other-useful-parameters)
+  - [Using Multiple Marker Data
+    Files](#using-multiple-marker-data-files)
+  - [Contact](#contact)
 
 This short tutorial presents some of the possible genetic settings one
 could simulate, but it certainly does not explore all the possibilities.
