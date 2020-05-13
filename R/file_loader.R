@@ -118,7 +118,7 @@ file_loader <-
             all(unlist(ifelse(
               is.character(data_type[, 12]),
               strsplit(unique(data_type[, 12]), ""),
-              unique(data_type[, 12])
+              "numeric"
             )) %in% nucleotide)) {
           input_format <- "hapmap"
         } else if (all(colnames(data_type)[1:5] == c("snp", "allele", "chr", "pos", "cm"))) {
@@ -194,7 +194,7 @@ file_loader <-
                    all(unlist(ifelse(
                      is.character(data_type[, 12]),
                      strsplit(unique(data_type[, 12]), ""),
-                     unique(data_type[, 12])
+                     "numeric"
                    )) %in% nucleotide)) {
           input_format <- "hapmap"
         } else {
@@ -353,7 +353,7 @@ file_loader <-
             all(unlist(ifelse(
               is.character(data_type[, 12]),
               strsplit(unique(data_type[, 12]), ""),
-              unique(data_type[, 12])
+              "numeric"
             )) %in% nucleotide)) {
           input_format <- "hapmap"
         } else if (all(colnames(data_type)[1:5] == c("snp", "allele", "chr", "pos", "cm"))) {
@@ -408,7 +408,7 @@ file_loader <-
                    all(unlist(ifelse(
                      is.character(data_type[, 12]),
                      strsplit(unique(data_type[, 12]), ""),
-                     unique(data_type[, 12])
+                     "numeric"
                    )) %in% nucleotide)) {
           input_format <- "hapmap"
         } else {
