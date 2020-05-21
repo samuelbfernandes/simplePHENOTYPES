@@ -276,7 +276,7 @@ qtn_linkage <-
           na = NA
         )
         results <- do.call(rbind, results)
-        ns <- nrow(genotypes) - 5
+        ns <- ncol(genotypes) - 5
         maf <- round(apply(results[, - c(1:6)], 1, function(x) {
           sumx <- ((sum(x) + ns) / ns * 0.5)
           min(sumx, (1 - sumx))
@@ -503,7 +503,7 @@ qtn_linkage <-
             na = NA
           )
           results_add <- do.call(rbind, results_add)
-          ns <- nrow(genotypes) - 5
+          ns <- ncol(genotypes) - 5
           maf <- round(apply(results_add[, -c(1:6)], 1, function(x) {
             sumx <- ((sum(x) + ns) / ns * 0.5)
             min(sumx,  (1 - sumx))
@@ -751,7 +751,7 @@ qtn_linkage <-
             na = NA
           )
           results_dom <- do.call(rbind, results_dom)
-          ns <- nrow(genotypes) - 5
+          ns <- ncol(genotypes) - 5
           maf <- round(apply(results_dom[, -c(1:6)], 1, function(x) {
             sumx <- ((sum(x) + ns) / ns * 0.5)
             min(sumx,  (1 - sumx))
@@ -994,7 +994,7 @@ qtn_linkage <-
           na = NA
         )
         results <- do.call(rbind, results)
-        ns <- nrow(genotypes) - 5
+        ns <- ncol(genotypes) - 5
         maf <- round(apply(results[, -c(1:6)], 1, function(x) {
           sumx <- ((sum(x) + ns) / ns * 0.5)
           min(sumx,  (1 - sumx))
@@ -1167,7 +1167,7 @@ qtn_linkage <-
             na = NA
           )
           results_add <- do.call(rbind, results_add)
-          ns <- nrow(genotypes) - 5
+          ns <- ncol(genotypes) - 5
           maf <- round(apply(results_add[, -c(1:6)], 1, function(x) {
             sumx <- ((sum(x) + ns) / ns * 0.5)
             min(sumx,  (1 - sumx))
@@ -1357,7 +1357,7 @@ qtn_linkage <-
             na = NA
           )
           results_dom <- do.call(rbind, results_dom)
-          ns <- nrow(genotypes) - 5
+          ns <- ncol(genotypes) - 5
           maf <- round(apply(results_dom[, -c(1:6)], 1, function(x) {
             sumx <- ((sum(x) + ns) / ns * 0.5)
             min(sumx,  (1 - sumx))

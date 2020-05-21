@@ -1,3 +1,8 @@
+# simplePHENOTYPES 1.2.5
+## Minor changes
+Fixed bug in the QTN MAF calculation on the LD architecture
+
+
 # simplePHENOTYPES 1.2.4
 ## Major changes
 **Input**
