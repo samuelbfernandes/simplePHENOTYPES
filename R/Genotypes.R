@@ -10,6 +10,7 @@
 #' @param SNP_effect = 'Add',
 #' @param SNP_impute = 'Middle',
 #' @param verbose = verbose
+#' @param chr_prefix = "chrm"
 #' @return A numeric HapMap
 #' @author Samuel Fernandes and Alexander Lipka
 #' Last update: Apr 20, 2020
@@ -25,7 +26,8 @@ genotypes <-
            maf_cutoff = NULL,
            SNP_effect = "Add",
            SNP_impute = "Middle",
-           verbose = TRUE) {
+           verbose = TRUE,
+           chr_prefix = "chr") {
     #---------------------------------------------------------------------------
     hmp <- file_loader(
       geno_obj = geno_obj,
@@ -35,7 +37,8 @@ genotypes <-
       na_string = na_string,
       prefix = prefix,
       verbose = verbose,
-      SNP_impute = SNP_impute
+      SNP_impute = SNP_impute,
+      chr_prefix = chr_prefix
     )
     if (!is.null(maf_cutoff)) {
       hm <- list(GT = hmp$GT,
@@ -83,6 +86,7 @@ genotypes <-
     return(list(
       geno_obj = geno_obj,
       input_format =  hmp$input_format,
-      out_name =  hmp$out_name
+      out_name =  hmp$out_name,
+      temp = hmp$temp
     ))
   }

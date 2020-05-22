@@ -13,7 +13,8 @@ file_loader(
   prefix = NULL,
   SNP_impute = "Middle",
   SNP_effect = "Add",
-  verbose = TRUE
+  verbose = TRUE,
+  chr_prefix = "chr"
 )
 }
 \arguments{
@@ -34,6 +35,8 @@ file_loader(
 \item{SNP_effect}{= "Add",}
 
 \item{verbose}{= TRUE}
+
+\item{chr_prefix}{= "chrm"}
 }
 \value{
 genotype data sampled

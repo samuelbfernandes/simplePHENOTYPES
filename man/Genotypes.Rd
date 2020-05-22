@@ -14,7 +14,8 @@ genotypes(
   maf_cutoff = NULL,
   SNP_effect = "Add",
   SNP_impute = "Middle",
-  verbose = TRUE
+  verbose = TRUE,
+  chr_prefix = "chr"
 )
 }
 \arguments{
@@ -37,6 +38,8 @@ genotypes(
 \item{SNP_impute}{= 'Middle',}
 
 \item{verbose}{= verbose}
+
+\item{chr_prefix}{= "chrm"}
 }
 \value{
 A numeric HapMap

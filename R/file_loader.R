@@ -9,6 +9,7 @@
 #' @keywords internal
 #' @param SNP_effect = "Add",
 #' @param verbose = TRUE
+#' @param chr_prefix = "chrm"
 #' @return genotype data sampled
 #' @author  Samuel Fernandes
 #' Last update: Apr 20, 2020
@@ -22,7 +23,8 @@ file_loader <-
            prefix = NULL,
            SNP_impute = "Middle",
            SNP_effect = "Add",
-           verbose = TRUE) {
+           verbose = TRUE,
+           chr_prefix = "chr") {
     #'--------------------------------------------------------------------------
     hap_names <- c(
       "rs#",
@@ -236,7 +238,8 @@ file_loader <-
           out.fn = temp,
           method = "biallelic.only",
           snpfirstdim = FALSE,
-          verbose = FALSE
+          verbose = FALSE,
+          ignore.chr.prefix = chr_prefix
         )
         genofile <- SNPRelate::snpgdsOpen(temp)
         GD <-
@@ -469,7 +472,8 @@ file_loader <-
           out.fn = temp,
           method = "biallelic.only",
           snpfirstdim = FALSE,
-          verbose = FALSE
+          verbose = FALSE,
+          ignore.chr.prefix = chr_prefix
         )
         genofile <- SNPRelate::snpgdsOpen(temp)
         GD <-
@@ -576,6 +580,7 @@ file_loader <-
       GD = GD,
       GI = GI,
       input_format = input_format,
-      out_name = out_name
+      out_name = out_name,
+      temp = temp
     ))
   }
