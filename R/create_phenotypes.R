@@ -160,6 +160,9 @@
 #' R object (see vignette).
 #' @param out_geno Optionally saves the numericalized genotype either as "numeric" (see
 #' vignettes for an example data), "plink" or "gds". The default is NULL.
+#' @param chr_prefix If input file format is VCF and outgeno = "plink", and a prefix
+#' is used in the chromosomes names, chr_prefix may be used to avoid issues in
+#' converting to bed files (e.g., chr_prefix = "chr" in "chr01").
 #' @param remove_QTN Whether or not a copy of the genotypic file should be saved
 #' without the simulated QTNs. The default is FALSE. If `vary_QTN = TRUE`, the
 #' question "Are you sure that you want to save one genotypic file/rep
@@ -262,6 +265,7 @@ create_phenotypes <-
            output_format = "long",
            to_r = FALSE,
            out_geno = NULL,
+           chr_prefix = "chr",
            remove_QTN = FALSE,
            warning_file_saver = TRUE,
            constraints = list(maf_above = NULL,
@@ -759,9 +763,11 @@ create_phenotypes <-
             prefix = prefix,
             maf_cutoff = maf_cutoff,
             SNP_impute = SNP_impute,
-            verbose = verbose
+            verbose = verbose,
+            chr_prefix = chr_prefix
           )
         input_format <- geno_obj$input_format
+        temp <- geno_obj$temp
         if (is.null(out_name))
           out_name <- geno_obj$out_name
         geno_obj <-  geno_obj$geno_obj
@@ -992,7 +998,6 @@ create_phenotypes <-
       if (architecture == "LD" | out_geno == "plink" |
           out_geno == "gds" |
           (output_format == "gemma" & remove_QTN == TRUE)) {
-        temp <- tempfile(pattern = "", fileext = ".gds")
         if (input_format == "hapmap" |
             input_format == "numeric") {
           dup <- duplicated(geno_obj$snp)
@@ -1007,8 +1012,7 @@ create_phenotypes <-
           if (any(al_na)) {
             stop(
               "Allele information must be provided to create GDS file.",
-              call. = F,
-              immediate. = T
+              call. = F
             )
           }
           SNPRelate::snpgdsCreateGeno(
@@ -1030,14 +1034,22 @@ create_phenotypes <-
           snpset <-
             SNPRelate::snpgdsSelectSNP(genofile,
                                        remove.monosnp = F,
-                                       verbose = F)
-          SNPRelate::snpgdsGDS2BED(
+                                       verbose = F,
+                                       autosome.only = F)
+          try_bed <- try(
+            SNPRelate::snpgdsGDS2BED(
             genofile,
             bed.fn = out_name,
             snp.id = snpset,
             verbose = F,
             snpfirstdim = F
-          )
+          ), silent = TRUE)
+          if (class(try_bed) == "try-error") {
+            stop(
+              "Conversion to Bed files failed, probably because of chromosome names. Try using \'chr_prefix\' to remove the prefix and have names as numbers.",
+              call. = F
+            )
+          }
           gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
         }
       }

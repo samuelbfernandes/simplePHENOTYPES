@@ -1,6 +1,7 @@
-# simplePHENOTYPES 1.2.5
+# simplePHENOTYPES 1.2.6
 ## Minor changes
 Fixed bug in the QTN MAF calculation on the LD architecture
+Fixed bug when importing VCF and exporting BED files (implemented by chr_prefix)
 
 
 # simplePHENOTYPES 1.2.4

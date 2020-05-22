@@ -44,6 +44,7 @@ create_phenotypes(
   output_format = "long",
   to_r = FALSE,
   out_geno = NULL,
+  chr_prefix = "chr",
   remove_QTN = FALSE,
   warning_file_saver = TRUE,
   constraints = list(maf_above = NULL, maf_below = NULL, hets = NULL),
@@ -247,6 +248,10 @@ R object (see vignette).}
 
 \item{out_geno}{Optionally saves the numericalized genotype either as "numeric" (see
 vignettes for an example data), "plink" or "gds". The default is NULL.}
+
+\item{chr_prefix}{If input file format is VCF and outgeno = "plink", and a prefix
+is used in the chromosomes names, chr_prefix may be used to avoid issues in
+converting to bed files (e.g., chr_prefix = "chr" in "chr01").}
 
 \item{remove_QTN}{Whether or not a copy of the genotypic file should be saved
 without the simulated QTNs. The default is FALSE. If `vary_QTN = TRUE`, the
