@@ -1073,7 +1073,8 @@ create_phenotypes <-
           row.names = FALSE,
           sep = "\t",
           quote = FALSE,
-          na = NA
+          na = NA,
+          showProgress = FALSE
         )
       }
       cat("\n\nDIAGNOSTICS:\n\n")
@@ -1215,7 +1216,8 @@ create_phenotypes <-
                   row.names = FALSE,
                   sep = "\t",
                   quote = FALSE,
-                  na = NA
+                  na = NA,
+                  showProgress = FALSE
                 )
                 if (verbose)
                   cat("\nSaving numeric genotype file ",
@@ -1262,7 +1264,8 @@ create_phenotypes <-
               row.names = FALSE,
               sep = "\t",
               quote = FALSE,
-              na = NA
+              na = NA,
+              showProgress = FALSE
             )
             if (verbose)
               cat("\nSaving numeric genotype file")
