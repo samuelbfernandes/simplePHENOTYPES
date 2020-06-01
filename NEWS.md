@@ -1,6 +1,7 @@
 # simplePHENOTYPES 1.2.7
 ## Minor changes
 Fixed bug when more than 9 traits were simulated under the "partially" architecture
+Fixed bug when saving file name with very large name due to a large number of traits
 
 # simplePHENOTYPES 1.2.6
 ## Minor changes
