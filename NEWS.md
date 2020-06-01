@@ -1,3 +1,7 @@
+# simplePHENOTYPES 1.2.7
+## Minor changes
+Fixed bug when more than 9 traits were simulated under the "partially" architecture
+
 # simplePHENOTYPES 1.2.6
 ## Minor changes
 Fixed bug in the QTN MAF calculation on the LD architecture

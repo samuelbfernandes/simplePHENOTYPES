@@ -998,6 +998,7 @@ create_phenotypes <-
       if (architecture == "LD" | out_geno == "plink" |
           out_geno == "gds" |
           (output_format == "gemma" & remove_QTN == TRUE)) {
+        if (is.null(temp)) temp <- tempfile(pattern = "", fileext = ".gds")
         if (input_format == "hapmap" |
             input_format == "numeric") {
           dup <- duplicated(geno_obj$snp)
