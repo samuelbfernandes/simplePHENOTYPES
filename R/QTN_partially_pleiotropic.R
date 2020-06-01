@@ -159,7 +159,7 @@ qtn_partially_pleiotropic <-
           )
       }
       add_object <- mapply(function(x, y) {
-        p <- split(y, y[, 1])
+        p <- split(y, as.numeric(gsub("trait_", "",y[, 1])))
         names(p) <- NULL
         lapply(p, function(z) {
           x <-
@@ -304,7 +304,7 @@ qtn_partially_pleiotropic <-
             )
         }
         add_object <- mapply(function(x, y) {
-          p <- split(y, y[, 1])
+          p <- split(y, as.numeric(gsub("trait_", "",y[, 1])))
           names(p) <- NULL
           lapply(p, function(z) {
             x <- data.frame(
@@ -474,7 +474,7 @@ qtn_partially_pleiotropic <-
             )
         }
         dom_object <- mapply(function(x, y) {
-          p <- split(y, y[, 1])
+          p <- split(y, as.numeric(gsub("trait_", "",y[, 1])))
           names(p) <- NULL
           lapply(p, function(z) {
             x <- data.frame(
@@ -620,7 +620,7 @@ qtn_partially_pleiotropic <-
           )
       }
       epi_object <- mapply(function(x, y) {
-        p <- split(y, y[, 1])
+        p <- split(y, as.numeric(gsub("trait_", "",y[, 1])))
         names(p) <- NULL
         lapply(p, function(z) {
           x <- data.frame(
