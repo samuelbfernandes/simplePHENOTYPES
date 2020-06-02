@@ -334,6 +334,26 @@ create_phenotypes <-
       } else {
         epi <- FALSE
       }
+      if (!add) {
+        add_QTN_num <- NULL
+        add_effect <- NULL
+        pleio_a <- NULL
+        trait_spec_a_QTN_num <- NULL
+        big_add_QTN_effect <- NULL
+        same_add_dom_QTN <- FALSE
+      }
+      if (!dom) {
+        dom_QTN_num <- NULL
+        dom_effect <- NULL
+        pleio_d <- NULL
+        trait_spec_d_QTN_num <- NULL
+      }
+      if (!epi) {
+        epi_QTN_num <- NULL
+        epi_effect <- NULL
+        pleio_e <- NULL
+        trait_spec_e_QTN_num <- NULL
+      }
       if (architecture == "LD") {
         ntraits <- 2
         if (type_of_ld != "indirect" & type_of_ld != "direct") {

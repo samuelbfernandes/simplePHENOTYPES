@@ -1,3 +1,7 @@
+# simplePHENOTYPES 1.2.8
+## Minor changes
+Set all additive parameters to NULL when model is dominance or epistasis.
+
 # simplePHENOTYPES 1.2.7
 ## Minor changes
 Fixed bug when more than 9 traits were simulated under the "partially" architecture
