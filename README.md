@@ -388,6 +388,9 @@ create_phenotypes(
 # Contact
 
 Questions, suggestions, and bug reports are welcome and appreciated.
+Please use GitHub issues for bug reports and the simplePHENOTYPES forum
+for questions and discussions:
+<https://groups.google.com/forum/#!forum/simplephenotypes>
 
 Author: Samuel B Fernandes and Alexander E Lipka
 
