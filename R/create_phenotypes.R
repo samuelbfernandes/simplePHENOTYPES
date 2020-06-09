@@ -1167,17 +1167,33 @@ create_phenotypes <-
             selected_add_QTN <-
               data.table::fread("Additive_and_Dominance_selected_QTNs.txt",
                                 data.table = F)
+            if (architecture == "LD") {
+              selected_add_QTN <- selected_add_QTN[selected_add_QTN$snp_type != "cause_of_LD",]
+            }
           } else {
             selected_add_QTN <-
               data.table::fread("Additive_selected_QTNs.txt", data.table = F)
+            if (architecture == "LD") {
+              selected_add_QTN <- selected_add_QTN[selected_add_QTN$snp_type != "cause_of_LD",]
+            }
           }
         }
-        if (dom & !same_add_dom_QTN)
+        if (dom & !same_add_dom_QTN) {
           selected_dom_QTN <-
             data.table::fread("Dominance_selected_QTNs.txt", data.table = F)
-        if (epi)
+          if (architecture == "LD") {
+            selected_dom_QTN <-
+              selected_dom_QTN[selected_dom_QTN$snp_type != "cause_of_LD", ]
+          }
+        }
+        if (epi) {
           selected_epi_QTN <-
             data.table::fread("Epistatic_selected_QTNs.txt", data.table = F)
+          if (architecture == "LD") {
+            selected_epi_QTN <-
+              selected_epi_QTN[selected_epi_QTN$snp_type != "cause_of_LD", ]
+          }
+        }
         sel_a <- NULL
         sel_d <- NULL
         sel_e <- NULL
