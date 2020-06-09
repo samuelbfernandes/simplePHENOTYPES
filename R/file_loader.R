@@ -334,11 +334,28 @@ file_loader <-
       }
       files <- sort(files)
       nn <- strsplit(files[c(1, length(files))], "")
-      nn_com <- match(FALSE, do.call("==", nn)) - 1
+      l_nn <- lengths(nn)
+      if (length(unique(l_nn)) > 1) {
+        if (l_nn[1] - l_nn[2] > 0) {
+          nn[[2]] <- c(nn[[2]], rep(".", l_nn[1] - l_nn[2])) 
+        } else {
+          nn[[1]] <- c(nn[[1]], rep(".", l_nn[2] - l_nn[1]))
+        }
+      }
+      do_nn <- do.call("==", nn)
+      nn_com <- match(FALSE, ifelse(all(do_nn), FALSE, do_nn)) - 1
       if (nn_com == 0) {
         out_name <- "out_geno"
       } else {
         out_name <- substr(files[1], 1, nn_com)
+        if (length(files) > 2) {
+          nn[[2]] <- unlist(strsplit(out_name, ""))
+          if (length(nn[[2]]) != length(nn[[1]])) {
+              nn[[2]] <- c(nn[[2]], rep(".", length(nn[[1]]) - length(nn[[2]]))) 
+          }
+          nn_com <- match(FALSE, do.call("==", nn)) - 1
+          out_name <- substr(out_name, 1, nn_com)
+        }
       }
       if (grepl(".VCF$", toupper(files[1]))) {
         input_format <- "VCF"

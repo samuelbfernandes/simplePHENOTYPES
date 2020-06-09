@@ -1,6 +1,7 @@
 # simplePHENOTYPES 1.2.9
 ## Minor changes
 Fixed bug that also removed the cause of LD when remove_QTN = TRUE with architecture = "LD"
+Fixed bug when reading multiple files using geno_path
 
 # simplePHENOTYPES 1.2.8
 ## Minor changes
