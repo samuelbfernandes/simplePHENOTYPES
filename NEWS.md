@@ -1,3 +1,7 @@
+# simplePHENOTYPES 1.2.9
+## Minor changes
+Fixed bug that also removed the cause of LD when remove_QTN = TRUE with architecture = "LD"
+
 # simplePHENOTYPES 1.2.8
 ## Minor changes
 Set all additive parameters to NULL when model is dominance or epistasis.
