@@ -879,7 +879,6 @@ qtn_linkage <-
             }
             vector_of_add_QTN <-
               sample(index, add_QTN_num, replace = FALSE)
-            genofile <- SNPRelate::snpgdsOpen(gdsfile)
             x <- 1
             sup_temp <- c()
             ld_between_QTNs_temp <- c()
@@ -1072,7 +1071,6 @@ qtn_linkage <-
               }
               vector_of_add_QTN <-
                 sample(index, add_QTN_num, replace = FALSE)
-              genofile <- SNPRelate::snpgdsOpen(gdsfile)
               x <- 1
               sup_temp <- c()
               ld_between_QTNs_temp <- c()
@@ -1242,7 +1240,6 @@ qtn_linkage <-
               }
               vector_of_dom_QTN <-
                 sample(index, dom_QTN_num, replace = FALSE)
-              genofile <- SNPRelate::snpgdsOpen(gdsfile)
               x <- 1
               sup_temp <- c()
               ld_between_QTNs_temp <- c()
