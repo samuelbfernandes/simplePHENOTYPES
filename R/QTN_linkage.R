@@ -868,10 +868,10 @@ qtn_linkage <-
         results <- vector("list", rep)
         LD_summary <- vector("list", rep)
         seed_num <- c()
+        genofile <- SNPRelate::snpgdsOpen(gdsfile)
         for (z in 1:rep) {
           s <- 1
           border <- TRUE
-          genofile <- SNPRelate::snpgdsOpen(gdsfile)
           while (s <= 10 & border) {
             if (!is.null(seed)) {
               seed_num[z] <- (seed * s) + z
@@ -879,6 +879,7 @@ qtn_linkage <-
             }
             vector_of_add_QTN <-
               sample(index, add_QTN_num, replace = FALSE)
+            genofile <- SNPRelate::snpgdsOpen(gdsfile)
             x <- 1
             sup_temp <- c()
             ld_between_QTNs_temp <- c()
@@ -939,14 +940,13 @@ qtn_linkage <-
               }
               times <- times + 1
             }
-            if (i > n | i2 < 1) {
+            if (i > n | i < 1) {
               border <- TRUE
             } else {
               border <- FALSE
             }
             s <- s + 1
           }
-          SNPRelate::snpgdsClose(genofile)
           sup[[z]] <- sup_temp
           inf[[z]] <- vector_of_add_QTN
           add_gen_info_inf[[z]] <-
@@ -983,6 +983,7 @@ qtn_linkage <-
               "QTN_for_trait_2"
             )
         }
+        SNPRelate::snpgdsClose(genofile)
         LD_summary <- do.call(rbind, LD_summary)
         data.table::fwrite(
           LD_summary,
@@ -1060,10 +1061,10 @@ qtn_linkage <-
           results_add <- vector("list", rep)
           LD_summary_add <- vector("list", rep)
           seed_num <- c()
+          genofile <- SNPRelate::snpgdsOpen(gdsfile)
           for (z in 1:rep) {
             s <- 1
             border <- TRUE
-            genofile <- SNPRelate::snpgdsOpen(gdsfile)
             while (s <= 10 & border) {
               if (!is.null(seed)) {
                 seed_num[z] <- (seed * s) + z
@@ -1111,14 +1112,13 @@ qtn_linkage <-
                 ld_between_QTNs_temp[x] <- ldsup
                 x <- x + 1
               }
-              if (i > n | i2 < 1) {
+              if (i > n | i < 1) {
                 border <- TRUE
               } else {
                 border <- FALSE
               }
               s <- s + 1
             }
-            SNPRelate::snpgdsClose(genofile)
             sup[[z]] <- sup_temp
             inf[[z]] <- vector_of_add_QTN
             add_gen_info_inf[[z]] <-
@@ -1155,6 +1155,7 @@ qtn_linkage <-
                 "QTN_for_trait_2"
               )
           }
+          SNPRelate::snpgdsClose(genofile)
           LD_summary_add <- do.call(rbind, LD_summary_add)
           data.table::fwrite(
             LD_summary_add,
@@ -1229,10 +1230,10 @@ qtn_linkage <-
           results_dom <- vector("list", rep)
           LD_summary_dom <- vector("list", rep)
           seed_num <- c()
+          genofile <- SNPRelate::snpgdsOpen(gdsfile)
           for (z in 1:rep) {
             s <- 1
             border <- TRUE
-            genofile <- SNPRelate::snpgdsOpen(gdsfile)
             while (s <= 10 & border) {
               if (!is.null(seed)) {
                 seed_num[z] <- (seed * s) + z + rep
@@ -1240,6 +1241,7 @@ qtn_linkage <-
               }
               vector_of_dom_QTN <-
                 sample(index, dom_QTN_num, replace = FALSE)
+              genofile <- SNPRelate::snpgdsOpen(gdsfile)
               x <- 1
               sup_temp <- c()
               ld_between_QTNs_temp <- c()
@@ -1300,14 +1302,13 @@ qtn_linkage <-
                 }
                 times <- times + 1
               }
-              if (i > n | i2 < 1) {
+              if (i > n | i < 1) {
                 border <- TRUE
               } else {
                 border <- FALSE
               }
               s <- s + 1
             }
-            SNPRelate::snpgdsClose(genofile)
             sup[[z]] <- sup_temp
             inf[[z]] <- vector_of_dom_QTN
             dom_gen_info_inf[[z]] <-
@@ -1344,6 +1345,7 @@ qtn_linkage <-
                 "QTN_for_trait_2"
               )
           }
+          SNPRelate::snpgdsClose(genofile)
           LD_summary_dom <- do.call(rbind, LD_summary_dom)
           data.table::fwrite(
             LD_summary_dom,
