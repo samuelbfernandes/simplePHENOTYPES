@@ -470,7 +470,7 @@ phenotypes <-
           return(list(sample_cor = sample_cor))
         }
       } else {
-        H2 <- matrix(NA, nrow = rep, ncol = ncol(h2))
+        H2 <- matrix(NA, nrow = rep, ncol = length(h2))
         vg <- var(base_line_trait[[1]]$base_line)
         if (vg == 0) {
           warning("Genetic variance = 0! Please select a different set of QTNs",
@@ -499,7 +499,7 @@ phenotypes <-
               simulated_data[, j + 1] <-
                 rnorm(n, mean = 0, sd = 1)
             }
-            H2 <- matrix(0, nrow = 1, ncol = ncol(h2))
+            H2 <- matrix(0, nrow = 1, ncol = length(h2))
             write.table(
               ss,
               paste0(
@@ -1266,7 +1266,7 @@ phenotypes <-
           return(list(sample_cor = sample_cor))
         }
       } else {
-        H2 <- matrix(NA, nrow = rep, ncol = ncol(h2))
+        H2 <- matrix(NA, nrow = rep, ncol = length(h2))
         for (i in seq_len(nrow(h2))) {
           ss <- c()
           if (any(h2[i, ] == 0)) {
@@ -1291,7 +1291,7 @@ phenotypes <-
                       mean = 0,
                       sd = 1)
             }
-            H2 <- matrix(0, nrow = 1, ncol = ncol(h2))
+            H2 <- matrix(0, nrow = 1, ncol = length(h2))
             write.table(
               ss,
               paste0(
