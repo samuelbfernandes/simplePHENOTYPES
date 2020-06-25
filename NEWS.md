@@ -1,4 +1,8 @@
-# simplePHENOTYPES 1.2.9
+# simplePHENOTYPES 1.2.11
+## Minor changes
+Fix bug in the simulation of single trait using multiple h2 values 
+
+# simplePHENOTYPES 1.2.10
 ## Minor changes
 Fix bug that made the direct LD option stop running
 
