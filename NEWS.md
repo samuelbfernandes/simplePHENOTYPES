@@ -1,3 +1,7 @@
+# simplePHENOTYPES 1.2.12
+## Minor changes
+Fix bug that stopped simplePHENOTYPES when using geno_obj and architecture = "LD"
+
 # simplePHENOTYPES 1.2.11
 ## Minor changes
 Fix bug in the simulation of single trait using multiple h2 values 
