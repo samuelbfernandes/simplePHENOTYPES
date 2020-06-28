@@ -792,6 +792,7 @@ create_phenotypes <-
           out_name <- geno_obj$out_name
         geno_obj <-  geno_obj$geno_obj
       } else {
+        temp <- tempfile(pattern = "", fileext = ".gds")
         if (verbose)
           message("File (geno_obj) loaded from memory.")
         dose <- 0
@@ -1018,7 +1019,11 @@ create_phenotypes <-
       if (architecture == "LD" | out_geno == "plink" |
           out_geno == "gds" |
           (output_format == "gemma" & remove_QTN == TRUE)) {
-        if (is.null(temp)) temp <- tempfile(pattern = "", fileext = ".gds")
+        if (!exists("temp")) {
+          temp <- tempfile(pattern = "", fileext = ".gds")
+          } else if (is.null(temp)) {
+            temp <- tempfile(pattern = "", fileext = ".gds")
+            }
         if (input_format == "hapmap" |
             input_format == "numeric") {
           dup <- duplicated(geno_obj$snp)
