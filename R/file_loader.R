@@ -343,7 +343,7 @@ file_loader <-
         }
       }
       do_nn <- do.call("==", nn)
-      nn_com <- match(FALSE, ifelse(all(do_nn), FALSE, do_nn)) - 1
+      nn_com <- match(FALSE, if(all(do_nn)) { FALSE } else {do_nn}) - 1
       if (nn_com == 0) {
         out_name <- "out_geno"
       } else {

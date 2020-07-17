@@ -1,3 +1,7 @@
+# simplePHENOTYPES 1.2.13
+## Minor changes
+Fixed bug when reading multiple files using geno_path
+
 # simplePHENOTYPES 1.2.12
 ## Minor changes
 Fix bug that stopped simplePHENOTYPES when using geno_obj and architecture = "LD"
