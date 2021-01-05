@@ -32,6 +32,7 @@ create_phenotypes(
   epi_effect = NULL,
   type_of_ld = "indirect",
   ld = 0.5,
+  ld_method = "composite",
   sim_method = "geometric",
   vary_QTN = FALSE,
   cor = NULL,
@@ -184,6 +185,8 @@ be the QTN for trait 2.}
 \item{ld}{Linkage disequilibrium threshold for selecting QTNs when
 `architecture = LD`. The default is `ld = 0.5` (markers should have an LD of
 at maximum 0.5 to be used as QTNs).}
+
+\item{ld_method}{Four methods can be used to calculate linkage disequilibrium values: "composite" for LD composite measure (Default), "r" for R coefficient (by EM algorithm assuming HWE, it could be negative), "dprime" for D', and "corr" for correlation coefficient (see snpgdsLDpair from package SNPRelate).}
 
 \item{sim_method}{Provide the method of simulating allelic effects.
 The options available are "geometric" and "custom". For multiple QTNs,

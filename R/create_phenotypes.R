@@ -107,6 +107,7 @@
 #' @param ld Linkage disequilibrium threshold for selecting QTNs when
 #' `architecture = LD`. The default is `ld = 0.5` (markers should have an LD of
 #' at maximum 0.5 to be used as QTNs).
+#' @param ld_method Four methods can be used to calculate linkage disequilibrium values: "composite" for LD composite measure (Default), "r" for R coefficient (by EM algorithm assuming HWE, it could be negative), "dprime" for D', and "corr" for correlation coefficient (see snpgdsLDpair from package SNPRelate).
 #' @param sim_method Provide the method of simulating allelic effects.
 #' The options available are "geometric" and "custom". For multiple QTNs,
 #' a geometric series may be simulated, i.e., if add_effect = 0.5,
@@ -139,8 +140,7 @@
 #' For example, if one uses `seed = 123`, when simulating the 10th replication
 #' of trait 1, the seed to be used is `round( (123 * 10 * 10) * 1)`. On the
 #' other hand, for simulating the 21st replication of trait 2, the seed to be
-#' used will be `round( (123 * 21 * 21) * 2)`.The actual seed used in every
-#' simulation is exported along with simulated phenotypes.
+#' used will be `round( (123 * 21 * 21) * 2)`. The master seed (unique value required to reproduce  results) is saved at the top of the log file. Unless verbose = FALSE the actual seed used in every  simulation is exported along with simulated phenotypes.
 #' @param home_dir Directory where files should be saved. It may be
 #' home_dir = getwd().
 #' @param output_dir Name to be used to create a folder inside `home_dir` and
@@ -195,7 +195,7 @@
 #' are: Major (NA <- 1), Middle (NA <- 0), and Minor (NA <- -1).
 #' @param quiet Whether or not the log file should pop up into R once the
 #' simulation is done.
-#' @param verbose If FALSE, suppress all prints.
+#' @param verbose If FALSE, suppress all prints and suppress individual seed numbers from bein saved to file. The master seed (unique value required to reproduce results) is saved at the top of the log file.
 #' @return Single or multi-trait phenotypes in one of many formats.
 #' Numericalized marker data set with or without the selected QTNs.
 #' Diagnostic files (log, QTN information, summary of LD between QTNs,
@@ -252,6 +252,7 @@ create_phenotypes <-
            epi_effect = NULL,
            type_of_ld = "indirect",
            ld = 0.5,
+           ld_method = "composite",
            sim_method = "geometric",
            vary_QTN = FALSE,
            cor = NULL,
@@ -365,7 +366,7 @@ create_phenotypes <-
       if (is.null(out_geno)) {
         out_geno <- "none"
       }
-      if (out_geno != "none" | out_geno != "numeric" | out_geno != "plink" | out_geno !=  "gds") {
+      if (out_geno != "none" & out_geno != "numeric" & out_geno != "plink" & out_geno !=  "gds") {
         stop(
           "Parameter \'out_geno\' should be either \'numeric\', \'plink\' or \'gds\'.",
           call. = F
@@ -915,6 +916,7 @@ create_phenotypes <-
         }
       }
       cat("\nSIMULATION PARAMETERS: \n\n")
+      cat("\nMaster Seed:", seed, "\n\n")
       cat("Number of traits:", ntraits)
       if (architecture == "pleiotropic" |
           architecture == "LD" |
@@ -1159,6 +1161,7 @@ create_phenotypes <-
             add_QTN_num = add_QTN_num,
             dom_QTN_num = dom_QTN_num,
             ld = ld,
+            ld_method = ld_method,
             gdsfile = gdsfile,
             constraints = constraints,
             rep = rep,

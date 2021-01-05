@@ -224,6 +224,7 @@ qtn_partially_pleiotropic <-
         add_object <- add_object[, 1:9]
       }
       if (add_QTN) {
+        if (verbose){
         write.table(
           c(seed + 1:rep),
           paste0(
@@ -250,6 +251,7 @@ qtn_partially_pleiotropic <-
           sep = "\t",
           quote = FALSE
         )
+        }
         data.table::fwrite(
           add_object,
           "Additive_and_Dominance_selected_QTNs.txt",
@@ -367,6 +369,7 @@ qtn_partially_pleiotropic <-
           add_object <- add_object[, 1:9]
         }
         if (add_QTN) {
+          if (verbose){
           write.table(
             c(seed + 1:rep),
             paste0(
@@ -393,6 +396,7 @@ qtn_partially_pleiotropic <-
             sep = "\t",
             quote = FALSE
           )
+          }
           data.table::fwrite(
             add_object,
             "Additive_selected_QTNs.txt",
@@ -537,6 +541,7 @@ qtn_partially_pleiotropic <-
           dom_object <- dom_object[, 1:9]
         }
         if (dom_QTN) {
+          if (verbose){
           write.table(
             c(seed + 1:rep),
             paste0(
@@ -563,6 +568,7 @@ qtn_partially_pleiotropic <-
             sep = "\t",
             quote = FALSE
           )
+          }
           data.table::fwrite(
             dom_object,
             "Dominance_selected_QTNs.txt",
@@ -683,6 +689,7 @@ qtn_partially_pleiotropic <-
         epi_object <- epi_object[, 1:9]
       }
       if (epi_QTN) {
+        if (verbose){
         write.table(
           c(seed + seed + 1:rep),
           paste0(
@@ -709,6 +716,7 @@ qtn_partially_pleiotropic <-
           sep = "\t",
           quote = FALSE
         )
+        }
         data.table::fwrite(
           epi_object,
           "Epistatic_selected_QTNs.txt",
