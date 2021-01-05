@@ -8,6 +8,7 @@
 #' @param dom = NULL,
 #' @param add = NULL,
 #' @param ld = NULL,
+#' @param ld_method Four methods can be used to calculate linkage disequilibrium values: "composite" for LD composite measure, "r" for R coefficient (by EM algorithm assuming HWE, it could be negative), "dprime" for D', and "corr" for correlation coefficient.
 #' @param gdsfile NULL
 #' @param constraints = list(maf_above = NULL, maf_below = NULL)
 #' @param rep = 1,
@@ -26,6 +27,7 @@ qtn_linkage <-
            add_QTN_num = NULL,
            dom_QTN_num = NULL,
            ld = NULL,
+           ld_method = "composite",
            gdsfile = NULL,
            constraints = list(maf_above = NULL, maf_below = NULL),
            rep = NULL,
@@ -139,7 +141,7 @@ qtn_linkage <-
                       count = c(-1, 1)
                     )
                   ldsup <-
-                    abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = "composite"))
+                    abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = ld_method))[1]
                   if (is.nan(ldsup)) {
                     SNPRelate::snpgdsClose(genofile)
                     stop("Monomorphic SNPs are not accepted", call. = F)
@@ -167,7 +169,7 @@ qtn_linkage <-
                       count = c(-1, 1)
                     )
                   ldinf <-
-                    abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = "composite"))
+                    abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = ld_method))[1]
                   if (is.nan(ldinf)) {
                     SNPRelate::snpgdsClose(genofile)
                     stop("Monomorphic SNPs are not accepted", call. = F)
@@ -189,7 +191,7 @@ qtn_linkage <-
                     count = c(-1, 1)
                   )
                 ld_between_QTNs_temp[x] <-
-                  SNPRelate::snpgdsLDpair(snp_sup, snp_inf, method = "composite")
+                  SNPRelate::snpgdsLDpair(snp_sup, snp_inf, method = ld_method)[1]
                 x <- x + 1
               }
               if ((!any(genotypes[sup_temp, - (1:5)] == 0) |
@@ -300,6 +302,7 @@ qtn_linkage <-
           results <- results[, 1:8]
         }
         if (add_QTN) {
+          if (verbose){
           write.table(
             seed_num,
             paste0("seed_num_for_", add_QTN_num,
@@ -309,6 +312,7 @@ qtn_linkage <-
             sep = "\t",
             quote = FALSE
           )
+            }
           data.table::fwrite(
             results,
             "Additive_and_Dominance_selected_QTNs.txt",
@@ -382,7 +386,7 @@ qtn_linkage <-
                       count = c(-1, 1)
                     )
                   ldsup <-
-                    abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = "composite"))
+                    abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = ld_method))[1]
                   if (is.nan(ldsup)) {
                     SNPRelate::snpgdsClose(genofile)
                     stop("Monomorphic SNPs are not accepted", call. = F)
@@ -410,7 +414,7 @@ qtn_linkage <-
                       count = c(-1, 1)
                     )
                   ldinf <-
-                    abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = "composite"))
+                    abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = ld_method))[1]
                   if (is.nan(ldinf)) {
                     SNPRelate::snpgdsClose(genofile)
                     stop("Monomorphic SNPs are not accepted", call. = F)
@@ -432,7 +436,7 @@ qtn_linkage <-
                     count = c(-1, 1)
                   )
                 ld_between_QTNs_temp[x] <-
-                  SNPRelate::snpgdsLDpair(snp_sup, snp_inf, method = "composite")
+                  SNPRelate::snpgdsLDpair(snp_sup, snp_inf, method = ld_method)[1]
                 x <- x + 1
               }
               if (i > n | i2 < 1) {
@@ -528,6 +532,7 @@ qtn_linkage <-
             results_add <- results_add[, 1:8]
           }
           if (add_QTN) {
+            if (verbose){
             write.table(
               seed_num,
               paste0("seed_num_for_", add_QTN_num,
@@ -537,6 +542,7 @@ qtn_linkage <-
               sep = "\t",
               quote = FALSE
             )
+            }
             data.table::fwrite(
               results_add,
               "Additive_selected_QTNs.txt",
@@ -614,7 +620,7 @@ qtn_linkage <-
                         count = c(-1, 1)
                       )
                     ldsup <-
-                      abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = "composite"))
+                      abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = ld_method))[1]
                     if (is.nan(ldsup)) {
                       SNPRelate::snpgdsClose(genofile)
                       stop("Monomorphic SNPs are not accepted", call. = F)
@@ -642,7 +648,7 @@ qtn_linkage <-
                         count = c(-1, 1)
                       )
                     ldinf <-
-                      abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = "composite"))
+                      abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = ld_method))[1]
                     if (is.nan(ldinf)) {
                       SNPRelate::snpgdsClose(genofile)
                       stop("Monomorphic SNPs are not accepted", call. = F)
@@ -664,7 +670,7 @@ qtn_linkage <-
                       count = c(-1, 1)
                     )
                   ld_between_QTNs_temp[x] <-
-                    SNPRelate::snpgdsLDpair(snp_sup, snp_inf, method = "composite")
+                    SNPRelate::snpgdsLDpair(snp_sup, snp_inf, method = ld_method)[1]
                   x <- x + 1
                 }
                 if ((!any(genotypes[sup_temp, - (1:5)] == 0) |
@@ -776,6 +782,7 @@ qtn_linkage <-
             results_dom <- results_dom[, 1:8]
           }
           if (add_QTN) {
+            if (verbose){
             write.table(
               seed_num,
               paste0("seed_num_for_", dom_QTN_num,
@@ -785,6 +792,7 @@ qtn_linkage <-
               sep = "\t",
               quote = FALSE
             )
+            }
             data.table::fwrite(
               results_dom,
               "Dominance_selected_QTNs.txt",
@@ -913,7 +921,7 @@ qtn_linkage <-
                       count = c(-1, 1)
                     )
                   ldsup <-
-                    abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = "composite"))
+                    abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = ld_method))[1]
                   if (is.nan(ldsup)) {
                     SNPRelate::snpgdsClose(genofile)
                     stop("Monomorphic SNPs are not accepted", call. = F)
@@ -1019,6 +1027,7 @@ qtn_linkage <-
           results <- results[, 1:8]
         }
         if (add_QTN) {
+          if (verbose){
           write.table(
             seed_num,
             paste0(
@@ -1032,6 +1041,7 @@ qtn_linkage <-
             sep = "\t",
             quote = FALSE
           )
+          }
           data.table::fwrite(
             results,
             "Additive_selected_QTNs.txt",
@@ -1101,7 +1111,7 @@ qtn_linkage <-
                       count = c(-1, 1)
                     )
                   ldsup <-
-                    abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = "composite"))
+                    abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = ld_method))[1]
                   if (is.nan(ldsup)) {
                     SNPRelate::snpgdsClose(genofile)
                     stop("Monomorphic SNPs are not accepted", call. = F)
@@ -1191,6 +1201,7 @@ qtn_linkage <-
             results_add <- results_add[, 1:8]
           }
           if (add_QTN) {
+            if (verbose){
             write.table(
               seed_num,
               paste0("seed_num_for_", add_QTN_num,
@@ -1201,6 +1212,7 @@ qtn_linkage <-
               sep = "\t",
               quote = FALSE
             )
+            }
             data.table::fwrite(
               results_add,
               "Additive_selected_QTNs.txt",
@@ -1275,7 +1287,7 @@ qtn_linkage <-
                         count = c(-1, 1)
                       )
                     ldsup <-
-                      abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = "composite"))
+                      abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = ld_method))[1]
                     if (is.nan(ldsup)) {
                       SNPRelate::snpgdsClose(genofile)
                       stop("Monomorphic SNPs are not accepted", call. = F)
@@ -1381,6 +1393,7 @@ qtn_linkage <-
             results_dom <- results_dom[, 1:8]
           }
           if (add_QTN) {
+            if (verbose){
             write.table(
               seed_num,
               paste0("seed_num_for_", dom_QTN_num,
@@ -1391,6 +1404,7 @@ qtn_linkage <-
               sep = "\t",
               quote = FALSE
             )
+            }
             data.table::fwrite(
               results_dom,
               "Dominance_selected_QTNs.txt",

@@ -1,3 +1,7 @@
+# simplePHENOTYPES 1.2.15
+## Minor changes
+Included 'Master Seed' in the log file to facilitate reproducibility. Now it only saves individal seed numbers when verbose = TRUE (default).
+
 # simplePHENOTYPES 1.2.14
 ## Minor changes
 check if 'out_geno' is either 'numeric', 'plink' or 'gds'

@@ -179,6 +179,7 @@ phenotypes <-
                 na = NA
               )
             }
+            if (verbose){
             write.table(
               ss,
               ifelse(
@@ -207,6 +208,7 @@ phenotypes <-
               sep = "\t",
               quote = FALSE
             )
+            }
           } else {
             residual_cov <-  diag((vg / h2[i, ]) - vg)
             colnames <- c("<Trait>",
@@ -412,6 +414,7 @@ phenotypes <-
                 na = NA
               )
             }
+            if (verbose){
             write.table(
               ss,
               ifelse(
@@ -442,6 +445,7 @@ phenotypes <-
               sep = "\t",
               quote = FALSE
             )
+            }
           }
         }
         colnames(H2) <- paste0("Trait_", 1:ntraits)
@@ -500,7 +504,8 @@ phenotypes <-
                 rnorm(n, mean = 0, sd = 1)
             }
             H2 <- matrix(0, nrow = 1, ncol = length(h2))
-            write.table(
+            if (verbose){
+              write.table(
               ss,
               paste0(
                 "seed_number_for_",
@@ -517,6 +522,7 @@ phenotypes <-
               sep = "\t",
               quote = FALSE
             )
+            }
             if (output_format == "multi-file") {
               invisible(apply(as.matrix(1:rep), 1, function(x) {
                 data.table::fwrite(
@@ -712,6 +718,7 @@ phenotypes <-
                 )
               }
             }
+            if (verbose){
             write.table(
               ss,
               paste0(
@@ -729,6 +736,7 @@ phenotypes <-
               sep = "\t",
               quote = FALSE
             )
+            }
             if (output_format == "multi-file") {
               invisible(apply(as.matrix(1:rep), 1, function(x) {
                 data.table::fwrite(
@@ -965,6 +973,7 @@ phenotypes <-
                 na = NA
               )
             }
+            if (verbose){
             write.table(
               ss,
               ifelse(
@@ -995,6 +1004,7 @@ phenotypes <-
               sep = "\t",
               quote = FALSE
             )
+            }
           } else {
             colnames <- c("<Trait>",
                           paste0("Trait_", 1:ntraits, "_H2_", h2[i, ]),
@@ -1208,6 +1218,7 @@ phenotypes <-
                 na = NA
               )
             }
+            if (verbose){
             write.table(
               ss,
               ifelse(
@@ -1238,6 +1249,7 @@ phenotypes <-
               sep = "\t",
               quote = FALSE
             )
+            }
           }
         }
         colnames(H2) <- paste0("Trait_", 1:ntraits)
@@ -1292,6 +1304,7 @@ phenotypes <-
                       sd = 1)
             }
             H2 <- matrix(0, nrow = 1, ncol = length(h2))
+            if (verbose){
             write.table(
               ss,
               paste0(
@@ -1309,6 +1322,7 @@ phenotypes <-
               sep = "\t",
               quote = FALSE
             )
+            }
             if (output_format == "multi-file") {
               invisible(apply(as.matrix(1:rep), 1, function(x) {
                 data.table::fwrite(
@@ -1516,6 +1530,7 @@ phenotypes <-
                 )
               }
             }
+            if (verbose){
             write.table(
               ss,
               paste0(
@@ -1533,6 +1548,7 @@ phenotypes <-
               sep = "\t",
               quote = FALSE
             )
+            }
             if (output_format == "multi-file") {
               invisible(apply(as.matrix(1:rep), 1, function(x) {
                 data.table::fwrite(

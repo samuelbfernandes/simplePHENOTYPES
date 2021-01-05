@@ -140,7 +140,8 @@ qtn_pleiotropic <-
         s <- "set.seed not assigned"
       }
       if (add_QTN) {
-        write.table(
+        if (verbose){
+          write.table(
           s,
           paste0("seed_num_for_", add_QTN_num,
                  "_Add_and_Dom_QTN.txt"),
@@ -149,6 +150,7 @@ qtn_pleiotropic <-
           sep = "\t",
           quote = FALSE
         )
+      }
         data.table::fwrite(
           add_QTN_geno_info,
           "Additive_and_Dominance_selected_QTNs.txt",
@@ -212,6 +214,7 @@ qtn_pleiotropic <-
           s <- "set.seed not assigned"
         }
         if (add_QTN) {
+          if (verbose){
           write.table(
             s,
             paste0("seed_num_for_", add_QTN_num,
@@ -221,6 +224,7 @@ qtn_pleiotropic <-
             sep = "\t",
             quote = FALSE
           )
+          }
           data.table::fwrite(
             add_QTN_geno_info,
             "Additive_selected_QTNs.txt",
@@ -296,6 +300,7 @@ qtn_pleiotropic <-
           s <- "set.seed not assigned"
         }
         if (dom_QTN) {
+          if (verbose){
           write.table(
             s,
             paste0("seed_num_for_", dom_QTN_num,
@@ -305,6 +310,7 @@ qtn_pleiotropic <-
             sep = "\t",
             quote = FALSE
           )
+          }
           data.table::fwrite(
             dom_QTN_geno_info,
             "Dominance_selected_QTNs.txt",
@@ -369,6 +375,7 @@ qtn_pleiotropic <-
         ss <- "set.seed not assigned"
       }
       if (epi_QTN) {
+        if (verbose){
         write.table(
           ss,
           paste0("seed_num_for_", epi_QTN_num,
@@ -378,6 +385,7 @@ qtn_pleiotropic <-
           sep = "\t",
           quote = FALSE
         )
+        }
         data.table::fwrite(
           epi_QTN_gen_infor,
           "Epistatic_selected_QTNs.txt",
