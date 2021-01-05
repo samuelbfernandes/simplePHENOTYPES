@@ -1,3 +1,8 @@
+# simplePHENOTYPES 1.2.14
+## Minor changes
+check if 'out_geno' is either 'numeric', 'plink' or 'gds'
+replaced the dependence lqmm and uses the function make_pd() to make cor matrix positive definite
+
 # simplePHENOTYPES 1.2.13
 ## Minor changes
 Fixed bug when reading multiple files using geno_path

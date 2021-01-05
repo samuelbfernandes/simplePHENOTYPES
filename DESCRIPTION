@@ -1,9 +1,9 @@
 Package: simplePHENOTYPES
 Date: 2020-05-05
 Type: Package
-Version: 1.2.13.9000
+Version: 1.2.14.9000
 Title: Simulation of Pleiotropic, Linked and Epistatic Phenotypes
-Description: The number of studies involving correlated traits and the availability of tools to handle this type of data has increased considerably in the last decade. With such a demand, we need tools for testing hypotheses related to single and multi-trait (correlated) phenotypes based on many genetic settings. Thus, we implemented various options for simulation of pleiotropy and Linkage Disequilibrium under additive, dominance and epistatic models. The simulation currently takes a marker data set as an input and then uses it for simulating multiple traits as described in Fernandes and Lipka (2020) <doi:10.1101/2020.01.11.902874>.
+Description: The number of studies involving correlated traits and the availability of tools to handle this type of data has increased considerably in the last decade. With such a demand, we need tools for testing hypotheses related to single and multi-trait (correlated) phenotypes based on many genetic settings. Thus, we implemented various options for simulation of pleiotropy and Linkage Disequilibrium under additive, dominance and epistatic models. The simulation currently takes a marker data set as an input and then uses it for simulating multiple traits as described in Fernandes and Lipka (2020) <doi:10.1186/s12859-020-03804-y>.
 Authors@R: c(
     person("Samuel", "Fernandes", email = "samuelf@illinois.edu", role = c("aut", "cre"),		
     	comment = c(ORCID = "0000-0001-8269-535X")),
@@ -19,7 +19,6 @@ Depends:
 Imports: 
     data.table,
     mvtnorm,
-    lqmm,
     stats,
     utils,
     SNPRelate,
@@ -27,7 +26,7 @@ Imports:
 Suggests: 
     knitr,
     rmarkdown
-RoxygenNote: 7.1.0
+RoxygenNote: 7.1.1
 VignetteBuilder: knitr
 URL: https://github.com/samuelbfernandes/simplePHENOTYPES
 BugReports: https://github.com/samuelbfernandes/simplePHENOTYPES/issues

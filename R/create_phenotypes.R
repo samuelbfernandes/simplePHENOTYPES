@@ -6,7 +6,6 @@
 #' @importFrom data.table fwrite fread
 #' @importFrom SNPRelate snpgdsOpen snpgdsLDpair snpgdsClose snpgdsCreateGeno
 #' @importFrom gdsfmt read.gdsn index.gdsn
-#' @importFrom lqmm is.positive.definite make.positive.definite
 #' @param geno_obj Marker data set loaded as an R object.
 #' Currently either HapMap or numericalized files
 #' (code as aa = -1, Aa = 0 and AA = 1, e.g. `data("SNP55K_maize282_maf04")`)
@@ -365,6 +364,12 @@ create_phenotypes <-
       }
       if (is.null(out_geno)) {
         out_geno <- "none"
+      }
+      if (out_geno != "none" | out_geno != "numeric" | out_geno != "plink" | out_geno !=  "gds") {
+        stop(
+          "Parameter \'out_geno\' should be either \'numeric\', \'plink\' or \'gds\'.",
+          call. = F
+        )
       }
       if (vary_QTN) {
         rep_by <-  "QTN"
