@@ -9,6 +9,7 @@ create_phenotypes(
   geno_obj = NULL,
   geno_file = NULL,
   geno_path = NULL,
+  QTN_list = list(add = list(NULL), dom = list(NULL), epi = list(NULL)),
   prefix = NULL,
   rep = NULL,
   ntraits = 1,
@@ -75,6 +76,8 @@ files, the dosage information will be converted to the opposite value.}
 \item{geno_path}{Path to a folder containing the marker data set
 file/files (e.g., separated by chromosome). Formats accepted are:
 Numeric, HapMap, VCF, GDS, and Plink Bed/Ped files}
+
+\item{QTN_list}{A list of specific markers to be used as QTNs. If one wants to specify the QTNs instead of selecting them randomly, at least one of the following elements should be provided: `QTN_list$add`, `QTN_list$dom`, and/or `QTN_list$epi`. The element `$add`, `$dom`, and `$epi` are lists containing a vector of markers for each of the traits to be simulated. For example, to simulate 2 traits controlled by 1 pleiotropic and 2 trait-specific additive QTNs, the user would create a list of marker names `marker_list <- list(add = list(trait1 = c("marker1", "marker2", "marker3"), trait2 = c("marker1", "marker4", "marker5")))` and set `QTN_list = marker_list`. On the other hand, to simulate a single trait controlled by 1 additive and 2 dominance QTNs, the marker list would be `marker_list <- list(add = list("marker1"), dom = list(c("marker2", "marker3")))`. Notice that these vectors with maker names is used in the order they appear. For instance, in the list `marker_list <- list(add = list(trait9 = c("marker1"), trait4 = c("marker5")))`, the vector names itself ("trait9" and "trait4") are ignored and "trait9" will be the vector of markers used to simulate the first trait and "trait4" will be the. vector of markers used to simulate the second trait. Also, when using `QTN_list`, many parameters used for selecting QTNs will be ignored (e.g., `constraints`).}
 
 \item{prefix}{If `geno_path` points to a folder with files other than the
 marker data set, a part of the data set name may be used to select the desired
@@ -225,8 +228,7 @@ a different seed generated based on the `seed` parameter used.
 For example, if one uses `seed = 123`, when simulating the 10th replication
 of trait 1, the seed to be used is `round( (123 * 10 * 10) * 1)`. On the
 other hand, for simulating the 21st replication of trait 2, the seed to be
-used will be `round( (123 * 21 * 21) * 2)`.The actual seed used in every
-simulation is exported along with simulated phenotypes.}
+used will be `round( (123 * 21 * 21) * 2)`. The master seed (unique value required to reproduce  results) is saved at the top of the log file. Unless verbose = FALSE the actual seed used in every  simulation is exported along with simulated phenotypes.}
 
 \item{home_dir}{Directory where files should be saved. It may be
 home_dir = getwd().}
@@ -298,7 +300,7 @@ are: Major (NA <- 1), Middle (NA <- 0), and Minor (NA <- -1).}
 \item{quiet}{Whether or not the log file should pop up into R once the
 simulation is done.}
 
-\item{verbose}{If FALSE, suppress all prints.}
+\item{verbose}{If FALSE, suppress all prints and suppress individual seed numbers from bein saved to file. The master seed (unique value required to reproduce results) is saved at the top of the log file.}
 }
 \value{
 Single or multi-trait phenotypes in one of many formats.
