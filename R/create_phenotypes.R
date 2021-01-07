@@ -20,6 +20,7 @@
 #' @param geno_path Path to a folder containing the marker data set
 #' file/files (e.g., separated by chromosome). Formats accepted are:
 #' Numeric, HapMap, VCF, GDS, and Plink Bed/Ped files
+#' @param QTN_list A list of specific markers to be used as QTNs. If one wants to specify the QTNs instead of selecting them randomly, at least one of the following elements should be provided: `QTN_list$add`, `QTN_list$dom`, and/or `QTN_list$epi`. The element `$add`, `$dom`, and `$epi` are lists containing a vector of markers for each of the traits to be simulated. For example, to simulate 2 traits controlled by 1 pleiotropic and 2 trait-specific additive QTNs, the user would create a list of marker names `marker_list <- list(add = list(trait1 = c("marker1", "marker2", "marker3"), trait2 = c("marker1", "marker4", "marker5")))` and set `QTN_list = marker_list`. On the other hand, to simulate a single trait controlled by 1 additive and 2 dominance QTNs, the marker list would be `marker_list <- list(add = list("marker1"), dom = list(c("marker2", "marker3")))`. Notice that these vectors with maker names is used in the order they appear. For instance, in the list `marker_list <- list(add = list(trait9 = c("marker1"), trait4 = c("marker5")))`, the vector names itself ("trait9" and "trait4") are ignored and "trait9" will be the vector of markers used to simulate the first trait and "trait4" will be the vector of markers used to simulate the second trait. Also, when using `QTN_list`, many parameters used for selecting QTNs will be ignored (e.g., `constraints`).
 #' @param prefix If `geno_path` points to a folder with files other than the
 #' marker data set, a part of the data set name may be used to select the desired
 #' files (e.g., prefix = "Chr" would read files Chr1.hmp.txt, ..., Chr10.hmp.txt
@@ -229,6 +230,7 @@ create_phenotypes <-
   function(geno_obj = NULL,
            geno_file = NULL,
            geno_path = NULL,
+           QTN_list = list(add = list(NULL), dom = list(NULL), epi = list(NULL)),
            prefix = NULL,
            rep = NULL,
            ntraits = 1,
@@ -389,6 +391,77 @@ create_phenotypes <-
         }
       }
       colnames(h2) <- paste0("Trait_", 1:ntraits)
+      if (!is.null(unlist(QTN_list))) {
+        #---------------------
+        # to do
+        #---------------------
+        if (rep_by == "QTN") {
+          stop("The option for using user inputted QTNs is only valid if \'vary_QTN = FALSE\'.",
+               call. = F)
+        }
+        if (same_add_dom_QTN & !is.null(unlist(QTN_list$dom))) {
+          stop("If \'same_add_dom_QTN = TRUE\', \'QTN_list$dom\' should not be provided. Instead, the QTNs in \'QTN_list$add\' will be used.",
+               call. = F)
+        }
+        if (add) {
+          qadd <-  suppressWarnings(do.call(cbind, QTN_list$add))
+          if (ntraits != ncol(qadd) & ncol(qadd) != 1) {
+            stop("The length of \'QTN_list$add\' should either be 1 (if architecture == \'pleiotropic\') or \'ntraits\'",
+                 call. = F)
+          }
+          if (architecture == "pleiotropic") {
+            if (any(apply(qadd, 2, duplicated))) {
+              stop("If architecture == \'pleiotropic\', \'QTN_list$add\' should have length 1 or all of its elements should have the same length. For traits controlled by different QTN numbers, please use architecture == \'partially\'.",
+                   call. = F)
+            } else if (ncol(qadd) >1){
+              qaddu <- apply(qadd, 1, unique)
+              if (is.matrix(qaddu)) {
+                if (any(nrow(qaddu) > 1 )) {
+                  stop("If architecture == \'pleiotropic\' and \'length(QTN_list$add)\' = \'ntraits\' all elements of \'QTN_list$add\' should be identical.",
+                       call. = F)
+                }
+              } else {
+                if (any(lengths(qaddu) > 1 )) {
+                  stop("If architecture == \'pleiotropic\' and \'length(QTN_list$add)\' = \'ntraits\' all elements of \'QTN_list$add\' should be identical.",
+                       call. = F)
+                } else {
+                  QTN_list$add <- list(QTN_list$add[[1]])
+                }
+              }
+            }
+          }
+        }
+        if (dom) {
+          qdom <-  suppressWarnings(do.call(cbind, QTN_list$dom))
+          if (ntraits != ncol(qdom) & ncol(qdom) != 1) {
+            stop("The length of \'QTN_list$dom\' should either be 1 (if architecture == \'pleiotropic\') or \'ntraits\'",
+                 call. = F)
+          }
+          if (architecture == "pleiotropic") {
+            if (any(apply(qdom, 2, duplicated))) {
+              stop("If architecture == \'pleiotropic\', \'QTN_list$dom\' should have length 1 or all of its elements should have the same length. For traits controlled by different QTN numbers, please use architecture == \'partially\'.",
+                   call. = F)
+            } else if (ncol(qdom) >1){
+              qdomu <- apply(qdom, 1, unique)
+              if (is.matrix(qdomu)) {
+                if (any(nrow(qdomu) > 1 )) {
+                  stop("If architecture == \'pleiotropic\' and \'length(QTN_list$dom)\' = \'ntraits\' all elements of \'QTN_list$dom\' should be identical.",
+                       call. = F)
+                }
+              } else {
+                if (any(lengths(qdomu) > 1 )) {
+                  stop("If architecture == \'pleiotropic\' and \'length(QTN_list$dom)\' = \'ntraits\' all elements of \'QTN_list$dom\' should be identical.",
+                       call. = F)
+                } else {
+                  QTN_list$dom <- list(QTN_list$dom[[1]])
+                }
+              }
+            }
+          }
+        }
+        if (epi) {
+        }
+      }
       if (add) {
         if (is.vector(add_effect)) {
           add_effect <- as.list(add_effect)
@@ -419,11 +492,16 @@ create_phenotypes <-
             if (is.null(pleio_d) & is.null(trait_spec_d_QTN_num)) {
               trait_spec_d_QTN_num <- trait_spec_a_QTN_num
               pleio_d <- pleio_a
+            } else if (is.null(pleio_d) | is.null(trait_spec_d_QTN_num)){
+              stop(
+                "If \'same_add_dom_QTN = TRUE\', please either use \'pleio_d\' = \'pleio_a\' and \'trait_spec_d_QTN_num\' = \'trait_spec_a_QTN_num\' or remove \'pleio_d\' and \'trait_spec_d_QTN_num\'",
+                call. = F
+              )
             } else {
               if (pleio_d != pleio_a |
                   any(trait_spec_d_QTN_num != trait_spec_a_QTN_num)) {
                 stop(
-                  "If \'same_add_dom_QTN = TRUE\', please use \'pleio_d\' = \'pleio_a\' and \'trait_spec_d_QTN_num\' = \'trait_spec_a_QTN_num\'!",
+                  "If \'same_add_dom_QTN = TRUE\', please either use \'pleio_d\' = \'pleio_a\' and \'trait_spec_d_QTN_num\' = \'trait_spec_a_QTN_num\' or remove \'pleio_d\' and \'trait_spec_d_QTN_num\'",
                   call. = F
                 )
               }
@@ -1111,68 +1189,82 @@ create_phenotypes <-
         )
       }
       cat("\n\nDIAGNOSTICS:\n\n")
-      if (ntraits == 1 | !any(architecture != "pleiotropic")) {
-        QTN <-
-          qtn_pleiotropic(
-            genotypes = geno_obj,
-            seed = seed,
-            same_add_dom_QTN = same_add_dom_QTN,
-            add_QTN_num = add_QTN_num,
-            dom_QTN_num = dom_QTN_num,
-            epi_QTN_num = epi_QTN_num,
-            constraints = constraints,
-            rep = rep,
-            rep_by = rep_by,
-            export_gt = export_gt,
-            add = add,
-            dom = dom,
-            epi = epi,
-            verbose = verbose
-          )
-      }
-      if (ntraits > 1 & !any(architecture != "partially")) {
-        QTN <-
-          qtn_partially_pleiotropic(
-            genotypes = geno_obj,
-            seed = seed,
-            pleio_a = pleio_a,
-            pleio_d = pleio_d,
-            pleio_e = pleio_e,
-            trait_spec_a_QTN_num = trait_spec_a_QTN_num,
-            trait_spec_d_QTN_num = trait_spec_d_QTN_num,
-            trait_spec_e_QTN_num = trait_spec_e_QTN_num,
-            ntraits = ntraits,
-            constraints = constraints,
-            rep = rep,
-            rep_by = rep_by,
-            export_gt = export_gt,
-            same_add_dom_QTN = same_add_dom_QTN,
-            add = add,
-            dom = dom,
-            epi = epi,
-            verbose = verbose
-          )
-      }
-      if (ntraits > 1 & !any(architecture != "LD")) {
-        QTN <-
-          qtn_linkage(
-            genotypes = geno_obj,
-            seed = seed,
-            add_QTN_num = add_QTN_num,
-            dom_QTN_num = dom_QTN_num,
-            ld = ld,
-            ld_method = ld_method,
-            gdsfile = gdsfile,
-            constraints = constraints,
-            rep = rep,
-            rep_by = rep_by,
-            export_gt = export_gt,
-            same_add_dom_QTN = same_add_dom_QTN,
-            add = add,
-            dom = dom,
-            type_of_ld = type_of_ld,
-            verbose = verbose
-          )
+      if (is.null(unlist(QTN_list))){
+        if (ntraits == 1 | !any(architecture != "pleiotropic")) {
+          QTN <-
+            qtn_pleiotropic(
+              genotypes = geno_obj,
+              seed = seed,
+              same_add_dom_QTN = same_add_dom_QTN,
+              add_QTN_num = add_QTN_num,
+              dom_QTN_num = dom_QTN_num,
+              epi_QTN_num = epi_QTN_num,
+              constraints = constraints,
+              rep = rep,
+              rep_by = rep_by,
+              export_gt = export_gt,
+              add = add,
+              dom = dom,
+              epi = epi,
+              verbose = verbose
+            )
+        }
+        if (ntraits > 1 & !any(architecture != "partially")) {
+          QTN <-
+            qtn_partially_pleiotropic(
+              genotypes = geno_obj,
+              seed = seed,
+              pleio_a = pleio_a,
+              pleio_d = pleio_d,
+              pleio_e = pleio_e,
+              trait_spec_a_QTN_num = trait_spec_a_QTN_num,
+              trait_spec_d_QTN_num = trait_spec_d_QTN_num,
+              trait_spec_e_QTN_num = trait_spec_e_QTN_num,
+              ntraits = ntraits,
+              constraints = constraints,
+              rep = rep,
+              rep_by = rep_by,
+              export_gt = export_gt,
+              same_add_dom_QTN = same_add_dom_QTN,
+              add = add,
+              dom = dom,
+              epi = epi,
+              verbose = verbose
+            )
+        }
+        if (ntraits > 1 & !any(architecture != "LD")) {
+          QTN <-
+            qtn_linkage(
+              genotypes = geno_obj,
+              seed = seed,
+              add_QTN_num = add_QTN_num,
+              dom_QTN_num = dom_QTN_num,
+              ld = ld,
+              ld_method = ld_method,
+              gdsfile = gdsfile,
+              constraints = constraints,
+              rep = rep,
+              rep_by = rep_by,
+              export_gt = export_gt,
+              same_add_dom_QTN = same_add_dom_QTN,
+              add = add,
+              dom = dom,
+              type_of_ld = type_of_ld,
+              verbose = verbose
+            )
+        }
+      } else {
+        QTN <- qtn_from_user(
+          genotypes = geno_obj,
+          QTN_list,
+          export_gt = export_gt,
+          architecture = architecture,
+          same_add_dom_QTN = same_add_dom_QTN,
+          add = add,
+          dom = dom,
+          epi = epi,
+          ntraits = ntraits
+        )
       }
       if (remove_QTN) {
         if (add) {

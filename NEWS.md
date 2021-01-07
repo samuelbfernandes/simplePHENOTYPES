@@ -1,6 +1,8 @@
 # simplePHENOTYPES 1.2.15
+## Major changes
+Included the parameter QTN_list = list(add = NULL, dom = NULL, epi = NULL) to give the user the possibility to select the specific markers to be used as QTNs.
 ## Minor changes
-Included 'Master Seed' in the log file to facilitate reproducibility. Now it only saves individal seed numbers when verbose = TRUE (default).
+Included 'Master Seed' in the log file to facilitate reproducibility. Now it only saves individual seed numbers when verbose = TRUE (default).
 
 # simplePHENOTYPES 1.2.14
 ## Minor changes
