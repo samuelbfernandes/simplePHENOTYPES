@@ -6,6 +6,7 @@
 #' @param add_effect hhh
 #' @param dom_effect = NULL,
 #' @param epi_effect kkkk
+#' @param epi_interaction = NULL,
 #' @param ntraits hhh
 #' @param cor hhh
 #' @param architecture hhh
@@ -28,6 +29,7 @@ base_line_multi_traits <-
            add_effect = NULL,
            dom_effect = NULL,
            epi_effect = NULL,
+           epi_interaction = NULL,
            ntraits = NULL,
            cor = NULL,
            architecture = NULL,
@@ -227,6 +229,7 @@ base_line_multi_traits <-
                 add_effect = add_effect[[i]],
                 dom_effect = dom_effect[[i]],
                 epi_effect = epi_effect[[i]],
+                epi_interaction = epi_interaction,
                 ntraits = ntraits,
                 add = add,
                 dom = dom,
@@ -274,6 +277,7 @@ base_line_multi_traits <-
                 add_effect = add_effect[[i]],
                 dom_effect = dom_effect[[i]],
                 epi_effect = epi_effect[[i]],
+                epi_interaction = epi_interaction,
                 ntraits = ntraits,
                 add = add,
                 dom = dom,
