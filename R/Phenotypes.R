@@ -34,7 +34,8 @@ phenotypes <-
            add  = NULL,
            dom = NULL,
            epi = NULL,
-           cor_res = NULL) {
+           cor_res = NULL,
+           mean = NULL) {
     #---------------------------------------------------------------------------
     h <- 0
     n <- nrow(base_line_trait[[1]]$base_line)
@@ -85,7 +86,7 @@ phenotypes <-
               simulated_cor[[z]] <- sigma
               simulated_data[[z]][, 2:(ntraits + 1)] <-
                 mvtnorm::rmvnorm(n = n,
-                                 mean = rep(0, ntraits),
+                                 mean = mean,
                                  sigma = sigma)
             }
             H2 <- matrix(0, 1, ntraits)
@@ -240,6 +241,8 @@ phenotypes <-
                 mvtnorm::rmvnorm(n = n,
                                  mean = rep(0, ntraits),
                                  sigma = sigma)
+              simulated_data[[z]][, 2:(ntraits + 1)] <- 
+                apply(t(1:ntraits), 2, function(x) {simulated_data[[z]][, 2:(ntraits + 1)][, x] + mean[x]})
               vp[z, ] <-
                 diag(var(simulated_data[[z]][, 2:(ntraits + 1)]))
             }
@@ -501,7 +504,8 @@ phenotypes <-
                 ss <- c(ss, sss)
               }
               simulated_data[, j + 1] <-
-                rnorm(n, mean = 0, sd = 1)
+                rnorm(n, mean = mean, sd = 1)
+              
             }
             H2 <- matrix(0, nrow = 1, ncol = length(h2))
             if (verbose){
@@ -641,7 +645,7 @@ phenotypes <-
                       mean = 0,
                       sd = sqrt(residual.variance))
               simulated_data[, j + 1] <-
-                base_line_trait[[1]]$base_line + normal_random_variables
+                base_line_trait[[1]]$base_line + normal_random_variables + mean
               vp[j] <- var(simulated_data[, j + 1])
               H2[j, i] <- vg / vp[j]
             }
@@ -879,7 +883,7 @@ phenotypes <-
               simulated_cor[[z]] <- sigma
               simulated_data[[z]][, 2:(ntraits + 1)] <-
                 mvtnorm::rmvnorm(n = n,
-                                 mean = rep(0, ntraits),
+                                 mean = mean,
                                  sigma = sigma)
             }
             H2 <- matrix(0, 1, ntraits)
@@ -1033,6 +1037,8 @@ phenotypes <-
                 base_line_trait[[z]]$base_line + mvtnorm::rmvnorm(n = n,
                                                                   mean = rep(0, ntraits),
                                                                   sigma = sigma)
+              simulated_data[[z]][, 2:(ntraits + 1)] <- 
+                apply(t(1:ntraits), 2, function(x) {simulated_data[[z]][, 2:(ntraits + 1)][, x] + mean[x]})
               if (any(vg == 0)) {
                 warning(
                   "Genetic variance = 0 for at least one trait in rep ",
@@ -1300,7 +1306,7 @@ phenotypes <-
               }
               simulated_data[, j + 1] <-
                 rnorm(n,
-                      mean = 0,
+                      mean = mean,
                       sd = 1)
             }
             H2 <- matrix(0, nrow = 1, ncol = length(h2))
@@ -1442,7 +1448,7 @@ phenotypes <-
                       mean = 0,
                       sd = sqrt(residual.variance))
               simulated_data[, j + 1] <-
-                base_line_trait[[j]]$base_line + normal_random_variables
+                base_line_trait[[j]]$base_line + normal_random_variables + mean
               if (vg == 0) {
                 warning(
                   "Genetic variance = 0 in rep ",
