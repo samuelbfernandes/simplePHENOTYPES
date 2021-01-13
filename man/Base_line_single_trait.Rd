@@ -11,6 +11,7 @@ base_line_single_trait(
   add_effect = NULL,
   dom_effect = NULL,
   epi_effect = NULL,
+  epi_interaction = NULL,
   rep = NULL,
   rep_by = "experiment",
   ntraits = 1,
@@ -32,6 +33,8 @@ base_line_single_trait(
 \item{dom_effect}{= NULL,}
 
 \item{epi_effect}{hhh}
+
+\item{epi_interaction}{= NULL,}
 
 \item{rep}{= NULL,}
 

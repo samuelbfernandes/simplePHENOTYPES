@@ -3,6 +3,7 @@
 #' @param add_obj = NULL,
 #' @param dom_obj = NULL,
 #' @param epi_obj = NULL,
+#' @param epi_interaction = NULL,
 #' @param add_effect = NULL,
 #' @param dom_effect = NULL,
 #' @param epi_effect = NULL,
@@ -22,6 +23,7 @@ genetic_effect <-
            add_effect = NULL,
            dom_effect = NULL,
            epi_effect = NULL,
+           epi_interaction = NULL,
            sim_method = NULL,
            add = NULL,
            dom = NULL,
@@ -78,21 +80,24 @@ genetic_effect <-
       dom_genetic_variance <- var(dom_component)
     }
     if (epi) {
-      epistatic_QTN_number <- ncol(epi_obj) / 2
-      for (i in 0:(epistatic_QTN_number - 1)) {
-        new_epi_QTN_effect <-
-          ((epi_obj[, ((2 * i) + 1)] *
-              epi_obj[, ((2 * i) + 2)]) *
-             as.numeric(epi_effect[i + 1]))
-        epi_component <-
-          epi_component + new_epi_QTN_effect
-        var_epi[i + 1] <- var(new_epi_QTN_effect)
+      epistatic_QTN_number <- ncol(epi_obj) / epi_interaction
+      e <- rep(1:epistatic_QTN_number, each = epi_interaction)
+      qtns <- split(colnames(epi_obj), e)
+      for (i in 1:epistatic_QTN_number){
+        new_epi_QTN_effect <- 
+          apply(epi_obj[, qtns[[i]]], 1, prod) * epi_effect[i]
+          epi_component <-
+            epi_component + new_epi_QTN_effect
+          var_epi[i] <- var(new_epi_QTN_effect)
       }
       rownames(epi_component) <- rownames
       colnames(epi_component) <- "epistatic_effect"
       epi_genetic_variance <- var(epi_component)
     }
     base_line_trait <- add_component + dom_component + epi_component
+    base_line_trait <- as.data.frame(scale(base_line_trait, scale = FALSE),
+                                     check.names = FALSE,
+                                     fix.empty.names = FALSE)
     if (all(base_line_trait == 0)) {
       if (dom &
           !add & !epi & all(var_dom == 0) & any(unlist(dom_effect) != 0)) {

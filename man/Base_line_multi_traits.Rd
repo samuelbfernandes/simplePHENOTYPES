@@ -11,6 +11,7 @@ base_line_multi_traits(
   add_effect = NULL,
   dom_effect = NULL,
   epi_effect = NULL,
+  epi_interaction = NULL,
   ntraits = NULL,
   cor = NULL,
   architecture = NULL,
@@ -35,6 +36,8 @@ base_line_multi_traits(
 \item{dom_effect}{= NULL,}
 
 \item{epi_effect}{kkkk}
+
+\item{epi_interaction}{= NULL,}
 
 \item{ntraits}{hhh}
 

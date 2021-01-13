@@ -11,6 +11,7 @@ genetic_effect(
   add_effect = NULL,
   dom_effect = NULL,
   epi_effect = NULL,
+  epi_interaction = NULL,
   sim_method = NULL,
   add = NULL,
   dom = NULL,
@@ -29,6 +30,8 @@ genetic_effect(
 \item{dom_effect}{= NULL,}
 
 \item{epi_effect}{= NULL,}
+
+\item{epi_interaction}{= NULL,}
 
 \item{sim_method}{= NULL,}
 

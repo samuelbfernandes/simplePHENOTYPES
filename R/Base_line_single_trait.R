@@ -6,6 +6,7 @@
 #' @param add_effect hhh
 #' @param dom_effect = NULL,
 #' @param epi_effect hhh
+#' @param epi_interaction = NULL,
 #' @param rep = NULL,
 #' @param rep_by = NULL,
 #' @param ntraits = NULL
@@ -25,6 +26,7 @@ base_line_single_trait <-
            add_effect = NULL,
            dom_effect = NULL,
            epi_effect = NULL,
+           epi_interaction = NULL,
            rep = NULL,
            rep_by = "experiment",
            ntraits = 1,
@@ -44,6 +46,7 @@ base_line_single_trait <-
         add_effect = add_effect,
         dom_effect = dom_effect,
         epi_effect = epi_effect,
+        epi_interaction = epi_interaction,
         sim_method = sim_method,
         add = add,
         dom = dom,
@@ -60,6 +63,7 @@ base_line_single_trait <-
             add_effect = add_effect[[1]],
             dom_effect = dom_effect[[1]],
             epi_effect = epi_effect[[1]],
+            epi_interaction = epi_interaction,
             sim_method = sim_method,
             add = add,
             dom = dom,
