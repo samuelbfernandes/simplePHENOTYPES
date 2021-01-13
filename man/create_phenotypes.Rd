@@ -14,11 +14,14 @@ create_phenotypes(
   rep = NULL,
   ntraits = 1,
   h2 = NULL,
+  mean = NULL,
   model = NULL,
   architecture = "pleiotropic",
   add_QTN_num = NULL,
   dom_QTN_num = NULL,
   epi_QTN_num = NULL,
+  epi_type = NULL,
+  epi_interaction = 2,
   pleio_a = NULL,
   pleio_d = NULL,
   pleio_e = NULL,
@@ -56,7 +59,8 @@ create_phenotypes(
   SNP_effect = "Add",
   SNP_impute = "Middle",
   quiet = FALSE,
-  verbose = TRUE
+  verbose = TRUE,
+  RNGversion = "3.5.1"
 )
 }
 \arguments{
@@ -77,7 +81,7 @@ files, the dosage information will be converted to the opposite value.}
 file/files (e.g., separated by chromosome). Formats accepted are:
 Numeric, HapMap, VCF, GDS, and Plink Bed/Ped files}
 
-\item{QTN_list}{A list of specific markers to be used as QTNs. If one wants to specify the QTNs instead of selecting them randomly, at least one of the following elements should be provided: `QTN_list$add`, `QTN_list$dom`, and/or `QTN_list$epi`. The element `$add`, `$dom`, and `$epi` are lists containing a vector of markers for each of the traits to be simulated. For example, to simulate 2 traits controlled by 1 pleiotropic and 2 trait-specific additive QTNs, the user would create a list of marker names `marker_list <- list(add = list(trait1 = c("marker1", "marker2", "marker3"), trait2 = c("marker1", "marker4", "marker5")))` and set `QTN_list = marker_list`. On the other hand, to simulate a single trait controlled by 1 additive and 2 dominance QTNs, the marker list would be `marker_list <- list(add = list("marker1"), dom = list(c("marker2", "marker3")))`. Notice that these vectors with maker names is used in the order they appear. For instance, in the list `marker_list <- list(add = list(trait9 = c("marker1"), trait4 = c("marker5")))`, the vector names itself ("trait9" and "trait4") are ignored and "trait9" will be the vector of markers used to simulate the first trait and "trait4" will be the. vector of markers used to simulate the second trait. Also, when using `QTN_list`, many parameters used for selecting QTNs will be ignored (e.g., `constraints`).}
+\item{QTN_list}{A list of specific markers to be used as QTNs. If one wants to specify the QTNs instead of selecting them randomly, at least one of the following elements should be provided: `QTN_list$add`, `QTN_list$dom`, and/or `QTN_list$epi`. The element `$add`, `$dom`, and `$epi` are lists containing a vector of markers for each of the traits to be simulated. For example, to simulate 2 traits controlled by 1 pleiotropic and 2 trait-specific additive QTNs, the user would create a list of marker names `marker_list <- list(add = list(trait1 = c("marker1", "marker2", "marker3"), trait2 = c("marker1", "marker4", "marker5")))` and set `QTN_list = marker_list`. On the other hand, to simulate a single trait controlled by 1 additive and 2 dominance QTNs, the marker list would be `marker_list <- list(add = list("marker1"), dom = list(c("marker2", "marker3")))`. Notice that these vectors with maker names is used in the order they appear. For instance, in the list `marker_list <- list(add = list(trait9 = c("marker1"), trait4 = c("marker5")))`, the vector names itself ("trait9" and "trait4") are ignored and "trait9" will be the vector of markers used to simulate the first trait and "trait4" will be the vector of markers used to simulate the second trait. Also, when using `QTN_list`, many parameters used for selecting QTNs will be ignored (e.g., `constraints`).}
 
 \item{prefix}{If `geno_path` points to a folder with files other than the
 marker data set, a part of the data set name may be used to select the desired
@@ -101,6 +105,8 @@ If a single trait is being simulated and h2 is a vector,
 one simulation of each heritability value will be conducted. Either none or
 all traits are expected to have `h2 = 0`.}
 
+\item{mean}{A vector with the mean (intercept) value for each of the simulated traits. If omitted, the simulated traits will be centered to zero.}
+
 \item{model}{The genetic model to be assumed. The options are
 "A" (additive), "D" (dominance), "E" (epistatic)
 as well as any combination of those models such as "AE", "DE" or "ADE".}
@@ -120,6 +126,12 @@ only option for `architecture = "LD"` is `ntraits = 2`.}
 
 \item{epi_QTN_num}{The number of epistatic (Currently, only additive x
 additive epistasis are simulated) QTNs to be simulated.}
+
+\item{epi_type}{to be implemented...}
+
+\item{epi_interaction}{Number of markers that compose an epistatic QTN. 
+If `epi_interaction = 2` (default), a 2-way interaction (marker1 x marker2) will be 
+used to simulate epistatic QTNs. If `epi_interaction = 3` a 3-way interaction (marker1 x marker2 x marker3) will be used instead.}
 
 \item{pleio_a}{The number of pleiotropic additive QTNs to be
 used if `architecture = "partially"`. When `sim_method = custom` (see below),
@@ -301,6 +313,8 @@ are: Major (NA <- 1), Middle (NA <- 0), and Minor (NA <- -1).}
 simulation is done.}
 
 \item{verbose}{If FALSE, suppress all prints and suppress individual seed numbers from bein saved to file. The master seed (unique value required to reproduce results) is saved at the top of the log file.}
+
+\item{RNGversion}{Parameter to set the random number generator. Different R versions may be selected, the default value is `3.5.1`.}
 }
 \value{
 Single or multi-trait phenotypes in one of many formats.

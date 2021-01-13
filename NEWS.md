@@ -1,3 +1,11 @@
+# simplePHENOTYPES 1.2.16
+## Minor changes
+Renamed some output QTN info files to make it standard across different architectures
+## Major changes
+Included the parameter 'mean', so traits can be simulated with the desired mean (intercept) value.
+Included QTN_list option for the LD architecture. 
+set default seed generator as RNGversion('3.5.1') to ensure reproducibility.
+
 # simplePHENOTYPES 1.2.15
 ## Major changes
 Included the parameter QTN_list = list(add = NULL, dom = NULL, epi = NULL) to give the user the possibility to select the specific markers to be used as QTNs.
