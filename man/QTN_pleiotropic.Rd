@@ -11,6 +11,8 @@ qtn_pleiotropic(
   add_QTN_num = NULL,
   dom_QTN_num = NULL,
   epi_QTN_num = NULL,
+  epi_type = NULL,
+  epi_interaction = 2,
   constraints = list(maf_above = NULL, maf_below = NULL),
   rep = NULL,
   rep_by = NULL,
@@ -33,6 +35,10 @@ qtn_pleiotropic(
 \item{dom_QTN_num}{= NULL,}
 
 \item{epi_QTN_num}{= NULL}
+
+\item{epi_type}{= NULL,}
+
+\item{epi_interaction}{= 2,}
 
 \item{constraints}{= list(maf_above = NULL, maf_below = NULL)}
 

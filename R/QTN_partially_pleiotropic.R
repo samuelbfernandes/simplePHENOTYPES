@@ -5,6 +5,8 @@
 #' @param add  null
 #' @param dom = NULL,
 #' @param epi = NULL
+#' @param epi_type = NULL,
+#' @param epi_interaction = 2,
 #' @param same_add_dom_QTN = NULL,
 #' @param pleio_a = NULL,
 #' @param pleio_d = NULL,
@@ -32,6 +34,8 @@ qtn_partially_pleiotropic <-
            trait_spec_a_QTN_num = NULL,
            trait_spec_d_QTN_num = NULL,
            trait_spec_e_QTN_num = NULL,
+           epi_type = NULL,
+           epi_interaction = 2,
            ntraits = NULL,
            constraints = list(maf_above = NULL,
                               maf_below = NULL,
@@ -228,9 +232,9 @@ qtn_partially_pleiotropic <-
         write.table(
           c(seed + 1:rep),
           paste0(
-            "seed_number_for_",
+            "Seed_number_for_",
             paste0(pleio_a, collapse = "_"),
-            "pleiotropic_Add_and_Dom_QTN",
+            "Pleiotropic_Add_and_Dom_QTN",
             ".txt"
           ),
           row.names = FALSE,
@@ -241,9 +245,9 @@ qtn_partially_pleiotropic <-
         write.table(
           ss,
           paste0(
-            "seed_number_for_",
+            "Seed_number_for_",
             paste0(trait_spec_a_QTN_num, collapse = "_"),
-            "trait_specific_Add_and_Dom_QTN",
+            "Trait_specific_Add_and_Dom_QTN",
             ".txt"
           ),
           row.names = FALSE,
@@ -254,7 +258,7 @@ qtn_partially_pleiotropic <-
         }
         data.table::fwrite(
           add_object,
-          "Additive_and_Dominance_selected_QTNs.txt",
+          "Additive_and_Dominance_Selected_QTNs.txt",
           row.names = FALSE,
           sep = "\t",
           quote = FALSE,
@@ -373,9 +377,9 @@ qtn_partially_pleiotropic <-
           write.table(
             c(seed + 1:rep),
             paste0(
-              "seed_number_for_",
+              "Seed_number_for_",
               paste0(pleio_a, collapse = "_"),
-              "pleiotropic_Add_QTN",
+              "Pleiotropic_Add_QTN",
               ".txt"
             ),
             row.names = FALSE,
@@ -386,9 +390,9 @@ qtn_partially_pleiotropic <-
           write.table(
             ss,
             paste0(
-              "seed_number_for_",
+              "Seed_number_for_",
               paste0(trait_spec_a_QTN_num, collapse = "_"),
-              "trait_specific_Add_QTN",
+              "Trait_specific_Add_QTN",
               ".txt"
             ),
             row.names = FALSE,
@@ -399,7 +403,7 @@ qtn_partially_pleiotropic <-
           }
           data.table::fwrite(
             add_object,
-            "Additive_selected_QTNs.txt",
+            "Additive_Selected_QTNs.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -545,9 +549,9 @@ qtn_partially_pleiotropic <-
           write.table(
             c(seed + 1:rep),
             paste0(
-              "seed_number_for_",
+              "Seed_number_for_",
               paste0(pleio_a, collapse = "_"),
-              "pleiotropic_Dom_QTN",
+              "Pleiotropic_Dom_QTN",
               ".txt"
             ),
             row.names = FALSE,
@@ -558,9 +562,9 @@ qtn_partially_pleiotropic <-
           write.table(
             ssd,
             paste0(
-              "seed_number_for_",
+              "Seed_number_for_",
               paste0(trait_spec_a_QTN_num, collapse = "_"),
-              "trait_specific_Dom_QTN",
+              "Trait_specific_Dom_QTN",
               ".txt"
             ),
             row.names = FALSE,
@@ -571,7 +575,7 @@ qtn_partially_pleiotropic <-
           }
           data.table::fwrite(
             dom_object,
-            "Dominance_selected_QTNs.txt",
+            "Dominance_Selected_QTNs.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -588,7 +592,7 @@ qtn_partially_pleiotropic <-
           set.seed(seed + seed + j)
         }
         vec_pleio_epi_QTN <-
-          sample(index, (2 * pleio_e), replace = FALSE)
+          sample(index, (epi_interaction * pleio_e), replace = FALSE)
         epi_pleio_QTN_gen_info[[j]] <-
           as.data.frame(genotypes[vec_pleio_epi_QTN, ],
                         check.names = FALSE,
@@ -604,7 +608,7 @@ qtn_partially_pleiotropic <-
             set.seed(seed + i + seed + j)
           }
           vec_spec_epi_QTN_temp[[i]] <-
-            sample(snps_e, (2 * trait_spec_e_QTN_num[i]), replace = FALSE)
+            sample(snps_e, (epi_interaction * trait_spec_e_QTN_num[i]), replace = FALSE)
           snps_e <- setdiff(snps_e, vec_spec_epi_QTN_temp[[i]])
           epi_spec_QTN_gen_info_temp[[i]] <-
             as.data.frame(genotypes[vec_spec_epi_QTN_temp[[i]], ],
@@ -618,7 +622,7 @@ qtn_partially_pleiotropic <-
             trait = paste0("trait_",
                            rep(
                              1:ntraits,
-                             (2 * trait_spec_e_QTN_num)
+                             (epi_interaction * trait_spec_e_QTN_num)
                            )),
             epi_spec_QTN_gen_info_temp,
             check.names = FALSE,
@@ -656,7 +660,7 @@ qtn_partially_pleiotropic <-
         sumx <- ((sum(x) + ns) / ns * 0.5)
         min(sumx,  (1 - sumx))
       }), 4)
-      names(maf) <- epi_object[, 2]
+      names(maf) <- epi_object[, 3]
       epi_object <- data.frame(
         epi_object[, 1:7],
         maf = maf,
@@ -666,12 +670,8 @@ qtn_partially_pleiotropic <-
       )
       epi_object <-
         data.frame(
-          rep = sort(c(
-            rep(1:rep,
-                each = pleio_e * ntraits * 2),
-            rep(1:rep,
-                each = sum(trait_spec_e_QTN_num) * 2)
-          )),
+          rep = rep(1:rep, each = (sum(trait_spec_e_QTN_num) + (pleio_e * ntraits )) * epi_interaction),
+          QTN = rep(unlist(mapply(seq, 1, (trait_spec_e_QTN_num + pleio_e))), each = epi_interaction),
           epi_object,
           check.names = FALSE,
           fix.empty.names = FALSE
@@ -693,9 +693,9 @@ qtn_partially_pleiotropic <-
         write.table(
           c(seed + seed + 1:rep),
           paste0(
-            "seed_number_for_",
+            "Seed_number_for_",
             paste0(pleio_e, collapse = "_"),
-            "pleiotropic_Epi_QTN",
+            "Pleiotropic_Epi_QTN",
             ".txt"
           ),
           row.names = FALSE,
@@ -706,9 +706,9 @@ qtn_partially_pleiotropic <-
         write.table(
           sse,
           paste0(
-            "seed_number_for_",
+            "Seed_number_for_",
             paste0(trait_spec_e_QTN_num, collapse = "_"),
-            "trait_specific_Epi_QTN",
+            "Trait_specific_Epi_QTN",
             ".txt"
           ),
           row.names = FALSE,
@@ -719,7 +719,7 @@ qtn_partially_pleiotropic <-
         }
         data.table::fwrite(
           epi_object,
-          "Epistatic_selected_QTNs.txt",
+          "Epistatic_Selected_QTNs.txt",
           row.names = FALSE,
           sep = "\t",
           quote = FALSE,
