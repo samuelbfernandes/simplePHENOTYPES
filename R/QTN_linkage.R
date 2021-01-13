@@ -222,21 +222,24 @@ qtn_linkage <-
           inf[[z]] <- inf_temp
           QTN_causing_ld[[z]] <-
             data.frame(
-              snp_type = "cause_of_LD",
+              type = "cause_of_LD",
+              trait = "none",
               genotypes[vector_of_add_QTN, ],
               check.names = FALSE,
               fix.empty.names = FALSE
             )
           add_gen_info_sup[[z]] <-
             data.frame(
-              snp_type = "QTN_upstream",
+              type = "QTN_upstream",
+              trait = "trait_1",
               genotypes[sup[[z]], ],
               check.names = FALSE,
               fix.empty.names = FALSE
             )
           add_gen_info_inf[[z]] <-
             data.frame(
-              snp_type = "QTN_downstream",
+              type = "QTN_downstream",
+              trait = "trait_2",
               genotypes[inf[[z]], ],
               check.names = FALSE,
               fix.empty.names = FALSE
@@ -246,12 +249,12 @@ qtn_linkage <-
                                 add_gen_info_inf[[z]])
           LD_summary[[z]] <- data.frame(
             z,
-            QTN_causing_ld[[z]][, 2],
+            QTN_causing_ld[[z]][, "snp"],
             ld,
             actual_ld_inf,
             actual_ld_sup,
-            add_gen_info_inf[[z]][, 2],
-            add_gen_info_sup[[z]][, 2],
+            add_gen_info_inf[[z]][, "snp"],
+            add_gen_info_sup[[z]][, "snp"],
             ld_between_QTNs_temp,
             check.names = FALSE,
             fix.empty.names = FALSE
@@ -271,7 +274,7 @@ qtn_linkage <-
         LD_summary <- do.call(rbind, LD_summary)
         data.table::fwrite(
           LD_summary,
-          "LD_summary.txt",
+          "LD_Summary.txt",
           row.names = FALSE,
           sep = "\t",
           quote = FALSE,
@@ -279,15 +282,15 @@ qtn_linkage <-
         )
         results <- do.call(rbind, results)
         ns <- ncol(genotypes) - 5
-        maf <- round(apply(results[, - c(1:6)], 1, function(x) {
+        maf <- round(apply(results[, - c(1:7)], 1, function(x) {
           sumx <- ((sum(x) + ns) / ns * 0.5)
           min(sumx, (1 - sumx))
         }), 4)
-        names(maf) <- results[, 2]
+        names(maf) <- results[, "snp"]
         results <- data.frame(
-          results[, 1:6],
+          results[, 1:7],
           maf = maf,
-          results[, - c(1:6)],
+          results[, - c(1:7)],
           check.names = FALSE,
           fix.empty.names = FALSE
         )
@@ -299,13 +302,13 @@ qtn_linkage <-
             fix.empty.names = FALSE
           )
         if (!export_gt) {
-          results <- results[, 1:8]
+          results <- results[, 1:9]
         }
         if (add_QTN) {
           if (verbose){
           write.table(
             seed_num,
-            paste0("seed_num_for_", add_QTN_num,
+            paste0("Seed_num_for_", add_QTN_num,
                    "_Add_and_Dom_QTN.txt"),
             row.names = FALSE,
             col.names = FALSE,
@@ -315,7 +318,7 @@ qtn_linkage <-
             }
           data.table::fwrite(
             results,
-            "Additive_and_Dominance_selected_QTNs.txt",
+            "Additive_and_Dominance_Selected_QTNs.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -327,7 +330,7 @@ qtn_linkage <-
             paste0("Chr_", x$chr, "_", x$pos)
           rownames(y) <-
             paste0("Chr_", y$chr, "_", y$pos)
-          b <- list(t(x[, - (1:6)]), t(y[, - (1:6)]))
+          b <- list(t(x[, - (1:7)]), t(y[, - (1:7)]))
           return(b)
         },
         x = add_gen_info_sup,
@@ -451,21 +454,24 @@ qtn_linkage <-
             inf[[z]] <- inf_temp
             QTN_causing_ld[[z]] <-
               data.frame(
-                snp_type = "cause_of_LD",
+                type = "cause_of_LD",
+                trait = "none",
                 genotypes[vector_of_add_QTN, ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
               )
             add_gen_info_sup[[z]] <-
               data.frame(
-                snp_type = "QTN_upstream",
+                type = "QTN_upstream",
+                trait = "trait_1",
                 genotypes[sup[[z]], ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
               )
             add_gen_info_inf[[z]] <-
               data.frame(
-                snp_type = "QTN_downstream",
+                type = "QTN_downstream",
+                trait = "trait_2",
                 genotypes[inf[[z]], ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
@@ -475,12 +481,12 @@ qtn_linkage <-
                                       add_gen_info_inf[[z]])
             LD_summary_add[[z]] <- data.frame(
               z,
-              QTN_causing_ld[[z]][, 2],
+              QTN_causing_ld[[z]][, "snp"],
               ld,
               actual_ld_inf,
               actual_ld_sup,
-              add_gen_info_inf[[z]][, 2],
-              add_gen_info_sup[[z]][, 2],
+              add_gen_info_inf[[z]][, "snp"],
+              add_gen_info_sup[[z]][, "snp"],
               ld_between_QTNs_temp,
               check.names = FALSE,
               fix.empty.names = FALSE
@@ -500,7 +506,7 @@ qtn_linkage <-
           LD_summary_add <- do.call(rbind, LD_summary_add)
           data.table::fwrite(
             LD_summary_add,
-            "LD_summary_additive.txt",
+            "LD_Summary_Additive.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -508,16 +514,16 @@ qtn_linkage <-
           )
           results_add <- do.call(rbind, results_add)
           ns <- ncol(genotypes) - 5
-          maf <- round(apply(results_add[, -c(1:6)], 1, function(x) {
+          maf <- round(apply(results_add[, -c(1:7)], 1, function(x) {
             sumx <- ((sum(x) + ns) / ns * 0.5)
             min(sumx,  (1 - sumx))
           }), 4)
-          names(maf) <- results_add[, 2]
+          names(maf) <- results_add[, "snp"]
           results_add <-
             data.frame(
-              results_add[, 1:6],
+              results_add[, 1:7],
               maf = maf,
-              results_add[, -c(1:6)],
+              results_add[, -c(1:7)],
               check.names = FALSE,
               fix.empty.names = FALSE
             )
@@ -529,13 +535,13 @@ qtn_linkage <-
               fix.empty.names = FALSE
             )
           if (!export_gt) {
-            results_add <- results_add[, 1:8]
+            results_add <- results_add[, 1:9]
           }
           if (add_QTN) {
             if (verbose){
             write.table(
               seed_num,
-              paste0("seed_num_for_", add_QTN_num,
+              paste0("Seed_num_for_", add_QTN_num,
                      "_Add_QTN.txt"),
               row.names = FALSE,
               col.names = FALSE,
@@ -545,7 +551,7 @@ qtn_linkage <-
             }
             data.table::fwrite(
               results_add,
-              "Additive_selected_QTNs.txt",
+              "Additive_Selected_QTNs.txt",
               row.names = FALSE,
               sep = "\t",
               quote = FALSE,
@@ -557,7 +563,7 @@ qtn_linkage <-
               paste0("Chr_", x$chr, "_", x$pos)
             rownames(y) <-
               paste0("Chr_",  y$chr, "_", y$pos)
-            b <- list(t(x[, - (1:6)]), t(y[, - (1:6)]))
+            b <- list(t(x[, - (1:7)]), t(y[, - (1:7)]))
             return(b)
           },
           x = add_gen_info_sup,
@@ -701,21 +707,24 @@ qtn_linkage <-
             inf[[z]] <- inf_temp
             QTN_causing_ld[[z]] <-
               data.frame(
-                snp_type = "cause_of_LD",
+                type = "cause_of_LD",
+                trait = "none",
                 genotypes[vector_of_dom_QTN, ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
               )
             dom_gen_info_sup[[z]] <-
               data.frame(
-                snp_type = "QTN_upstream",
+                type = "QTN_upstream",
+                trait = "trait_1",
                 genotypes[sup[[z]], ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
               )
             dom_gen_info_inf[[z]] <-
               data.frame(
-                snp_type = "QTN_downstream",
+                type = "QTN_downstream",
+                trait = "trait_2",
                 genotypes[inf[[z]], ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
@@ -725,12 +734,12 @@ qtn_linkage <-
                                       dom_gen_info_inf[[z]])
             LD_summary_dom[[z]] <- data.frame(
               z,
-              QTN_causing_ld[[z]][, 2],
+              QTN_causing_ld[[z]][, "snp"],
               ld,
               actual_ld_inf,
               actual_ld_sup,
-              dom_gen_info_inf[[z]][, 2],
-              dom_gen_info_sup[[z]][, 2],
+              dom_gen_info_inf[[z]][, "snp"],
+              dom_gen_info_sup[[z]][, "snp"],
               ld_between_QTNs_temp,
               check.names = FALSE,
               fix.empty.names = FALSE
@@ -750,7 +759,7 @@ qtn_linkage <-
           LD_summary_dom <- do.call(rbind, LD_summary_dom)
           data.table::fwrite(
             LD_summary_dom,
-            "LD_summary_dominance.txt",
+            "LD_Summary_Dominance.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -758,16 +767,16 @@ qtn_linkage <-
           )
           results_dom <- do.call(rbind, results_dom)
           ns <- ncol(genotypes) - 5
-          maf <- round(apply(results_dom[, -c(1:6)], 1, function(x) {
+          maf <- round(apply(results_dom[, -c(1:7)], 1, function(x) {
             sumx <- ((sum(x) + ns) / ns * 0.5)
             min(sumx,  (1 - sumx))
           }), 4)
-          names(maf) <- results_dom[, 2]
+          names(maf) <- results_dom[, "snp"]
           results_dom <-
             data.frame(
-              results_dom[, 1:6],
+              results_dom[, 1:7],
               maf = maf,
-              results_dom[, - c(1:6)],
+              results_dom[, - c(1:7)],
               check.names = FALSE,
               fix.empty.names = FALSE
             )
@@ -779,13 +788,13 @@ qtn_linkage <-
               fix.empty.names = FALSE
             )
           if (!export_gt) {
-            results_dom <- results_dom[, 1:8]
+            results_dom <- results_dom[, 1:9]
           }
-          if (add_QTN) {
+          if (dom_QTN) {
             if (verbose){
             write.table(
               seed_num,
-              paste0("seed_num_for_", dom_QTN_num,
+              paste0("Seed_num_for_", dom_QTN_num,
                      "_Dom_QTN.txt"),
               row.names = FALSE,
               col.names = FALSE,
@@ -795,7 +804,7 @@ qtn_linkage <-
             }
             data.table::fwrite(
               results_dom,
-              "Dominance_selected_QTNs.txt",
+              "Dominance_Selected_QTNs.txt",
               row.names = FALSE,
               sep = "\t",
               quote = FALSE,
@@ -807,7 +816,7 @@ qtn_linkage <-
               paste0("Chr_", x$chr, "_", x$pos)
             rownames(y) <-
               paste0("Chr_", y$chr, "_", y$pos)
-            b <- list(t(x[, - (1:6)]), t(y[, - (1:6)]))
+            b <- list(t(x[, - (1:7)]), t(y[, - (1:7)]))
             return(b)
           },
           x = dom_gen_info_sup,
@@ -959,14 +968,16 @@ qtn_linkage <-
           inf[[z]] <- vector_of_add_QTN
           add_gen_info_inf[[z]] <-
             data.frame(
-              snp_type = "QTN_for_trait_1",
+              type = "QTN_selected",
+              trait = "trait_1",
               genotypes[vector_of_add_QTN, ],
               check.names = FALSE,
               fix.empty.names = FALSE
             )
           add_gen_info_sup[[z]] <-
             data.frame(
-              snp_type = "QTN_for_trait_2",
+              type = "QTN_in_LD",
+              trait = "trait_2",
               genotypes[sup[[z]], ],
               check.names = FALSE,
               fix.empty.names = FALSE
@@ -977,8 +988,8 @@ qtn_linkage <-
             z,
             ld,
             ld_between_QTNs_temp,
-            add_gen_info_inf[[z]][, 2],
-            add_gen_info_sup[[z]][, 2],
+            add_gen_info_inf[[z]][, "snp"],
+            add_gen_info_sup[[z]][, "snp"],
             check.names = FALSE,
             fix.empty.names = FALSE
           )
@@ -995,7 +1006,7 @@ qtn_linkage <-
         LD_summary <- do.call(rbind, LD_summary)
         data.table::fwrite(
           LD_summary,
-          "LD_summary.txt",
+          "LD_Summary.txt",
           row.names = FALSE,
           sep = "\t",
           quote = FALSE,
@@ -1003,16 +1014,16 @@ qtn_linkage <-
         )
         results <- do.call(rbind, results)
         ns <- ncol(genotypes) - 5
-        maf <- round(apply(results[, -c(1:6)], 1, function(x) {
+        maf <- round(apply(results[, -c(1:7)], 1, function(x) {
           sumx <- ((sum(x) + ns) / ns * 0.5)
           min(sumx,  (1 - sumx))
         }), 4)
-        names(maf) <- results[, 2]
+        names(maf) <- results[, "snp"]
         results <-
           data.frame(
-            results[, 1:6],
+            results[, 1:7],
             maf = maf,
-            results[, - c(1:6)],
+            results[, - c(1:7)],
             check.names = FALSE,
             fix.empty.names = FALSE
           )
@@ -1024,14 +1035,14 @@ qtn_linkage <-
             fix.empty.names = FALSE
           )
         if (!export_gt) {
-          results <- results[, 1:8]
+          results <- results[, 1:9]
         }
         if (add_QTN) {
           if (verbose){
           write.table(
             seed_num,
             paste0(
-              "seed_num_for_",
+              "Seed_num_for_",
               add_QTN_num,
               "_Add_and_Dom_QTN",
               ".txt"
@@ -1044,7 +1055,7 @@ qtn_linkage <-
           }
           data.table::fwrite(
             results,
-            "Additive_selected_QTNs.txt",
+            "Additive_Selected_QTNs.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -1056,7 +1067,7 @@ qtn_linkage <-
             paste0("Chr_", x$chr, "_", x$pos)
           rownames(y) <-
             paste0("Chr_", y$chr, "_", y$pos)
-          b <- list(t(x[, - (1:6)]), t(y[, - (1:6)]))
+          b <- list(t(x[, - (1:7)]), t(y[, - (1:7)]))
           return(b)
         },
         x = add_gen_info_sup,
@@ -1133,14 +1144,16 @@ qtn_linkage <-
             inf[[z]] <- vector_of_add_QTN
             add_gen_info_inf[[z]] <-
               data.frame(
-                snp_type = "QTN_for_trait_1",
+                type = "QTN_selected",
+                trait = "trait_1",
                 genotypes[vector_of_add_QTN, ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
               )
             add_gen_info_sup[[z]] <-
               data.frame(
-                snp_type = "QTN_for_trait_2",
+                type = "QTN_in_LD",
+                trait = "trait_2",
                 genotypes[sup[[z]], ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
@@ -1151,8 +1164,8 @@ qtn_linkage <-
               z,
               ld,
               ld_between_QTNs_temp,
-              add_gen_info_inf[[z]][, 2],
-              add_gen_info_sup[[z]][, 2],
+              add_gen_info_inf[[z]][, "snp"],
+              add_gen_info_sup[[z]][, "snp"],
               check.names = FALSE,
               fix.empty.names = FALSE
             )
@@ -1169,7 +1182,7 @@ qtn_linkage <-
           LD_summary_add <- do.call(rbind, LD_summary_add)
           data.table::fwrite(
             LD_summary_add,
-            "LD_summary_Additive.txt",
+            "LD_Summary_Additive.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -1177,16 +1190,16 @@ qtn_linkage <-
           )
           results_add <- do.call(rbind, results_add)
           ns <- ncol(genotypes) - 5
-          maf <- round(apply(results_add[, -c(1:6)], 1, function(x) {
+          maf <- round(apply(results_add[, -c(1:7)], 1, function(x) {
             sumx <- ((sum(x) + ns) / ns * 0.5)
             min(sumx,  (1 - sumx))
           }), 4)
-          names(maf) <- results_add[, 2]
+          names(maf) <- results_add[, "snp"]
           results_add <-
             data.frame(
-              results_add[, 1:6],
+              results_add[, 1:7],
               maf = maf,
-              results_add[, - c(1:6)],
+              results_add[, - c(1:7)],
               check.names = FALSE,
               fix.empty.names = FALSE
             )
@@ -1198,13 +1211,13 @@ qtn_linkage <-
               fix.empty.names = FALSE
             )
           if (!export_gt) {
-            results_add <- results_add[, 1:8]
+            results_add <- results_add[, 1:9]
           }
           if (add_QTN) {
             if (verbose){
             write.table(
               seed_num,
-              paste0("seed_num_for_", add_QTN_num,
+              paste0("Seed_num_for_", add_QTN_num,
                      "_Add_QTN",
                      ".txt"),
               row.names = FALSE,
@@ -1215,7 +1228,7 @@ qtn_linkage <-
             }
             data.table::fwrite(
               results_add,
-              "Additive_selected_QTNs.txt",
+              "Additive_Selected_QTNs.txt",
               row.names = FALSE,
               sep = "\t",
               quote = FALSE,
@@ -1227,7 +1240,7 @@ qtn_linkage <-
               paste0("Chr_", x$chr, "_", x$pos)
             rownames(y) <-
               paste0("Chr_",  y$chr, "_", y$pos)
-            b <- list(t(x[, - (1:6)]), t(y[, - (1:6)]))
+            b <- list(t(x[, - (1:7)]), t(y[, - (1:7)]))
             return(b)
           },
           x = add_gen_info_sup,
@@ -1325,14 +1338,16 @@ qtn_linkage <-
             inf[[z]] <- vector_of_dom_QTN
             dom_gen_info_inf[[z]] <-
               data.frame(
-                snp_type = "QTN_for_trait_1",
+                type = "QTN_selected",
+                trait = "trait_1",
                 genotypes[vector_of_dom_QTN, ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
               )
             dom_gen_info_sup[[z]] <-
               data.frame(
-                snp_type = "QTN_for_trait_2",
+                type = "QTN_in_LD",
+                trait = "trait_2",
                 genotypes[sup[[z]], ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
@@ -1343,8 +1358,8 @@ qtn_linkage <-
               z,
               ld,
               ld_between_QTNs_temp,
-              dom_gen_info_inf[[z]][, 2],
-              dom_gen_info_sup[[z]][, 2],
+              dom_gen_info_inf[[z]][, "snp"],
+              dom_gen_info_sup[[z]][, "snp"],
               check.names = FALSE,
               fix.empty.names = FALSE
             )
@@ -1361,7 +1376,7 @@ qtn_linkage <-
           LD_summary_dom <- do.call(rbind, LD_summary_dom)
           data.table::fwrite(
             LD_summary_dom,
-            "LD_summary_Dominance.txt",
+            "LD_Summary_Dominance.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -1369,16 +1384,16 @@ qtn_linkage <-
           )
           results_dom <- do.call(rbind, results_dom)
           ns <- ncol(genotypes) - 5
-          maf <- round(apply(results_dom[, -c(1:6)], 1, function(x) {
+          maf <- round(apply(results_dom[, -c(1:7)], 1, function(x) {
             sumx <- ((sum(x) + ns) / ns * 0.5)
             min(sumx,  (1 - sumx))
           }), 4)
-          names(maf) <- results_dom[, 2]
+          names(maf) <- results_dom[, "snp"]
           results_dom <-
             data.frame(
-              results_dom[, 1:6],
+              results_dom[, 1:7],
               maf,
-              results_dom[, - c(1:6)],
+              results_dom[, - c(1:7)],
               check.names = FALSE,
               fix.empty.names = FALSE
             )
@@ -1390,13 +1405,13 @@ qtn_linkage <-
               fix.empty.names = FALSE
             )
           if (!export_gt) {
-            results_dom <- results_dom[, 1:8]
+            results_dom <- results_dom[, 1:9]
           }
-          if (add_QTN) {
+          if (dom_QTN) {
             if (verbose){
             write.table(
               seed_num,
-              paste0("seed_num_for_", dom_QTN_num,
+              paste0("Seed_num_for_", dom_QTN_num,
                      "_Dom_QTN",
                      ".txt"),
               row.names = FALSE,
@@ -1407,7 +1422,7 @@ qtn_linkage <-
             }
             data.table::fwrite(
               results_dom,
-              "Dominance_selected_QTNs.txt",
+              "Dominance_Selected_QTNs.txt",
               row.names = FALSE,
               sep = "\t",
               quote = FALSE,
@@ -1419,7 +1434,7 @@ qtn_linkage <-
               paste0("Chr_", x$chr, "_", x$pos)
             rownames(y) <-
               paste0("Chr_", y$chr, "_", y$pos)
-            b <- list(t(x[, - (1:6)]), t(y[, - (1:6)]))
+            b <- list(t(x[, - (1:7)]), t(y[, - (1:7)]))
             return(b)
           },
           x = dom_gen_info_sup,
