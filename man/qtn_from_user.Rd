@@ -13,7 +13,14 @@ qtn_from_user(
   add = NULL,
   dom = NULL,
   epi = NULL,
-  ntraits = NULL
+  epi_type = NULL,
+  epi_interaction = 2,
+  ntraits = NULL,
+  type_of_ld = NULL,
+  ld_method = "composite",
+  gdsfile = NULL,
+  ld = NULL,
+  verbose = NULL
 )
 }
 \arguments{
@@ -32,6 +39,10 @@ qtn_from_user(
 \item{dom}{= NULL,}
 
 \item{epi}{= NULL,}
+
+\item{epi_type}{= NULL,}
+
+\item{epi_interaction}{= 2,}
 
 \item{ntraits}{= NULL}
 }
