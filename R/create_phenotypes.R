@@ -39,6 +39,7 @@
 #' If a single trait is being simulated and h2 is a vector,
 #' one simulation of each heritability value will be conducted. Either none or
 #' all traits are expected to have `h2 = 0`.
+#' @param mean A vector with the mean (intercept) value for each of the simulated traits. If omitted, the simulated traits will be centered to zero. 
 #' @param model The genetic model to be assumed. The options are
 #' "A" (additive), "D" (dominance), "E" (epistatic)
 #' as well as any combination of those models such as "AE", "DE" or "ADE".
@@ -54,6 +55,10 @@
 #' @param dom_QTN_num The number of dominance QTNs to be simulated.
 #' @param epi_QTN_num The number of epistatic (Currently, only additive x
 #' additive epistasis are simulated) QTNs to be simulated.
+#' @param epi_type to be implemented...
+#' @param epi_interaction Number of markers that compose an epistatic QTN. 
+#' If `epi_interaction = 2` (default), a 2-way interaction (marker1 x marker2) will be 
+#' used to simulate epistatic QTNs. If `epi_interaction = 3` a 3-way interaction (marker1 x marker2 x marker3) will be used instead.
 #' @param pleio_a The number of pleiotropic additive QTNs to be
 #' used if `architecture = "partially"`. When `sim_method = custom` (see below),
 #' the first effects will be assigned to the pleiotropic QTNs and the last to
@@ -197,6 +202,7 @@
 #' @param quiet Whether or not the log file should pop up into R once the
 #' simulation is done.
 #' @param verbose If FALSE, suppress all prints and suppress individual seed numbers from bein saved to file. The master seed (unique value required to reproduce results) is saved at the top of the log file.
+#' @param RNGversion Parameter to set the random number generator. Different R versions may be selected, the default value is `3.5.1`. 
 #' @return Single or multi-trait phenotypes in one of many formats.
 #' Numericalized marker data set with or without the selected QTNs.
 #' Diagnostic files (log, QTN information, summary of LD between QTNs,
@@ -235,11 +241,14 @@ create_phenotypes <-
            rep = NULL,
            ntraits = 1,
            h2 = NULL,
+           mean = NULL,
            model = NULL,
            architecture = "pleiotropic",
            add_QTN_num = NULL,
            dom_QTN_num = NULL,
            epi_QTN_num = NULL,
+           epi_type = NULL,
+           epi_interaction = 2,
            pleio_a = NULL,
            pleio_d = NULL,
            pleio_e = NULL,
@@ -279,13 +288,15 @@ create_phenotypes <-
            SNP_effect = "Add",
            SNP_impute = "Middle",
            quiet = FALSE,
-           verbose = TRUE
+           verbose = TRUE,
+           RNGversion = '3.5.1'
            ) {
     # -------------------------------------------------------------------------
     tryCatch({
       packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
       sunk <- FALSE
       gdsfile <- NULL
+      suppressWarnings(RNGversion(RNGversion))
       if (is.null(home_dir)) {
         stop("Please provide a path to output results (It may be getwd())!.",
              call. = F)
@@ -378,6 +389,14 @@ create_phenotypes <-
         rep_by <-  "QTN"
       } else {
         rep_by <- "experiment"
+      }
+      if (is.null(mean)) {
+        mean <- rep(0, ntraits)
+      } else {
+        if (length(mean) != ntraits) {
+          stop("Parameter \'mean\' should have length = \'ntraits\'.",
+               call. = F)
+        }
       }
       if (is.vector(h2)) {
         if (ntraits > 1) {
@@ -820,6 +839,7 @@ create_phenotypes <-
       setwd(home_dir)
       on.exit({
         setwd(home_dir)
+        RNGversion(getRversion())
         if (sunk) {
           sink()
           close(zz)
@@ -1199,6 +1219,8 @@ create_phenotypes <-
               add_QTN_num = add_QTN_num,
               dom_QTN_num = dom_QTN_num,
               epi_QTN_num = epi_QTN_num,
+              epi_type = epi_type,
+              epi_interaction = epi_interaction,
               constraints = constraints,
               rep = rep,
               rep_by = rep_by,
@@ -1256,28 +1278,33 @@ create_phenotypes <-
       } else {
         QTN <- qtn_from_user(
           genotypes = geno_obj,
-          QTN_list,
+          QTN_list = QTN_list,
           export_gt = export_gt,
           architecture = architecture,
           same_add_dom_QTN = same_add_dom_QTN,
           add = add,
           dom = dom,
           epi = epi,
-          ntraits = ntraits
+          ntraits = ntraits,
+          type_of_ld = type_of_ld,
+          ld_method = ld_method,
+          gdsfile = gdsfile,
+          ld = ld,
+          verbose = verbose
         )
       }
       if (remove_QTN) {
         if (add) {
           if (dom & same_add_dom_QTN) {
             selected_add_QTN <-
-              data.table::fread("Additive_and_Dominance_selected_QTNs.txt",
+              data.table::fread("Additive_and_Dominance_Selected_QTNs.txt",
                                 data.table = F)
             if (architecture == "LD") {
               selected_add_QTN <- selected_add_QTN[selected_add_QTN$snp_type != "cause_of_LD",]
             }
           } else {
             selected_add_QTN <-
-              data.table::fread("Additive_selected_QTNs.txt", data.table = F)
+              data.table::fread("Additive_Selected_QTNs.txt", data.table = F)
             if (architecture == "LD") {
               selected_add_QTN <- selected_add_QTN[selected_add_QTN$snp_type != "cause_of_LD",]
             }
@@ -1285,7 +1312,7 @@ create_phenotypes <-
         }
         if (dom & !same_add_dom_QTN) {
           selected_dom_QTN <-
-            data.table::fread("Dominance_selected_QTNs.txt", data.table = F)
+            data.table::fread("Dominance_Selected_QTNs.txt", data.table = F)
           if (architecture == "LD") {
             selected_dom_QTN <-
               selected_dom_QTN[selected_dom_QTN$snp_type != "cause_of_LD", ]
@@ -1293,7 +1320,7 @@ create_phenotypes <-
         }
         if (epi) {
           selected_epi_QTN <-
-            data.table::fread("Epistatic_selected_QTNs.txt", data.table = F)
+            data.table::fread("Epistatic_Selected_QTNs.txt", data.table = F)
           if (architecture == "LD") {
             selected_epi_QTN <-
               selected_epi_QTN[selected_epi_QTN$snp_type != "cause_of_LD", ]
@@ -1550,6 +1577,7 @@ create_phenotypes <-
             base_line_single_trait(
               add_obj = QTN$add_ef_trait_obj,
               epi_obj = QTN$epi_ef_trait_obj,
+              epi_interaction = epi_interaction,
               add_effect = add_effect,
               epi_effect = epi_effect,
               rep = rep,
@@ -1570,6 +1598,7 @@ create_phenotypes <-
                 add_obj = QTN$add_ef_trait_obj,
                 dom_obj = QTN$add_ef_trait_obj,
                 epi_obj = QTN$epi_ef_trait_obj,
+                epi_interaction = epi_interaction,
                 add_effect = add_effect,
                 dom_effect = dom_effect,
                 epi_effect = epi_effect,
@@ -1590,6 +1619,7 @@ create_phenotypes <-
                 add_obj = QTN$add_ef_trait_obj,
                 dom_obj = QTN$dom_ef_trait_obj,
                 epi_obj = QTN$epi_ef_trait_obj,
+                epi_interaction = epi_interaction,
                 add_effect = add_effect,
                 dom_effect = dom_effect,
                 epi_effect = epi_effect,
@@ -1610,6 +1640,7 @@ create_phenotypes <-
               cor = cor,
               add_obj = QTN$add_ef_trait_obj,
               epi_obj = QTN$epi_ef_trait_obj,
+              epi_interaction = epi_interaction,
               add_effect = add_effect,
               epi_effect = epi_effect,
               rep = rep,
@@ -1641,7 +1672,9 @@ create_phenotypes <-
         add  = add,
         dom = dom,
         epi = epi,
-        cor_res = cor_res
+        cor_res = cor_res,
+        mean = mean,
+        cor = cor
       )
       if (ntraits > 1) {
         if (!is.null(cor)) {

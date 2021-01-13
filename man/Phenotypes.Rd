@@ -21,7 +21,8 @@ phenotypes(
   dom = NULL,
   epi = NULL,
   cor_res = NULL,
-  mean = NULL
+  mean = NULL,
+  cor = NULL
 )
 }
 \arguments{

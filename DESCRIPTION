@@ -1,7 +1,7 @@
 Package: simplePHENOTYPES
 Date: 2021-01-05
 Type: Package
-Version: 1.2.15.9000
+Version: 1.2.16.9000
 Title: Simulation of Pleiotropic, Linked and Epistatic Phenotypes
 Description: The number of studies involving correlated traits and the availability of tools to handle this type of data has increased considerably in the last decade. With such a demand, we need tools for testing hypotheses related to single and multi-trait (correlated) phenotypes based on many genetic settings. Thus, we implemented various options for simulation of pleiotropy and Linkage Disequilibrium under additive, dominance and epistatic models. The simulation currently takes a marker data set as an input and then uses it for simulating multiple traits as described in Fernandes and Lipka (2020) <doi:10.1186/s12859-020-03804-y>.
 Authors@R: c(
