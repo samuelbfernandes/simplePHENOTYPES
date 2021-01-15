@@ -47,8 +47,8 @@
 #' if `ntraits` > 1. Possible options are: 'pleiotropic' (default), for traits being
 #' controlled by the same QTNs; 'partially', for traits being controlled by
 #' pleiotropic and trait-specific QTNs; 'LD', for traits being exclusively
-#' controlled by different QTNs in "direct" or "indirect" (See `type_of_ld` and
-#' `ld` below) linkage disequilibrium. Currently the
+#' controlled by different QTNs in "direct" or "indirect" (See `type_of_ld`, `ld_min`, and
+#' `ld_max` below) linkage disequilibrium. Currently the
 #' only option for `architecture = "LD"` is `ntraits = 2`.
 #' @param add_QTN_num The number of additive quantitative trait nucleotides
 #' (QTNs) to be simulated.
@@ -110,9 +110,12 @@
 #' in the "direct" method, one marker is selected to be a QTN for trait 1, and
 #' a second marker is selected based on its LD with the first selected marker to
 #' be the QTN for trait 2.
-#' @param ld Linkage disequilibrium threshold for selecting QTNs when
-#' `architecture = LD`. The default is `ld = 0.5` (markers should have an LD of
-#' at maximum 0.5 to be used as QTNs).
+#' @param ld_min Minimum Linkage disequilibrium for selecting QTNs when
+#' `architecture = LD`. The default is `ld_min = 0.2` (markers should have a minimum LD of
+#' 0.2 to be used as QTNs).
+#' @param ld_max Maximum Linkage disequilibrium for selecting QTNs when
+#' `architecture = LD`. The default is `ld_max = 0.8` (markers should have an LD of
+#' at maximum 0.8 to be used as QTNs).
 #' @param ld_method Four methods can be used to calculate linkage disequilibrium values: "composite" for LD composite measure (Default), "r" for R coefficient (by EM algorithm assuming HWE, it could be negative), "dprime" for D', and "corr" for correlation coefficient (see snpgdsLDpair from package SNPRelate).
 #' @param sim_method Provide the method of simulating allelic effects.
 #' The options available are "geometric" and "custom". For multiple QTNs,
@@ -262,7 +265,8 @@ create_phenotypes <-
            degree_of_dom = 1,
            epi_effect = NULL,
            type_of_ld = "indirect",
-           ld = 0.5,
+           ld_min = 0.2,
+           ld_max = 0.8,
            ld_method = "composite",
            sim_method = "geometric",
            vary_QTN = FALSE,
@@ -1261,7 +1265,8 @@ create_phenotypes <-
               seed = seed,
               add_QTN_num = add_QTN_num,
               dom_QTN_num = dom_QTN_num,
-              ld = ld,
+              ld_min = ld_min,
+              ld_max =  ld_max,
               ld_method = ld_method,
               gdsfile = gdsfile,
               constraints = constraints,
