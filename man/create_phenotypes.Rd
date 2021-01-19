@@ -269,9 +269,9 @@ addition to saving it to file. If TRUE, results need to be assigned to an
 R object (see vignette).}
 
 \item{out_geno}{Optionally saves the numericalized genotype either as "numeric" (see
-vignettes for an example data), "plink" or "gds". The default is NULL.}
+vignettes for an example data), "BED" or "gds". The default is NULL.}
 
-\item{chr_prefix}{If input file format is VCF and outgeno = "plink", and a prefix
+\item{chr_prefix}{If input file format is VCF and out_geno = "BED", and a prefix
 is used in the chromosomes names, chr_prefix may be used to avoid issues in
 converting to bed files (e.g., chr_prefix = "chr" in "chr01").}
 
