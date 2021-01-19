@@ -217,7 +217,6 @@
 #' Last update: Apr 29, 2020
 #' @examples
 #' # Simulate 50 replications of a single phenotype.
-#'\dontrun{
 #' data("SNP55K_maize282_maf04")
 #' pheno <- 
 #'   create_phenotypes(
@@ -229,9 +228,9 @@
 #'     h2 = 0.7,
 #'     model = "A",
 #'     to_r = TRUE,
-#'     home_dir = tempdir()
+#'     home_dir = tempdir(),
+#'     quiet = T
 #'     )
-#'}
 #' # For more examples, please run the following:
 #' # vignette("simplePHENOTYPES")
 #'
@@ -296,8 +295,13 @@ create_phenotypes <-
            RNGversion = '3.5.1'
            ) {
     # -------------------------------------------------------------------------
-    tryCatch({
+    if (verbose) {
+      packageStartupMessage("    Thank you for using the simplePHENOTYPES package!\nFor the reference publication, run: citation(\"simplePHENOTYPES\")")
+    } else {
       packageStartupMessage("Thank you for using the simplePHENOTYPES package!")
+      }
+    home_exit <- getwd()
+    tryCatch({
       sunk <- FALSE
       gdsfile <- NULL
       suppressWarnings(RNGversion(RNGversion))
@@ -842,7 +846,7 @@ create_phenotypes <-
       }
       setwd(home_dir)
       on.exit({
-        setwd(home_dir)
+        setwd(home_exit)
         RNGversion(getRversion())
         if (sunk) {
           sink()
@@ -902,7 +906,7 @@ create_phenotypes <-
       } else {
         temp <- tempfile(pattern = "", fileext = ".gds")
         if (verbose)
-          message("File (geno_obj) loaded from memory.")
+          message(paste0("File ", "\'",deparse(substitute(geno_obj)),"\'", " loaded from memory."))
         dose <- 0
         counter <- 6
         while (all(dose != 2) & all(dose != -1)) {
@@ -1294,7 +1298,8 @@ create_phenotypes <-
           type_of_ld = type_of_ld,
           ld_method = ld_method,
           gdsfile = gdsfile,
-          ld = ld,
+          ld_min = ld_min,
+          ld_max = ld_max,
           verbose = verbose
         )
       }

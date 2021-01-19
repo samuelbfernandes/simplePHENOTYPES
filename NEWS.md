@@ -1,10 +1,16 @@
-# simplePHENOTYPES 1.2.16
+# simplePHENOTYPES 1.3
+## Major changes
+Implemented the parameter "ld_max" (replacing "ld") and "ld_min".
 ## Minor changes
-Renamed some output QTN info files to make it standard across different architectures
+Fixed bug that changed the working directory after the simulation
+
+# simplePHENOTYPES 1.2.16
 ## Major changes
 Included the parameter 'mean', so traits can be simulated with the desired mean (intercept) value.
 Included QTN_list option for the LD architecture. 
 set default seed generator as RNGversion('3.5.1') to ensure reproducibility.
+## Minor changes
+Renamed some output QTN info files to make it standard across different architectures
 
 # simplePHENOTYPES 1.2.15
 ## Major changes

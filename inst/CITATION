@@ -1,0 +1,21 @@
+citHeader("To cite simplePHENOTYPES in publications use:")
+
+citEntry(
+    entry = "Article",
+    title = "simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic phenotypes",
+    author = c(
+        person("Samuel B", "Fernandes"),
+        person("Alexander E", "de los Campos")
+    ),
+    journal = "BMC Bioinformatics",
+    year = "2020",
+    volume = "21",
+    number = "1",
+    pages = "491",
+    doi = "10.1186/s12859-020-03804-y",
+    textVersion = paste(
+        "Fernandes, S.B., and Lipka, A.E., 2020 ",
+        "simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic phenotypes.",
+        "BMC Bioinformatics 21(1):491. https://doi.org/10.1186/s12859-020-03804-y"
+    )
+)
