@@ -167,7 +167,7 @@
 #' addition to saving it to file. If TRUE, results need to be assigned to an
 #' R object (see vignette).
 #' @param out_geno Optionally saves the numericalized genotype either as "numeric" (see
-#' vignettes for an example data), "plink" or "gds". The default is NULL.
+#' vignettes for an example data), "BED" or "gds". The default is NULL.
 #' @param chr_prefix If input file format is VCF and outgeno = "plink", and a prefix
 #' is used in the chromosomes names, chr_prefix may be used to avoid issues in
 #' converting to bed files (e.g., chr_prefix = "chr" in "chr01").
@@ -387,7 +387,7 @@ create_phenotypes <-
       if (is.null(out_geno)) {
         out_geno <- "none"
       }
-      if (out_geno != "none" & out_geno != "numeric" & out_geno != "plink" & out_geno !=  "gds") {
+      if (out_geno != "none" & out_geno != "numeric" & out_geno != "BED" & out_geno !=  "gds") {
         stop(
           "Parameter \'out_geno\' should be either \'numeric\', \'plink\' or \'gds\'.",
           call. = F
@@ -419,9 +419,6 @@ create_phenotypes <-
       }
       colnames(h2) <- paste0("Trait_", 1:ntraits)
       if (!is.null(unlist(QTN_list))) {
-        #---------------------
-        # to do
-        #---------------------
         if (rep_by == "QTN") {
           stop("The option for using user inputted QTNs is only valid if \'vary_QTN = FALSE\'.",
                call. = F)
@@ -1080,7 +1077,7 @@ create_phenotypes <-
           )
         }
       }
-      cat("\nReplicating set of QTNs every simulation (vary_QTN): ",
+      cat("\nReplicating set of QTNs at each simulation (vary_QTN): ",
           vary_QTN)
       if (ntraits == 1) {
         if (add) {
@@ -1129,7 +1126,7 @@ create_phenotypes <-
         }
         cat(paste0("\nOutput file format: \'", output_format, "\'\n"))
       }
-      if (architecture == "LD" | out_geno == "plink" |
+      if (architecture == "LD" | out_geno == "BED" |
           out_geno == "gds" |
           (output_format == "gemma" & remove_QTN == TRUE)) {
         if (!exists("temp")) {
@@ -1167,7 +1164,7 @@ create_phenotypes <-
           gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
         }
         gdsfile <- temp
-        if ((out_geno == "plink" |
+        if ((out_geno == "BED" |
              output_format == "gemma") & remove_QTN == FALSE) {
           genofile <- SNPRelate::snpgdsOpen(gdsfile)
           snpset <-
@@ -1310,13 +1307,13 @@ create_phenotypes <-
               data.table::fread("Additive_and_Dominance_Selected_QTNs.txt",
                                 data.table = F)
             if (architecture == "LD") {
-              selected_add_QTN <- selected_add_QTN[selected_add_QTN$snp_type != "cause_of_LD",]
+              selected_add_QTN <- selected_add_QTN[selected_add_QTN$type != "cause_of_LD",]
             }
           } else {
             selected_add_QTN <-
               data.table::fread("Additive_Selected_QTNs.txt", data.table = F)
             if (architecture == "LD") {
-              selected_add_QTN <- selected_add_QTN[selected_add_QTN$snp_type != "cause_of_LD",]
+              selected_add_QTN <- selected_add_QTN[selected_add_QTN$type != "cause_of_LD",]
             }
           }
         }
@@ -1325,7 +1322,7 @@ create_phenotypes <-
             data.table::fread("Dominance_Selected_QTNs.txt", data.table = F)
           if (architecture == "LD") {
             selected_dom_QTN <-
-              selected_dom_QTN[selected_dom_QTN$snp_type != "cause_of_LD", ]
+              selected_dom_QTN[selected_dom_QTN$type != "cause_of_LD", ]
           }
         }
         if (epi) {
@@ -1333,7 +1330,7 @@ create_phenotypes <-
             data.table::fread("Epistatic_Selected_QTNs.txt", data.table = F)
           if (architecture == "LD") {
             selected_epi_QTN <-
-              selected_epi_QTN[selected_epi_QTN$snp_type != "cause_of_LD", ]
+              selected_epi_QTN[selected_epi_QTN$type != "cause_of_LD", ]
           }
         }
         sel_a <- NULL
@@ -1366,7 +1363,7 @@ create_phenotypes <-
             if (epi)
               sel_e <-
                 split(selected_epi_QTN$snp, selected_epi_QTN$rep)
-            if (out_geno == "plink" |
+            if (out_geno == "BED" |
                 out_geno == "gds" | output_format == "gemma") {
               genofile <- SNPRelate::snpgdsOpen(gdsfile)
               snpset <-
@@ -1416,7 +1413,7 @@ create_phenotypes <-
           if (epi)
             sel_e <-
               split(selected_epi_QTN$snp, selected_epi_QTN$rep)
-          if (out_geno == "plink" |
+          if (out_geno == "BED" |
               out_geno == "gds" | output_format == "gemma") {
             genofile <- SNPRelate::snpgdsOpen(gdsfile)
             snpset <-
