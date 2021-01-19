@@ -35,7 +35,8 @@ create_phenotypes(
   degree_of_dom = 1,
   epi_effect = NULL,
   type_of_ld = "indirect",
-  ld = 0.5,
+  ld_min = 0.2,
+  ld_max = 0.8,
   ld_method = "composite",
   sim_method = "geometric",
   vary_QTN = FALSE,
@@ -115,8 +116,8 @@ as well as any combination of those models such as "AE", "DE" or "ADE".}
 if `ntraits` > 1. Possible options are: 'pleiotropic' (default), for traits being
 controlled by the same QTNs; 'partially', for traits being controlled by
 pleiotropic and trait-specific QTNs; 'LD', for traits being exclusively
-controlled by different QTNs in "direct" or "indirect" (See `type_of_ld` and
-`ld` below) linkage disequilibrium. Currently the
+controlled by different QTNs in "direct" or "indirect" (See `type_of_ld`, `ld_min`, and
+`ld_max` below) linkage disequilibrium. Currently the
 only option for `architecture = "LD"` is `ntraits = 2`.}
 
 \item{add_QTN_num}{The number of additive quantitative trait nucleotides
@@ -197,9 +198,13 @@ in the "direct" method, one marker is selected to be a QTN for trait 1, and
 a second marker is selected based on its LD with the first selected marker to
 be the QTN for trait 2.}
 
-\item{ld}{Linkage disequilibrium threshold for selecting QTNs when
-`architecture = LD`. The default is `ld = 0.5` (markers should have an LD of
-at maximum 0.5 to be used as QTNs).}
+\item{ld_min}{Minimum Linkage disequilibrium for selecting QTNs when
+`architecture = LD`. The default is `ld_min = 0.2` (markers should have a minimum LD of
+0.2 to be used as QTNs).}
+
+\item{ld_max}{Maximum Linkage disequilibrium for selecting QTNs when
+`architecture = LD`. The default is `ld_max = 0.8` (markers should have an LD of
+at maximum 0.8 to be used as QTNs).}
 
 \item{ld_method}{Four methods can be used to calculate linkage disequilibrium values: "composite" for LD composite measure (Default), "r" for R coefficient (by EM algorithm assuming HWE, it could be negative), "dprime" for D', and "corr" for correlation coefficient (see snpgdsLDpair from package SNPRelate).}
 
@@ -328,7 +333,6 @@ architectures.
 }
 \examples{
 # Simulate 50 replications of a single phenotype.
-\dontrun{
 data("SNP55K_maize282_maf04")
 pheno <- 
   create_phenotypes(
@@ -340,9 +344,9 @@ pheno <-
     h2 = 0.7,
     model = "A",
     to_r = TRUE,
-    home_dir = tempdir()
+    home_dir = tempdir(),
+    quiet = T
     )
-}
 # For more examples, please run the following:
 # vignette("simplePHENOTYPES")
 

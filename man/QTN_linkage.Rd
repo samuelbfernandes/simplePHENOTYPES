@@ -9,7 +9,8 @@ qtn_linkage(
   seed = NULL,
   add_QTN_num = NULL,
   dom_QTN_num = NULL,
-  ld = NULL,
+  ld_max = NULL,
+  ld_min = NULL,
   ld_method = "composite",
   gdsfile = NULL,
   constraints = list(maf_above = NULL, maf_below = NULL),
@@ -32,7 +33,9 @@ qtn_linkage(
 
 \item{dom_QTN_num}{= NULL,}
 
-\item{ld}{= NULL,}
+\item{ld_max}{= NULL,}
+
+\item{ld_min}{= NULL,}
 
 \item{ld_method}{Four methods can be used to calculate linkage disequilibrium values: "composite" for LD composite measure, "r" for R coefficient (by EM algorithm assuming HWE, it could be negative), "dprime" for D', and "corr" for correlation coefficient.}
 

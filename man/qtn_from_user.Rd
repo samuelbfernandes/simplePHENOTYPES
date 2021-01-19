@@ -19,7 +19,8 @@ qtn_from_user(
   type_of_ld = NULL,
   ld_method = "composite",
   gdsfile = NULL,
-  ld = NULL,
+  ld_min = NULL,
+  ld_max = NULL,
   verbose = NULL
 )
 }
@@ -45,6 +46,16 @@ qtn_from_user(
 \item{epi_interaction}{= 2,}
 
 \item{ntraits}{= NULL}
+
+\item{type_of_ld}{= NULL,}
+
+\item{ld_method}{= "composite",}
+
+\item{gdsfile}{= NULL,}
+
+\item{ld_min}{= NULL,}
+
+\item{ld_max}{= NULL,}
 }
 \value{
 Genotype of selected SNPs

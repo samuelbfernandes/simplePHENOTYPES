@@ -11,6 +11,11 @@
 #' @param epi_type = NULL,
 #' @param epi_interaction = 2,
 #' @param ntraits = NULL
+#' @param  type_of_ld = NULL,
+#' @param ld_method = "composite",
+#' @param gdsfile = NULL,
+#' @param ld_min = NULL,
+#' @param ld_max = NULL,
 #' @return Genotype of selected SNPs
 #' @author Samuel Fernandes and Alexander Lipka
 #' Last update: Jan 7, 2021
@@ -31,7 +36,8 @@ qtn_from_user <-
            type_of_ld = NULL,
            ld_method = "composite",
            gdsfile = NULL,
-           ld = NULL,
+           ld_min = NULL,
+           ld_max = NULL,
            verbose = NULL){
     ns <- ncol(genotypes) - 5
     n <- nrow(genotypes)
@@ -382,7 +388,9 @@ qtn_from_user <-
         if (same_add_dom_QTN & add) {
           genofile <- SNPRelate::snpgdsOpen(gdsfile)
           vector_of_add_QTN <-
-            which(genotypes$snp %in% unlist(QTN_list$add))[order(unlist(QTN_list$add), decreasing = T)]
+            which(genotypes$snp %in% unlist(QTN_list$add))
+          names(vector_of_add_QTN) <- genotypes$snp[vector_of_add_QTN]
+          vector_of_add_QTN <- vector_of_add_QTN[unlist(QTN_list$add)]
           sup_temp <- c()
           inf_temp <- c()
           ld_between_QTNs_temp <- c()
@@ -391,8 +399,10 @@ qtn_from_user <-
           x <- 1
           for (j in vector_of_add_QTN) {
             ldsup <- 1
+            ldinf <- 1
             i <- j + 1
-            while (ldsup > ld) {
+            i2 <- j - 1
+            while (ldsup > ld_max) {
               if (i > n) {
                 if (verbose)
                   warning(
@@ -424,9 +434,7 @@ qtn_from_user <-
             }
             actual_ld_sup[x] <- ldsup
             sup_temp[x] <- i - 1
-            ldinf <- 1
-            i2 <- j - 1
-            while (ldinf > ld) {
+            while (ldinf > ld_max) {
               if (i2 < 1) {
                 if (verbose)
                   warning(
@@ -474,6 +482,18 @@ qtn_from_user <-
                     call. = F,
                     immediate. = T)
           }
+          if (ldsup < ld_min | ldinf < ld_min) {
+            stop(
+              "The selected SNP didn't meet the minimum LD threshold. Try another seed number or provide a genotypic file with enough LD!",
+              call. = F
+            )
+          }
+          if (ldsup > ld_max | ldinf > ld_max) {
+            stop(
+              "The selected SNP didn't meet the maximum LD threshold. Try another seed number or conduct an LD pruning in your genotypic file!",
+              call. = F
+            )
+          }
           SNPRelate::snpgdsClose(genofile)
           QTN_causing_ld <-
             data.frame(
@@ -505,7 +525,8 @@ qtn_from_user <-
           LD_summary <- data.frame(
             1,
             QTN_causing_ld[, "snp"],
-            ld,
+            ld_min,
+            ld_max,
             actual_ld_inf,
             actual_ld_sup,
             add_gen_info_inf[, "snp"],
@@ -518,7 +539,8 @@ qtn_from_user <-
             c(
               "rep",
               "SNP_causing_LD",
-              "input_LD (absolute value)",
+              "ld_min (absolute value)",
+              "ld_max (absolute value)",
               "Actual_LD_with_QTN_of_Trait_1",
               "Actual_LD_with_QTN_of_Trait_2",
               "QTN_for_trait_1",
@@ -573,7 +595,9 @@ qtn_from_user <-
           if (add) {
             genofile <- SNPRelate::snpgdsOpen(gdsfile)
             vector_of_add_QTN <-
-              which(genotypes$snp %in% unlist(QTN_list$add))[order(unlist(QTN_list$add), decreasing = T)]
+              which(genotypes$snp %in% unlist(QTN_list$add))
+            names(vector_of_add_QTN) <- genotypes$snp[vector_of_add_QTN]
+            vector_of_add_QTN <- vector_of_add_QTN[unlist(QTN_list$add)]
             x <- 1
             sup_temp <- c()
             inf_temp <- c()
@@ -582,8 +606,10 @@ qtn_from_user <-
             actual_ld_inf <- c()
             for (j in vector_of_add_QTN) {
               ldsup <- 1
+              ldinf <- 1
               i <- j + 1
-              while (ldsup > ld) {
+              i2 <- j - 1
+              while (ldsup > ld_max) {
                 if (i > n) {
                   if (verbose)
                     warning(
@@ -615,9 +641,7 @@ qtn_from_user <-
               }
               actual_ld_sup[x] <- ldsup
               sup_temp[x] <- i - 1
-              ldinf <- 1
-              i2 <- j - 1
-              while (ldinf > ld) {
+              while (ldinf > ld_max) {
                 if (i2 < 1) {
                   if (verbose)
                     warning(
@@ -660,6 +684,18 @@ qtn_from_user <-
               x <- x + 1
             }
             SNPRelate::snpgdsClose(genofile)
+            if (ldsup < ld_min | ldinf < ld_min) {
+              stop(
+                "The selected SNP didn't meet the minimum LD threshold. Try another seed number or provide a genotypic file with enough LD!",
+                call. = F
+              )
+            }
+            if (ldsup > ld_max | ldinf > ld_max) {
+              stop(
+                "The selected SNP didn't meet the maximum LD threshold. Try another seed number or conduct an LD pruning in your genotypic file!",
+                call. = F
+              )
+            }
             QTN_causing_ld <-
               data.frame(
                 type = "cause_of_LD",
@@ -690,7 +726,8 @@ qtn_from_user <-
             LD_summary_add <- data.frame(
               1,
               QTN_causing_ld[, "snp"],
-              ld,
+              ld_min,
+              ld_max,
               actual_ld_inf,
               actual_ld_sup,
               add_gen_info_inf[, "snp"],
@@ -703,7 +740,8 @@ qtn_from_user <-
               c(
                 "rep",
                 "SNP_causing_LD",
-                "input_LD (absolute value)",
+                "ld_min (absolute value)",
+                "ld_max (absolute value)",
                 "Actual_LD_with_QTN_of_Trait_1",
                 "Actual_LD_with_QTN_of_Trait_2",
                 "QTN_for_trait_1",
@@ -759,8 +797,10 @@ qtn_from_user <-
           }
           if (dom) {
             genofile <- SNPRelate::snpgdsOpen(gdsfile)
-            vector_of_dom_QTN <- 
-              which(genotypes$snp %in% unlist(QTN_list$dom))[order(unlist(QTN_list$dom), decreasing = T)]
+            vector_of_dom_QTN <-
+              which(genotypes$snp %in% unlist(QTN_list$dom))
+            names(vector_of_dom_QTN) <- genotypes$snp[vector_of_dom_QTN]
+            vector_of_dom_QTN <- vector_of_dom_QTN[unlist(QTN_list$dom)]
             sup_temp <- c()
             inf_temp <- c()
             ld_between_QTNs_temp <- c()
@@ -770,7 +810,7 @@ qtn_from_user <-
             for (j in vector_of_dom_QTN) {
               ldsup <- 1
               i <- j + 1
-              while (ldsup > ld) {
+              while (ldsup > ld_max) {
                 if (i > n) {
                   if (verbose)
                     warning(
@@ -804,7 +844,7 @@ qtn_from_user <-
               sup_temp[x] <- i - 1
               ldinf <- 1
               i2 <- j - 1
-              while (ldinf > ld) {
+              while (ldinf > ld_max) {
                 if (i2 < 1) {
                   if (verbose)
                     warning(
@@ -854,6 +894,18 @@ qtn_from_user <-
               )
             }
             SNPRelate::snpgdsClose(genofile)
+            if (ldsup < ld_min | ldinf < ld_min) {
+              stop(
+                "The selected SNP didn't meet the minimum LD threshold. Try another seed number or provide a genotypic file with enough LD!",
+                call. = F
+              )
+            }
+            if (ldsup > ld_max | ldinf > ld_max) {
+              stop(
+                "The selected SNP didn't meet the maximum LD threshold. Try another seed number or conduct an LD pruning in your genotypic file!",
+                call. = F
+              )
+            }
             QTN_causing_ld <-
               data.frame(
                 type = "cause_of_LD",
@@ -884,7 +936,8 @@ qtn_from_user <-
             LD_summary_dom <- data.frame(
               1,
               QTN_causing_ld[, "snp"],
-              ld,
+              ld_min,
+              ld_max,
               actual_ld_inf,
               actual_ld_sup,
               dom_gen_info_inf[, "snp"],
@@ -897,7 +950,8 @@ qtn_from_user <-
               c(
                 "rep",
                 "SNP_causing_LD",
-                "input_LD (absolute value)",
+                "ld_min (absolute value)",
+                "ld_max (absolute value)",
                 "Actual_LD_with_QTN_of_Trait_1",
                 "Actual_LD_with_QTN_of_Trait_2",
                 "QTN_for_trait_1",
@@ -987,22 +1041,38 @@ qtn_from_user <-
         if (same_add_dom_QTN & add) {
           genofile <- SNPRelate::snpgdsOpen(gdsfile)
           vector_of_add_QTN <-
-            which(genotypes$snp %in% unlist(QTN_list$add))[order(unlist(QTN_list$add), decreasing = T)]
+            which(genotypes$snp %in% unlist(QTN_list$add))
+          names(vector_of_add_QTN) <- genotypes$snp[vector_of_add_QTN]
+          vector_of_add_QTN <- vector_of_add_QTN[unlist(QTN_list$add)]
           x <- 1
           sup_temp <- c()
           ld_between_QTNs_temp <- c()
           for (j in vector_of_add_QTN) {
             ldsup <- 1
+            ldinf <- 1
             i <- j + 1
-            while (ldsup > ld) {
-              if (i > n) {
-                if (verbose)
-                  warning(
-                    "There are no SNPs downstream. Please select a different SNP.",
-                    call. = F,
-                    immediate. = T
-                  )
-                break
+            i2 <- j - 1
+            while ((ldsup > ld_max | ldsup < ld_min) &
+                   (ldinf > ld_max | ldinf < ld_min))  {
+              if (i > n & i2 < 1) {
+                if (i > n) {
+                  if (verbose)
+                    warning(
+                      "There are no SNPs downstream. Selecting a different seed number",
+                      call. = F,
+                      immediate. = T
+                    )
+                  break
+                }
+                if (i2 < 1) {
+                  if (verbose)
+                    warning(
+                      "There are no SNPs upstream. Selecting a different seed number",
+                      call. = F,
+                      immediate. = T
+                    )
+                  break
+                }
               }
               snp1 <-
                 gdsfmt::read.gdsn(
@@ -1016,25 +1086,62 @@ qtn_from_user <-
                   start = c(1, i),
                   count = c(-1, 1)
                 )
+              snp3 <-
+                gdsfmt::read.gdsn(
+                  gdsfmt::index.gdsn(genofile, "genotype"),
+                  start = c(1, i2),
+                  count = c(-1, 1)
+                )
               ldsup <-
                 abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = ld_method))[1]
-              if (is.nan(ldsup)) {
+              ldinf <-
+                abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = ld_method))[1]
+              if (is.nan(ldinf) | is.nan(ldsup)) {
                 SNPRelate::snpgdsClose(genofile)
                 stop("Monomorphic SNPs are not accepted", call. = F)
               }
               i <- i + 1
+              i2 <- i2 - 1
             }
-            ld_between_QTNs_temp[x] <- ldsup
-            sup_temp[x] <- i - 1
+            if (((!any(genotypes[i - 1, - (1:5)] == 0) &
+                  !any(genotypes[i2 + 1, - (1:5)] == 0) & dom))) {
+              if (ldsup > ld_max) {
+                ldsup <- 100
+              } else if (ldinf > ld_max) {
+                ldinf <- 100
+              } else if (ldsup < ld_min) {
+                ldsup <- 100
+              } else if (ldinf < ld_min) {
+                ldinf <- 100
+              }
+              warning(
+                "There are no heterozygote markers.",
+                call. = F,
+                immediate. = T
+              )
+            } else if ((!any(genotypes[i - 1, - (1:5)] == 0) & dom) &
+                       ldinf < ld_max & ldinf > ld_min) {
+              ldsup <- 100
+            } else if ((!any(genotypes[i2 + 1, - (1:5)] == 0) & dom) &
+                       ldsup < ld_max & ldsup > ld_min) {
+              ldinf <- 100
+            } else {
+              if (ldsup > ld_max) {
+                ldsup <- 100
+              } else if (ldinf > ld_max) {
+                ldinf <- 100
+              } else if (ldsup < ld_min) {
+                ldsup <- 100
+              } else if (ldinf < ld_min) {
+                ldinf <- 100
+              }
+            }
+            closest <- which.min(abs(c(ld_max - ldinf,  ld_max -ldsup)))
+            ld_between_QTNs_temp[x] <- 
+              ifelse(closest == 1 , ldinf, ldsup)
+            sup_temp[x] <-
+              ifelse(closest == 1 , i2 + 1, i - 1)
             x <- x + 1
-          }
-          if (!any(genotypes[sup_temp, - (1:5)] == 0) |
-              !any(genotypes[vector_of_dom_QTN, - (1:5)] == 0)) {
-            warning(
-              "There are no heterozygote markers.",
-              call. = F,
-              immediate. = T
-            )
           }
           add_gen_info_inf <-
             data.frame(
@@ -1056,7 +1163,8 @@ qtn_from_user <-
                            add_gen_info_sup)
           LD_summary <- data.frame(
             1,
-            ld,
+            ld_min,
+            ld_max,
             ld_between_QTNs_temp,
             add_gen_info_inf[, "snp"],
             add_gen_info_sup[, "snp"],
@@ -1066,7 +1174,8 @@ qtn_from_user <-
           colnames(LD_summary) <-
             c(
               "rep",
-              "Aimed_LD (absolute value)",
+              "ld_min (absolute value)",
+              "ld_max (absolute value)",
               "Actual_LD ",
               "QTN_for_trait_1",
               "QTN_for_trait_2"
@@ -1136,16 +1245,30 @@ qtn_from_user <-
             ld_between_QTNs_temp <- c()
             for (j in vector_of_add_QTN) {
               ldsup <- 1
+              ldinf <- 1
               i <- j + 1
-              while (ldsup > ld) {
-                if (i > n) {
-                  if (verbose)
-                    warning(
-                      "There are no SNPs downstream. Please select a different SNP.",
-                      call. = F,
-                      immediate. = T
-                    )
-                  break
+              i2 <- j - 1
+              while ((ldsup > ld_max | ldsup < ld_min) &
+                     (ldinf > ld_max | ldinf < ld_min))  {
+                if (i > n & i2 < 1) {
+                  if (i > n) {
+                    if (verbose)
+                      warning(
+                        "There are no SNPs downstream. Selecting a different seed number",
+                        call. = F,
+                        immediate. = T
+                      )
+                    break
+                  }
+                  if (i2 < 1) {
+                    if (verbose)
+                      warning(
+                        "There are no SNPs upstream. Selecting a different seed number",
+                        call. = F,
+                        immediate. = T
+                      )
+                    break
+                  }
                 }
                 snp1 <-
                   gdsfmt::read.gdsn(
@@ -1159,16 +1282,37 @@ qtn_from_user <-
                     start = c(1, i),
                     count = c(-1, 1)
                   )
+                snp3 <-
+                  gdsfmt::read.gdsn(
+                    gdsfmt::index.gdsn(genofile, "genotype"),
+                    start = c(1, i2),
+                    count = c(-1, 1)
+                  )
                 ldsup <-
                   abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = ld_method))[1]
-                if (is.nan(ldsup)) {
+                ldinf <-
+                  abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = ld_method))[1]
+                if (is.nan(ldinf) | is.nan(ldsup)) {
                   SNPRelate::snpgdsClose(genofile)
                   stop("Monomorphic SNPs are not accepted", call. = F)
                 }
                 i <- i + 1
+                i2 <- i2 - 1
               }
-              sup_temp[x] <- i - 1
-              ld_between_QTNs_temp[x] <- ldsup
+                if (ldsup > ld_max) {
+                  ldsup <- 100
+                } else if (ldinf > ld_max) {
+                  ldinf <- 100
+                } else if (ldsup < ld_min) {
+                  ldsup <- 100
+                } else if (ldinf < ld_min) {
+                  ldinf <- 100
+                }
+              closest <- which.min(abs(c(ld_max - ldinf,  ld_max -ldsup)))
+              ld_between_QTNs_temp[x] <- 
+                ifelse(closest == 1 , ldinf, ldsup)
+              sup_temp[x] <-
+                ifelse(closest == 1 , i2 + 1, i - 1)
               x <- x + 1
             }
             add_gen_info_inf <-
@@ -1191,7 +1335,8 @@ qtn_from_user <-
                                  add_gen_info_sup)
             LD_summary_add <- data.frame(
               1,
-              ld,
+              ld_min,
+              ld_max,
               ld_between_QTNs_temp,
               add_gen_info_inf[, "snp"],
               add_gen_info_sup[, "snp"],
@@ -1201,7 +1346,8 @@ qtn_from_user <-
             colnames(LD_summary_add) <-
               c(
                 "rep",
-                "Aimed_LD (absolute value)",
+                "ld_min (absolute value)",
+                "ld_max (absolute value)",
                 "Actual_LD ",
                 "QTN_for_trait_1",
                 "QTN_for_trait_2"
@@ -1256,22 +1402,38 @@ qtn_from_user <-
           if (dom) {
             genofile <- SNPRelate::snpgdsOpen(gdsfile)
             vector_of_dom_QTN <-
-              which(genotypes$snp %in% unlist(QTN_list$dom))[order(unlist(QTN_list$dom), decreasing = T)]
+              which(genotypes$snp %in% unlist(QTN_list$dom))
+            names(vector_of_dom_QTN) <- genotypes$snp[vector_of_dom_QTN]
+            vector_of_dom_QTN <- vector_of_dom_QTN[unlist(QTN_list$dom)]
             x <- 1
             sup_temp <- c()
             ld_between_QTNs_temp <- c()
             for (j in vector_of_dom_QTN) {
               ldsup <- 1
+              ldinf <- 1
               i <- j + 1
-              while (ldsup > ld) {
-                if (i > n) {
-                  if (verbose)
-                    warning(
-                      "There are no SNPs downstream. Please select a different SNP.",
-                      call. = F,
-                      immediate. = T
-                    )
-                  break
+              i2 <- j - 1
+              while ((ldsup > ld_max | ldsup < ld_min) &
+                     (ldinf > ld_max | ldinf < ld_min))  {
+                if (i > n & i2 < 1) {
+                  if (i > n) {
+                    if (verbose)
+                      warning(
+                        "There are no SNPs downstream. Selecting a different seed number",
+                        call. = F,
+                        immediate. = T
+                      )
+                    break
+                  }
+                  if (i2 < 1) {
+                    if (verbose)
+                      warning(
+                        "There are no SNPs upstream. Selecting a different seed number",
+                        call. = F,
+                        immediate. = T
+                      )
+                    break
+                  }
                 }
                 snp1 <-
                   gdsfmt::read.gdsn(
@@ -1285,25 +1447,62 @@ qtn_from_user <-
                     start = c(1, i),
                     count = c(-1, 1)
                   )
+                snp3 <-
+                  gdsfmt::read.gdsn(
+                    gdsfmt::index.gdsn(genofile, "genotype"),
+                    start = c(1, i2),
+                    count = c(-1, 1)
+                  )
                 ldsup <-
                   abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = ld_method))[1]
-                if (is.nan(ldsup)) {
+                ldinf <-
+                  abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = ld_method))[1]
+                if (is.nan(ldinf) | is.nan(ldsup)) {
                   SNPRelate::snpgdsClose(genofile)
                   stop("Monomorphic SNPs are not accepted", call. = F)
                 }
                 i <- i + 1
+                i2 <- i2 - 1
               }
-              sup_temp[x] <- i - 1
-              ld_between_QTNs_temp[x] <- ldsup
+              if (!any(genotypes[i - 1, - (1:5)] == 0) &
+                    !any(genotypes[i2 + 1, - (1:5)] == 0) ) {
+                if (ldsup > ld_max) {
+                  ldsup <- 100
+                } else if (ldinf > ld_max) {
+                  ldinf <- 100
+                } else if (ldsup < ld_min) {
+                  ldsup <- 100
+                } else if (ldinf < ld_min) {
+                  ldinf <- 100
+                }
+                warning(
+                  "There are no heterozygote markers.",
+                  call. = F,
+                  immediate. = T
+                )
+              } else if (!any(genotypes[i - 1, - (1:5)] == 0) &
+                         ldinf < ld_max & ldinf > ld_min) {
+                ldsup <- 100
+              } else if (!any(genotypes[i2 + 1, - (1:5)] == 0) &
+                         ldsup < ld_max & ldsup > ld_min) {
+                ldinf <- 100
+              } else {
+                if (ldsup > ld_max) {
+                  ldsup <- 100
+                } else if (ldinf > ld_max) {
+                  ldinf <- 100
+                } else if (ldsup < ld_min) {
+                  ldsup <- 100
+                } else if (ldinf < ld_min) {
+                  ldinf <- 100
+                }
+              }
+              closest <- which.min(abs(c(ld_max - ldinf,  ld_max -ldsup)))
+              ld_between_QTNs_temp[x] <- 
+                ifelse(closest == 1 , ldinf, ldsup)
+              sup_temp[x] <-
+                ifelse(closest == 1 , i2 + 1, i - 1)
               x <- x + 1
-            }
-            if (!any(genotypes[sup_temp, - (1:5)] == 0) |
-                !any(genotypes[vector_of_dom_QTN, - (1:5)] == 0)) {
-              warning(
-                "There are no heterozygote markers.",
-                call. = F,
-                immediate. = T
-              )
             }
             dom_gen_info_inf <-
               data.frame(
@@ -1325,7 +1524,8 @@ qtn_from_user <-
                                  dom_gen_info_sup)
             LD_summary_dom <- data.frame(
               1,
-              ld,
+              ld_min,
+              ld_max,
               ld_between_QTNs_temp,
               dom_gen_info_inf[, "snp"],
               dom_gen_info_sup[, "snp"],
@@ -1335,7 +1535,8 @@ qtn_from_user <-
             colnames(LD_summary_dom) <-
               c(
                 "rep",
-                "Aimed_LD (absolute value)",
+                "ld_min (absolute value)",
+                "ld_max (absolute value)",
                 "Actual_LD ",
                 "QTN_for_trait_1",
                 "QTN_for_trait_2"
