@@ -309,7 +309,7 @@ HapMap.}
 
 \item{SNP_effect}{Parameter used for numericalization. The options are: Add
 (AA = 1, Aa = 0, aa = -1),  Dom (AA = -1, Aa = 0, aa = -1), Left (AA = 1,
-Aa = -1, aa = -1), Rigth (AA = 1, Aa = 1, aa = -1). The default option is Add.}
+Aa = -1, aa = -1), Right (AA = 1, Aa = 1, aa = -1). The default option is Add.}
 
 \item{SNP_impute}{Naive imputation for HapMap numericalization. The options
 are: Major (NA <- 1), Middle (NA <- 0), and Minor (NA <- -1).}
@@ -317,7 +317,7 @@ are: Major (NA <- 1), Middle (NA <- 0), and Minor (NA <- -1).}
 \item{quiet}{Whether or not the log file should pop up into R once the
 simulation is done.}
 
-\item{verbose}{If FALSE, suppress all prints and suppress individual seed numbers from bein saved to file. The master seed (unique value required to reproduce results) is saved at the top of the log file.}
+\item{verbose}{If FALSE, suppress all prints and suppress individual seed numbers from being saved to file. The master seed (unique value required to reproduce results) is saved at the top of the log file.}
 
 \item{RNGversion}{Parameter to set the random number generator. Different R versions may be selected, the default value is `3.5.1`.}
 }
@@ -352,11 +352,11 @@ pheno <-
 
 }
 \references{
-Fernandes, S.B and Lipka, A.E (2020). simplePHENOTYPES:
-SIMulation of Pleiotropic, Linked and Epistatic PHENOTYPES. bioRxiv,
-\doi{https://doi.org/10.1101/2020.01.11.902874} \cr
+Fernandes, S.B., and Lipka, A.E., 2020 simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic
+SIMulation of Pleiotropic, Linked and Epistatic PHENOTYPES. BMC Bioinformatics 21(1):491,
+\doi{https://doi.org/10.1186/s12859-020-03804-y} \cr
 }
 \author{
 Samuel B Fernandes and Alexander E Lipka
-Last update: Apr 29, 2020
+Last update: Jan 19, 2021
 }

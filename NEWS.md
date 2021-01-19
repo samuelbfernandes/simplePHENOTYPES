@@ -1,4 +1,4 @@
-# simplePHENOTYPES 1.3
+# simplePHENOTYPES 1.3.0
 ## Major changes
 Implemented the parameter "ld_max" (replacing "ld") and "ld_min".
 ## Minor changes
