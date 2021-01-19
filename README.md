@@ -2,7 +2,6 @@ simplePHENOTYPES
 ================
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
-
 <!-- badges: start -->
 
 [![CRAN\_Status\_Badge](https://www.r-pkg.org/badges/version/simplePHENOTYPES)](https://CRAN.R-project.org/package=simplePHENOTYPES)
@@ -13,29 +12,26 @@ MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.or
 [![Downloads](https://cranlogs.r-pkg.org/badges/simplePHENOTYPES?color=blue)](https://cran.r-project.org/package=simplePHENOTYPES)
 
 <p align="center">
-
 <a href="SP_logo.png"> <img src="SP_logo.png"> </a>
-
 </p>
-
 <!-- badges: end -->
 
 ### Contents
 
-  - [Installation](#installation)
-  - [Load Sample Data set](#load-sample-data-set)
-  - [Single Trait](#single-trait)
-  - [Multiple Traits: Pleiotropy
+-   [Installation](#installation)
+-   [Load Sample Data set](#load-sample-data-set)
+-   [Single Trait](#single-trait)
+-   [Multiple Traits: Pleiotropy
     Architecture](#multiple-traits-pleiotropy-architecture)
-  - [Multiple Traits: Partial Pleiotropy
+-   [Multiple Traits: Partial Pleiotropy
     Architecture](#multiple-traits-partial-pleiotropy-architecture)
-  - [Multiple Traits: Spurious Pleiotropy
+-   [Multiple Traits: Spurious Pleiotropy
     Architecture](#multiple-traits-spurious-pleiotropy-architecture)
-  - [Multiple Traits: Partial Pleiotropy Architecture with other useful
+-   [Multiple Traits: Partial Pleiotropy Architecture with other useful
     parameters](#multiple-traits-partial-pleiotropy-architecture-with-other-useful-parameters)
-  - [Using Multiple Marker Data
+-   [Using Multiple Marker Data
     Files](#using-multiple-marker-data-files)
-  - [Contact](#contact)
+-   [Contact](#contact)
 
 This short tutorial presents some of the possible genetic settings one
 could simulate, but it certainly does not explore all the possibilities.
@@ -47,15 +43,13 @@ documentation (?create\_phenotypes).
 In order to install simplePHENOTYPES, the following r packages will also
 be installed:
 
-  - From Bioconductor:
-      - SNPRelate
-      - gdsfmt
-  - From CRAN:
-      - mvtnorm  
-      - lqmm  
-      - data.table
-
-<!-- end list -->
+-   From Bioconductor:
+    -   SNPRelate
+    -   gdsfmt
+-   From CRAN:
+    -   mvtnorm  
+    -   lqmm  
+    -   data.table
 
 ``` r
 setRepositories(ind = 1:2)
@@ -151,13 +145,13 @@ be assigned to an object called “test1” (to\_r = TRUE).
   )
 ```
 
-Optionally, we may input a list of allelic effects (`sim_method =
-"custom"`). In the example below, a geometric series (custom\_geometric)
-is being assigned and should generate the same simulated data as the
-previous example (all.equal(test1, test2)). Notice that since
-`big_add_QTN_effect` is non-NULL, we only need to provide effects for
-two out of the three simulated additive QTNs. On the other hand, all
-four dominance QTN must have an effect assigned on the
+Optionally, we may input a list of allelic effects
+(`sim_method = "custom"`). In the example below, a geometric series
+(custom\_geometric) is being assigned and should generate the same
+simulated data as the previous example (all.equal(test1, test2)). Notice
+that since `big_add_QTN_effect` is non-NULL, we only need to provide
+effects for two out of the three simulated additive QTNs. On the other
+hand, all four dominance QTN must have an effect assigned on the
 custom\_geometric\_d list. Importantly, the allelic effects are assigned
 to each trait based on the order they appear in the list and not based
 on the names, i.e., ‘trait\_1’, ‘trait\_2’, and ‘trait\_3’.
@@ -228,6 +222,7 @@ sim_results <- create_phenotypes(
   h2 = c(0.2, 0.4, 0.8),
   add_effect = c(0.5, 0.33, 0.2),
   epi_effect = c(0.3, 0.3, 0.3),
+  epi_interaction = 2,
   cor = cor_matrix,
   rep = 20,
   output_dir = "Results_Partially",
@@ -249,12 +244,12 @@ replicates of two traits controlled by three additive QTNs each. For
 each QTN, a marker is first selected (intermediate marker), and then two
 separate markers (one upstream and another downstream) are picked to be
 QTNs for each of the two traits. This QTN selection is based on an
-r<sup>2</sup> threshold of at most 0.8 (`ld=0.8`) with the intermediate
-marker. The three QTNs will have additive effects that follow a
-geometric series, where the effect size of the i<sup>th</sup> QTN is
-0.02<sup>i</sup> for one trait and 0.05<sup>i</sup> for the other trait.
-Starting seed number is 200, and output phenotypes are saved in one
-file, but in a “wide” format with each replicate of two traits being
+r<sup>2</sup> threshold of at most 0.8 (`ld_max=0.8`) with the
+intermediate marker. The three QTNs will have additive effects that
+follow a geometric series, where the effect size of the i<sup>th</sup>
+QTN is 0.02<sup>i</sup> for one trait and 0.05<sup>i</sup> for the other
+trait. Starting seed number is 200, and output phenotypes are saved in
+one file, but in a “wide” format with each replicate of two traits being
 added as additional columns. Plink fam, bim, and bed files are also
 saved at Results\_LD.
 
@@ -271,8 +266,10 @@ create_phenotypes(
   output_dir = "Results_LD",
   out_geno = "plink",
   remove_QTN = TRUE,
-  ld=0.8,
+  ld_max =0.8,
+  ld_min =0.2,
   model = "A",
+  ld_method = "composite",
   type_of_ld = "indirect",
   home_dir = tempdir()
 )
@@ -283,30 +280,31 @@ create_phenotypes(
 The example below simulates five replicates of three traits. In each
 replicate, different SNPs are selected to be the QTNs for each
 experiment (`vary_QTN = TRUE`). These traits are controlled by three
-pleiotropic (`pleio = 3`) additive and dominance QTNs (`same_add_dom_QTN
-= TRUE` and `degree_of_dom = 1`); two pleiotropic epistatic QTNs
-(`pleio_e = 2`); four, ten and one trait-specific additive and dominance
-QTNs (`trait_spec_a_QTN_num = c(4, 10, 1)`); and two, one and five
-epistatic trait-specific epistatic QTNs (`trait_spec_e_QTN_num =
-c(2, 1, 5)`). In addition to the default parameters, each genetic
-architecture may be simulated with many auxiliary features. For
-instance, we may be interested in outputting the amount of variance
-explained by each simulated QTN (`QTN_variance = TRUE`) or setting a
-residual correlation between traits (`cor_res = residual`) and thus,
-change the default option of independent residuals. Notice that in this
-example, the heritability is a 2x3 matrix (`h2 = heritability`). Each
-column of the matrix “heritability” will be assigned to a different
-trait. In this case, simplePHENOTYPES will loop over each row of `h2`,
-keeping all other variables constant. Since rep = 5 and nrow(h2) = 2,
-ten experiments will be simulated and saved in separate files. Simulated
-results will be saved as “.fam” files used as GEMMA input.
-Simultaneously, one genotypic file without the QTNs for the simulated
-traits will be saved for each replication. Due to the option `vary_QTN =
-TRUE`, each experiment will be simulated with different QTNs; thus, if
-we opt for `remove_QTN = TRUE`, many potentially large files will be
-saved in the output\_dir folder. By default, simplePHENOTYPES will ask
-us if all these files should be saved. To avoid this question, we may
-use `warning_file_saver = FALSE`. In the present example, ten plink bed
+pleiotropic (`pleio = 3`) additive and dominance QTNs
+(`same_add_dom_QTN = TRUE` and `degree_of_dom = 1`); two pleiotropic
+epistatic QTNs (`pleio_e = 2`); four, ten and one trait-specific
+additive and dominance QTNs (`trait_spec_a_QTN_num = c(4, 10, 1)`); and
+two, one and five epistatic trait-specific epistatic QTNs
+(`trait_spec_e_QTN_num = c(2, 1, 5)`). In addition to the default
+parameters, each genetic architecture may be simulated with many
+auxiliary features. For instance, we may be interested in outputting the
+amount of variance explained by each simulated QTN
+(`QTN_variance = TRUE`) or setting a residual correlation between traits
+(`cor_res = residual`) and thus, change the default option of
+independent residuals. Notice that in this example, the heritability is
+a 2x3 matrix (`h2 = heritability`). Each column of the matrix
+“heritability” will be assigned to a different trait. In this case,
+simplePHENOTYPES will loop over each row of `h2`, keeping all other
+variables constant. Since rep = 5 and nrow(h2) = 2, ten experiments will
+be simulated and saved in separate files. Simulated results will be
+saved as “.fam” files used as GEMMA input. Simultaneously, one genotypic
+file without the QTNs for the simulated traits will be saved for each
+replication. Due to the option `vary_QTN = TRUE`, each experiment will
+be simulated with different QTNs; thus, if we opt for
+`remove_QTN = TRUE`, many potentially large files will be saved in the
+output\_dir folder. By default, simplePHENOTYPES will ask us if all
+these files should be saved. To avoid this question, we may use
+`warning_file_saver = FALSE`. In the present example, ten plink bed
 files (which is also the input for GEMMA) are saved. Genotypic files for
 rep one will be named `SNP55K_maize282_maf04_noQTN_rep_1.bed`,
 `SNP55K_maize282_maf04_noQTN_rep_1.bim`, and
@@ -317,11 +315,11 @@ contain the phenotypic data and needs to be replaced by
 `Simulated_Data__Rep1_Herit_0.2_0.8_0.7.fam` prior to its use by GEMMA
 or other software that uses bed files. A parameter particularly useful,
 especially when simulating dominance, is `constraints`. Here we only
-“include” heterozygote SNPs to be used as QTNs ( `constraints =
-list(maf_above = 0.3, maf_below = 0.44, hets = "include")`). Optionally,
-we may “remove” all the heterozygotes from consideration. The other
-constrain options used here are to select only QTNs with minor allele
-frequency between 0.3 and 0.44.
+“include” heterozygote SNPs to be used as QTNs (
+`constraints = list(maf_above = 0.3, maf_below = 0.44, hets = "include")`).
+Optionally, we may “remove” all the heterozygotes from consideration.
+The other constrain options used here are to select only QTNs with minor
+allele frequency between 0.3 and 0.44.
 
 ``` r
 residual <- matrix(c(1, 0.1,-0.2,
@@ -356,6 +354,43 @@ create_phenotypes(
     hets = "include"
   ),
   cor_res = residual
+)
+```
+
+# Using Selected Markers to be QTN
+
+As of the version `1.2.15`, it is also possible to select what markers
+will be used as QTNS. The arguments `QTN_list` takes a lists of
+additive, dominance or epistatic QTNs. In the example below, the SNP
+`ss196523212` is selected to be the additive QTN. Another argument that
+is exemplified below is `epi_interaction`. It defines the number of
+markers to be involved in an epistatic interaction. The parameter
+`out_geno` is defining that the marker data used in the simulation will
+be exported as plink BED files.
+
+``` r
+QTN_list <- list()
+QTN_list$add[[1]] <- c("ss196523212")
+QTN_list$dom[[1]] <- c("ss196510214", "ss196472187")
+QTN_list$epi[[1]] <- c("ss196530605", "ss196475446")
+create_phenotypes(
+  geno_obj = SNP55K_maize282_maf04,
+  add_QTN_num = 1,
+  dom_QTN_num = 2,
+  epi_QTN_num = 1,
+  epi_interaction = 2,
+  h2 = c(0.92, 0.4) ,
+  add_effect = c(0.90, 0.2),
+  dom_effect = c(0.01, 0.3),
+  epi_effect = c(-0.3, 0.7),
+  ntraits = 2,
+  QTN_list = QTN_list,
+  rep = 1,
+  output_format = "gemma",
+  out_geno = "BED",
+  output_dir = "output_data",
+  model = "ADE",
+  home_dir = getwd()
 )
 ```
 
