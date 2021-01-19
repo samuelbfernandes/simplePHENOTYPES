@@ -1,7 +1,7 @@
 ---
 title: "Introduction to simplePHENOTYPES"
 subtitle: Samuel B Fernandes and Alexander E Lipka
-author: "simplePHENOTYPES v 1.2.4 (`r Sys.Date()`)"
+author: "simplePHENOTYPES v 1.3 (`r Sys.Date()`)"
 output:
   rmarkdown::html_document:
     toc: true
@@ -106,6 +106,7 @@ Optionally, we may input a list of allelic effects (`sim_method = "custom"`). In
  all.equal(test1, test2)
 ```
 
+
 # Multiple Traits: Partial Pleiotropy Architecture
 In this example, we simulate 20 replicates of three partially pleiotropic traits (`architecture = "partially"`), which are respectively controlled by seven, 13, and four QTNs. All QTNs will have additive effects that follow a geometric series, where the effect size of the i^th^ QTN is add_effect^i. For instance, trait_2 is controlled by three pleiotropic additive QTNs and ten trait-specific additive QTNs; consequently, the first pleiotropic additive QTN will have an additive effect of 0.33 and the 13^th^ trait-specific additive QTN will have an effect of 0.33^13^. Correlation among traits is assigned to be equal to the cor_matrix object. All 20 replicates of these three simulated traits will be saved in one file, specifically in a long format and with an additional column named "Rep". Results will be saved in a directory called "Results_Partially". In this example, the genotype file will also be saved in numeric format.
 ```{r MT PP, results = "hide", eval = FALSE}
@@ -125,6 +126,7 @@ sim_results <- create_phenotypes(
   h2 = c(0.2, 0.4, 0.8),
   add_effect = c(0.5, 0.33, 0.2),
   epi_effect = c(0.3, 0.3, 0.3),
+  epi_interaction = 2,
   cor = cor_matrix,
   rep = 20,
   output_dir = "Results_Partially",
@@ -139,7 +141,7 @@ sim_results <- create_phenotypes(
 
 
 # Multiple Traits: Spurious Pleiotropy Architecture
-Another architecture implemented is Spurious Pleiotropy. In this case, we have two options: direct or indirect LD (`type_of_ld = "indirect"`). In the example below, we simulate a case of indirect LD with five replicates of two traits controlled by three additive QTNs each. For each QTN, a marker is first selected (intermediate marker), and then two separate markers (one upstream and another downstream) are picked to be QTNs for each of the two traits. This QTN selection is based on an r^2^ threshold of at most 0.8 (`ld=0.8`) with the intermediate marker. The three QTNs will have additive effects that follow a geometric series, where the effect size of the i^th^ QTN is 0.02^i^ for one trait and 0.05^i^ for the other trait. Starting seed number is 200, and output phenotypes are saved in one file, but in a “wide” format with each replicate of two traits being added as additional columns. Plink fam, bim, and bed files are also saved at Results_LD.
+Another architecture implemented is Spurious Pleiotropy. In this case, we have two options: direct or indirect LD (`type_of_ld = "indirect"`). In the example below, we simulate a case of indirect LD with five replicates of two traits controlled by three additive QTNs each. For each QTN, a marker is first selected (intermediate marker), and then two separate markers (one upstream and another downstream) are picked to be QTNs for each of the two traits. This QTN selection is based on an r^2^ threshold of at most 0.8 (`ld_max=0.8`) with the intermediate marker. The three QTNs will have additive effects that follow a geometric series, where the effect size of the i^th^ QTN is 0.02^i^ for one trait and 0.05^i^ for the other trait. Starting seed number is 200, and output phenotypes are saved in one file, but in a “wide” format with each replicate of two traits being added as additional columns. Plink fam, bim, and bed files are also saved at Results_LD.
 
 ```{r MT LD, results = "hide", eval = FALSE}
 create_phenotypes(
@@ -152,10 +154,12 @@ create_phenotypes(
   output_format = "wide",
   architecture = "LD",
   output_dir = "Results_LD",
-  out_geno = "plink",
+  out_geno = "BED",
   remove_QTN = TRUE,
-  ld=0.8,
+  ld_max =0.8,
+  ld_min =0.2,
   model = "A",
+  ld_method = "composite",
   type_of_ld = "indirect",
   home_dir = tempdir()
 )
@@ -199,6 +203,37 @@ create_phenotypes(
 )
 ```
 
+# Using Selected Markers to be QTN
+As of the version `1.2.15`, it is also possible to select what markers will be used as QTNS. The arguments `QTN_list` takes a lists of additive, dominance or epistatic QTNs. In the example below, the SNP `ss196523212` is selected to be the additive QTN. Another argument that is exemplified below is `epi_interaction`.  It defines the number of markers to be involved in an epistatic interaction. The parameter `out_geno` is defining that the marker data used in the simulation will be exported as plink BED files.
+```{r qtn_list, results = "hide", eval = FALSE}
+QTN_list <- list()
+QTN_list$add[[1]] <- c("ss196523212")
+QTN_list$dom[[1]] <- c("ss196510214", "ss196472187")
+QTN_list$epi[[1]] <- c("ss196530605", "ss196475446")
+create_phenotypes(
+  geno_obj = SNP55K_maize282_maf04,
+  add_QTN_num = 1,
+  dom_QTN_num = 2,
+  epi_QTN_num = 1,
+  epi_interaction = 2,
+  h2 = c(0.92, 0.4) ,
+  add_effect = c(0.90, 0.2),
+  dom_effect = c(0.01, 0.3),
+  epi_effect = c(-0.3, 0.7),
+  ntraits = 2,
+  QTN_list = QTN_list,
+  rep = 1,
+  output_format = "gemma",
+  out_geno = "BED",
+  output_dir = "output_data",
+  model = "ADE",
+  home_dir = getwd()
+)
+
+```
+
+
+
 # Using Multiple Marker Data Files
 If files are saved by chromosome, they can be read directly into create_phenotypes using options `geno_path` (recommendation: consider having all marker data files in a separate folder). If multiple files are saved in the same folder as the marker data, the parameter `prefix` might be used to select only the marker data. For example, if your data is saved as "WGS_chrm_1.hmp.txt", ..., "WGS_chrm_10.hmp.txt", one would use `prefix = "WGS_chrm_"` .
 ```{r example, results = "hide", eval = FALSE}
@@ -216,4 +251,3 @@ create_phenotypes(
   home_dir = tempdir()
 )
 ```
-
