@@ -168,7 +168,7 @@
 #' R object (see vignette).
 #' @param out_geno Optionally saves the numericalized genotype either as "numeric" (see
 #' vignettes for an example data), "BED" or "gds". The default is NULL.
-#' @param chr_prefix If input file format is VCF and outgeno = "plink", and a prefix
+#' @param chr_prefix If input file format is VCF and out_geno = "BED", and a prefix
 #' is used in the chromosomes names, chr_prefix may be used to avoid issues in
 #' converting to bed files (e.g., chr_prefix = "chr" in "chr01").
 #' @param remove_QTN Whether or not a copy of the genotypic file should be saved
@@ -389,7 +389,7 @@ create_phenotypes <-
       }
       if (out_geno != "none" & out_geno != "numeric" & out_geno != "BED" & out_geno !=  "gds") {
         stop(
-          "Parameter \'out_geno\' should be either \'numeric\', \'plink\' or \'gds\'.",
+          "Parameter \'out_geno\' should be either \'numeric\', \'BED\' or \'gds\'.",
           call. = F
         )
       }
