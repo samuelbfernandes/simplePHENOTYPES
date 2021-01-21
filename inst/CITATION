@@ -4,8 +4,8 @@ citEntry(
     entry = "Article",
     title = "simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic phenotypes",
     author = c(
-        person("Samuel B", "Fernandes"),
-        person("Alexander E", "de los Campos")
+        person("Samuel B.", "Fernandes"),
+        person("Alexander E.", "Lipka")
     ),
     journal = "BMC Bioinformatics",
     year = "2020",
