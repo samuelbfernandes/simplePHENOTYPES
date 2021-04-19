@@ -101,10 +101,8 @@ qtn_linkage <-
           border <- TRUE
           genofile <- SNPRelate::snpgdsOpen(gdsfile)
           while (s <= 10 & border) {
-            if (!is.null(seed)) {
               seed_num[z] <- (seed * s) + z
               set.seed(seed_num[z])
-            }
             vector_of_add_QTN <-
               sample(index, add_QTN_num, replace = FALSE)
             sup_temp <- c()
@@ -196,10 +194,8 @@ qtn_linkage <-
                 if (((!any(genotypes[sup_temp, - (1:5)] == 0) |
                       !any(genotypes[inf_temp, - (1:5)] == 0)) & dom) |
                     ldsup > ld_max | ldinf > ld_max | ldsup < ld_min | ldinf < ld_min) {
-                  if (!is.null(seed)) {
                     seed_num[z] <- (seed * s) + z
                     set.seed(seed_num[z])
-                  }
                   dif <- c(dif, vector_of_add_QTN, j)
                   j <-
                     sample(setdiff(index, dif), 1, replace = FALSE)
@@ -219,13 +215,13 @@ qtn_linkage <-
                   immediate. = T
                 )
               }
-              if (ldsup < ld_min | ldinf < ld_min) {
+              if (s == 10 & (ldsup < ld_min | ldinf < ld_min)) {
                 stop(
                   "None of the selected SNPs met the minimum LD threshold. Try another seed number or provide a genotypic file with enough LD!",
                   call. = F
                 )
               }
-              if (ldsup > ld_max | ldinf > ld_max) {
+              if (s == 10 & (ldsup > ld_max | ldinf > ld_max)) {
                 stop(
                   "None of the selected SNPs met the maximum LD threshold. Try another seed number or conduct an LD pruning in your genotypic file!",
                   call. = F
@@ -333,7 +329,7 @@ qtn_linkage <-
             write.table(
               seed_num,
               paste0("Seed_num_for_", add_QTN_num,
-                     "_Add_and_Dom_QTN.txt"),
+                     "_Add_QTN.txt"),
               row.names = FALSE,
               col.names = FALSE,
               sep = "\t",
@@ -342,7 +338,7 @@ qtn_linkage <-
           }
           data.table::fwrite(
             results,
-            "Additive_and_Dominance_Selected_QTNs.txt",
+            "Additive_QTNs.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -375,10 +371,8 @@ qtn_linkage <-
             border <- TRUE
             genofile <- SNPRelate::snpgdsOpen(gdsfile)
             while (s <= 10 & border) {
-              if (!is.null(seed)) {
                 seed_num[z] <-  (seed * s) + z
                 set.seed(seed_num[z])
-              }
               vector_of_add_QTN <-
                 sample(index, add_QTN_num, replace = FALSE)
               sup_temp <- c()
@@ -468,10 +462,8 @@ qtn_linkage <-
                   ld_between_QTNs_temp[x] <-
                     SNPRelate::snpgdsLDpair(snp_sup, snp_inf, method = ld_method)[1]
                   if (ldsup > ld_max | ldinf > ld_max | ldsup < ld_min | ldinf < ld_min) {
-                    if (!is.null(seed)) {
                       seed_num[z] <- (seed * s) + z
                       set.seed(seed_num[z])
-                    }
                     dif <- c(dif, vector_of_add_QTN, j)
                     j <-
                       sample(setdiff(index, dif), 1, replace = FALSE)
@@ -482,13 +474,13 @@ qtn_linkage <-
                 }
                 vector_of_add_QTN[x] <- j
                 x <- x + 1
-                if (ldsup < ld_min | ldinf < ld_min) {
+                if (s == 10 & (ldsup < ld_min | ldinf < ld_min)) {
                   stop(
                     "None of the selected SNPs met the minimum LD threshold. Try another seed number or provide a genotypic file with enough LD!",
                     call. = F
                   )
                 }
-                if (ldsup > ld_max | ldinf > ld_max) {
+                if (s == 10 & (ldsup > ld_max | ldinf > ld_max)) {
                   stop(
                     "None of the selected SNPs met the maximum LD threshold. Try another seed number or conduct an LD pruning in your genotypic file!",
                     call. = F
@@ -606,7 +598,7 @@ qtn_linkage <-
             }
             data.table::fwrite(
               results_add,
-              "Additive_Selected_QTNs.txt",
+              "Additive_QTNs.txt",
               row.names = FALSE,
               sep = "\t",
               quote = FALSE,
@@ -639,10 +631,8 @@ qtn_linkage <-
             border <- TRUE
             genofile <- SNPRelate::snpgdsOpen(gdsfile)
             while (s <= 10 & border) {
-              if (!is.null(seed)) {
                 seed_num[z] <- (seed * s) + z + rep
                 set.seed(seed_num[z])
-              }
               vector_of_dom_QTN <-
                 sample(index, dom_QTN_num, replace = FALSE)
               sup_temp <- c()
@@ -734,10 +724,8 @@ qtn_linkage <-
                   if (((!any(genotypes[sup_temp, - (1:5)] == 0) |
                         !any(genotypes[inf_temp, - (1:5)] == 0)) & dom) |
                       ldsup > ld_max | ldinf > ld_max | ldsup < ld_min | ldinf < ld_min) {
-                    if (!is.null(seed)) {
                       seed_num[z] <- (seed * s) + z + rep
                       set.seed(seed_num[z])
-                    }
                     dif <- c(dif, vector_of_add_QTN, j)
                     j <-
                       sample(setdiff(index, dif), 1, replace = FALSE)
@@ -757,13 +745,13 @@ qtn_linkage <-
                     immediate. = T
                   )
                 }
-                if (ldsup < ld_min | ldinf < ld_min) {
+                if (s == 10 & (ldsup < ld_min | ldinf < ld_min)) {
                   stop(
                     "None of the selected SNPs met the minimum LD threshold. Try another seed number or provide a genotypic file with enough LD!",
                     call. = F
                   )
                 }
-                if (ldsup > ld_max | ldinf > ld_max) {
+                if (s == 10 & (ldsup > ld_max | ldinf > ld_max)) {
                   stop(
                     "None of the selected SNPs met the maximum LD threshold. Try another seed number or conduct an LD pruning in your genotypic file!",
                     call. = F
@@ -881,7 +869,7 @@ qtn_linkage <-
             }
             data.table::fwrite(
               results_dom,
-              "Dominance_Selected_QTNs.txt",
+              "Dominance_QTNs.txt",
               row.names = FALSE,
               sep = "\t",
               quote = FALSE,
@@ -967,10 +955,8 @@ qtn_linkage <-
           border <- TRUE
           genofile <- SNPRelate::snpgdsOpen(gdsfile)
           while (s <= 10 & border) {
-            if (!is.null(seed)) {
               seed_num[z] <- (seed * s) + z
               set.seed(seed_num[z])
-            }
             vector_of_add_QTN <-
               sample(index, add_QTN_num, replace = FALSE)
             sup_temp <- c()
@@ -1035,10 +1021,8 @@ qtn_linkage <-
                      !any(genotypes[i2, - (1:5)] == 0) & dom) |
                     (ldsup > ld_max | ldsup < ld_min) &
                     (ldinf > ld_max | ldinf < ld_min)) {
-                  if (!is.null(seed)) {
                     seed_num[z] <- (seed * s) + z
                     set.seed(seed_num[z])
-                  }
                   dif <- c(dif, vector_of_add_QTN, j)
                   j <-
                     sample(setdiff(index, dif), 1, replace = FALSE)
@@ -1072,13 +1056,13 @@ qtn_linkage <-
                   immediate. = T
                 )
               }
-              if (ldsup < ld_min & ldinf < ld_min) {
+              if (s == 10 & (ldsup < ld_min & ldinf < ld_min)) {
                 stop(
                   "None of the selected SNPs met the minimum LD threshold. Try another seed number or provide a genotypic file with enough LD!",
                   call. = F
                 )
               }
-              if (ldsup > ld_max & ldinf > ld_max) {
+              if (s == 10 & (ldsup > ld_max & ldinf > ld_max)) {
                 stop(
                   "None of the selected SNPs met the maximum LD threshold. Try another seed number or conduct an LD pruning in your genotypic file!",
                   call. = F
@@ -1185,7 +1169,7 @@ qtn_linkage <-
           }
           data.table::fwrite(
             results,
-            "Additive_Selected_QTNs.txt",
+            "Additive_QTNs.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -1217,10 +1201,8 @@ qtn_linkage <-
             border <- TRUE
             genofile <- SNPRelate::snpgdsOpen(gdsfile)
             while (s <= 10 & border) {
-              if (!is.null(seed)) {
                 seed_num[z] <- (seed * s) + z
                 set.seed(seed_num[z])
-              }
               vector_of_add_QTN <-
                 sample(index, add_QTN_num, replace = FALSE)
               x <- 1
@@ -1283,10 +1265,8 @@ qtn_linkage <-
                   }
                   if ((ldsup > ld_max | ldsup < ld_min) &
                       (ldinf > ld_max | ldinf < ld_min)) {
-                    if (!is.null(seed)) {
                       seed_num[z] <- (seed * s) + z
                       set.seed(seed_num[z])
-                    }
                     dif <- c(dif, vector_of_add_QTN, j)
                     j <-
                       sample(setdiff(index, dif), 1, replace = FALSE)
@@ -1312,13 +1292,13 @@ qtn_linkage <-
                 sup_temp[x] <-
                   ifelse(closest == 1 , i2 + 1, i - 1)
                 x <- x + 1
-                if (ldsup < ld_min & ldinf < ld_min) {
+                if (s == 10 & (ldsup < ld_min & ldinf < ld_min)) {
                   stop(
                     "None of the selected SNPs met the minimum LD threshold. Try another seed number or provide a genotypic file with enough LD!",
                     call. = F
                   )
                 }
-                if (ldsup > ld_max & ldinf > ld_max) {
+                if (s == 10 & (ldsup > ld_max & ldinf > ld_max)) {
                   stop(
                     "None of the selected SNPs met the maximum LD threshold. Try another seed number or conduct an LD pruning in your genotypic file!",
                     call. = F
@@ -1422,7 +1402,7 @@ qtn_linkage <-
             }
             data.table::fwrite(
               results_add,
-              "Additive_Selected_QTNs.txt",
+              "Additive_QTNs.txt",
               row.names = FALSE,
               sep = "\t",
               quote = FALSE,
@@ -1454,10 +1434,8 @@ qtn_linkage <-
             border <- TRUE
             genofile <- SNPRelate::snpgdsOpen(gdsfile)
             while (s <= 10 & border) {
-              if (!is.null(seed)) {
                 seed_num[z] <- (seed * s) + z + rep
                 set.seed(seed_num[z])
-              }
               vector_of_dom_QTN <-
                 sample(index, dom_QTN_num, replace = FALSE)
               sup_temp <- c()
@@ -1522,10 +1500,8 @@ qtn_linkage <-
                        !any(genotypes[i2, - (1:5)] == 0) & dom) |
                       (ldsup > ld_max | ldsup < ld_min) &
                       (ldinf > ld_max | ldinf < ld_min)) {
-                    if (!is.null(seed)) {
                       seed_num[z] <- (seed * s) + z + rep
                       set.seed(seed_num[z])
-                    }
                     dif <- c(dif, vector_of_dom_QTN, j)
                     j <-
                       sample(setdiff(index, dif), 1, replace = FALSE)
@@ -1559,13 +1535,13 @@ qtn_linkage <-
                     immediate. = T
                   )
                 }
-                if (ldsup < ld_min & ldinf < ld_min) {
+                if (s == 10 & (ldsup < ld_min & ldinf < ld_min)) {
                   stop(
                     "None of the selected SNPs met the minimum LD threshold. Try another seed number or provide a genotypic file with enough LD!",
                     call. = F
                   )
                 }
-                if (ldsup > ld_max & ldinf > ld_max) {
+                if (s == 10 & (ldsup > ld_max & ldinf > ld_max)) {
                   stop(
                     "None of the selected SNPs met the maximum LD threshold. Try another seed number or conduct an LD pruning in your genotypic file!",
                     call. = F
@@ -1669,7 +1645,7 @@ qtn_linkage <-
             }
             data.table::fwrite(
               results_dom,
-              "Dominance_Selected_QTNs.txt",
+              "Dominance_QTNs.txt",
               row.names = FALSE,
               sep = "\t",
               quote = FALSE,
