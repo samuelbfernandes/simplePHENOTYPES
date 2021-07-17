@@ -9,6 +9,8 @@
 #' @param add = NULL,
 #' @param ld_min = NULL,
 #' @param ld_max = NULL,
+#' @param add_effect = NULL,
+#' @param dom_effect = NULL,
 #' @param ld_method Four methods can be used to calculate linkage disequilibrium values: "composite" for LD composite measure, "r" for R coefficient (by EM algorithm assuming HWE, it could be negative), "dprime" for D', and "corr" for correlation coefficient.
 #' @param gdsfile NULL
 #' @param constraints = list(maf_above = NULL, maf_below = NULL)
@@ -27,6 +29,8 @@ qtn_linkage <-
            seed = NULL,
            add_QTN_num = NULL,
            dom_QTN_num = NULL,
+           add_effect = NULL,
+           dom_effect = NULL,
            ld_max = NULL,
            ld_min = NULL,
            ld_method = "composite",
@@ -308,7 +312,10 @@ qtn_linkage <-
         }), 4)
         names(maf) <- results[, "snp"]
         results <- data.frame(
-          results[, 1:7],
+          results[, 1:2],
+          additive_effect = c(rep("-", add_QTN_num), unlist(add_effect)),
+          dominance_effect = c(rep("-", add_QTN_num), unlist(dom_effect)),
+          results[, 3:7],
           maf = maf,
           results[, - c(1:7)],
           check.names = FALSE,
@@ -322,7 +329,7 @@ qtn_linkage <-
             fix.empty.names = FALSE
           )
         if (!export_gt) {
-          results <- results[, 1:9]
+          results <- results[, 1:11]
         }
         if (add_QTN) {
           if (verbose){
@@ -568,7 +575,9 @@ qtn_linkage <-
           names(maf) <- results_add[, "snp"]
           results_add <-
             data.frame(
-              results_add[, 1:7],
+              results_add[, 1:2],
+              additive_effect = c(rep("-", add_QTN_num), unlist(add_effect)),
+              results_add[, 3:7],
               maf = maf,
               results_add[, -c(1:7)],
               check.names = FALSE,
@@ -582,7 +591,7 @@ qtn_linkage <-
               fix.empty.names = FALSE
             )
           if (!export_gt) {
-            results_add <- results_add[, 1:9]
+            results_add <- results_add[, 1:10]
           }
           if (add_QTN) {
             if (verbose){
@@ -839,7 +848,9 @@ qtn_linkage <-
           names(maf) <- results_dom[, "snp"]
           results_dom <-
             data.frame(
-              results_dom[, 1:7],
+              results_dom[, 1:2],
+              dominance_effect = c(rep("-", dom_QTN_num), unlist(dom_effect)),
+              results_dom[, 3:7],
               maf = maf,
               results_dom[, - c(1:7)],
               check.names = FALSE,
@@ -853,7 +864,7 @@ qtn_linkage <-
               fix.empty.names = FALSE
             )
           if (!export_gt) {
-            results_dom <- results_dom[, 1:9]
+            results_dom <- results_dom[, 1:10]
           }
           if (dom_QTN) {
             if (verbose){
@@ -1135,7 +1146,10 @@ qtn_linkage <-
         names(maf) <- results[, "snp"]
         results <-
           data.frame(
-            results[, 1:7],
+            results[, 1:2],
+            additive_effect = unlist(add_effect),
+            dominance_effect = unlist(dom_effect),
+            results[, 3:7],
             maf = maf,
             results[, - c(1:7)],
             check.names = FALSE,
@@ -1149,7 +1163,7 @@ qtn_linkage <-
             fix.empty.names = FALSE
           )
         if (!export_gt) {
-          results <- results[, 1:9]
+          results <- results[, 1:11]
         }
         if (add_QTN) {
           if (verbose){
@@ -1208,34 +1222,30 @@ qtn_linkage <-
               x <- 1
               sup_temp <- c()
               ld_between_QTNs_temp <- c()
+              dif <- c()
+              new_vector_of_add_QTN <- c()
               for (j in vector_of_add_QTN) {
                 times <- 1
-                dif <- c()
                 ldsup <- 1
                 ldinf <- 1
                 i <- j + 1
                 i2 <- j - 1
-                while (times <= 100 & (ldsup > ld_max | ldsup < ld_min) &
+                while (times <= length(index)/2 & (ldsup > ld_max | ldsup < ld_min) &
                        (ldinf > ld_max | ldinf < ld_min)) {
-                  if (i > n & i2 < 1) {
-                    if (i > n) {
-                      if (verbose)
-                        warning(
-                          "There are no SNPs downstream. Selecting a different seed number",
-                          call. = F,
-                          immediate. = T
-                        )
-                      break
-                    }
-                    if (i2 < 1) {
-                      if (verbose)
-                        warning(
-                          "There are no SNPs upstream. Selecting a different seed number",
-                          call. = F,
-                          immediate. = T
-                        )
-                      break
-                    }
+                  if (i > n | i2 < 1) {
+                    warning(
+                      "Trying to find SNPs that match the \'ld_max\' and \'ld_min\' criteria.",
+                      call. = F,
+                      immediate. = T
+                    )
+                    seed_num[z] <- (seed * s) + z + x
+                    set.seed(seed_num[z])
+                    j <-
+                      sample(setdiff(index, dif), 1, replace = FALSE)
+                    ldsup <- 1
+                    ldinf <- 1
+                    i <- j + 1
+                    i2 <- j - 1
                   }
                   snp1 <-
                     gdsfmt::read.gdsn(
@@ -1265,16 +1275,19 @@ qtn_linkage <-
                   }
                   if ((ldsup > ld_max | ldsup < ld_min) &
                       (ldinf > ld_max | ldinf < ld_min)) {
-                      seed_num[z] <- (seed * s) + z
-                      set.seed(seed_num[z])
-                    dif <- c(dif, vector_of_add_QTN, j)
+                    seed_num[z] <- (seed * s) + z + x
+                    set.seed(seed_num[z])
                     j <-
                       sample(setdiff(index, dif), 1, replace = FALSE)
                     ldsup <- 1
                     ldinf <- 1
+                    i <- j + 1
+                    i2 <- j - 1
+                  } else {
+                    i <- i + 1
+                    i2 <- i2 - 1 
                   }
-                  i <- i + 1
-                  i2 <- i2 - 1
+                  dif <- c(dif, j)                  
                   times <- times + 1
                 }
                 if (ldsup > ld_max) {
@@ -1291,6 +1304,7 @@ qtn_linkage <-
                   ifelse(closest == 1 , ldinf, ldsup)
                 sup_temp[x] <-
                   ifelse(closest == 1 , i2 + 1, i - 1)
+                new_vector_of_add_QTN[x] <- j
                 x <- x + 1
                 if (s == 10 & (ldsup < ld_min & ldinf < ld_min)) {
                   stop(
@@ -1313,12 +1327,12 @@ qtn_linkage <-
               s <- s + 1
             }
             sup[[z]] <- sup_temp
-            inf[[z]] <- vector_of_add_QTN
+            inf[[z]] <- new_vector_of_add_QTN
             add_gen_info_inf[[z]] <-
               data.frame(
                 type = "QTN_selected",
                 trait = "trait_1",
-                genotypes[vector_of_add_QTN, ],
+                genotypes[new_vector_of_add_QTN, ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
               )
@@ -1371,7 +1385,9 @@ qtn_linkage <-
           names(maf) <- results_add[, "snp"]
           results_add <-
             data.frame(
-              results_add[, 1:7],
+              results_add[, 1:2],
+              additive_effect = unlist(add_effect),
+              results_add[, 3:7],
               maf = maf,
               results_add[, - c(1:7)],
               check.names = FALSE,
@@ -1385,7 +1401,7 @@ qtn_linkage <-
               fix.empty.names = FALSE
             )
           if (!export_gt) {
-            results_add <- results_add[, 1:9]
+            results_add <- results_add[, 1:10]
           }
           if (add_QTN) {
             if (verbose){
@@ -1441,34 +1457,31 @@ qtn_linkage <-
               sup_temp <- c()
               ld_between_QTNs_temp <- c()
               x <- 1
+              ld_between_QTNs_temp <- c()
+              dif <- c()
+              new_vector_of_dom_QTN <- c()
               for (j in vector_of_dom_QTN) {
                 times <- 1
-                dif <- c()
                 ldsup <- 1
                 ldinf <- 1
                 i <- j + 1
                 i2 <- j - 1
-                while (times <= 100 & (ldsup > ld_max | ldsup < ld_min) &
+                while (times <= length(index)/2 & (ldsup > ld_max | ldsup < ld_min) &
                        (ldinf > ld_max | ldinf < ld_min)) {
-                  if (i > n & i2 < 1) {
-                    if (i > n) {
-                      if (verbose)
-                        warning(
-                          "There are no SNPs downstream. Selecting a different seed number",
-                          call. = F,
-                          immediate. = T
-                        )
-                      break
-                    }
-                    if (i2 < 1) {
-                      if (verbose)
-                        warning(
-                          "There are no SNPs upstream. Selecting a different seed number",
-                          call. = F,
-                          immediate. = T
-                        )
-                      break
-                    }
+                  if (i > n | i2 < 1) {
+                    warning(
+                      "Trying to find SNPs that match the \'ld_max\' and \'ld_min\' criteria.",
+                      call. = F,
+                      immediate. = T
+                    )
+                    seed_num[z] <- (seed * s) + z + rep + x
+                    set.seed(seed_num[z])
+                    j <-
+                      sample(setdiff(index, dif), 1, replace = FALSE)
+                    ldsup <- 1
+                    ldinf <- 1
+                    i <- j + 1
+                    i2 <- j - 1
                   }
                   snp1 <-
                     gdsfmt::read.gdsn(
@@ -1500,16 +1513,19 @@ qtn_linkage <-
                        !any(genotypes[i2, - (1:5)] == 0) & dom) |
                       (ldsup > ld_max | ldsup < ld_min) &
                       (ldinf > ld_max | ldinf < ld_min)) {
-                      seed_num[z] <- (seed * s) + z + rep
+                      seed_num[z] <- (seed * s) + z + rep + x
                       set.seed(seed_num[z])
-                    dif <- c(dif, vector_of_dom_QTN, j)
                     j <-
                       sample(setdiff(index, dif), 1, replace = FALSE)
                     ldsup <- 1
                     ldinf <- 1
+                    i <- i + 1
+                    i2 <- i2 - 1
+                  } else {
+                    i <- i + 1
+                    i2 <- i2 - 1
                   }
-                  i <- i + 1
-                  i2 <- i2 - 1
+                  dif <- c(dif, j)      
                   times <- times + 1
                 }
                 if (ldsup > ld_max) {
@@ -1526,6 +1542,7 @@ qtn_linkage <-
                   ifelse(closest == 1 , ldinf, ldsup)
                 sup_temp[x] <-
                   ifelse(closest == 1 , i2 + 1, i - 1)
+                new_vector_of_dom_QTN[x] <- j
                 x <- x + 1
                 if ((!any(genotypes[i - 1, - (1:5)] == 0) &
                      !any(genotypes[i2 + 1, - (1:5)] == 0) & dom)) {
@@ -1557,12 +1574,12 @@ qtn_linkage <-
             }
             SNPRelate::snpgdsClose(genofile)
             sup[[z]] <- sup_temp
-            inf[[z]] <- vector_of_dom_QTN
+            inf[[z]] <- new_vector_of_dom_QTN
             dom_gen_info_inf[[z]] <-
               data.frame(
                 type = "QTN_selected",
                 trait = "trait_1",
-                genotypes[vector_of_dom_QTN, ],
+                genotypes[new_vector_of_dom_QTN, ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
               )
@@ -1614,7 +1631,9 @@ qtn_linkage <-
           names(maf) <- results_dom[, "snp"]
           results_dom <-
             data.frame(
-              results_dom[, 1:7],
+              results_dom[, 1:2],
+              dominance_effect = unlist(dom_effect),
+              results_dom[, 3:7],
               maf,
               results_dom[, - c(1:7)],
               check.names = FALSE,
@@ -1628,7 +1647,7 @@ qtn_linkage <-
               fix.empty.names = FALSE
             )
           if (!export_gt) {
-            results_dom <- results_dom[, 1:9]
+            results_dom <- results_dom[, 1:10]
           }
           if (dom_QTN) {
             if (verbose){
