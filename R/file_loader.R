@@ -313,8 +313,16 @@ file_loader <-
           SNPRelate::snpgdsGetGeno(genofile, snpfirstdim = FALSE,
                                    verbose = FALSE) - 1
         GT <- as.matrix(gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "sample.id")))
+        if ("snp.rs.id" %in% gdsfmt::ls.gdsn(genofile)) {
+          SNP <- gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.rs.id"))
+        } else if ("snp.id" %in% gdsfmt::ls.gdsn(genofile)) {
+          SNP <- gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.id"))       
+        } else {
+          stop("No SNP information was found in the GDS file.",
+               call. = F)
+        }
         GI <- data.frame(
-          SNP = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.rs.id")),
+          SNP = SNP,
           allele = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.allele")),
           Chromosome = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.chromosome")),
           Position = gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.position")),
