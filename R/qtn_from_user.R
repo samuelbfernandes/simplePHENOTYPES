@@ -8,6 +8,10 @@
 #' @param add = NULL,
 #' @param dom = NULL,
 #' @param epi = NULL, 
+#' @param add_effect = NULL,
+#' @param dom_effect = NULL,
+#' @param epi_effect = NULL,
+#' @param var_effect = NULL,
 #' @param epi_type = NULL,
 #' @param epi_interaction = 2,
 #' @param ntraits = NULL
@@ -27,9 +31,15 @@ qtn_from_user <-
            export_gt = NULL,
            architecture = NULL,
            same_add_dom_QTN = NULL,
+           same_mv_QTN = NULL,
            add = NULL,
            dom = NULL,
            epi = NULL, 
+           var = NULL,
+           add_effect = NULL,
+           dom_effect = NULL,
+           epi_effect = NULL,
+           var_effect = NULL,
            epi_type = NULL,
            epi_interaction = 2,
            ntraits = NULL,
@@ -41,354 +51,21 @@ qtn_from_user <-
            verbose = NULL){
     ns <- ncol(genotypes) - 5
     n <- nrow(genotypes)
-    QTN_list$add <- unname(QTN_list$add)
-    QTN_list$dom <- unname(QTN_list$dom)
-    QTN_list$epi <- unname(QTN_list$epi)
-    if (ntraits == 1 | architecture == "pleiotropic") {
-      add_ef_trait_obj <- NULL
-      dom_ef_trait_obj <- NULL
-      epi_ef_trait_obj <- NULL
-      if (!is.null(unlist(QTN_list$add)) & add) {
-        add_ef_trait_obj <-
-          lapply(QTN_list$add[[1]], function(i) {
-            a <- genotypes[genotypes$snp %in% i,]
-            rownames(a) <- a$snp
-            a <- a[i,]
-          })
-        maf <- round(apply(add_ef_trait_obj[[1]][, -1:-5], 1, function(x) {
-          sumx <- ((sum(x) + ns) / ns * 0.5)
-          min(sumx,  (1 - sumx))
-        }), 4)
-        add_object <-
-          data.frame(
-            rep = 1,
-            add_ef_trait_obj[[1]][, 1:5],
-            maf = maf,
-            add_ef_trait_obj[[1]][, -1:-5],
-            check.names = FALSE,
-            fix.empty.names = FALSE
-          )
-        add_ef_trait_obj[[1]] <- t(add_ef_trait_obj[[1]][, -1:-5])
-        colnames(add_ef_trait_obj[[1]]) <-
-          paste0("Chr_",  add_object$chr, "_", add_object$pos)
-        if (!export_gt) {
-          add_object <- add_object[, 1:7]
-        }
-        if (same_add_dom_QTN) {
-          data.table::fwrite(
-            add_object,
-            "Additive_and_Dominance_Selected_QTNs.txt",
-            row.names = FALSE,
-            sep = "\t",
-            quote = FALSE,
-            na = NA
-          )
-        } else {
-          data.table::fwrite(
-            add_object,
-            "Additive_Selected_QTNs.txt",
-            row.names = FALSE,
-            sep = "\t",
-            quote = FALSE,
-            na = NA
-          )
-        }
-      }
-      if (!is.null(unlist(QTN_list$dom)) & dom) {
-        dom_ef_trait_obj <-
-          lapply(QTN_list$dom, function(i) {
-            a <- genotypes[genotypes$snp %in% i,]
-            rownames(a) <- a$snp
-            a <- a[i,]
-          })
-        maf <- round(apply(dom_ef_trait_obj[[1]][, -1:-5], 1, function(x) {
-          sumx <- ((sum(x) + ns) / ns * 0.5)
-          min(sumx,  (1 - sumx))
-        }), 4)
-        dom_object <-
-          data.frame(
-            rep = 1,
-            dom_ef_trait_obj[[1]][, 1:5],
-            maf = maf,
-            dom_ef_trait_obj[[1]][, -1:-5],
-            check.names = FALSE,
-            fix.empty.names = FALSE
-          )
-        dom_ef_trait_obj[[1]] <- t(dom_ef_trait_obj[[1]][, -1:-5])
-        colnames(dom_ef_trait_obj[[1]]) <-
-          paste0("Chr_",  dom_object$chr, "_", dom_object$pos)
-        if (!export_gt) {
-          dom_object <- dom_object[, 1:7]
-        }
-        data.table::fwrite(
-          dom_object,
-          "Dominance_Selected_QTNs.txt",
-          row.names = FALSE,
-          sep = "\t",
-          quote = FALSE,
-          na = NA
-        )
-      }
-      if (!is.null(unlist(QTN_list$epi)) & epi) {
-        epi_ef_trait_obj <-
-          lapply(QTN_list$epi, function(i) {
-            a <- genotypes[genotypes$snp %in% i,]
-            rownames(a) <- a$snp
-            a <- a[i,]
-          })
-        maf <- round(apply(epi_ef_trait_obj[[1]][, -1:-5], 1, function(x) {
-          sumx <- ((sum(x) + ns) / ns * 0.5)
-          min(sumx,  (1 - sumx))
-        }), 4)
-        epi_object <-
-          data.frame(
-            rep = 1,
-            QTN = rep(1:(length(QTN_list$epi[[1]])/epi_interaction), each = epi_interaction),
-            epi_ef_trait_obj[[1]][, 1:5],
-            maf = maf,
-            epi_ef_trait_obj[[1]][, -1:-5],
-            check.names = FALSE,
-            fix.empty.names = FALSE
-          )
-        epi_ef_trait_obj[[1]] <- t(epi_ef_trait_obj[[1]][, -1:-5])
-        colnames(epi_ef_trait_obj[[1]]) <-
-          paste0("Chr_",  epi_object$chr, "_", epi_object$pos)
-        if (!export_gt) {
-          epi_object <- epi_object[, 1:8]
-        }
-        data.table::fwrite(
-          epi_object,
-          "Epistatic_Selected_QTNs.txt",
-          row.names = FALSE,
-          sep = "\t",
-          quote = FALSE,
-          na = NA
-        )
-      }
-      return(
-        list(
-          add_ef_trait_obj = add_ef_trait_obj,
-          dom_ef_trait_obj = dom_ef_trait_obj,
-          epi_ef_trait_obj = epi_ef_trait_obj
-        )
-      )
-    } else  if (architecture == "partially") {
-      add_ef_trait_obj <- NULL
-      dom_ef_trait_obj <- NULL
-      epi_ef_trait_obj <- NULL
-      if (!is.null(unlist(QTN_list$add)) & add) {
-        add_ef_trait_obj <-
-          list(lapply(QTN_list$add, function(i) {
-            a <- genotypes[genotypes$snp %in% i,]
-            rownames(a) <- a$snp
-            a <- a[i,]
-          }))
-        add_object <- list()
-        for(i in 1:lengths(add_ef_trait_obj)){
-          maf <- round(apply(add_ef_trait_obj[[1]][[i]][, -1:-5], 1, function(x) {
-            sumx <- ((sum(x) + ns) / ns * 0.5)
-            min(sumx,  (1 - sumx))
-          }), 4)
-          add_object[[i]] <-
-            data.frame(
-              rep = 1,
-              type = "user_specified",
-              trait = paste0("trait_", i),
-              add_ef_trait_obj[[1]][[i]][, 1:5],
-              maf = maf,
-              add_ef_trait_obj[[1]][[i]][, -1:-5],
-              check.names = FALSE,
-              fix.empty.names = FALSE
-            )
-          add_ef_trait_obj[[1]][[i]] <- t(add_ef_trait_obj[[1]][[i]][, -1:-5])
-          colnames(add_ef_trait_obj[[1]][[i]]) <-
-            paste0("Chr_",  add_object[[i]]$chr, "_", add_object[[i]]$pos)
-        }
-        add_object <- do.call("rbind", add_object)
-        if (!export_gt) {
-          add_object <- add_object[, 1:9]
-        }
-        pleio <-
-          add_object$snp[duplicated(add_object$snp) |
-                           duplicated(add_object$snp, fromLast = TRUE)]
-        tab_p <- table(pleio) 
-        if (any(tab_p < length(QTN_list$add))) {
-          for (i in 1:length(tab_p)) {
-            add_object$type[add_object$snp %in% names(tab_p[i])] <-
-              ifelse(tab_p[i] < length(QTN_list$add),
-                     paste0("Pleio_traits_", paste(gsub("trait_", "", add_object$trait[add_object$snp %in% names(tab_p[i])]), collapse = "_")),
-                     "Pleiotropic")
-          }
-          add_object$type[!add_object$snp %in% names(tab_p)] <- "trait_specific"
-        } else {
-          add_object$type[duplicated(add_object$snp) |
-                            duplicated(add_object$snp, fromLast = TRUE)] <-
-            "Pleiotropic"
-          add_object$type[!(duplicated(add_object$snp) |
-                              duplicated(add_object$snp, fromLast = TRUE))] <-
-            "trait_specific"
-        }
-        if (same_add_dom_QTN) {
-          data.table::fwrite(
-            add_object,
-            "Additive_and_Dominance_Selected_QTNs.txt",
-            row.names = FALSE,
-            sep = "\t",
-            quote = FALSE,
-            na = NA
-          )
-        } else {
-          data.table::fwrite(
-            add_object,
-            "Additive_Selected_QTNs.txt",
-            row.names = FALSE,
-            sep = "\t",
-            quote = FALSE,
-            na = NA
-          )
-        }
-      }
-      if (!is.null(unlist(QTN_list$dom)) & dom) {
-        dom_ef_trait_obj <-
-          list(lapply(QTN_list$dom, function(i) {
-            a <- genotypes[genotypes$snp %in% i,]
-            rownames(a) <- a$snp
-            a <- a[i,]
-          }))
-        dom_object <- list()
-        for(i in 1:lengths(dom_ef_trait_obj)){
-          maf <- round(apply(dom_ef_trait_obj[[1]][[i]][, -1:-5], 1, function(x) {
-            sumx <- ((sum(x) + ns) / ns * 0.5)
-            min(sumx,  (1 - sumx))
-          }), 4)
-          dom_object[[i]] <-
-            data.frame(
-              rep = 1,
-              type = "user_specified",
-              trait = paste0("trait_", i),
-              dom_ef_trait_obj[[1]][[i]][, 1:5],
-              maf = maf,
-              dom_ef_trait_obj[[1]][[i]][, -1:-5],
-              check.names = FALSE,
-              fix.empty.names = FALSE
-            )
-          dom_ef_trait_obj[[1]][[i]] <- t(dom_ef_trait_obj[[1]][[i]][, -1:-5])
-          colnames(dom_ef_trait_obj[[1]][[i]]) <-
-            paste0("Chr_",  dom_object[[i]]$chr, "_", dom_object[[i]]$pos)
-        }
-        dom_object <- do.call("rbind", dom_object)
-        if (!export_gt) {
-          dom_object <- dom_object[, 1:9]
-        }
-        pleio <-
-          dom_object$snp[duplicated(dom_object$snp) |
-                           duplicated(dom_object$snp, fromLast = TRUE)]
-        tab_p <- table(pleio) 
-        if (any(tab_p < length(QTN_list$dom))) {
-          for (i in 1:length(tab_p)) {
-            dom_object$type[dom_object$snp %in% names(tab_p[i])] <-
-              ifelse(tab_p[i] < length(QTN_list$dom),
-                     paste0("Pleio_traits_", paste(
-                       gsub("trait_", "", dom_object$trait[dom_object$snp %in% names(tab_p[i])]), collapse = "_")),
-                     "Pleiotropic")
-          }
-          dom_object$type[!dom_object$snp %in% names(tab_p)] <- "trait_specific"
-        } else {
-          dom_object$type[duplicated(dom_object$snp) |
-                            duplicated(dom_object$snp, fromLast = TRUE)] <-
-            "Pleiotropic"
-          dom_object$type[!(duplicated(dom_object$snp) |
-                              duplicated(dom_object$snp, fromLast = TRUE))] <-
-            "trait_specific"
-        }
-        data.table::fwrite(
-          dom_object,
-          "Dominance_Selected_QTNs.txt",
-          row.names = FALSE,
-          sep = "\t",
-          quote = FALSE,
-          na = NA
-        )
-      }
-      if (!is.null(unlist(QTN_list$epi)) & epi)  {
-        epi_ef_trait_obj <-
-          list(lapply(QTN_list$epi, function(i) {
-            a <- genotypes[genotypes$snp %in% i,]
-            rownames(a) <- a$snp
-            a <- a[i,]
-          }))
-        epi_object <- list()
-        e_len <- lengths(QTN_list$epi)/epi_interaction
-        for(i in 1:lengths(epi_ef_trait_obj)){
-          maf <- round(apply(epi_ef_trait_obj[[1]][[i]][, -1:-5], 1, function(x) {
-            sumx <- ((sum(x) + ns) / ns * 0.5)
-            min(sumx,  (1 - sumx))
-          }), 4)
-          epi_object[[i]] <-
-            data.frame(
-              rep = 1,
-              QTN = rep(1:e_len[i], each = epi_interaction),
-              type = "user_specified",
-              trait = paste0("trait_", i),
-              epi_ef_trait_obj[[1]][[i]][, 1:5],
-              maf = maf,
-              epi_ef_trait_obj[[1]][[i]][, -1:-5],
-              check.names = FALSE,
-              fix.empty.names = FALSE
-            )
-          epi_ef_trait_obj[[1]][[i]] <- t(epi_ef_trait_obj[[1]][[i]][, -1:-5])
-          colnames(epi_ef_trait_obj[[1]][[i]]) <-
-            paste0("Chr_",  epi_object[[i]]$chr, "_", epi_object[[i]]$pos)
-        }
-        epi_object <- do.call("rbind", epi_object)
-        if (!export_gt) {
-          epi_object <- epi_object[, 1:9]
-        }
-        pleio <-
-          epi_object$snp[duplicated(epi_object$snp) |
-                           duplicated(epi_object$snp, fromLast = TRUE)]
-        tab_p <- table(pleio) 
-        if (any(tab_p < length(QTN_list$epi))) {
-          for (i in 1:length(tab_p)) {
-            epi_object$type[epi_object$snp %in% names(tab_p[i])] <-
-              ifelse(tab_p[i] < length(QTN_list$epi),
-                     paste0("Pleio_traits_", paste(
-                       gsub("trait_", "", epi_object$trait[epi_object$snp %in% names(tab_p[i])]), collapse = "_")),
-                     "Pleiotropic")
-          }
-          epi_object$type[!epi_object$snp %in% names(tab_p)] <- "trait_specific"
-        } else {
-          epi_object$type[duplicated(epi_object$snp) |
-                            duplicated(epi_object$snp, fromLast = TRUE)] <-
-            "Pleiotropic"
-          epi_object$type[!(duplicated(epi_object$snp) |
-                              duplicated(epi_object$snp, fromLast = TRUE))] <-
-            "trait_specific"
-        }
-        data.table::fwrite(
-          epi_object,
-          "Epistatic_Selected_QTNs.txt",
-          row.names = FALSE,
-          sep = "\t",
-          quote = FALSE,
-          na = NA
-        )
-      }
-      return(
-        list(
-          add_ef_trait_obj = add_ef_trait_obj,
-          dom_ef_trait_obj = dom_ef_trait_obj,
-          epi_ef_trait_obj = epi_ef_trait_obj
-        )
-      )
-    } else {
+    if (architecture == "LD") {
       add_ef_trait_obj <- NULL
       dom_ef_trait_obj <- NULL
       if (type_of_ld == "indirect") {
         if (same_add_dom_QTN & add) {
           genofile <- SNPRelate::snpgdsOpen(gdsfile)
+          selected_snps <- genotypes$snp %in% unlist(QTN_list$add)
+          if (sum(selected_snps) == 0) {
+            stop(
+              "None of the markers provided where found in the genotypic dataset (for at least one of the traits). \nPlease verify that QTN_list$add contain markers that are present in the marker dataset.",
+              call. = F
+            )
+          }
           vector_of_add_QTN <-
-            which(genotypes$snp %in% unlist(QTN_list$add))
+            which(selected_snps)
           names(vector_of_add_QTN) <- genotypes$snp[vector_of_add_QTN]
           vector_of_add_QTN <- vector_of_add_QTN[unlist(QTN_list$add)]
           sup_temp <- c()
@@ -523,7 +200,7 @@ qtn_from_user <-
                            add_gen_info_sup,
                            add_gen_info_inf)
           LD_summary <- data.frame(
-            1,
+            "ALL",
             QTN_causing_ld[, "snp"],
             ld_min,
             ld_max,
@@ -561,7 +238,10 @@ qtn_from_user <-
           }), 4)
           names(maf) <- results[, "snp"]
           results <- data.frame(
-            results[, 1:7],
+            results[, 1:2],
+            additive_effect = c(rep("-", add_QTN_num), unlist(add_effect)),
+            dominance_effect = c(rep("-", add_QTN_num), unlist(dom_effect)),
+            results[, 3:7],
             maf = maf,
             results[,-c(1:7)],
             check.names = FALSE,
@@ -569,17 +249,17 @@ qtn_from_user <-
           )
           results <-
             data.frame(
-              rep = 1,
+              rep = "ALL",
               results,
               check.names = FALSE,
               fix.empty.names = FALSE
             )
           if (!export_gt) {
-            results <- results[, 1:9]
+            results <- results[, 1:11]
           }
           data.table::fwrite(
             results,
-            "Additive_and_Dominance_Selected_QTNs.txt",
+            "Additive_QTNs.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -594,8 +274,15 @@ qtn_from_user <-
         } else {
           if (add) {
             genofile <- SNPRelate::snpgdsOpen(gdsfile)
+            selected_snps <- genotypes$snp %in% unlist(QTN_list$add)
+            if (sum(selected_snps) == 0) {
+              stop(
+                "None of the markers provided where found in the genotypic dataset (for at least one of the traits). \nPlease verify that QTN_list$add contain markers that are present in the marker dataset.",
+                call. = F
+              )
+            }
             vector_of_add_QTN <-
-              which(genotypes$snp %in% unlist(QTN_list$add))
+              which(selected_snps)
             names(vector_of_add_QTN) <- genotypes$snp[vector_of_add_QTN]
             vector_of_add_QTN <- vector_of_add_QTN[unlist(QTN_list$add)]
             x <- 1
@@ -724,7 +411,7 @@ qtn_from_user <-
                                  add_gen_info_sup,
                                  add_gen_info_inf)
             LD_summary_add <- data.frame(
-              1,
+              "ALL",
               QTN_causing_ld[, "snp"],
               ld_min,
               ld_max,
@@ -764,7 +451,9 @@ qtn_from_user <-
             names(maf) <- results_add[, "snp"]
             results_add <-
               data.frame(
-                results_add[, 1:7],
+                results_add[, 1:2],
+                additive_effect = c(rep("-", add_QTN_num), unlist(add_effect)),
+                results_add[, 3:7],
                 maf = maf,
                 results_add[,-c(1:7)],
                 check.names = FALSE,
@@ -772,17 +461,17 @@ qtn_from_user <-
               )
             results_add <-
               data.frame(
-                rep = 1,
+                rep = "ALL",
                 results_add,
                 check.names = FALSE,
                 fix.empty.names = FALSE
               )
             if (!export_gt) {
-              results_add <- results_add[, 1:9]
+              results_add <- results_add[, 1:10]
             }
             data.table::fwrite(
               results_add,
-              "Additive_Selected_QTNs.txt",
+              "Additive_QTNs.txt",
               row.names = FALSE,
               sep = "\t",
               quote = FALSE,
@@ -797,8 +486,15 @@ qtn_from_user <-
           }
           if (dom) {
             genofile <- SNPRelate::snpgdsOpen(gdsfile)
+            selected_snps <- genotypes$snp %in% unlist(QTN_list$dom)
+            if (sum(selected_snps) == 0) {
+              stop(
+                "None of the markers provided where found in the genotypic dataset (for at least one of the traits). \nPlease verify that QTN_list$dom contain markers that are present in the marker dataset.",
+                call. = F
+              )
+            }
             vector_of_dom_QTN <-
-              which(genotypes$snp %in% unlist(QTN_list$dom))
+              which(selected_snps)
             names(vector_of_dom_QTN) <- genotypes$snp[vector_of_dom_QTN]
             vector_of_dom_QTN <- vector_of_dom_QTN[unlist(QTN_list$dom)]
             sup_temp <- c()
@@ -934,7 +630,7 @@ qtn_from_user <-
                                  dom_gen_info_sup,
                                  dom_gen_info_inf)
             LD_summary_dom <- data.frame(
-              1,
+              "ALL",
               QTN_causing_ld[, "snp"],
               ld_min,
               ld_max,
@@ -973,7 +669,9 @@ qtn_from_user <-
             names(maf) <- results_dom[, "snp"]
             results_dom <-
               data.frame(
-                results_dom[, 1:7],
+                results_dom[, 1:2],
+                dominance_effect = c(rep("-", dom_QTN_num), unlist(dom_effect)),
+                results_dom[, 3:7],
                 maf = maf,
                 results_dom[, - c(1:7)],
                 check.names = FALSE,
@@ -981,17 +679,17 @@ qtn_from_user <-
               )
             results_dom <-
               data.frame(
-                rep = 1,
+                rep = "ALL",
                 results_dom,
                 check.names = FALSE,
                 fix.empty.names = FALSE
               )
             if (!export_gt) {
-              results_dom <- results_dom[, 1:9]
+              results_dom <- results_dom[, 1:10]
             }
             data.table::fwrite(
               results_dom,
-              "Dominance_Selected_QTNs.txt",
+              "Dominance_QTNs.txt",
               row.names = FALSE,
               sep = "\t",
               quote = FALSE,
@@ -1040,8 +738,15 @@ qtn_from_user <-
       } else {
         if (same_add_dom_QTN & add) {
           genofile <- SNPRelate::snpgdsOpen(gdsfile)
+          selected_snps <- genotypes$snp %in% unlist(QTN_list$add)
+          if (sum(selected_snps) == 0) {
+            stop(
+              "None of the markers provided where found in the genotypic dataset (for at least one of the traits). \nPlease verify that QTN_list$add contain markers that are present in the marker dataset.",
+              call. = F
+            )
+          }
           vector_of_add_QTN <-
-            which(genotypes$snp %in% unlist(QTN_list$add))
+            which(selected_snps)
           names(vector_of_add_QTN) <- genotypes$snp[vector_of_add_QTN]
           vector_of_add_QTN <- vector_of_add_QTN[unlist(QTN_list$add)]
           x <- 1
@@ -1162,7 +867,7 @@ qtn_from_user <-
           results <- rbind(add_gen_info_inf,
                            add_gen_info_sup)
           LD_summary <- data.frame(
-            1,
+            "ALL",
             ld_min,
             ld_max,
             ld_between_QTNs_temp,
@@ -1198,7 +903,10 @@ qtn_from_user <-
           names(maf) <- results[, "snp"]
           results <-
             data.frame(
-              results[, 1:7],
+              results[, 1:2],
+              additive_effect = unlist(add_effect),
+              dominance_effect = unlist(dom_effect),
+              results[, 3:7],
               maf = maf,
               results[, - c(1:7)],
               check.names = FALSE,
@@ -1206,17 +914,17 @@ qtn_from_user <-
             )
           results <-
             data.frame(
-              rep = 1,
+              rep = "ALL",
               results,
               check.names = FALSE,
               fix.empty.names = FALSE
             )
           if (!export_gt) {
-            results <- results[, 1:9]
+            results <- results[, 1:11]
           }
           data.table::fwrite(
             results,
-            "Additive_Selected_QTNs.txt",
+            "Additive_QTNs.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -1236,8 +944,15 @@ qtn_from_user <-
         } else {
           if (add) {
             genofile <- SNPRelate::snpgdsOpen(gdsfile)
+            selected_snps <- genotypes$snp %in% unlist(QTN_list$add)
+            if (sum(selected_snps) == 0) {
+              stop(
+                "None of the markers provided where found in the genotypic dataset (for at least one of the traits). \nPlease verify that QTN_list$add contain markers that are present in the marker dataset.",
+                call. = F
+              )
+            }
             vector_of_add_QTN <-
-              which(genotypes$snp %in% unlist(QTN_list$add))
+              which(selected_snps)
             names(vector_of_add_QTN) <- genotypes$snp[vector_of_add_QTN]
             vector_of_add_QTN <- vector_of_add_QTN[unlist(QTN_list$add)]
             x <- 1
@@ -1299,15 +1014,15 @@ qtn_from_user <-
                 i <- i + 1
                 i2 <- i2 - 1
               }
-                if (ldsup > ld_max) {
-                  ldsup <- 100
-                } else if (ldinf > ld_max) {
-                  ldinf <- 100
-                } else if (ldsup < ld_min) {
-                  ldsup <- 100
-                } else if (ldinf < ld_min) {
-                  ldinf <- 100
-                }
+              if (ldsup > ld_max) {
+                ldsup <- 100
+              } else if (ldinf > ld_max) {
+                ldinf <- 100
+              } else if (ldsup < ld_min) {
+                ldsup <- 100
+              } else if (ldinf < ld_min) {
+                ldinf <- 100
+              }
               closest <- which.min(abs(c(ld_max - ldinf,  ld_max -ldsup)))
               ld_between_QTNs_temp[x] <- 
                 ifelse(closest == 1 , ldinf, ldsup)
@@ -1334,7 +1049,7 @@ qtn_from_user <-
             results_add <- rbind(add_gen_info_inf,
                                  add_gen_info_sup)
             LD_summary_add <- data.frame(
-              1,
+              "ALL",
               ld_min,
               ld_max,
               ld_between_QTNs_temp,
@@ -1368,7 +1083,9 @@ qtn_from_user <-
             names(maf) <- results_add[, "snp"]
             results_add <-
               data.frame(
-                results_add[, 1:7],
+                results_add[, 1:2],
+                additive_effect = unlist(add_effect),
+                results_add[, 3:7],
                 maf = maf,
                 results_add[, - c(1:7)],
                 check.names = FALSE,
@@ -1376,17 +1093,17 @@ qtn_from_user <-
               )
             results_add <-
               data.frame(
-                rep = 1,
+                rep = "ALL",
                 results_add,
                 check.names = FALSE,
                 fix.empty.names = FALSE
               )
             if (!export_gt) {
-              results_add <- results_add[, 1:9]
+              results_add <- results_add[, 1:10]
             }
             data.table::fwrite(
               results_add,
-              "Additive_Selected_QTNs.txt",
+              "Additive_QTNs.txt",
               row.names = FALSE,
               sep = "\t",
               quote = FALSE,
@@ -1401,8 +1118,15 @@ qtn_from_user <-
           }
           if (dom) {
             genofile <- SNPRelate::snpgdsOpen(gdsfile)
+            selected_snps <- genotypes$snp %in% unlist(QTN_list$dom)
+            if (sum(selected_snps) == 0) {
+              stop(
+                "None of the markers provided where found in the genotypic dataset (for at least one of the traits). \nPlease verify that QTN_list$dom contain markers that are present in the marker dataset.",
+                call. = F
+              )
+            }
             vector_of_dom_QTN <-
-              which(genotypes$snp %in% unlist(QTN_list$dom))
+              which(selected_snps)
             names(vector_of_dom_QTN) <- genotypes$snp[vector_of_dom_QTN]
             vector_of_dom_QTN <- vector_of_dom_QTN[unlist(QTN_list$dom)]
             x <- 1
@@ -1465,7 +1189,7 @@ qtn_from_user <-
                 i2 <- i2 - 1
               }
               if (!any(genotypes[i - 1, - (1:5)] == 0) &
-                    !any(genotypes[i2 + 1, - (1:5)] == 0) ) {
+                  !any(genotypes[i2 + 1, - (1:5)] == 0) ) {
                 if (ldsup > ld_max) {
                   ldsup <- 100
                 } else if (ldinf > ld_max) {
@@ -1523,7 +1247,7 @@ qtn_from_user <-
             results_dom <- rbind(dom_gen_info_inf,
                                  dom_gen_info_sup)
             LD_summary_dom <- data.frame(
-              1,
+              "ALL",
               ld_min,
               ld_max,
               ld_between_QTNs_temp,
@@ -1557,7 +1281,9 @@ qtn_from_user <-
             names(maf) <- results_dom[, "snp"]
             results_dom <-
               data.frame(
-                results_dom[, 1:7],
+                results_dom[, 1:2],
+                dominance_effect = unlist(dom_effect),
+                results_dom[, 3:7],
                 maf,
                 results_dom[, - c(1:7)],
                 check.names = FALSE,
@@ -1565,17 +1291,17 @@ qtn_from_user <-
               )
             results_dom <-
               data.frame(
-                rep = 1,
+                rep = "ALL",
                 results_dom,
                 check.names = FALSE,
                 fix.empty.names = FALSE
               )
             if (!export_gt) {
-              results_dom <- results_dom[, 1:9]
+              results_dom <- results_dom[, 1:10]
             }
             data.table::fwrite(
               results_dom,
-              "Dominance_Selected_QTNs.txt",
+              "Dominance_QTNs.txt",
               row.names = FALSE,
               sep = "\t",
               quote = FALSE,
@@ -1622,5 +1348,292 @@ qtn_from_user <-
           dom_ef_trait_obj = dom_ef_trait_obj
         ))
       }
+    } else {
+      add_ef_trait_obj <- NULL
+      dom_ef_trait_obj <- NULL
+      epi_ef_trait_obj <- NULL
+      var_ef_trait_obj <- NULL
+      if (add) {
+        add_ef_trait_obj <-
+          list(lapply(QTN_list$add, function(i) {
+            selected_snps <- genotypes$snp %in% i
+            if (sum(selected_snps) == 0) {
+              stop(
+                "None of the markers provided where found in the genotypic dataset (for at least one of the traits). \nPlease verify that QTN_list$add contain markers that are present in the marker dataset.",
+                call. = F
+              )
+            }
+            a <- genotypes[selected_snps,]
+            rownames(a) <- a$snp
+            a <- a[i,]
+          }))
+        add_object <- list()
+        for(i in 1:lengths(add_ef_trait_obj)){
+          maf <- round(apply(add_ef_trait_obj[[1]][[i]][, -1:-5], 1, function(x) {
+            sumx <- ((sum(x) + ns) / ns * 0.5)
+            min(sumx,  (1 - sumx))
+          }), 4)
+          if (same_add_dom_QTN) {
+            add_object[[i]] <-
+              data.frame(
+                rep = "ALL",
+                type = "user_specified",
+                trait = paste0("trait_", i),
+                additive_effect = add_effect[[i]],
+                dominance_effect = dom_effect[[i]],
+                add_ef_trait_obj[[1]][[i]][, 1:5],
+                maf = maf,
+                add_ef_trait_obj[[1]][[i]][, -1:-5],
+                check.names = FALSE,
+                fix.empty.names = FALSE
+              )
+          } else {
+            add_object[[i]] <-
+              data.frame(
+                rep = "ALL",
+                type = "user_specified",
+                trait = paste0("trait_", i),
+                additive_effect = add_effect[[i]],
+                add_ef_trait_obj[[1]][[i]][, 1:5],
+                maf = maf,
+                add_ef_trait_obj[[1]][[i]][, -1:-5],
+                check.names = FALSE,
+                fix.empty.names = FALSE
+              )
+          }
+          add_ef_trait_obj[[1]][[i]] <- t(add_ef_trait_obj[[1]][[i]][, -1:-5])
+          colnames(add_ef_trait_obj[[1]][[i]]) <-
+            paste0("Chr_",  add_object[[i]]$chr, "_", add_object[[i]]$pos)
+        }
+        add_object <- do.call("rbind", add_object)
+        if (!export_gt) {
+          if (same_add_dom_QTN) {
+            add_object <- add_object[, 1:11]
+          } else {
+            add_object <- add_object[, 1:10]
+          }
+        }
+        pleio <-
+          add_object$snp[duplicated(add_object$snp) |
+                           duplicated(add_object$snp, fromLast = TRUE)]
+        tab_p <- table(pleio) 
+        if (any(tab_p < length(QTN_list$add))) {
+          for (i in 1:length(tab_p)) {
+            add_object$type[add_object$snp %in% names(tab_p[i])] <-
+              ifelse(tab_p[i] < length(QTN_list$add),
+                     paste0("Pleio_traits_", paste(gsub("trait_", "", add_object$trait[add_object$snp %in% names(tab_p[i])]), collapse = "_")),
+                     "Pleiotropic")
+          }
+          add_object$type[!add_object$snp %in% names(tab_p)] <- "trait_specific"
+        } else {
+          add_object$type[duplicated(add_object$snp) |
+                            duplicated(add_object$snp, fromLast = TRUE)] <-
+            "Pleiotropic"
+          add_object$type[!(duplicated(add_object$snp) |
+                              duplicated(add_object$snp, fromLast = TRUE))] <-
+            "trait_specific"
+        }
+          data.table::fwrite(
+            add_object,
+            "Additive_QTNs.txt",
+            row.names = FALSE,
+            sep = "\t",
+            quote = FALSE,
+            na = NA
+          )
+      }
+      if (dom & !same_add_dom_QTN) {
+        dom_ef_trait_obj <-
+          list(lapply(QTN_list$dom, function(i) {
+            selected_snps <- genotypes$snp %in% i
+            if (sum(selected_snps) == 0) {
+              stop(
+                "None of the markers provided where found in the genotypic dataset (for at least one of the traits). \nPlease verify that QTN_list$dom contain markers that are present in the marker dataset.",
+                call. = F
+              )
+            }
+            a <- genotypes[selected_snps,]
+            rownames(a) <- a$snp
+            a <- a[i,]
+          }))
+        dom_object <- list()
+        for(i in 1:lengths(dom_ef_trait_obj)){
+          maf <- round(apply(dom_ef_trait_obj[[1]][[i]][, -1:-5], 1, function(x) {
+            sumx <- ((sum(x) + ns) / ns * 0.5)
+            min(sumx,  (1 - sumx))
+          }), 4)
+          dom_object[[i]] <-
+            data.frame(
+              rep = "ALL",
+              type = "user_specified",
+              trait = paste0("trait_", i),
+              dominance_effect = dom_effect[[i]],
+              dom_ef_trait_obj[[1]][[i]][, 1:5],
+              maf = maf,
+              dom_ef_trait_obj[[1]][[i]][, -1:-5],
+              check.names = FALSE,
+              fix.empty.names = FALSE
+            )
+          dom_ef_trait_obj[[1]][[i]] <- t(dom_ef_trait_obj[[1]][[i]][, -1:-5])
+          colnames(dom_ef_trait_obj[[1]][[i]]) <-
+            paste0("Chr_",  dom_object[[i]]$chr, "_", dom_object[[i]]$pos)
+        }
+        dom_object <- do.call("rbind", dom_object)
+        if (!export_gt) {
+          dom_object <- dom_object[, 1:10]
+        }
+        pleio <-
+          dom_object$snp[duplicated(dom_object$snp) |
+                           duplicated(dom_object$snp, fromLast = TRUE)]
+        tab_p <- table(pleio) 
+        if (any(tab_p < length(QTN_list$dom))) {
+          for (i in 1:length(tab_p)) {
+            dom_object$type[dom_object$snp %in% names(tab_p[i])] <-
+              ifelse(tab_p[i] < length(QTN_list$dom),
+                     paste0("Pleio_traits_", paste(
+                       gsub("trait_", "", dom_object$trait[dom_object$snp %in% names(tab_p[i])]), collapse = "_")),
+                     "Pleiotropic")
+          }
+          dom_object$type[!dom_object$snp %in% names(tab_p)] <- "trait_specific"
+        } else {
+          dom_object$type[duplicated(dom_object$snp) |
+                            duplicated(dom_object$snp, fromLast = TRUE)] <-
+            "Pleiotropic"
+          dom_object$type[!(duplicated(dom_object$snp) |
+                              duplicated(dom_object$snp, fromLast = TRUE))] <-
+            "trait_specific"
+        }
+        data.table::fwrite(
+          dom_object,
+          "Dominance_QTNs.txt",
+          row.names = FALSE,
+          sep = "\t",
+          quote = FALSE,
+          na = NA
+        )
+      }
+      if (epi)  {
+        epi_ef_trait_obj <-
+          list(lapply(QTN_list$epi, function(i) {
+            selected_snps <- genotypes$snp %in% i
+            if (sum(selected_snps) == 0) {
+              stop(
+                "None of the markers provided where found in the genotypic dataset (for at least one of the traits). \nPlease verify that QTN_list$epi contain markers that are present in the marker dataset.",
+                call. = F
+              )
+            }
+            a <- genotypes[selected_snps,]
+            rownames(a) <- a$snp
+            a <- a[i,]
+          }))
+        epi_object <- list()
+        e_len <- lengths(QTN_list$epi)/epi_interaction
+        for(i in 1:lengths(epi_ef_trait_obj)){
+          maf <- round(apply(epi_ef_trait_obj[[1]][[i]][, -1:-5], 1, function(x) {
+            sumx <- ((sum(x) + ns) / ns * 0.5)
+            min(sumx,  (1 - sumx))
+          }), 4)
+          epi_object[[i]] <-
+            data.frame(
+              rep = "ALL",
+              QTN = rep(1:e_len[i], each = epi_interaction),
+              type = "user_specified",
+              trait = paste0("trait_", i),
+              epistatic_effect = rep(epi_effect[[i]], each = e_len[i]),
+              epi_ef_trait_obj[[1]][[i]][, 1:5],
+              maf = maf,
+              epi_ef_trait_obj[[1]][[i]][, -1:-5],
+              check.names = FALSE,
+              fix.empty.names = FALSE
+            )
+          epi_ef_trait_obj[[1]][[i]] <- t(epi_ef_trait_obj[[1]][[i]][, -1:-5])
+          colnames(epi_ef_trait_obj[[1]][[i]]) <-
+            paste0("Chr_",  epi_object[[i]]$chr, "_", epi_object[[i]]$pos)
+        }
+        epi_object <- do.call("rbind", epi_object)
+        if (!export_gt) {
+          epi_object <- epi_object[, 1:11]
+        }
+        pleio <-
+          epi_object$snp[duplicated(epi_object$snp) |
+                           duplicated(epi_object$snp, fromLast = TRUE)]
+        tab_p <- table(pleio) 
+        if (any(tab_p < length(QTN_list$epi))) {
+          for (i in 1:length(tab_p)) {
+            epi_object$type[epi_object$snp %in% names(tab_p[i])] <-
+              ifelse(tab_p[i] < length(QTN_list$epi),
+                     paste0("Pleio_traits_", paste(
+                       gsub("trait_", "", epi_object$trait[epi_object$snp %in% names(tab_p[i])]), collapse = "_")),
+                     "Pleiotropic")
+          }
+          epi_object$type[!epi_object$snp %in% names(tab_p)] <- "trait_specific"
+        } else {
+          epi_object$type[duplicated(epi_object$snp) |
+                            duplicated(epi_object$snp, fromLast = TRUE)] <-
+            "Pleiotropic"
+          epi_object$type[!(duplicated(epi_object$snp) |
+                              duplicated(epi_object$snp, fromLast = TRUE))] <-
+            "trait_specific"
+        }
+        data.table::fwrite(
+          epi_object,
+          "Epistatic_QTNs.txt",
+          row.names = FALSE,
+          sep = "\t",
+          quote = FALSE,
+          na = NA
+        )
+      }
+      if (var & !same_mv_QTN) {
+        var_ef_trait_obj <-
+          lapply(QTN_list$var[[1]], function(i) {
+            selected_snps <- genotypes$snp %in% i
+            if (sum(selected_snps) == 0) {
+              stop(
+                "None of the markers provided where found in the genotypic dataset (for at least one of the traits). \nPlease verify that QTN_list$var contain markers that are present in the marker dataset.",
+                call. = F
+              )
+            }
+            a <- genotypes[selected_snps,]
+            rownames(a) <- a$snp
+            a <- a[i,]
+          })
+        maf <- round(apply(var_ef_trait_obj[[1]][, -1:-5], 1, function(x) {
+          sumx <- ((sum(x) + ns) / ns * 0.5)
+          min(sumx,  (1 - sumx))
+        }), 4)
+        var_object <-
+          data.frame(
+            rep = "ALL",
+            variance_effect = var_effect[[1]],
+            var_ef_trait_obj[[1]][, 1:5],
+            maf = maf,
+            var_ef_trait_obj[[1]][, -1:-5],
+            check.names = FALSE,
+            fix.empty.names = FALSE
+          )
+        var_ef_trait_obj[[1]] <- t(var_ef_trait_obj[[1]][, -1:-5])
+        colnames(var_ef_trait_obj[[1]]) <-
+          paste0("Chr_",  var_object$chr, "_", var_object$pos)
+        if (!export_gt) {
+          var_object <- var_object[, 1:10]
+        }
+        data.table::fwrite(
+          var_object,
+          "Variance_QTNs.txt",
+          row.names = FALSE,
+          sep = "\t",
+          quote = FALSE,
+          na = NA
+        )
+      }
+      return(
+        list(
+          add_ef_trait_obj = add_ef_trait_obj,
+          dom_ef_trait_obj = dom_ef_trait_obj,
+          epi_ef_trait_obj = epi_ef_trait_obj,
+          var_ef_trait_obj = var_ef_trait_obj
+        )
+      )
     }
   }
