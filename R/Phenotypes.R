@@ -49,11 +49,11 @@ phenotypes <-
       rownames(base_line_trait[[1]]$base_line)
     }
     if (rep_by != "QTN") {
+      if (output_format == "multi-file") {
+        dir.create("Phenotypes")
+        setwd("./Phenotypes")
+      }
       if (ntraits > 1) {
-        if (output_format == "multi-file") {
-          dir.create("Phenotypes")
-          setwd("./Phenotypes")
-        }
         H2 <- matrix(NA, nrow(h2), ntraits)
         vg <- apply(base_line_trait[[1]]$base_line, 2, var)
         if (any(vg == 0)) {
@@ -90,7 +90,7 @@ phenotypes <-
                                  mean = mean,
                                  sigma = sigma)
             }
-            H2 <- matrix(0, 1, ntraits)
+            H2[i,] <- matrix(0, 1, ntraits)
             if (output_format == "multi-file") {
               invisible(lapply(1:rep, function(x) {
                 data.table::fwrite(
@@ -112,7 +112,7 @@ phenotypes <-
                 )
               }))
             } else if (output_format == "long") {
-              temp_simulated_data <- do.call(rbind, simulated_data)
+              temp_simulated_data <- as.data.frame(data.table::rbindlist(simulated_data))
               data.table::fwrite(
                 temp_simulated_data,
                 paste0(
@@ -354,7 +354,7 @@ phenotypes <-
                 )
               }))
             } else if (output_format == "long") {
-              temp_simulated_data <- do.call(rbind, simulated_data)
+              temp_simulated_data <- as.data.frame(data.table::rbindlist(simulated_data))
               data.table::fwrite(
                 temp_simulated_data,
                 paste0(
@@ -458,12 +458,27 @@ phenotypes <-
           }
         }
         colnames(H2) <- paste0("Trait_", 1:ntraits)
-        cat("\nPopulation Heritability:\n")
-        print(h2)
-        cat("\nSample heritability (Average of",
-            rep,
-            " replications): \n")
-        print(H2)
+        if (ntraits > 50) {
+          cat("\nPopulation Heritability saved as: \"Population_heritability.txt\"\n")
+          suppressMessages(data.table::fwrite(h2, "Population_heritability.txt",
+                             sep = "\t",
+                             quote = FALSE,
+                             na = NA))
+          cat("\nSample Heritability (Average of",
+              rep,
+              "replications) saved as: \"Sample_heritability.txt\"\n")
+          suppressMessages(data.table::fwrite(H2, "Sample_heritability.txt",
+                             sep = "\t",
+                             quote = FALSE,
+                             na = NA))
+          } else {
+            cat("\nPopulation Heritability:\n")
+            print(h2)
+            cat("\nSample Heritability (Average of",
+                rep,
+                " replications): \n")
+            print(H2)
+        }
         if (all(H2 != 1)) {
           sample_cor <- matrix(0, ntraits, ntraits)
           for (v in 1:rep) {
@@ -474,7 +489,9 @@ phenotypes <-
           sample_cor <- NULL
         }
         if (to_r) {
-          simulated_data <- do.call(rbind, simulated_data)
+          # colnames(simulated_data) <-
+          #   c("taxa", paste0( "rep", 1:rep), "h2")
+          simulated_data <- as.data.frame(data.table::rbindlist(simulated_data))
           return(list(simulated_data = simulated_data,
                       sample_cor = sample_cor))
         } else {
@@ -488,6 +505,7 @@ phenotypes <-
                   call. = F)
           h2[, which(vg == 0)] <- 0
         }
+        results <- vector("list", nrow(h2))
         for (i in seq_len(nrow(h2))) {
           ss <- c()
           if (any(h2[i, ] == 0)) {
@@ -509,9 +527,8 @@ phenotypes <-
               }
               simulated_data[, j + 1] <-
                 rnorm(n, mean = mean, sd = 1)
-              
             }
-            H2 <- matrix(0, nrow = 1, ncol = length(h2))
+            H2[,i] <- 0
             if (verbose){
               write.table(
               ss,
@@ -844,15 +861,30 @@ phenotypes <-
               )
             }
           }
+          colnames(simulated_data) <- paste0("x", 1:ncol(simulated_data))
+          if (nrow(h2) > 1) { results[[i]] <- data.frame(simulated_data,
+                                     h2 = unname(h2[i, 1]),
+                                     check.names = FALSE,
+                                     fix.empty.names = FALSE)
+          }
         }
         H2 <- apply(H2, 2, mean)
-        cat("\nPopulation Heritability:", h2)
+        cat("\nPopulation Heritability:\n", h2)
         cat("\nSample heritability (Average of",
             rep,
             " replications): \n")
         print(H2)
         if (to_r) {
-          return(list(simulated_data = simulated_data))
+          if (nrow(h2) > 1) {
+          results <- as.data.frame(data.table::rbindlist(results, use.names = F))
+          colnames(results) <-
+            c( "taxa", paste0( "rep", 1:rep), "h2")
+          return(list(simulated_data = results))
+          } else {
+            colnames(simulated_data) <-
+              c("taxa", paste0( "rep", 1:rep))
+            return(list(simulated_data = simulated_data))
+          }
         }
       }
     } else {
@@ -893,7 +925,7 @@ phenotypes <-
                                  mean = mean,
                                  sigma = sigma)
             }
-            H2 <- matrix(0, 1, ntraits)
+            H2[i, ] <- 0
             if (output_format == "multi-file") {
               invisible(lapply(1:rep, function(x) {
                 data.table::fwrite(
@@ -915,7 +947,7 @@ phenotypes <-
                 )
               }))
             } else if (output_format == "long") {
-              temp_simulated_data <- do.call(rbind, simulated_data)
+              temp_simulated_data <- as.data.frame(data.table::rbindlist(simulated_data))
               data.table::fwrite(
                 temp_simulated_data,
                 paste0(
@@ -1167,7 +1199,7 @@ phenotypes <-
                 )
               }))
             } else if (output_format == "long") {
-              temp_simulated_data <- do.call(rbind, simulated_data)
+              temp_simulated_data <- as.data.frame(data.table::rbindlist(simulated_data))
               data.table::fwrite(
                 temp_simulated_data,
                 paste0(
@@ -1271,12 +1303,27 @@ phenotypes <-
           }
         }
         colnames(H2) <- paste0("Trait_", 1:ntraits)
-        cat("\nPopulation Heritability:\n")
-        print(h2)
-        cat("\nSample heritability (Average of",
-            rep - h,
-            " replications): \n")
-        print(H2)
+        if (ntraits > 50) {
+          cat("\nPopulation Heritability saved as: \"Population_heritability.txt\"\n")
+          suppressMessages(data.table::fwrite(h2, "Population_heritability.txt",
+                             sep = "\t",
+                             quote = FALSE,
+                             na = NA))
+          cat("\nSample Heritability (Average of",
+              rep - h,
+              "replications) saved as: \"Sample_heritability.txt\"\n")
+          suppressMessages(data.table::fwrite(H2, "Sample_heritability.txt",
+                             sep = "\t",
+                             quote = FALSE,
+                             na = NA))
+        } else {
+          cat("\nPopulation Heritability:\n")
+          print(h2)
+          cat("\nSample Heritability (Average of",
+              rep - h,
+              " replications): \n")
+          print(H2)
+        }
         if (all(H2 != 1)) {
           sample_cor <- matrix(0, ntraits, ntraits)
           for (v in 1:rep) {
@@ -1287,7 +1334,9 @@ phenotypes <-
           sample_cor <- NULL
         }
         if (to_r) {
-          simulated_data <- do.call(rbind, simulated_data)
+          simulated_data <- as.data.frame(data.table::rbindlist(simulated_data))
+          # colnames(simulated_data) <-
+          #   c("taxa", paste0( "rep", 1:rep), "h2")
           return(list(simulated_data = simulated_data,
                       sample_cor = sample_cor))
         } else {
@@ -1319,7 +1368,7 @@ phenotypes <-
                       mean = mean,
                       sd = 1)
             }
-            H2 <- matrix(0, nrow = 1, ncol = length(h2))
+            H2[,i] <- 0
             if (verbose){
             write.table(
               ss,
@@ -1666,12 +1715,14 @@ phenotypes <-
           }
         }
         H2 <- apply(H2, 2, mean, na.rm = T)
-        cat("\nPopulation Heritability:", h2)
+        cat("\nPopulation Heritability:\n", h2)
         cat("\nSample heritability (Average of",
             rep - h,
             " replications): \n")
         print(H2)
         if (to_r) {
+          colnames(simulated_data) <-
+            c("taxa", paste0( "rep", 1:rep))
           return(list(simulated_data = simulated_data))
         }
       }
