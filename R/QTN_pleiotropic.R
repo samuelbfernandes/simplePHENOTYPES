@@ -2,9 +2,14 @@
 #' @keywords internal
 #' @param genotypes = NULL,
 #' @param seed = NULL,
+#' @param ntraits = NULL,
 #' @param add_QTN_num = NULL,
 #' @param dom_QTN_num = NULL,
 #' @param epi_QTN_num = NULL
+#' @param add_effect = NULL,
+#' @param dom_effect = NULL,
+#' @param epi_effect = NULL,
+#' @param var_effect = NULL,
 #' @param epi_type = NULL,
 #' @param epi_interaction = 2,
 #' @param same_add_dom_QTN = NULL,
@@ -24,10 +29,17 @@
 qtn_pleiotropic <-
   function(genotypes = NULL,
            seed = NULL,
+           ntraits = NULL,
            same_add_dom_QTN = NULL,
+           same_mv_QTN = NULL,
            add_QTN_num = NULL,
            dom_QTN_num = NULL,
            epi_QTN_num = NULL,
+           var_QTN_num = NULL,
+           add_effect = NULL,
+           dom_effect = NULL,
+           epi_effect = NULL,
+           var_effect = NULL,
            epi_type = NULL,
            epi_interaction = 2,
            constraints = list(maf_above = NULL, maf_below = NULL),
@@ -37,14 +49,17 @@ qtn_pleiotropic <-
            add = NULL,
            dom = NULL,
            epi = NULL,
+           var = NULL,
            verbose = verbose) {
     #---------------------------------------------------------------------------
     add_ef_trait_obj <- NULL
     dom_ef_trait_obj <- NULL
     epi_ef_trait_obj <-  NULL
+    var_ef_trait_obj <-  NULL
     add_QTN <- TRUE
     dom_QTN <- TRUE
     epi_QTN <- TRUE
+    var_QTN <- TRUE
     if (!is.null(add_QTN_num)) {
       if (add_QTN_num == 0) {
         add_QTN <- FALSE
@@ -63,6 +78,12 @@ qtn_pleiotropic <-
         epi_QTN_num <- 1
       }
     }
+    if (!is.null(var_QTN_num)) {
+      if (var_QTN_num == 0) {
+        var_QTN <- FALSE
+        var_QTN_num <- 1
+      }
+    }
     if (any(lengths(constraints) > 0)) {
       index <- constraint(
         genotypes = genotypes,
@@ -71,6 +92,30 @@ qtn_pleiotropic <-
         hets = constraints$hets,
         verbose = verbose
       )
+      if (add) {
+        if (length(index) < add_QTN_num) {
+          stop("Not enough SNP left after applying the selected constrain!",
+               call. = F)
+        }
+      }
+      if (dom) {
+        if (length(index) < dom_QTN_num) {
+          stop("Not enough SNP left after applying the selected constrain!",
+               call. = F)
+        }
+      }
+      if (epi) {
+        if (length(index) < epi_QTN_num) {
+          stop("Not enough SNP left after applying the selected constrain!",
+               call. = F)
+        }
+      }
+      if (var) {
+        if (length(index) < var_QTN_num) {
+          stop("Not enough SNP left after applying the selected constrain!",
+               call. = F)
+        }
+      }
     } else {
       index <- seq_len(nrow(genotypes))
     }
@@ -79,7 +124,7 @@ qtn_pleiotropic <-
     if (rep_by != "QTN") {
       rep <- 1
     }
-    if (same_add_dom_QTN & add) {
+    if (same_add_dom_QTN) {
       add_QTN_geno_info <- vector("list", rep)
       add_ef_trait_obj <- vector("list", rep)
       for (i in 1:rep) {
@@ -121,13 +166,34 @@ qtn_pleiotropic <-
           min(sumx,  (1 - sumx))
         }), 4)
       names(maf) <- add_QTN_geno_info[, 1]
-      add_QTN_geno_info <- data.frame(
-        add_QTN_geno_info[, 1:5],
-        maf = maf,
-        add_QTN_geno_info[, - c(1:5)],
-        check.names = FALSE,
-        fix.empty.names = FALSE
-      )
+      additive_effect <-  do.call(cbind, add_effect)
+      colnames(additive_effect) <- paste0("add_eff_t", 1:ntraits)
+      dominance_effect <-  do.call(cbind, dom_effect)
+      colnames(dominance_effect) <- paste0("dom_eff_t", 1:ntraits)
+      if (same_mv_QTN) {
+        variance_effect <-  do.call(cbind, var_effect)
+        colnames(variance_effect) <- paste0("var_eff_t", 1:ntraits)
+        add_QTN_geno_info <- data.frame(
+          additive_effect ,
+          dominance_effect ,
+          variance_effect,
+          add_QTN_geno_info[, 1:5],
+          maf = maf,
+          add_QTN_geno_info[, - c(1:5)],
+          check.names = FALSE,
+          fix.empty.names = FALSE
+        )
+      } else {
+        add_QTN_geno_info <- data.frame(
+          additive_effect ,
+          dominance_effect ,
+          add_QTN_geno_info[, 1:5],
+          maf = maf,
+          add_QTN_geno_info[, - c(1:5)],
+          check.names = FALSE,
+          fix.empty.names = FALSE
+        )
+      }
       add_QTN_geno_info <-
         data.frame(
           rep = rep(1:rep, each = add_QTN_num),
@@ -136,7 +202,11 @@ qtn_pleiotropic <-
           fix.empty.names = FALSE
         )
       if (!export_gt) {
-        add_QTN_geno_info <- add_QTN_geno_info[, 1:7]
+        if (same_mv_QTN) {
+          add_QTN_geno_info <- add_QTN_geno_info[, 1:(7+ntraits+ntraits+ntraits)]
+        } else {
+          add_QTN_geno_info <- add_QTN_geno_info[, 1:(7+ntraits+ntraits)]
+        }
       }
       if (!is.null(seed)) {
         s <- as.matrix(seed + 1:rep)
@@ -148,7 +218,7 @@ qtn_pleiotropic <-
           write.table(
           s,
           paste0("Seed_num_for_", add_QTN_num,
-                 "_Add_and_Dom_QTN.txt"),
+                 "_Add_QTN.txt"),
           row.names = FALSE,
           col.names = FALSE,
           sep = "\t",
@@ -157,7 +227,7 @@ qtn_pleiotropic <-
       }
         data.table::fwrite(
           add_QTN_geno_info,
-          "Additive_and_Dominance_Selected_QTNs.txt",
+          "Additive_QTNs.txt",
           row.names = FALSE,
           sep = "\t",
           quote = FALSE,
@@ -195,7 +265,10 @@ qtn_pleiotropic <-
             min(sumx,  (1 - sumx))
           }), 4)
         names(maf) <- add_QTN_geno_info[, 1]
+        additive_effect <-  do.call(cbind, add_effect)
+        colnames(additive_effect) <- paste0("add_eff_t", 1:ntraits)
         add_QTN_geno_info <- data.frame(
+          additive_effect ,
           add_QTN_geno_info[, 1:5],
           maf = maf,
           add_QTN_geno_info[, - c(1:5)],
@@ -210,7 +283,7 @@ qtn_pleiotropic <-
             fix.empty.names = FALSE
           )
         if (!export_gt) {
-          add_QTN_geno_info <- add_QTN_geno_info[, 1:7]
+          add_QTN_geno_info <- add_QTN_geno_info[, 1:(7+ntraits)]
         }
         if (!is.null(seed)) {
           s <- as.matrix(seed + 1:rep)
@@ -231,7 +304,7 @@ qtn_pleiotropic <-
           }
           data.table::fwrite(
             add_QTN_geno_info,
-            "Additive_Selected_QTNs.txt",
+            "Additive_QTNs.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -281,7 +354,10 @@ qtn_pleiotropic <-
             min(sumx,  (1 - sumx))
           }), 4)
         names(maf) <- dom_QTN_geno_info[, 1]
+        dominance_effect <-  do.call(cbind, dom_effect)
+        colnames(dominance_effect) <- paste0("dom_eff_t", 1:ntraits)
         dom_QTN_geno_info <- data.frame(
+          dominance_effect,
           dom_QTN_geno_info[, 1:5],
           maf = maf,
           dom_QTN_geno_info[, - c(1:5)],
@@ -296,7 +372,7 @@ qtn_pleiotropic <-
             fix.empty.names = FALSE
           )
         if (!export_gt) {
-          dom_QTN_geno_info <- dom_QTN_geno_info[, 1:7]
+          dom_QTN_geno_info <- dom_QTN_geno_info[, 1:(7+ntraits)]
         }
         if (!is.null(seed)) {
           s <- as.matrix(seed + 1:rep) + rep
@@ -317,13 +393,90 @@ qtn_pleiotropic <-
           }
           data.table::fwrite(
             dom_QTN_geno_info,
-            "Dominance_Selected_QTNs.txt",
+            "Dominance_QTNs.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
             na = NA
           )
         }
+      }
+    }
+    if (var & !same_mv_QTN) {
+      var_QTN_geno_info <- vector("list", rep)
+      var_ef_trait_obj <- vector("list", rep)
+      for (i in 1:rep) {
+        if (!is.null(seed)) {
+          set.seed(seed*2 + i)
+        }
+        vector_of_var_QTN <-
+          sample(index, var_QTN_num, replace = FALSE)
+        var_QTN_geno_info[[i]] <-
+          as.data.frame(genotypes[vector_of_var_QTN, ],
+                        check.names = FALSE,
+                        fix.empty.names = FALSE)
+        var_ef_trait_obj[[i]] <-
+          t(var_QTN_geno_info[[i]][, - c(1:5)])
+        colnames(var_ef_trait_obj[[i]]) <-
+          paste0("Chr_",
+                 unlist(var_QTN_geno_info[[i]][, 3]),
+                 "_",
+                 unlist(var_QTN_geno_info[[i]][, 4]))
+      }
+      var_QTN_geno_info <-
+        as.data.frame(data.table::rbindlist(var_QTN_geno_info))
+      ns <- ncol(genotypes) - 5
+      maf <-
+        round(apply(var_QTN_geno_info[, -c(1:5)], 1, function(x) {
+          sumx <- ((sum(x) + ns) / ns * 0.5)
+          min(sumx,  (1 - sumx))
+        }), 4)
+      names(maf) <- var_QTN_geno_info[, 1]
+      variance_effect <-  do.call(cbind, var_effect)
+      colnames(variance_effect) <- paste0("var_eff_t", 1:ntraits)
+      var_QTN_geno_info <- data.frame(
+        variance_effect,
+        var_QTN_geno_info[, 1:5],
+        maf = maf,
+        var_QTN_geno_info[, - c(1:5)],
+        check.names = FALSE,
+        fix.empty.names = FALSE
+      )
+      var_QTN_geno_info <-
+        data.frame(
+          rep = rep(1:rep, each = var_QTN_num),
+          var_QTN_geno_info,
+          check.names = FALSE,
+          fix.empty.names = FALSE
+        )
+      if (!export_gt) {
+        var_QTN_geno_info <- var_QTN_geno_info[, 1:(7+ntraits)]
+      }
+      if (!is.null(seed)) {
+        s <- as.matrix((seed * 2) + 1:rep)
+      } else {
+        s <- "set.seed not assigned"
+      }
+      if (var_QTN) {
+        if (verbose){
+          write.table(
+            s,
+            paste0("Seed_num_for_", var_QTN_num,
+                   "_var_QTN.txt"),
+            row.names = FALSE,
+            col.names = FALSE,
+            sep = "\t",
+            quote = FALSE
+          )
+        }
+        data.table::fwrite(
+          var_QTN_geno_info,
+          "Variance_QTNs.txt",
+          row.names = FALSE,
+          sep = "\t",
+          quote = FALSE,
+          na = NA
+        )
       }
     }
     if (epi) {
@@ -356,7 +509,11 @@ qtn_pleiotropic <-
           min(sumx,  (1 - sumx))
         }), 4)
       names(maf) <- epi_QTN_gen_infor[, 1]
+      epi_effect <- lapply(epi_effect, function(a) rep(a, each =epi_interaction))
+      epistatic_effect <-  do.call(cbind, epi_effect)
+      colnames(epistatic_effect) <- paste0("epi_eff_t", 1:ntraits)
       epi_QTN_gen_infor <- data.frame(
+        epistatic_effect,
         epi_QTN_gen_infor[, 1:5],
         maf = maf,
         epi_QTN_gen_infor[, - c(1:5)],
@@ -372,7 +529,7 @@ qtn_pleiotropic <-
           fix.empty.names = FALSE
         )
       if (!export_gt) {
-        epi_QTN_gen_infor <- epi_QTN_gen_infor[, 1:8]
+        epi_QTN_gen_infor <- epi_QTN_gen_infor[, 1:(8+ntraits)]
       }
       if (!is.null(seed)) {
         ss <- as.matrix((seed + seed) + 1:rep + rep)
@@ -393,7 +550,7 @@ qtn_pleiotropic <-
         }
         data.table::fwrite(
           epi_QTN_gen_infor,
-          "Epistatic_Selected_QTNs.txt",
+          "Epistatic_QTNs.txt",
           row.names = FALSE,
           sep = "\t",
           quote = FALSE,
@@ -419,6 +576,14 @@ qtn_pleiotropic <-
     }
     if (!is.null(epi_ef_trait_obj) & !epi_QTN) {
       epi_ef_trait_obj <- lapply(epi_ef_trait_obj, function(x) {
+        rnames <- rownames(x)
+        x <- as.matrix(rep(0, nrow(x)))
+        rownames(x)  <- rnames
+        return(x)
+      })
+    }
+    if (!is.null(var_ef_trait_obj) & !var_QTN) {
+      var_ef_trait_obj <- lapply(var_ef_trait_obj, function(x) {
         rnames <- rownames(x)
         x <- as.matrix(rep(0, nrow(x)))
         rownames(x)  <- rnames
@@ -460,11 +625,24 @@ qtn_pleiotropic <-
              call. = F)
       }
     }
+    if (!is.null(var_ef_trait_obj)) {
+      biallelic <- any(unlist(lapply(var_ef_trait_obj, function(x) {
+        apply(x, 2, function(y) {
+          length(unique(y)) > 3
+        })
+      }),
+      recursive = T))
+      if (biallelic) {
+        stop("Please use only biallelic markers.",
+             call. = F)
+      }
+    }
     return(
       list(
         add_ef_trait_obj = add_ef_trait_obj,
         dom_ef_trait_obj = dom_ef_trait_obj,
-        epi_ef_trait_obj = epi_ef_trait_obj
+        epi_ef_trait_obj = epi_ef_trait_obj,
+        var_ef_trait_obj = var_ef_trait_obj
       )
     )
   }
