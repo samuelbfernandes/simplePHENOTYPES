@@ -37,8 +37,6 @@ constraint <-
     }
     if (!is.null(maf_above) |
         !is.null(maf_below)) {
-      if (verbose)
-        message("* Filtering variants based on MAF.")
       ns <- ncol(GD)
       maf_calc <- apply(GD, 1, function(x) {
         sumx <- ((sum(x) + ns) / ns * 0.5)
@@ -46,10 +44,16 @@ constraint <-
       })
       if (!is.null(maf_above) &
           !is.null(maf_below)) {
+        if (verbose)
+          message(paste("* Removing variants with MAF above", maf_below, "or below", maf_above,"!"))
         list_maf <- (maf_calc > maf_above & maf_calc < maf_below)
       } else if (!is.null(maf_above)) {
+        if (verbose)
+          message(paste("* Removing variants with MAF below", maf_above,"!"))
         list_maf <- (maf_calc > maf_above)
       } else if (!is.null(maf_below)) {
+        if (verbose)
+          message(paste("* Removing variants with MAF above", maf_below,"!"))
         list_maf <- (maf_calc < maf_below)
       }
     }
