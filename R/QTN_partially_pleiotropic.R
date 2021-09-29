@@ -14,6 +14,9 @@
 #' @param trait_spec_a_QTN_num = NULL,
 #' @param trait_spec_d_QTN_num = NULL,
 #' @param trait_spec_e_QTN_num = NULL,
+#' @param add_effect = NULL,
+#' @param dom_effect = NULL,
+#' @param epi_effect = NULL,
 #' @param ntraits = NULL
 #' @param constraints = list(maf_above = NULL, maf_below = NULL)
 #' @param rep = 1,
@@ -34,6 +37,9 @@ qtn_partially_pleiotropic <-
            trait_spec_a_QTN_num = NULL,
            trait_spec_d_QTN_num = NULL,
            trait_spec_e_QTN_num = NULL,
+           add_effect = NULL,
+           dom_effect = NULL,
+           epi_effect = NULL,
            epi_type = NULL,
            epi_interaction = 2,
            ntraits = NULL,
@@ -87,6 +93,24 @@ qtn_partially_pleiotropic <-
         hets = constraints$hets,
         verbose = verbose
       )
+      if (add) {
+        if (length(index) < sum(pleio_a + trait_spec_a_QTN_num)) {
+          stop("Not enough SNP left after applying the selected constrain!",
+               call. = F)
+        }
+      }
+      if (dom) {
+        if (length(index) < sum(pleio_d + trait_spec_d_QTN_num)) {
+          stop("Not enough SNP left after applying the selected constrain!",
+               call. = F)
+        }
+      }
+      if (epi) {
+        if (length(index) < sum(pleio_e + trait_spec_e_QTN_num)) {
+          stop("Not enough SNP left after applying the selected constrain!",
+               call. = F)
+        }
+      }
     } else {
       index <- seq_len(nrow(genotypes))
     }
@@ -197,7 +221,10 @@ qtn_partially_pleiotropic <-
       }), 4)
       names(maf) <- add_object[, 2]
       add_object <- data.frame(
-        add_object[, 1:7],
+        add_object[, 1:2],
+        additive_effect = unlist(add_effect),
+        dominance_effect = unlist(dom_effect),
+        add_object[, 3:7],
         maf = maf,
         add_object[, - c(1:7)],
         check.names = FALSE,
@@ -225,7 +252,7 @@ qtn_partially_pleiotropic <-
           })
         })
       if (!export_gt) {
-        add_object <- add_object[, 1:9]
+        add_object <- add_object[, 1:11]
       }
       if (add_QTN) {
         if (verbose){
@@ -258,7 +285,7 @@ qtn_partially_pleiotropic <-
         }
         data.table::fwrite(
           add_object,
-          "Additive_and_Dominance_Selected_QTNs.txt",
+          "Additive_QTNs.txt",
           row.names = FALSE,
           sep = "\t",
           quote = FALSE,
@@ -341,13 +368,15 @@ qtn_partially_pleiotropic <-
           min(sumx,  (1 - sumx))
         }), 4)
         names(maf) <- add_object[, 2]
-        add_object <- data.frame(
-          add_object[, 1:7],
-          maf = maf,
-          add_object[, - c(1:7)],
-          check.names = FALSE,
-          fix.empty.names = FALSE
-        )
+          add_object <- data.frame(
+            add_object[, 1:2],
+            additive_effect = unlist(add_effect),
+            add_object[, 3:7],
+            maf = maf,
+            add_object[, - c(1:7)],
+            check.names = FALSE,
+            fix.empty.names = FALSE
+          ) 
         add_object <-
           data.frame(
             rep = sort(c(
@@ -370,7 +399,7 @@ qtn_partially_pleiotropic <-
             })
           })
         if (!export_gt) {
-          add_object <- add_object[, 1:9]
+          add_object <- add_object[, 1:10]
         }
         if (add_QTN) {
           if (verbose){
@@ -403,7 +432,7 @@ qtn_partially_pleiotropic <-
           }
           data.table::fwrite(
             add_object,
-            "Additive_Selected_QTNs.txt",
+            "Additive_QTNs.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -514,7 +543,9 @@ qtn_partially_pleiotropic <-
         }), 4)
         names(maf) <- dom_object[, 2]
         dom_object <- data.frame(
-          dom_object[, 1:7],
+          dom_object[, 1:2],
+          dominance_effect = unlist(dom_effect),
+          dom_object[, 3:7],
           maf = maf,
           dom_object[, - c(1:7)],
           check.names = FALSE,
@@ -542,7 +573,7 @@ qtn_partially_pleiotropic <-
             })
           })
         if (!export_gt) {
-          dom_object <- dom_object[, 1:9]
+          dom_object <- dom_object[, 1:10]
         }
         if (dom_QTN) {
           if (verbose){
@@ -575,7 +606,7 @@ qtn_partially_pleiotropic <-
           }
           data.table::fwrite(
             dom_object,
-            "Dominance_Selected_QTNs.txt",
+            "Dominance_QTNs.txt",
             row.names = FALSE,
             sep = "\t",
             quote = FALSE,
@@ -661,8 +692,12 @@ qtn_partially_pleiotropic <-
         min(sumx,  (1 - sumx))
       }), 4)
       names(maf) <- epi_object[, 3]
+      neqtn <- rep(unlist(mapply(seq, 1, (trait_spec_e_QTN_num + pleio_e))), each = epi_interaction)
       epi_object <- data.frame(
-        epi_object[, 1:7],
+        #epi_object[, 1:7],
+        epi_object[, 1:2],
+        epistatic_effect = unlist(epi_effect)[neqtn],
+        epi_object[, 3:7],
         maf = maf,
         epi_object[, - c(1:7)],
         check.names = FALSE,
@@ -671,7 +706,7 @@ qtn_partially_pleiotropic <-
       epi_object <-
         data.frame(
           rep = rep(1:rep, each = (sum(trait_spec_e_QTN_num) + (pleio_e * ntraits )) * epi_interaction),
-          QTN = rep(unlist(mapply(seq, 1, (trait_spec_e_QTN_num + pleio_e))), each = epi_interaction),
+          QTN = neqtn,
           epi_object,
           check.names = FALSE,
           fix.empty.names = FALSE
@@ -686,7 +721,7 @@ qtn_partially_pleiotropic <-
           })
         })
       if (!export_gt) {
-        epi_object <- epi_object[, 1:9]
+        epi_object <- epi_object[, 1:11]
       }
       if (epi_QTN) {
         if (verbose){
@@ -719,7 +754,7 @@ qtn_partially_pleiotropic <-
         }
         data.table::fwrite(
           epi_object,
-          "Epistatic_Selected_QTNs.txt",
+          "Epistatic_QTNs.txt",
           row.names = FALSE,
           sep = "\t",
           quote = FALSE,
