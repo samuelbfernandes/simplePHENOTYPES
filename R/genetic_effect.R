@@ -57,7 +57,6 @@ genetic_effect <-
           add_component + new_add_QTN_effect
         var_add[i] <- var(new_add_QTN_effect)
       }
-      rownames(add_component) <- rownames
       colnames(add_component) <- "additive_effect"
       add_genetic_variance <- var(add_component)
     }
@@ -75,7 +74,6 @@ genetic_effect <-
           var_dom[i] <- 0
         }
       }
-      rownames(dom_component) <- rownames
       colnames(dom_component) <- "dominance_effect"
       dom_genetic_variance <- var(dom_component)
     }
@@ -90,7 +88,6 @@ genetic_effect <-
             epi_component + new_epi_QTN_effect
           var_epi[i] <- var(new_epi_QTN_effect)
       }
-      rownames(epi_component) <- rownames
       colnames(epi_component) <- "epistatic_effect"
       epi_genetic_variance <- var(epi_component)
     }
@@ -98,6 +95,7 @@ genetic_effect <-
     base_line_trait <- as.data.frame(scale(base_line_trait, scale = FALSE),
                                      check.names = FALSE,
                                      fix.empty.names = FALSE)
+    rownames(base_line_trait) <- rownames
     if (all(base_line_trait == 0)) {
       if (dom &
           !add & !epi & all(var_dom == 0) & any(unlist(dom_effect) != 0)) {
