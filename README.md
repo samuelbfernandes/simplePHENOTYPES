@@ -264,7 +264,7 @@ create_phenotypes(
   output_format = "wide",
   architecture = "LD",
   output_dir = "Results_LD",
-  out_geno = "plink",
+  out_geno = "BED",
   remove_QTN = TRUE,
   ld_max =0.8,
   ld_min =0.2,
