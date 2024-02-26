@@ -10,9 +10,15 @@ qtn_from_user(
   export_gt = NULL,
   architecture = NULL,
   same_add_dom_QTN = NULL,
+  same_mv_QTN = NULL,
   add = NULL,
   dom = NULL,
   epi = NULL,
+  var = NULL,
+  add_effect = NULL,
+  dom_effect = NULL,
+  epi_effect = NULL,
+  var_effect = NULL,
   epi_type = NULL,
   epi_interaction = 2,
   ntraits = NULL,
@@ -40,6 +46,14 @@ qtn_from_user(
 \item{dom}{= NULL,}
 
 \item{epi}{= NULL,}
+
+\item{add_effect}{= NULL,}
+
+\item{dom_effect}{= NULL,}
+
+\item{epi_effect}{= NULL,}
+
+\item{var_effect}{= NULL,}
 
 \item{epi_type}{= NULL,}
 

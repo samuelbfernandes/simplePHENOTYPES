@@ -9,7 +9,8 @@ create_phenotypes(
   geno_obj = NULL,
   geno_file = NULL,
   geno_path = NULL,
-  QTN_list = list(add = list(NULL), dom = list(NULL), epi = list(NULL)),
+  QTN_list = list(add = list(NULL), dom = list(NULL), epi = list(NULL), var =
+    list(NULL)),
   prefix = NULL,
   rep = NULL,
   ntraits = 1,
@@ -20,6 +21,7 @@ create_phenotypes(
   add_QTN_num = NULL,
   dom_QTN_num = NULL,
   epi_QTN_num = NULL,
+  var_QTN_num = NULL,
   epi_type = NULL,
   epi_interaction = 2,
   pleio_a = NULL,
@@ -29,11 +31,14 @@ create_phenotypes(
   trait_spec_d_QTN_num = NULL,
   trait_spec_e_QTN_num = NULL,
   add_effect = NULL,
-  big_add_QTN_effect = NULL,
-  same_add_dom_QTN = FALSE,
   dom_effect = NULL,
-  degree_of_dom = 1,
   epi_effect = NULL,
+  var_effect = NULL,
+  remove_add_effect = FALSE,
+  same_add_dom_QTN = FALSE,
+  same_mv_QTN = FALSE,
+  big_add_QTN_effect = NULL,
+  degree_of_dom = 1,
   type_of_ld = "indirect",
   ld_min = 0.2,
   ld_max = 0.8,
@@ -128,6 +133,9 @@ only option for `architecture = "LD"` is `ntraits = 2`.}
 \item{epi_QTN_num}{The number of epistatic (Currently, only additive x
 additive epistasis are simulated) QTNs to be simulated.}
 
+\item{var_QTN_num}{The number of variance quantitative trait nucleotides
+(QTNs) to be simulated.}
+
 \item{epi_type}{to be implemented...}
 
 \item{epi_interaction}{Number of markers that compose an epistatic QTN. 
@@ -169,26 +177,35 @@ additive effects should be provided for each trait. Unless
 `big_add_QTN_effect` is provided, the length of each vector
 should be equal to the number of additive QTNs being simulated.}
 
+\item{dom_effect}{Similar to the `add_effect`, it could be either
+a vector or a list. Optional if `same_add_dom_QTN = TRUE`.}
+
+\item{epi_effect}{Epistatic (additive x additive) effect size to be
+simulated. Similar to the `add_effect`, it could be either a vector or
+a list.}
+
+\item{var_effect}{Similar to the `add_effect`, it could be either
+a vector or a list.}
+
+\item{remove_add_effect}{Experimental ption for simulating variance QTL without
+mean effect.}
+
+\item{same_add_dom_QTN}{A boolean for selecting markers to be both additive
+and dominance QTNs. Default FALSE.}
+
+\item{same_mv_QTN}{A boolean for selecting markers to be both additive
+and variance QTNs. Default FALSE.}
+
 \item{big_add_QTN_effect}{Additive effect size for one possible major
 effect quantitative trait nucleotide. If `ntraits` > 1,
 big_add_QTN_effect should have length equals `ntraits`.
 If `add_QTN_num` > 1, this large effect will be assigned to the fist QTN.}
-
-\item{same_add_dom_QTN}{A boolean for selecting markers to be both additive
-and dominance QTNs.}
-
-\item{dom_effect}{Similar to the `add_effect`, it could be either
-a vector or a list. Optional if `same_add_dom_QTN = TRUE`.}
 
 \item{degree_of_dom}{If the same set of QTNs are being used for simulating
 additive and dominance effects, the dominance allelic effect could be a
 proportion of the additive allelic effect.
 In other words, `degree_of_dom` equals to 0.5, 1, 1.5 will simulate,
 partial dominance, complete dominance and overdominance, respectively.}
-
-\item{epi_effect}{Epistatic (additive x additive) effect size to be
-simulated. Similar to the `add_effect`, it could be either a vector or
-a list.}
 
 \item{type_of_ld}{Type of LD used to simulate spurious pleiotropy. If
 "indirect" (default), an intermediate marker is selected from which two
@@ -266,7 +283,8 @@ and bed files is necessary).}
 
 \item{to_r}{Option for outputting the simulated results as an R data.frame in
 addition to saving it to file. If TRUE, results need to be assigned to an
-R object (see vignette).}
+R object (see vignette). If ntraits = 1 and length(h2) > 1, results for each
+h2 will be saved in a list.}
 
 \item{out_geno}{Optionally saves the numericalized genotype either as "numeric" (see
 vignettes for an example data), "BED" or "gds". The default is NULL.}

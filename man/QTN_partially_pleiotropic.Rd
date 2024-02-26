@@ -13,6 +13,9 @@ qtn_partially_pleiotropic(
   trait_spec_a_QTN_num = NULL,
   trait_spec_d_QTN_num = NULL,
   trait_spec_e_QTN_num = NULL,
+  add_effect = NULL,
+  dom_effect = NULL,
+  epi_effect = NULL,
   epi_type = NULL,
   epi_interaction = 2,
   ntraits = NULL,
@@ -43,6 +46,12 @@ qtn_partially_pleiotropic(
 \item{trait_spec_d_QTN_num}{= NULL,}
 
 \item{trait_spec_e_QTN_num}{= NULL,}
+
+\item{add_effect}{= NULL,}
+
+\item{dom_effect}{= NULL,}
+
+\item{epi_effect}{= NULL,}
 
 \item{epi_type}{= NULL,}
 

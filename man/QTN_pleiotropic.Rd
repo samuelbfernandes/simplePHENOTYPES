@@ -7,10 +7,17 @@
 qtn_pleiotropic(
   genotypes = NULL,
   seed = NULL,
+  ntraits = NULL,
   same_add_dom_QTN = NULL,
+  same_mv_QTN = NULL,
   add_QTN_num = NULL,
   dom_QTN_num = NULL,
   epi_QTN_num = NULL,
+  var_QTN_num = NULL,
+  add_effect = NULL,
+  dom_effect = NULL,
+  epi_effect = NULL,
+  var_effect = NULL,
   epi_type = NULL,
   epi_interaction = 2,
   constraints = list(maf_above = NULL, maf_below = NULL),
@@ -20,6 +27,7 @@ qtn_pleiotropic(
   add = NULL,
   dom = NULL,
   epi = NULL,
+  var = NULL,
   verbose = verbose
 )
 }
@@ -28,6 +36,8 @@ qtn_pleiotropic(
 
 \item{seed}{= NULL,}
 
+\item{ntraits}{= NULL,}
+
 \item{same_add_dom_QTN}{= NULL,}
 
 \item{add_QTN_num}{= NULL,}
@@ -35,6 +45,14 @@ qtn_pleiotropic(
 \item{dom_QTN_num}{= NULL,}
 
 \item{epi_QTN_num}{= NULL}
+
+\item{add_effect}{= NULL,}
+
+\item{dom_effect}{= NULL,}
+
+\item{epi_effect}{= NULL,}
+
+\item{var_effect}{= NULL,}
 
 \item{epi_type}{= NULL,}
 
