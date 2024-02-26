@@ -17,6 +17,8 @@ biocViews:
 Depends: 
 	R (>= 3.5.0)
 Imports: 
+    Rcpp (>= 0.12.7),
+    RcppArmadillo,
     data.table,
     mvtnorm,
     stats,
@@ -24,10 +26,11 @@ Imports:
     SNPRelate,
     gdsfmt,
     rlang
+LinkingTo: Rcpp, RcppArmadillo (>= 0.7.500.0.0)
 Suggests: 
     knitr,
     rmarkdown
-RoxygenNote: 7.1.1
+RoxygenNote: 7.1.2
 VignetteBuilder: knitr
 URL: https://github.com/samuelbfernandes/simplePHENOTYPES
 BugReports: https://github.com/samuelbfernandes/simplePHENOTYPES/issues

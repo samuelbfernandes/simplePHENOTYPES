@@ -150,7 +150,7 @@ In this example, we simulate 20 replicates of three partially pleiotropic traits
 ```{r MT PP, results = "hide", eval = FALSE}
 cor_matrix <- matrix(c(   1, 0.3, -0.9,
                         0.3,   1,  -0.5,
-                       -0.9, -0.5,    1 ), 3)
+                       -0.9, -0.5,    1 ), 3, byrow = T)
 
 sim_results <- create_phenotypes(
   geno_obj = SNP55K_maize282_maf04,
@@ -192,7 +192,7 @@ create_phenotypes(
   output_format = "wide",
   architecture = "LD",
   output_dir = "Results_LD",
-  out_geno = "plink",
+  out_geno = "BED",
   remove_QTN = TRUE,
   ld_max =0.8,
   ld_min =0.2,
@@ -207,9 +207,10 @@ create_phenotypes(
 The example below simulates five replicates of three traits. In each replicate, different SNPs are selected to be the QTNs for each experiment (`vary_QTN = TRUE`). These traits are controlled by three pleiotropic (`pleio = 3`) additive and dominance QTNs (`same_add_dom_QTN = TRUE` and `degree_of_dom = 1`); two pleiotropic epistatic QTNs (`pleio_e = 2`); four, ten and one trait-specific additive and dominance QTNs (`trait_spec_a_QTN_num = c(4, 10, 1)`);  and two, one and five epistatic trait-specific epistatic QTNs (`trait_spec_e_QTN_num = c(2, 1, 5)`). In addition to the default parameters, each genetic architecture may be simulated with many auxiliary features. For instance, we may be interested in outputting the amount of variance explained by each simulated QTN (`QTN_variance = TRUE`) or setting a residual correlation between traits (`cor_res = residual`) and thus, change the default option of independent residuals. Notice that in this example, the heritability is a 2x3 matrix (`h2 = heritability`). Each column of the matrix "heritability" will be assigned to a different trait. In this case, simplePHENOTYPES will loop over each row of `h2`, keeping all other variables constant. Since rep = 5 and nrow(h2) = 2, ten experiments will be simulated and saved in separate files. Simulated results will be saved as ".fam" files used as GEMMA input. Simultaneously, one genotypic file without the QTNs for the simulated traits will be saved for each replication. Due to the option `vary_QTN = TRUE`, each experiment will be simulated with different QTNs; thus, if we opt for `remove_QTN = TRUE`, many potentially large files will be saved in the output_dir folder. By default, simplePHENOTYPES will ask us if all these files should be saved. To avoid this question, we may use `warning_file_saver = FALSE`. In the present example, ten plink bed files (which is also the input for GEMMA) are saved. Genotypic files for rep one will be named `SNP55K_maize282_maf04_noQTN_rep_1.bed`, `SNP55K_maize282_maf04_noQTN_rep_1.bim`, and `SNP55K_maize282_maf04_noQTN_rep_1.fam`, whereas the phenotypic file will be saved as `Simulated_Data__Rep1_Herit_0.2_0.8_0.7.fam`. Importantly, the file `SNP55K_maize282_maf04_noQTN_rep_1.fam` does not contain the phenotypic data and needs to be replaced by `Simulated_Data__Rep1_Herit_0.2_0.8_0.7.fam` prior to its use by GEMMA or other software that uses bed files. A parameter particularly useful, especially when simulating dominance, is `constraints`. Here we only "include" heterozygote SNPs to be used as QTNs ( `constraints = list(maf_above = 0.3, maf_below = 0.44, hets = "include")`). Optionally, we may "remove" all the heterozygotes from consideration. The other constrain options used here are to select only QTNs with minor allele frequency between 0.3 and 0.44.
 ```{r MT PP E, results = "hide", eval = FALSE}
 residual <- matrix(c(1, 0.1,-0.2,
-                     0.1, 1,-0.1,-0.2,-0.1, 1), 3)
+                     0.1, 1,-0.1,
+                     -0.2,-0.1, 1), 3, byrow = T)
 heritability <- matrix(c(0.2, 0.4, 0.8,
-                         0.6, 0.7, 0.2), 2)
+                         0.6, 0.7, 0.2), 2, byrow = T)
 create_phenotypes(
   geno_obj = SNP55K_maize282_maf04,
   pleio_a = 3,
@@ -242,7 +243,7 @@ create_phenotypes(
 ```
 
 # Using Selected Markers to be QTN
-As of the version `1.2.15`, it is also possible to select what markers will be used as QTNS. The arguments `QTN_list` takes a lists of additive, dominance or epistatic QTNs. In the example below, the SNP `ss196523212` is selected to be the additive QTN. Another argument that is exemplified below is `epi_interaction`.  It defines the number of markers to be involved in an epistatic interaction. The parameter `out_geno` is defining that the marker data used in the simulation will be exported as plink BED files.
+As of version `1.2.15`, it is also possible to select what markers will be used as QTNS. The arguments `QTN_list` takes a lists of additive, dominance or epistatic QTNs. In the example below, the SNP `ss196523212` is selected to be the additive QTN. Another argument that is exemplified below is `epi_interaction`.  It defines the number of markers to be involved in an epistatic interaction. The parameter `out_geno` is defining that the marker data used in the simulation will be exported as plink BED files.
 ```{r qtn_list, results = "hide", eval = FALSE}
 QTN_list <- list()
 QTN_list$add[[1]] <- c("ss196523212")

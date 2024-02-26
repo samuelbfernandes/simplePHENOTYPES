@@ -2,10 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-.DS_Store
-.Rbuildignore
-doc
-Meta
-simplePHENOTYPES_GH.Rproj
-simplePHENOTYPES.Rproj
-cran-comments.md
+src/*.o
+src/*.so
+src/*.dll

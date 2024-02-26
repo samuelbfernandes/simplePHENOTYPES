@@ -9,6 +9,8 @@ qtn_linkage(
   seed = NULL,
   add_QTN_num = NULL,
   dom_QTN_num = NULL,
+  add_effect = NULL,
+  dom_effect = NULL,
   ld_max = NULL,
   ld_min = NULL,
   ld_method = "composite",
@@ -32,6 +34,10 @@ qtn_linkage(
 \item{add_QTN_num}{= NULL,}
 
 \item{dom_QTN_num}{= NULL,}
+
+\item{add_effect}{= NULL,}
+
+\item{dom_effect}{= NULL,}
 
 \item{ld_max}{= NULL,}
 

@@ -1,3 +1,17 @@
+# simplePHENOTYPES 1.4.0
+## Major changes
+Implemented vQTL simulaiton
+removed "Selected" from QTN output file name.
+
+## Minor changes
+Fixed bug that changed the working directory after the simulation
+Fixed bug that make it stop when running h2 as a matrix
+Fixed a bug that stopped the search for QTNs that fit ld_min and ld_max
+
+# simplePHENOTYPES 1.3.1
+## Minor changes
+Fixed reference paper information
+
 # simplePHENOTYPES 1.3.0
 ## Major changes
 Implemented the parameter "ld_max" (replacing "ld") and "ld_min".

@@ -4,7 +4,7 @@
 #' @param ref_allele a vector with the reference allele information
 #' @param hets a vector with the genotype code for all possible heterozigotes in the dataset.
 #' The default is used for hapmap format.
-#' @param nucleotides a vector with the genotype code for all possible homozigotes in the dataset.
+#' @param homo a vector with the genotype code for all possible homozigotes in the dataset.
 #' The default is used for hapmap format.
 #' @param model options: Add (AA = 1, Aa = 0, aa = -1), Dom (AA = 0, Aa = 1, aa = 0),
 #'  Left (AA = 1, Aa = 1, aa = 0), Right (AA = 0, Aa = 1, aa = 1). Default is Add.
@@ -20,7 +20,7 @@ table_to_numeric <-
            code_as = "-101",
            ref_allele = NULL,
            hets = c("R", "Y", "S", "W", "K", "M", "AG", "CT", "CG", "AT", "GT", "AC"),
-           nucleotides = c("A", "AA", "T", "TT", "C", "CC", "G", "GG"),
+           homo = c("A", "AA", "T", "TT", "C", "CC", "G", "GG"),
            model = "Add",
            impute = "None",
            method = "frequency",
@@ -46,6 +46,8 @@ table_to_numeric <-
                      method = method,
                      model = model,
                      impute = impute,
+                     hets = hets,
+                     homo = homo,
                      AA = AA,
                      Aa = Aa,
                      aa = aa)
@@ -62,6 +64,8 @@ table_to_numeric <-
                      method = method,
                      model = model,
                      impute = impute,
+                     hets = hets,
+                     homo = homo,
                      AA = AA,
                      Aa = Aa,
                      aa = aa)
@@ -80,11 +84,13 @@ make_numeric <- function (a,
                           ref = NULL,
                           model = NULL,
                           impute = NULL,
+                          hets = NULL,
+                          homo = NULL,
                           AA = NULL,
                           Aa = NULL,
                           aa = NULL) {
   if (method == "frequency") {
-    a[!a %in% c(nucleotides, hets)] <- NA
+    a[!a %in% c(homo, hets)] <- NA
     a <- as.factor(a)
     count <- tabulate(a)
     names(count) <- levels(a)
@@ -118,21 +124,33 @@ make_numeric <- function (a,
     }
     return(a)
   } else if (method == "reference")  {
-    a[!a %in% c(nucleotides, hets)] <- NA
+    a[!a %in% c(homo, hets)] <- NA
     count <- length(unique(a))
     if (count > 3) {
       print("non-biallelic SNP set to NA")
       a <- NA
       return(a)
     }
-    if (model == "Add") {
-      a <- data.table::fifelse(a == ref, AA, data.table::fifelse(a %in% hets, Aa, aa))
-    } else if (model == "Dom") {
-      a <- data.table::fifelse(a == ref, AA, Aa)
-    } else if (model == "Left") {
-      a <- data.table::fifelse(a == ref, AA, aa)
-    } else if (model == "Right") {
-      a <- data.table::fifelse(a == ref, aa, AA)
+    if (any(homo %in% c("0/0", "0|0", "1/1", "1|1"))) {
+      if (model == "Add") {
+        a <- data.table::fifelse(a == "1/1" | a == "1|1", AA, data.table::fifelse(a %in% hets, Aa, aa))
+      } else if (model == "Dom") {
+        a <- data.table::fifelse(a == "1/1" | a == "1|1", AA, Aa)
+      } else if (model == "Left") {
+        a <- data.table::fifelse(a == "1/1" | a == "1|1", AA, aa)
+      } else if (model == "Right") {
+        a <- data.table::fifelse(a == "1/1" | a == "1|1", aa, AA)
+      }
+    } else {
+      if (model == "Add") {
+        a <- data.table::fifelse(a == ref, AA, data.table::fifelse(a %in% hets, Aa, aa))
+      } else if (model == "Dom") {
+        a <- data.table::fifelse(a == ref, AA, Aa)
+      } else if (model == "Left") {
+        a <- data.table::fifelse(a == ref, AA, aa)
+      } else if (model == "Right") {
+        a <- data.table::fifelse(a == ref, aa, AA)
+      }
     }
     if (impute != "None") {
       na <- is.na(a)

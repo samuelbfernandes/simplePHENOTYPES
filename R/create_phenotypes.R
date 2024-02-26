@@ -5,7 +5,7 @@
 #' @import stats
 #' @importFrom data.table fwrite fread
 #' @importFrom SNPRelate snpgdsOpen snpgdsLDpair snpgdsClose snpgdsCreateGeno
-#' @importFrom gdsfmt read.gdsn index.gdsn
+#' @importFrom gdsfmt read.gdsn index.gdsn ls.gdsn
 #' @param geno_obj Marker data set loaded as an R object.
 #' Currently either HapMap or numericalized files
 #' (code as aa = -1, Aa = 0 and AA = 1, e.g. `data("SNP55K_maize282_maf04")`)
