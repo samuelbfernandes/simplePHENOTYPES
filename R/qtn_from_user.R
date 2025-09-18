@@ -50,7 +50,7 @@ qtn_from_user <-
       epi_ef_trait_obj <- NULL
       if (!is.null(unlist(QTN_list$add)) & add) {
         add_ef_trait_obj <-
-          lapply(QTN_list$add[[1]], function(i) {
+          lapply(QTN_list$add, function(i) {
             a <- genotypes[genotypes$snp %in% i,]
             rownames(a) <- a$snp
             a <- a[i,]
