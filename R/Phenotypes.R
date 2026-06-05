@@ -50,7 +50,10 @@ phenotypes <-
     }
     if (rep_by != "QTN") {
       if (output_format == "multi-file") {
-        dir.create("Phenotypes")
+        if (file.exists("Phenotypes") && length(dir("Phenotypes")) > 0)
+          warning("Output directory 'Phenotypes' already exists and is not empty. Existing files may be overwritten.",
+                  call. = FALSE, immediate. = TRUE)
+        dir.create("Phenotypes", showWarnings = FALSE)
         setwd("./Phenotypes")
       }
       if (ntraits > 1) {
@@ -485,6 +488,10 @@ phenotypes <-
             sample_cor <- (sample_cor + simulated_cor[[v]])
           }
           sample_cor <- stats::cov2cor(sample_cor / rep)
+          if (verbose) {
+            cat("\nSample Correlation Matrix:\n")
+            print(round(sample_cor, 4))
+          }
         } else {
           sample_cor <- NULL
         }
@@ -890,7 +897,10 @@ phenotypes <-
     } else {
       if (ntraits > 1) {
         if (output_format == "multi-file") {
-          dir.create("Phenotypes")
+          if (file.exists("Phenotypes") && length(dir("Phenotypes")) > 0)
+            warning("Output directory 'Phenotypes' already exists and is not empty. Existing files may be overwritten.",
+                    call. = FALSE, immediate. = TRUE)
+          dir.create("Phenotypes", showWarnings = FALSE)
           setwd("./Phenotypes")
         }
         H2 <- matrix(NA, nrow(h2), ntraits)
@@ -1330,6 +1340,10 @@ phenotypes <-
             sample_cor <- (sample_cor + simulated_cor[[v]])
           }
           sample_cor <- stats::cov2cor(sample_cor / rep)
+          if (verbose) {
+            cat("\nSample Correlation Matrix:\n")
+            print(round(sample_cor, 4))
+          }
         } else {
           sample_cor <- NULL
         }

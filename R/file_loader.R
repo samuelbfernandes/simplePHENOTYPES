@@ -74,16 +74,20 @@ file_loader <-
         colnames(GT) <- "taxa"
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         GD <- NULL
-        bit <- nchar(as.character(geno_obj[2, 12]))
-        if (verbose)
-          message("Performing numericalization")
-        GD <- apply(geno_obj[, - (1:11)], 1, function(one)
-          numericalization(
-            one,
-            bit = bit,
-            effect = SNP_effect,
-            impute = SNP_impute
-          ))
+        if (is.numeric(geno_obj[, 12])) {
+          GD <- t(as.matrix(geno_obj[, -(1:11)]))
+        } else {
+          bit <- nchar(as.character(geno_obj[2, 12]))
+          if (verbose)
+            message("Performing numericalization")
+          GD <- apply(geno_obj[, -(1:11)], 1, function(one)
+            numericalization(
+              one,
+              bit = bit,
+              effect = SNP_effect,
+              impute = SNP_impute
+            ))
+        }
         if (is.null(GD)) {
           GT <- NULL
           GI <- NULL
@@ -222,16 +226,20 @@ file_loader <-
         colnames(GT) <- "taxa"
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         GD <- NULL
-        bit <- nchar(as.character(G[2, 12]))
-        if (verbose)
-          message("Performing numericalization")
-        GD <- apply(G[, - (1:11)], 1, function(one)
-          numericalization(
-            one,
-            bit = bit,
-            effect = SNP_effect,
-            impute = SNP_impute
-          ))
+        if (is.numeric(G[, 12])) {
+          GD <- t(as.matrix(G[, -(1:11)]))
+        } else {
+          bit <- nchar(as.character(G[2, 12]))
+          if (verbose)
+            message("Performing numericalization")
+          GD <- apply(G[, -(1:11)], 1, function(one)
+            numericalization(
+              one,
+              bit = bit,
+              effect = SNP_effect,
+              impute = SNP_impute
+            ))
+        }
       } else if (input_format == "VCF") {
         SNPRelate::snpgdsVCF2GDS(
           vcf.fn = geno_file,
@@ -359,11 +367,12 @@ file_loader <-
         if (length(files) > 2) {
           nn[[2]] <- unlist(strsplit(out_name, ""))
           if (length(nn[[2]]) != length(nn[[1]])) {
-              nn[[2]] <- c(nn[[2]], rep(".", length(nn[[1]]) - length(nn[[2]]))) 
+              nn[[2]] <- c(nn[[2]], rep(".", length(nn[[1]]) - length(nn[[2]])))
           }
           nn_com <- match(FALSE, do.call("==", nn)) - 1
           out_name <- substr(out_name, 1, nn_com)
         }
+        out_name <- basename(out_name)
       }
       if (grepl(".VCF$", toupper(files[1]))) {
         input_format <- "VCF"
@@ -477,16 +486,20 @@ file_loader <-
         colnames(GT) <- "taxa"
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         GD <- NULL
-        bit <- nchar(as.character(G[2, 12]))
-        if (verbose)
-          message("Performing numericalization")
-        GD <- apply(G[, - (1:11)], 1, function(one)
-          numericalization(
-            one,
-            bit = bit,
-            effect = SNP_effect,
-            impute = SNP_impute
-          ))
+        if (is.numeric(G[, 12])) {
+          GD <- t(as.matrix(G[, -(1:11)]))
+        } else {
+          bit <- nchar(as.character(G[2, 12]))
+          if (verbose)
+            message("Performing numericalization")
+          GD <- apply(G[, -(1:11)], 1, function(one)
+            numericalization(
+              one,
+              bit = bit,
+              effect = SNP_effect,
+              impute = SNP_impute
+            ))
+        }
       } else if (input_format == "VCF") {
         if (verbose)
           message("Reading the following VCF files: \n")
@@ -516,6 +529,8 @@ file_loader <-
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
       } else if (input_format == "bed") {
+        if (verbose) message("Reading the following BED files: \n")
+        if (verbose) message(files, sep = "\n")
         SNPRelate::snpgdsBED2GDS(
           bed.fn = files,
           fam.fn = paste0(gsub(".bed", "", files), ".fam"),
@@ -544,6 +559,8 @@ file_loader <-
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
       } else if (input_format == "ped") {
+        if (verbose) message("Reading the following PED files: \n")
+        if (verbose) message(files, sep = "\n")
         SNPRelate::snpgdsPED2GDS(
           ped.fn = files,
           map.fn = paste0(gsub(".ped", "", files), ".map"),
@@ -567,6 +584,8 @@ file_loader <-
         colnames(GI) <- c("SNP", "allele", "Chromosome", "Position")
         gdsfmt::showfile.gds(closeall = TRUE, verbose = F)
       } else if (input_format == "gds") {
+        if (verbose) message("Reading the following GDS files: \n")
+        if (verbose) message(files, sep = "\n")
         genofile <- SNPRelate::snpgdsOpen(files)
         GD <-  SNPRelate::snpgdsGetGeno(genofile, snpfirstdim = FALSE,
                                         verbose = FALSE) - 1
