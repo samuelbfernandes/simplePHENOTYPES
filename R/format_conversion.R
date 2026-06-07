@@ -18,7 +18,10 @@
 #' @param model = "Add",
 #' @param impute = "None",
 #' @param method = "frequency",
-#' @param ... ...
+#' @param hets Character vector of heterozygote codes.
+#' @param homo Character vector of homozygote codes.
+#' @param verbose Logical; if TRUE prints progress messages.
+#' @param ... Additional arguments passed to internal functions.
 #' @return Phenotypes for ntraits traits
 #' @author Samuel Fernandes
 #' Last update: Apr 20, 2021

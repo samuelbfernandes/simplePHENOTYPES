@@ -8,8 +8,7 @@ check_in(
   geno_obj = NULL,
   geno_file = NULL,
   geno_path = NULL,
-  QTN_list = list(add = list(NULL), dom = list(NULL), epi = list(NULL), var =
-    list(NULL)),
+  QTN_list = list(add = list(NULL), dom = list(NULL), epi = list(NULL), var = list(NULL)),
   prefix = NULL,
   rep = NULL,
   ntraits = 1,

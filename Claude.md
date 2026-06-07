@@ -22,6 +22,9 @@ The `restructure` branch refactors the R source before any Rust work begins:
   - `R/table_to_numeric.R` — character table → numeric matrix (internal)
   - `R/vQTL.R` — variance QTL simulation (exported)
 - The R API seen by users (`create_phenotypes()` signature) must remain backward-compatible.
+  `create_phenotypes()` is the single exported entry point and must be preserved with its
+  existing parameter names. Internal refactoring (splitting logic into helper functions)
+  is fine; changing or removing public parameters is not.
 
 ## Architecture
 my-package/

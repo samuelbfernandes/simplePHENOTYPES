@@ -37,6 +37,8 @@ Left (AA = 1, Aa = 1, aa = 0), Right (AA = 0, Aa = 1, aa = 1). Default is Add.}
 
 \item{method}{method to define what is the major allele. Default is "frequency",
 "reference" is another option. If reference is used, "ref_allele" must be provided.}
+
+\item{verbose}{Logical; if TRUE prints a progress message.}
 }
 \value{
 Corresponding numerical value

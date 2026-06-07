@@ -24,6 +24,8 @@ knitr::opts_chunk$set(
     <img src="SP_logo.png">
       </a>
       </p>
+[![DOI](https://img.shields.io/badge/DOI-10.1186%2Fs12859--020--03804--y-blue)](https://doi.org/10.1186/s12859-020-03804-y)
+
 <!-- badges: end -->
    
 ### Contents

@@ -42,13 +42,19 @@ format_conversion(
 
 \item{code_as}{= "-101",}
 
+\item{hets}{Character vector of heterozygote codes.}
+
+\item{homo}{Character vector of homozygote codes.}
+
 \item{model}{= "Add",}
 
 \item{impute}{= "None",}
 
 \item{method}{= "frequency",}
 
-\item{...}{...}
+\item{verbose}{Logical; if TRUE prints progress messages.}
+
+\item{...}{Additional arguments passed to internal functions.}
 }
 \value{
 Phenotypes for ntraits traits

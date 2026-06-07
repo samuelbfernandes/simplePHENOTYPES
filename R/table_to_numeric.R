@@ -12,6 +12,7 @@
 #' "Minor", and "Middle". The default is "None".
 #' @param method method to define what is the major allele. Default is "frequency",
 #' "reference" is another option. If reference is used, "ref_allele" must be provided.
+#' @param verbose Logical; if TRUE prints a progress message.
 #' @return Corresponding numerical value
 #' Last update: Sep 29, 2021
 #---------------------------------------------------------------------------

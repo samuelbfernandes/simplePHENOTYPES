@@ -11,6 +11,8 @@ MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.or
 [![Downloads](https://cranlogs.r-pkg.org/badges/grand-total/simplePHENOTYPES?color=blue)](https://cran.r-project.org/package=simplePHENOTYPES)
 [![Downloads](https://cranlogs.r-pkg.org/badges/simplePHENOTYPES?color=blue)](https://cran.r-project.org/package=simplePHENOTYPES)
 
+[![DOI](https://img.shields.io/badge/DOI-10.1186%2Fs12859--020--03804--y-blue)](https://doi.org/10.1186/s12859-020-03804-y)
+
 <!-- badges: end -->
 
 ### Contents

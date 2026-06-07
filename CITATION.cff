@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "simplePHENOTYPES: Simulation of Pleiotropic, Linked and Epistatic Phenotypes"
+version: 1.4.0
+date-released: 2021-01-19
+url: "https://github.com/samuelbfernandes/simplePHENOTYPES"
+repository-code: "https://github.com/samuelbfernandes/simplePHENOTYPES"
+license: MIT
+authors:
+  - family-names: Fernandes
+    given-names: Samuel B.
+    orcid: "https://orcid.org/0000-0001-8269-535X"
+  - family-names: Lipka
+    given-names: Alexander E.
+    orcid: "https://orcid.org/0000-0003-1571-8528"
+preferred-citation:
+  type: article
+  title: "simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic phenotypes"
+  authors:
+    - family-names: Fernandes
+      given-names: Samuel B.
+    - family-names: Lipka
+      given-names: Alexander E.
+  journal: "BMC Bioinformatics"
+  year: 2020
+  volume: 21
+  issue: 1
+  pages: 491
+  doi: "10.1186/s12859-020-03804-y"

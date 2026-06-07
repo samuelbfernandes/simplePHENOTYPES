@@ -894,7 +894,9 @@ check_in <-
       p2 <- paste("\n\n",paste0(rep(" ", (nchar(title)-21)/2), collapse = ""),
         "SIMULATION PARAMETERS",
         paste0(rep(" ", (nchar(title)-21)/2), collapse = ""),
-        paste0("\n",paste0(rep("_", nchar(title)-1), collapse = ""),"\n"), "\nMaster Seed:", seed, "\nNumber of traits:", ntraits)
+        paste0("\n",paste0(rep("_", nchar(title)-1), collapse = ""),"\n"),
+        "\nDate/Time:", format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z"),
+        "\nMaster Seed:", seed, "\nNumber of traits:", ntraits)
       if (!is.null(unlist(QTN_list))) {
         if (add) p3 <- paste("\nNumber of additive QTNs:", paste0(len_a, collapse = ", "))
         if (dom) p4 <- paste("\nNumber of dominance QTNs:", paste0(len_d, collapse = ", "))

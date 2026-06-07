@@ -13,12 +13,9 @@ Authors@R: c(
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
-biocViews:
-Depends: 
-	R (>= 3.5.0)
-Imports: 
-    Rcpp (>= 0.12.7),
-    RcppArmadillo,
+Depends:
+	R (>= 4.1.0)
+Imports:
     data.table,
     mvtnorm,
     stats,
@@ -26,11 +23,10 @@ Imports:
     SNPRelate,
     gdsfmt,
     rlang
-LinkingTo: Rcpp, RcppArmadillo (>= 0.7.500.0.0)
-Suggests: 
+Suggests:
     knitr,
     rmarkdown
-RoxygenNote: 7.1.2
+RoxygenNote: 7.3.3
 VignetteBuilder: knitr
 URL: https://github.com/samuelbfernandes/simplePHENOTYPES
 BugReports: https://github.com/samuelbfernandes/simplePHENOTYPES/issues

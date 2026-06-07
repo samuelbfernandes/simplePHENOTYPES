@@ -537,6 +537,20 @@ create_phenotypes <-
         )
       }
       cat(print2)
+      if (null_setting) {
+        n_ind <- ncol(geno_obj) - 5
+        taxa  <- colnames(geno_obj)[-c(1:5)]
+        dummy_bl <- as.data.frame(matrix(0, n_ind, ntraits),
+                                  check.names = FALSE,
+                                  fix.empty.names = FALSE)
+        rownames(dummy_bl) <- taxa
+        colnames(dummy_bl) <- paste0("Trait_", 1:ntraits)
+        genetic_value <- list(
+          list(base_line = dummy_bl,
+               VA = NULL, VD = NULL, VE = NULL,
+               var_add = NULL, var_dom = NULL, var_epi = NULL)
+        )
+      } else {
       if (is.null(unlist(QTN_list))){
         if (ntraits == 1 | !any(architecture != "pleiotropic")) {
           QTN <-
@@ -640,6 +654,30 @@ create_phenotypes <-
           ld_min = ld_min,
           ld_max = ld_max,
           verbose = verbose
+        )
+      }
+      # Consolidate all QTN effect files into a single summary table
+      effect_files <- c(
+        add = "Additive_QTNs.txt",
+        dom = "Dominance_QTNs.txt",
+        epi = "Epistatic_QTNs.txt",
+        var = "Variance_QTNs.txt"
+      )
+      present_files <- effect_files[file.exists(effect_files)]
+      if (length(present_files) > 1) {
+        qtn_tables <- lapply(names(present_files), function(type) {
+          df <- data.table::fread(present_files[[type]], data.table = FALSE)
+          df$effect_type <- type
+          df
+        })
+        combined_qtns <- as.data.frame(data.table::rbindlist(qtn_tables, fill = TRUE))
+        data.table::fwrite(
+          combined_qtns,
+          "QTN_effects_summary.txt",
+          row.names = FALSE,
+          sep = "\t",
+          quote = FALSE,
+          na = NA
         )
       }
       if (remove_QTN) {
@@ -991,6 +1029,7 @@ create_phenotypes <-
             )
         }
       }
+      } # end if (!null_setting)
       if (rep_by == "experiment"){
         colnames(genetic_value[[1]]$base_line) <- paste0("Trait_", 1:ntraits)
         suppressMessages(data.table::fwrite(genetic_value[[1]]$base_line, "Genetic_values.txt",
