@@ -44,17 +44,20 @@ file_loader <- function(geno_obj   = NULL,
     }
     raw   <- parse_hapmap_chars_to_raw(geno_chars)   # SNPs × samples
     flip  <- compute_flip(raw)
+    n_snp  <- nrow(raw)
+    n_samp <- ncol(raw)
     coded <- numericalize_core(
-      raw_dosage = as.integer(raw),
-      n_snp      = nrow(raw),
-      n_samp     = ncol(raw),
+      raw_dosage = as.vector(t(raw)),   # row-major: SNP outer, sample inner
+      n_snp      = n_snp,
+      n_samp     = n_samp,
       flip       = flip,
       code_as    = "-101",
       model      = SNP_effect,
       impute     = SNP_impute
     )
-    # Return (samples × SNPs) to match the existing GD convention
-    t(matrix(coded, nrow = nrow(raw), ncol = ncol(raw)))
+    # Rust output is row-major. Reading as (n_samp x n_snp) column-major gives
+    # samples as rows and SNPs as columns — the GD convention.
+    matrix(coded, nrow = n_samp, ncol = n_snp)
   }
 
   # ---------------------------------------------------------------------------

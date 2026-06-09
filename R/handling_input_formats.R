@@ -26,8 +26,10 @@
   flip <- compute_flip(raw_mat, method = method,
                        allele1 = allele1, ref = ref_allele)
 
+  # Rust expects row-major layout (SNP as outer dim, sample as inner).
+  # R matrices are column-major, so transpose before flattening.
   coded_vec <- numericalize_core(
-    raw_dosage = as.integer(raw_mat),
+    raw_dosage = as.vector(t(raw_mat)),
     n_snp      = n_snp,
     n_samp     = n_samp,
     flip       = flip,
@@ -36,7 +38,8 @@
     impute     = impute
   )
 
-  coded_mat <- matrix(coded_vec, nrow = n_snp, ncol = n_samp)
+  # Rust output is row-major; read back as n_snp x n_samp with byrow = TRUE.
+  coded_mat <- matrix(coded_vec, nrow = n_snp, ncol = n_samp, byrow = TRUE)
   assemble_output(meta, sample_ids, coded_mat)
 }
 
