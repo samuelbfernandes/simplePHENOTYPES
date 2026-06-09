@@ -2,7 +2,7 @@
 % Please edit documentation in R/file_loader.R
 \name{file_loader}
 \alias{file_loader}
-\title{Function used by create_phenotypes to load marker dataset.}
+\title{Load marker data for create_phenotypes().}
 \usage{
 file_loader(
   geno_obj = NULL,
@@ -18,36 +18,35 @@ file_loader(
 )
 }
 \arguments{
-\item{geno_obj}{= NULL,}
+\item{geno_obj}{In-memory data.frame (HapMap or numeric).}
 
-\item{geno_file}{= NULL,}
+\item{geno_file}{Path to a single genotype file.}
 
-\item{geno_path}{= NULL,}
+\item{geno_path}{Directory path containing multiple HapMap/VCF/BED/PED/GDS files.}
 
-\item{nrows}{= Inf,}
+\item{nrows}{Maximum rows to read (Inf = all).}
 
-\item{na_string}{= "NA",}
+\item{na_string}{String representing missing values.}
 
-\item{prefix}{= NULL,}
+\item{prefix}{File-name prefix filter for geno_path.}
 
-\item{SNP_impute}{= "Middle",}
+\item{SNP_impute}{Imputation method: "Middle", "Minor", "Major", "None".}
 
-\item{SNP_effect}{= "Add",}
+\item{SNP_effect}{Genetic model: "Add", "Dom", "Left", "Right".}
 
-\item{verbose}{= TRUE}
+\item{verbose}{Print progress messages.}
 
-\item{chr_prefix}{= "chrm"}
+\item{chr_prefix}{Chromosome prefix string for VCF (passed to SNPRelate).}
 }
 \value{
-genotype data sampled
+list(GT, GD, GI, input_format, out_name, temp).
 }
 \description{
-Function used by create_phenotypes to load marker dataset.
+Returns list(GT, GD, GI, input_format, out_name, temp) where GD is the
+numeric genotype matrix (samples × SNPs) used by the simulation engine.
+The return contract is identical to v1.3.0 — this function is internal.
 }
 \author{
 Samuel Fernandes
-Last update: Apr 20, 2020
-------------------------------------------------------------------------------
---------------------------------------------------------------------------
 }
 \keyword{internal}

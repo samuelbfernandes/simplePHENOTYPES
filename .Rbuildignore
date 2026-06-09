@@ -1,9 +1,67 @@
+# ============================================
+# Files/folders excluded from `R CMD build`
+# Patterns are Perl-style regular expressions
+# ============================================
+
+# Claude Code artifacts
+^CLAUDE\.md$
+^\.claude$
+^\.claude-cache$
+
+# Project documentation (kept in git, but not shipped to CRAN)
+^docs$
+
+# Python package (separate deliverable, not part of R package)
+^python$
+
+# Spec workflow artifacts
+^_specs$
+
+# Repo-level config
+^\.gitignore$
+^\.gitattributes$
+^\.github$
+^\.editorconfig$
+^\.vscode$
+^\.idea$
+
+# CRAN submission helpers (kept in git but not in bundle)
+^cran-comments\.md$
+^CRAN-SUBMISSION$
+^revdep$
+
+# README sources (the rendered README.md is kept, .Rmd source is not)
+^README\.Rmd$
+^README_files$
+
+# Build artifacts
 ^.*\.Rproj$
 ^\.Rproj\.user$
-^\.claude$
-^CITATION\.cff$
-^TODO\.md$
-^Claude\.md$
-^context$
-^docs$
-^_specs$
+^.*\.tar\.gz$
+^.*\.Rcheck$
+
+# Rust build artifacts (anywhere in tree)
+^.*/target$
+^src/rust/target$
+
+# OS junk
+^.*\.DS_Store$
+^\.DS_Store$
+
+# CI / dev config
+^codecov\.yml$
+^\.codecov\.yml$
+^appveyor\.yml$
+^\.travis\.yml$
+
+# Vignette source artifacts (final .html ships, intermediates don't)
+^vignettes/.*_cache$
+^vignettes/.*\.utf8\.md$
+^vignettes/.*\.knit\.md$
+^src/\.cargo$
+^src/rust/vendor$
+^src/Makevars$
+^src/Makevars\.win$
+
+# Development benchmarks (not user-facing)
+^benchmarks$

@@ -14,7 +14,7 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Depends:
-	R (>= 4.1.0)
+    R (>= 4.2)
 Imports:
     data.table,
     mvtnorm,
@@ -25,9 +25,12 @@ Imports:
     rlang
 Suggests:
     knitr,
-    rmarkdown
+    rmarkdown,
+    testthat (>= 3.0.0)
 RoxygenNote: 7.3.3
 VignetteBuilder: knitr
 URL: https://github.com/samuelbfernandes/simplePHENOTYPES
 BugReports: https://github.com/samuelbfernandes/simplePHENOTYPES/issues
-NeedsCompilation: no
+NeedsCompilation: yes
+Config/rextendr/version: 0.4.2
+SystemRequirements: Cargo (Rust's package manager), rustc >= 1.65.0, xz

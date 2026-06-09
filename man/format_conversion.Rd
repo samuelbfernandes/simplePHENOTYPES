@@ -2,7 +2,7 @@
 % Please edit documentation in R/format_conversion.R
 \name{format_conversion}
 \alias{format_conversion}
-\title{architectures.}
+\title{Convert genomic data between formats or to a numeric dosage matrix.}
 \usage{
 format_conversion(
   file,
@@ -24,45 +24,57 @@ format_conversion(
 )
 }
 \arguments{
-\item{file}{file}
+\item{file}{Genotype input: a file path (character), an in-memory
+data.frame / matrix, a \code{gds.class} object, or a \code{vcfR} object.}
 
-\item{from}{= NULL,}
+\item{from}{Character string naming the input format. When \code{NULL}
+(default) the format is detected automatically from the file extension or
+object class.}
 
-\item{to}{= NULL,}
+\item{to}{Target format. Currently only \code{"numeric"} is implemented.}
 
-\item{ref_allele}{= NULL,}
+\item{ref_allele}{Optional character vector (length = number of markers)
+specifying the reference allele for each SNP. Used with
+\code{method = "reference"}.}
 
-\item{to_r}{= NULL,}
+\item{to_r}{Logical. Return the result as an R object? Defaults to
+\code{TRUE} for in-memory input, \code{FALSE} for file input.}
 
-\item{to_file}{= NULL,}
+\item{to_file}{Logical. Write the result to a file? Defaults to the
+complement of \code{to_r}.}
 
-\item{file_name}{= NULL,}
+\item{file_name}{Output file name. Auto-generated when \code{NULL}.}
 
-\item{f_name}{= NULL,}
+\item{f_name}{Base name used to build \code{file_name} for in-memory input.}
 
-\item{code_as}{= "-101",}
+\item{code_as}{Numeric coding scheme: \code{"-101"} (major = 1, het = 0,
+minor = -1; default) or \code{"012"} (major = 2, het = 1, minor = 0).}
 
-\item{hets}{Character vector of heterozygote codes.}
+\item{hets}{Character vector of heterozygote codes for nucleotide tables.}
 
-\item{homo}{Character vector of homozygote codes.}
+\item{homo}{Character vector of homozygote codes for nucleotide tables.}
 
-\item{model}{= "Add",}
+\item{model}{Genetic model: \code{"Add"} (default), \code{"Dom"},
+\code{"Left"}, or \code{"Right"}.}
 
-\item{impute}{= "None",}
+\item{impute}{Missing-data imputation: \code{"None"} (default),
+\code{"Middle"}, \code{"Minor"}, or \code{"Major"}.}
 
-\item{method}{= "frequency",}
+\item{method}{Allele orientation method: \code{"frequency"} (default) or
+\code{"reference"} (requires \code{ref_allele}).}
 
-\item{verbose}{Logical; if TRUE prints progress messages.}
+\item{verbose}{Logical; print progress messages when \code{TRUE}.}
 
-\item{...}{Additional arguments passed to internal functions.}
+\item{...}{Additional arguments (currently unused).}
 }
 \value{
-Phenotypes for ntraits traits
+When \code{to_r = TRUE}: a data.frame with columns
+  \code{snp, allele, chr, pos, cm} followed by one column per sample.
+  When \code{to_r = FALSE}: \code{invisible(NULL)}.
 }
 \description{
-architectures.
+Convert genomic data between formats or to a numeric dosage matrix.
 }
 \author{
 Samuel Fernandes
-Last update: Apr 20, 2021
 }

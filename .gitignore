@@ -1,10 +1,134 @@
-.Rproj.user
+# ============================================
+# Claude Code artifacts (NEVER commit)
+# ============================================
+CLAUDE.md
+.claude/
+.claude-cache/
+docs/PROJECT_CONTEXT.md
+
+# Note: docs/ARCHITECTURE.md, docs/DECISIONS.md, docs/SPEC.md, docs/BUGS.md,
+# docs/NEXT_STEPS.md ARE project documentation and SHOULD be committed.
+
+# ============================================
+# R
+# ============================================
+.Rproj.user/
 .Rhistory
 .RData
 .Ruserdata
+*.Rproj
+.Rapp.history
+.httr-oauth
+*-Ex.R
+/*.tar.gz
+/*.Rcheck/
+vignettes/*.html
+vignettes/*.pdf
+po/*~
+*.utf8.md
+*.knit.md
+inst/doc
+
+# Compiled R/C/C++ artifacts
 src/*.o
 src/*.so
 src/*.dll
+src/*.rds
+src/symbols.rds
+
+# ============================================
+# Rust
+# ============================================
+target/
+**/*.rs.bk
+src/rust/target/
+python/target/
+
+# Cargo.lock: commit for binaries/apps, often gitignored for libraries.
+# Since this is a library (R package), uncomment the next line if preferred:
+# Cargo.lock
+
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# maturin
+.maturin/
+
+# ============================================
+# Shiny
+# ============================================
+rsconnect/
+
+# ============================================
+# OS
+# ============================================
 .DS_Store
-*.Rproj
-context/
+Thumbs.db
+desktop.ini
+*~
+.directory
+
+# ============================================
+# Editor / IDE
+# ============================================
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*.swn
+.vim/
+
+# ============================================
+# Secrets and local config (never commit)
+# ============================================
+.env
+.env.local
+*.pem
+*.key
+secrets/
+src/rust/vendor
+src/Makevars
+src/Makevars.win
+
+# ============================================
+# Large test data (skip_if_not guarded in tests)
+# ============================================
+tests/SNP55K*
+
+# Temporary GDS files written to the working directory by tests/VCF conversions
+/file*.gds
+tests/testthat/file*.gds
