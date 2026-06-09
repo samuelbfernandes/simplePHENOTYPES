@@ -107,7 +107,14 @@ parse_hapmap_chars_to_raw <- function(geno_mat) {
       next
     }
 
-    counts  <- sort(table(hom_vals), decreasing = TRUE)
+    counts <- sort(table(hom_vals), decreasing = TRUE)
+
+    if (length(counts) > 2L) {
+      # Non-biallelic SNP: set entire row to NA, matching v1 behaviour.
+      message("Non-biallelic SNP at row ", i, " set to NA.")
+      next
+    }
+
     allele1 <- names(counts)[1L]  # most frequent homozygote = allele-1
 
     raw[i, row == allele1] <- 0L
@@ -134,9 +141,11 @@ parse_hapmap_chars_to_raw <- function(geno_mat) {
 compute_flip <- function(raw, method = "frequency",
                          allele1 = NULL, ref = NULL) {
   if (method == "reference") {
-    if (is.null(allele1) || is.null(ref)) {
-      stop("allele1 and ref must be supplied when method = 'reference'.",
-           call. = FALSE)
+    if (is.null(ref)) {
+      stop(
+        'method = "reference" requires the ref_allele argument.',
+        call. = FALSE
+      )
     }
     # flip when allele1 does NOT match the reference (ref is major → allele1
     # should be treated as major, so no flip needed when allele1 == ref).
