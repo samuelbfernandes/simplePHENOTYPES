@@ -1,213 +1,242 @@
 # test-v130-parity.R
 #
-# v1.3.0 behavioral parity tests (SPEC.md §8).
+# v1.3.0 regression guard (DECISION-009 / SPEC.md §8.1).
 #
-# Each test loads a frozen reference RDS produced by
-# inst/extdata/v1_3_0_reference/capture_references.R, runs the equivalent
-# v2 grammar call, and asserts:
-#   (a) identical QTN selection  — same marker IDs, in the same order.
-#   (b) numerically identical phenotypes — after normalizing output format.
+# Calls create_phenotypes() (frozen legacy fn) with the same parameters used in
+# inst/extdata/v1_3_0_reference/capture_references.R and asserts it still
+# reproduces the frozen references:
+#   (a) identical QTN marker IDs (rep 1).
+#   (b) numerically identical phenotype values (tolerance 1e-10).
 #
-# All tests start with skip("grammar not yet implemented") and are enabled one
-# by one as each grammar function is completed (Block 3 of TODO.md).
-# Running devtools::test() must stay green at every commit regardless.
+# If a bug fix intentionally changes output, re-run capture_references.R and
+# commit the updated RDS files.
 #
-# Tolerance for floating-point comparison: 1e-10 (double precision; allows
-# for platform rounding but catches any algorithmic divergence).
+# Test 5 (partial pleiotropy) is structural only — QTN counts and run-without-
+# error — because architecture = "partially" has no bit-identical v2 equivalent.
 
-REF_DIR <- testthat::test_path("..", "..", "inst", "extdata", "v1_3_0_reference")
+# Resolve against the installed package first so the guard also runs under
+# R CMD check, where inst/extdata/ has been flattened to extdata/.
+REF_DIR <- local({
+  installed <- system.file("extdata", "v1_3_0_reference",
+                           package = "simplePHENOTYPES")
+  if (nzchar(installed) && dir.exists(installed)) {
+    installed
+  } else {
+    testthat::test_path("..", "..", "inst", "extdata", "v1_3_0_reference")
+  }
+})
 
-# Helper: load a reference RDS.
 .ref <- function(name) readRDS(file.path(REF_DIR, paste0(name, ".rds")))
 
-# Helper: extract QTN IDs from the reference qtns$add data.frame (rep 1 only).
-.ref_qtns <- function(r) sort(unique(r$qtns$add$snp[r$qtns$add$rep == 1]))
+# Run create_phenotypes() in a fresh temp dir; return list(phenotypes=, qtns=).
+.run_legacy <- function(geno, call_args) {
+  tmp <- tempfile("sp_parity_")
+  dir.create(tmp, showWarnings = FALSE)
+  on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
 
-# Helper: extract the numeric phenotype matrix from a v2 phenotype_sim result.
-# Returns a samples × traits matrix, sorted by sample ID.
-.v2_pheno_mat <- function(sim) {
-  stop("implement when grammar is available")
-}
+  full_args <- c(
+    list(
+      geno_obj      = geno,
+      to_r          = TRUE,
+      output_format = "long",
+      home_dir      = tmp,
+      verbose       = FALSE
+    ),
+    call_args
+  )
 
-# Helper: extract QTN IDs selected by the v2 grammar (additive layer, rep 1).
-.v2_qtns <- function(sim) {
-  stop("implement when grammar is available")
+  pheno <- suppressMessages(do.call(create_phenotypes, full_args))
+
+  find_qtn_file <- function(...) {
+    for (fname in c(...)) {
+      hits <- c(
+        file.path(tmp, fname),
+        list.files(tmp, pattern = paste0("^", fname, "$"),
+                   recursive = TRUE, full.names = TRUE)
+      )
+      hits <- hits[file.exists(hits)]
+      if (length(hits)) return(data.table::fread(hits[[1L]], data.table = FALSE))
+    }
+    NULL
+  }
+
+  list(
+    phenotypes = pheno,
+    qtns = list(
+      # Current package writes "Additive_QTNs.txt"; v1.3.0 wrote
+      # "Additive_Selected_QTNs.txt" — search both names for forward-compatibility.
+      add = find_qtn_file("Additive_QTNs.txt", "Additive_Selected_QTNs.txt",
+                          "Additive_and_Dominance_Selected_QTNs.txt"),
+      dom = find_qtn_file("Dominance_QTNs.txt", "Dominance_Selected_QTNs.txt"),
+      epi = find_qtn_file("Epistatic_QTNs.txt", "Epistatic_Selected_QTNs.txt")
+    )
+  )
 }
 
 # ---------------------------------------------------------------------------
 # 1. Single trait, additive, seed = 1
 # ---------------------------------------------------------------------------
-test_that("parity: single trait, additive (seed = 1)", {
-  skip("grammar not yet implemented")
-
+test_that("v1.3.0 regression: single trait, additive (seed = 1)", {
   ref <- .ref("single_trait")
   data("SNP55K_maize282_maf04")
 
-  sim <- simulate_phenotype(SNP55K_maize282_maf04, seed = 1) |>
-    additive(prop = 0.7, n_qtn = 3, effect = 0.2)
+  got <- .run_legacy(SNP55K_maize282_maf04, list(
+    add_QTN_num = 3, add_effect = 0.2,
+    h2 = 0.7, model = "A", rep = 1, seed = 1
+  ))
 
   # (a) QTN identity
-  expect_equal(.v2_qtns(sim), .ref_qtns(ref))
+  expect_equal(
+    sort(got$qtns$add$snp[got$qtns$add$rep == 1]),
+    sort(ref$qtns$add$snp[ref$qtns$add$rep == 1])
+  )
 
   # (b) phenotype values
-  ref_pheno <- ref$phenotypes[order(ref$phenotypes[[1]]), 2]
-  v2_pheno  <- .v2_pheno_mat(sim)[order(rownames(.v2_pheno_mat(sim))), 1]
-  expect_equal(v2_pheno, ref_pheno, tolerance = 1e-10)
+  ref_ord <- ref$phenotypes[order(ref$phenotypes[[1L]]), ]
+  got_ord <- got$phenotypes[order(got$phenotypes[[1L]]), ]
+  expect_equal(got_ord[[2L]], ref_ord[[2L]], tolerance = 1e-10)
 })
 
 # ---------------------------------------------------------------------------
 # 2. Pleiotropy, 3 traits, additive + dominance, seed = 10
 # ---------------------------------------------------------------------------
-test_that("parity: pleiotropy 3 traits AD (seed = 10)", {
-  skip("grammar not yet implemented")
-
+test_that("v1.3.0 regression: pleiotropy 3 traits, AD (seed = 10)", {
   ref <- .ref("pleiotropy")
   data("SNP55K_maize282_maf04")
 
-  sim <- simulate_phenotype(SNP55K_maize282_maf04,
-                             architecture = "pleiotropy",
-                             n_traits     = 3,
-                             seed         = 10) |>
-    additive(prop   = c(0.2, 0.4, 0.4),
-             n_qtn  = 3,
-             effect = list(c(0.04, 0.0016, 6.4e-5),
-                           c(0.2, 0.04, 0.008),
-                           c(0.1, 0.01, 0.001))) |>
-    dominance(prop       = c(0.2, 0.4, 0.4),
-              same_as_add = TRUE,
-              n_qtn       = 4,
-              effect      = list(c(0.04, 0.0016, 6.4e-5, 2.56e-6),
-                                 c(0.2, 0.04, 0.008, 0.0016),
-                                 c(0.1, 0.01, 0.001, 1e-4)))
+  got <- .run_legacy(SNP55K_maize282_maf04, list(
+    add_QTN_num  = 3,
+    dom_QTN_num  = 4,
+    h2           = c(0.2, 0.4, 0.4),
+    add_effect   = c(0.04, 0.2, 0.1),
+    dom_effect   = c(0.04, 0.2, 0.1),
+    ntraits      = 3,
+    rep          = 1,
+    vary_QTN     = FALSE,
+    architecture = "pleiotropic",
+    seed         = 10,
+    model        = "AD",
+    sim_method   = "geometric"
+  ))
 
-  # (a) additive QTN identity
-  expect_equal(.v2_qtns(sim), .ref_qtns(ref))
+  # (a) additive QTN identity (rep 1)
+  expect_equal(
+    sort(got$qtns$add$snp[got$qtns$add$rep == 1]),
+    sort(ref$qtns$add$snp[ref$qtns$add$rep == 1])
+  )
 
-  # (b) phenotype values (trait 1 only)
-  ref_t1 <- ref$phenotypes[order(ref$phenotypes[[1]]), "Trait_1_H2_0.2"]
-  v2_mat  <- .v2_pheno_mat(sim)
-  v2_t1   <- v2_mat[order(rownames(v2_mat)), 1]
-  expect_equal(v2_t1, ref_t1, tolerance = 1e-10)
+  # (b) phenotype values, trait 1
+  ref_ord <- ref$phenotypes[order(ref$phenotypes[[1L]]), ]
+  got_ord <- got$phenotypes[order(got$phenotypes[[1L]]), ]
+  expect_equal(got_ord[["Trait_1_H2_0.2"]], ref_ord[["Trait_1_H2_0.2"]],
+               tolerance = 1e-10)
 })
 
 # ---------------------------------------------------------------------------
 # 3. LD spurious — indirect, seed = 200
 # ---------------------------------------------------------------------------
-test_that("parity: LD indirect (seed = 200)", {
-  skip("grammar not yet implemented")
-
+test_that("v1.3.0 regression: LD indirect (seed = 200)", {
   ref <- .ref("ld_indirect")
   data("SNP55K_maize282_maf04")
 
-  sim <- simulate_phenotype(SNP55K_maize282_maf04,
-                             architecture = "ld",
-                             n_traits     = 2,
-                             ld_type      = "indirect",
-                             r2_max       = 0.8,
-                             r2_min       = 0.2,
-                             r2_method    = "composite",
-                             seed         = 200) |>
-    additive(prop   = c(0.2, 0.4),
-             n_qtn  = 3,
-             effect = c(0.02, 0.05))
+  got <- .run_legacy(SNP55K_maize282_maf04, list(
+    add_QTN_num  = 3,
+    h2           = c(0.2, 0.4),
+    add_effect   = c(0.02, 0.05),
+    rep          = 1,
+    seed         = 200,
+    architecture = "LD",
+    model        = "A",
+    ld_max       = 0.8,
+    ld_min       = 0.2,
+    ld_method    = "composite",
+    type_of_ld   = "indirect"
+  ))
 
-  # For LD architecture, QTN IDs are the actual causal markers (not intermediates).
-  ref_qtns <- sort(unique(
-    ref$qtns$add$snp[ref$qtns$add$type != "cause_of_LD"]))
-  expect_equal(.v2_qtns(sim), ref_qtns)
+  # Causal markers only (not cause_of_LD rows)
+  ref_snps <- sort(ref$qtns$add$snp[ref$qtns$add$type != "cause_of_LD" &
+                                      ref$qtns$add$rep  == 1])
+  got_snps <- sort(got$qtns$add$snp[got$qtns$add$type != "cause_of_LD" &
+                                      got$qtns$add$rep  == 1])
+  expect_equal(got_snps, ref_snps)
 
-  ref_t1 <- ref$phenotypes[order(ref$phenotypes[[1]]), "Trait_1_H2_0.2"]
-  v2_mat  <- .v2_pheno_mat(sim)
-  v2_t1   <- v2_mat[order(rownames(v2_mat)), 1]
-  expect_equal(v2_t1, ref_t1, tolerance = 1e-10)
+  ref_ord <- ref$phenotypes[order(ref$phenotypes[[1L]]), ]
+  got_ord <- got$phenotypes[order(got$phenotypes[[1L]]), ]
+  expect_equal(got_ord[["Trait_1_H2_0.2"]], ref_ord[["Trait_1_H2_0.2"]],
+               tolerance = 1e-10)
 })
 
 # ---------------------------------------------------------------------------
 # 4. LD spurious — direct, seed = 200
 # ---------------------------------------------------------------------------
-test_that("parity: LD direct (seed = 200)", {
-  skip("grammar not yet implemented")
-
+# The ld_direct reference is re-blessed from the current frozen-legacy
+# create_phenotypes() (post-1.3.0 ld_min/ld_max bug fixes 68a227e / b95529a;
+# CRAN 1.3.0 was buggy here — see BUGS.md and capture_references.R 5d). This
+# guards the corrected direct-LD selection against future unintentional change.
+test_that("v1.3.0 regression: LD direct (seed = 200)", {
   ref <- .ref("ld_direct")
   data("SNP55K_maize282_maf04")
 
-  sim <- simulate_phenotype(SNP55K_maize282_maf04,
-                             architecture = "ld",
-                             n_traits     = 2,
-                             ld_type      = "direct",
-                             r2_max       = 0.8,
-                             r2_min       = 0.2,
-                             r2_method    = "composite",
-                             seed         = 200) |>
-    additive(prop   = c(0.2, 0.4),
-             n_qtn  = 3,
-             effect = c(0.02, 0.05))
+  got <- .run_legacy(SNP55K_maize282_maf04, list(
+    add_QTN_num  = 3,
+    h2           = c(0.2, 0.4),
+    add_effect   = c(0.02, 0.05),
+    rep          = 1,
+    seed         = 200,
+    architecture = "LD",
+    model        = "A",
+    ld_max       = 0.8,
+    ld_min       = 0.2,
+    ld_method    = "composite",
+    type_of_ld   = "direct"
+  ))
 
-  ref_qtns <- sort(unique(
-    ref$qtns$add$snp[ref$qtns$add$type != "cause_of_LD"]))
-  expect_equal(.v2_qtns(sim), ref_qtns)
+  # Causal markers only (not cause_of_LD rows)
+  ref_snps <- sort(ref$qtns$add$snp[ref$qtns$add$type != "cause_of_LD" &
+                                      ref$qtns$add$rep  == 1])
+  got_snps <- sort(got$qtns$add$snp[got$qtns$add$type != "cause_of_LD" &
+                                      got$qtns$add$rep  == 1])
+  expect_equal(got_snps, ref_snps)
 
-  ref_t1 <- ref$phenotypes[order(ref$phenotypes[[1]]), "Trait_1_H2_0.2"]
-  v2_mat  <- .v2_pheno_mat(sim)
-  v2_t1   <- v2_mat[order(rownames(v2_mat)), 1]
-  expect_equal(v2_t1, ref_t1, tolerance = 1e-10)
+  ref_ord <- ref$phenotypes[order(ref$phenotypes[[1L]]), ]
+  got_ord <- got$phenotypes[order(got$phenotypes[[1L]]), ]
+  expect_equal(got_ord[["Trait_1_H2_0.2"]], ref_ord[["Trait_1_H2_0.2"]],
+               tolerance = 1e-10)
 })
 
 # ---------------------------------------------------------------------------
-# 5. Partial pleiotropy — reconstructed via complex_phenotypes()
+# 5. Partial pleiotropy — structural only
 # ---------------------------------------------------------------------------
-# Note: partial-pleiotropy parity is STRUCTURAL, not bit-for-bit.  The v1
-# architecture uses a different internal mechanism; the v2 equivalent combines
-# a pleiotropy model + an independent model.  Assertions check:
-#   • correct total QTN count per trait
-#   • h2 within 5% of target
-# (Exact phenotype match is intentionally NOT asserted for this scenario.)
-test_that("parity: partial pleiotropy (structural)", {
-  skip("grammar not yet implemented")
-
-  ref   <- .ref("partial_pleiotropy")
+# Exact bit-match is not asserted: architecture = "partially" has no
+# grammar equivalent yet. Checks that the legacy path runs and produces
+# QTN counts consistent with the reference.
+test_that("v1.3.0 regression: partial pleiotropy, structural (seed = 42)", {
+  ref <- .ref("partial_pleiotropy")
   data("SNP55K_maize282_maf04")
 
-  pleio_sim <- simulate_phenotype(SNP55K_maize282_maf04,
-                                   architecture = "pleiotropy",
-                                   n_traits     = 3,
-                                   seed         = 42) |>
-    additive(prop = c(0.2, 0.4, 0.8), n_qtn = 3)
+  got <- .run_legacy(SNP55K_maize282_maf04, list(
+    ntraits              = 3,
+    pleio_a              = 3,
+    pleio_e              = 2,
+    same_add_dom_QTN     = TRUE,
+    degree_of_dom        = 0.5,
+    trait_spec_a_QTN_num = c(4, 10, 1),
+    trait_spec_e_QTN_num = c(3, 2, 5),
+    h2                   = c(0.2, 0.4, 0.8),
+    add_effect           = c(0.5, 0.33, 0.2),
+    epi_effect           = c(0.3, 0.3, 0.3),
+    epi_interaction      = 2,
+    rep                  = 1,
+    architecture         = "partially",
+    model                = "AE",
+    seed                 = 42
+  ))
 
-  indep_sim <- simulate_phenotype(SNP55K_maize282_maf04,
-                                   architecture = "independent",
-                                   n_traits     = 3,
-                                   seed         = 42) |>
-    additive(prop = c(0.2, 0.4, 0.8), n_qtn = c(4, 10, 1))
-
-  sim <- complex_phenotypes(pleio_sim, indep_sim, h2 = c(0.2, 0.4, 0.8))
-
-  # Structural: total QTN counts (pleiotropic + trait-specific) per trait
-  ref_add_n <- nrow(ref$qtns$add[ref$qtns$add$rep == 1, ])
-  v2_add_n  <- length(.v2_qtns(sim))
-  expect_true(abs(v2_add_n - ref_add_n) <= 3,
-              info = paste("add QTN count: v2 =", v2_add_n, "ref =", ref_add_n))
-})
-
-# ---------------------------------------------------------------------------
-# 6. Smoke test: create_phenotypes() shim still runs without error
-# ---------------------------------------------------------------------------
-# This test never carries a skip() — it must pass at every commit.
-# It does NOT check values; it only confirms the v1 API did not break.
-test_that("shim: create_phenotypes() runs without error", {
-  data("SNP55K_maize282_maf04")
-  expect_no_error(
-    suppressMessages(
-      create_phenotypes(
-        geno_obj    = SNP55K_maize282_maf04,
-        add_QTN_num = 3,
-        add_effect  = 0.2,
-        rep         = 1,
-        h2          = 0.7,
-        model       = "A",
-        seed        = 1,
-        home_dir    = tempdir()
-      )
-    )
+  # Structural: additive QTN count in rep 1 is within ±3 of the reference
+  ref_n <- nrow(ref$qtns$add[ref$qtns$add$rep == 1, ])
+  got_n <- if (!is.null(got$qtns$add)) nrow(got$qtns$add[got$qtns$add$rep == 1, ]) else 0L
+  expect_true(
+    abs(got_n - ref_n) <= 3L,
+    label = paste("add QTN count: got =", got_n, "ref =", ref_n)
   )
 })

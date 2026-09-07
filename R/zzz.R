@@ -15,3 +15,6 @@ utils::globalVariables(c(
   "rep_by", "yes_no", "len_d",
   "mm", "tempdir", "path_out"
 ))
+
+# data.table NSE in handle_finalreport().
+utils::globalVariables(c(":=", "geno"))

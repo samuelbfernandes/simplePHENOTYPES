@@ -1,3 +1,6 @@
+# Dev scratchpad: binds create_phenotypes() arguments in the global environment
+# so its internals can be stepped through by hand. Not a test -- it lived in
+# tests/ and R CMD check executed it as one.
 library(here)
 lapply(dir("./R/", full.names = T), source)
 load("./data/SNP55K_maize282_maf04.RData")

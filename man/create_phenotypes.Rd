@@ -345,8 +345,12 @@ Diagnostic files (log, QTN information, summary of LD between QTNs,
 proportion of phenotypic variance explained by each QTN).
 }
 \description{
-Simulation of single/multiple traits under different models and genetic
-architectures.
+\strong{[Superseded]} `create_phenotypes()` is the frozen v1 engine, retained
+unchanged for backward compatibility (full v1 signature, legacy seed
+arithmetic, and `RNGversion("3.5.1")`). It is bugfix-only and is \emph{not} a
+wrapper over the v2 grammar (the two implementations coexist). For new work
+prefer the composable grammar: [simulate_phenotype()] with [additive()],
+[dominance()], [epistasis()], [vqtl()] and [complex_phenotypes()].
 }
 \examples{
 # Simulate 50 replications of a single phenotype.

@@ -46,12 +46,12 @@ pub fn numericalize_core(
 
     let impute_val: Option<i32> = match impute {
         "Middle" => Some(het_val),
-        "Minor"  => Some(minor_val),
-        "Major"  => Some(major_val),
-        _        => None, // "None"
+        "Minor" => Some(minor_val),
+        "Major" => Some(major_val),
+        _ => None, // "None"
     };
 
-    let flip_vec: Vec<bool> = flip.into_iter().map(|v| v.is_true()).collect();
+    let flip_vec: Vec<bool> = flip.iter().map(|v| v.is_true()).collect();
     let mut out = vec![R_NA_INT; n_snp * n_samp];
 
     for snp in 0..n_snp {
@@ -67,11 +67,11 @@ pub fn numericalize_core(
                 // Map raw dosage → Add-model code
                 let add_coded = match (raw, is_flipped) {
                     (0, false) => major_val,
-                    (1, _)     => het_val,
+                    (1, _) => het_val,
                     (2, false) => minor_val,
-                    (0, true)  => minor_val,
-                    (2, true)  => major_val,
-                    _          => R_NA_INT,
+                    (0, true) => minor_val,
+                    (2, true) => major_val,
+                    _ => R_NA_INT,
                 };
 
                 if add_coded == R_NA_INT {
@@ -83,10 +83,28 @@ pub fn numericalize_core(
                     //   Left:  het     → minor_val  (x1[x1 == 0] <- -1)
                     //   Right: het     → major_val  (x1[x1 == 0] <- 1)
                     match model {
-                        "Dom"   => if add_coded != het_val { minor_val } else { het_val },
-                        "Left"  => if add_coded == het_val { minor_val } else { add_coded },
-                        "Right" => if add_coded == het_val { major_val } else { add_coded },
-                        _       => add_coded, // "Add" and unrecognised
+                        "Dom" => {
+                            if add_coded != het_val {
+                                minor_val
+                            } else {
+                                het_val
+                            }
+                        }
+                        "Left" => {
+                            if add_coded == het_val {
+                                minor_val
+                            } else {
+                                add_coded
+                            }
+                        }
+                        "Right" => {
+                            if add_coded == het_val {
+                                major_val
+                            } else {
+                                add_coded
+                            }
+                        }
+                        _ => add_coded, // "Add" and unrecognised
                     }
                 }
             };

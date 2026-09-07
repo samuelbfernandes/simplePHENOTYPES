@@ -9,7 +9,7 @@ Reference: Cook et al. 2012. Genetic architecture of maize kernel
 composition in the nested association mapping and inbred association panels.
 Plant Physiology 158:824-834}
 \format{
-A data frame with 10650 rows and 285 variables:
+A data frame with 10650 rows and 285 variables.
 }
 \source{
 \doi{10.1104/pp.111.185033}
@@ -24,4 +24,31 @@ Reference: Cook et al. 2012. Genetic architecture of maize kernel
 composition in the nested association mapping and inbred association panels.
 Plant Physiology 158:824-834
 }
+\section{Columns}{
+
+The first five columns are marker metadata and the remaining 280 are
+individuals, coded -1 / 0 / 1.
+\describe{
+  \item{snp}{marker name.}
+  \item{allele}{allele pair, e.g. "A/G".}
+  \item{chr}{chromosome, 1-10.}
+  \item{pos}{physical position in base pairs (B73 AGPv2).}
+  \item{cm}{genetic position in centiMorgans - see the note below.}
+}
+}
+
+\section{The genetic map is synthetic}{
+
+`cm` holds a **modelled** genetic map, generated from the physical positions
+by [synthetic_map()]; it is not taken from any published maize linkage map
+(IBM, NAM, or otherwise) and should not be quoted as measured recombination
+distance. It exists so that the meiosis-based functions ([cross()],
+[selfcross()], [double_haploid()]) have usable recombination distances on the
+bundled example data. It totals about 1,497 cM over the ten chromosomes, at
+roughly 0.73 cM/Mb on average, with recombination suppressed around each
+centromere - about 0.2 cM/Mb pericentromerically against about 1.05 cM/Mb on
+the arms. Earlier package versions carried `cm` as an all-`NA` placeholder.
+The generating script is `data-raw/make_SNP55K_map.R`.
+}
+
 \keyword{internal}

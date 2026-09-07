@@ -93,17 +93,26 @@ read_qtns <- function(dir) {
     NULL
   }
 
+  # The current package writes "Additive_QTNs.txt" etc.; v1.3.0 wrote the
+  # "*_Selected_QTNs.txt" names. Search both so this works whether a scenario is
+  # captured from the v1.3.0 namespace or the current frozen-legacy one (5d).
   list(
-    add = find_file("Additive_Selected_QTNs.txt",
+    add = find_file("Additive_QTNs.txt", "Additive_Selected_QTNs.txt",
                     "Additive_and_Dominance_Selected_QTNs.txt"),
-    dom = find_file("Dominance_Selected_QTNs.txt"),
-    epi = find_file("Epistatic_Selected_QTNs.txt")
+    dom = find_file("Dominance_QTNs.txt", "Dominance_Selected_QTNs.txt"),
+    epi = find_file("Epistatic_QTNs.txt", "Epistatic_Selected_QTNs.txt")
   )
 }
 
 # Run one scenario inside a clean temp directory and return the reference list.
 # output_dir is intentionally omitted so QTN files land in home_dir (= tmp).
-run_scenario <- function(scenario, call_args) {
+#
+# `cp` is the create_phenotypes() to drive: ns130$create_phenotypes (CRAN 1.3.0)
+# for the bit-frozen scenarios, or the current package's create_phenotypes for
+# scenarios that must reflect post-1.3.0 frozen-legacy bug fixes (see 5d).
+# `version` labels the saved reference accordingly.
+run_scenario <- function(scenario, call_args,
+                         cp = ns130$create_phenotypes, version = "1.3.0") {
   tmp <- tempfile(pattern = paste0("sp130_", scenario, "_"))
   dir.create(tmp)
   on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
@@ -121,13 +130,13 @@ run_scenario <- function(scenario, call_args) {
 
   message("\n--- Scenario: ", scenario, " ---")
   pheno <- withr::with_dir(tmp, {
-    do.call(ns130$create_phenotypes, full_args)
+    do.call(cp, full_args)
   })
 
   qtns <- read_qtns(tmp)
 
   list(
-    version    = "1.3.0",
+    version    = version,
     captured   = Sys.time(),
     scenario   = scenario,
     call       = call_args,
@@ -204,6 +213,15 @@ message("Saved ld_indirect.rds")
 
 # -- 5d. LD direct -----------------------------------------------------------
 # Identical to 5c except type_of_ld = "direct".
+#
+# NOTE (re-blessed): unlike the other scenarios, this one is captured from the
+# CURRENT frozen-legacy create_phenotypes(), NOT CRAN 1.3.0. CRAN 1.3.0 had a
+# bug in the direct-LD ld_min/ld_max candidate-acceptance loop, fixed after
+# release by commits 68a227e and b95529a (both "fixed bug on ld_min/ld_max").
+# The frozen-legacy engine includes those fixes, so its correct direct-LD output
+# differs from 1.3.0 at the 3rd causal marker. Per DECISION-009 this reference is
+# deliberately re-blessed to the post-fix output. `create_phenotypes` here is the
+# current package's (the dev namespace stays active alongside ns130).
 ref <- run_scenario(
   "ld_direct",
   list(
@@ -218,10 +236,12 @@ ref <- run_scenario(
     ld_min       = 0.2,
     ld_method    = "composite",
     type_of_ld   = "direct"
-  )
+  ),
+  cp      = create_phenotypes,
+  version = "1.3.0+ldfix (re-blessed from current frozen create_phenotypes)"
 )
 saveRDS(ref, file.path(out_dir, "ld_direct.rds"))
-message("Saved ld_direct.rds")
+message("Saved ld_direct.rds (re-blessed from current package)")
 
 # -- 5e. Partial pleiotropy --------------------------------------------------
 # architecture = "partially"; seed = 42 (assigned — README has no seed).

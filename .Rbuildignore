@@ -11,6 +11,9 @@
 # Project documentation (kept in git, but not shipped to CRAN)
 ^docs$
 
+# Reference implementations carried for porting only (isqg C++, PleioArch R)
+^context$
+
 # Python package (separate deliverable, not part of R package)
 ^python$
 
@@ -18,6 +21,7 @@
 ^_specs$
 
 # Repo-level config
+^CITATION\.cff$
 ^\.gitignore$
 ^\.gitattributes$
 ^\.github$
@@ -65,3 +69,16 @@
 
 # Development benchmarks (not user-facing)
 ^benchmarks$
+
+# Dataset-generation scripts (kept in git; the built data/ ships instead)
+^data-raw$
+
+# Stray intermediate GDS files written by tests/conversions.
+# Cleaned in tests/testthat/setup.R; guarded here in case any linger at build time.
+^tests/testthat/file.*\.gds$
+^file.*\.gds$
+^tests/test_numeric\.txt$
+
+# Large local-only as_numeric fixtures, 76MB and untracked. Tests that use them
+# skip when absent, so the bundle stays small.
+^tests/SNP55K_maize282_AGPv2.*$
