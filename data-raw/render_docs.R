@@ -7,7 +7,14 @@
 # Usage (from package root, after installing the current version):
 #   Rscript data-raw/render_docs.R
 
-knitr::knit("README.Rmd", output = "README.md", quiet = TRUE)
+# rmarkdown::render (not knitr::knit) so the YAML front matter is stripped --
+# GitHub renders a leading YAML block as a metadata table at the top of the page.
+rmarkdown::render(
+  "README.Rmd",
+  output_format = rmarkdown::github_document(html_preview = FALSE),
+  output_file   = "README.md",
+  quiet         = TRUE
+)
 
 rmarkdown::render(
   "vignettes/complete-reference.Rmd",
