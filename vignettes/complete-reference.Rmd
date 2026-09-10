@@ -75,6 +75,56 @@ as_numeric("my_genotypes.vcf",     to_r = TRUE)
 as_numeric("my_genotypes.bed",     to_r = TRUE)   # needs .bim and .fam alongside
 ```
 
+## Filtering markers with `filter_geno()`
+
+`filter_geno()` is one place to trim a genotype before simulating: it drops
+monomorphic markers, filters by minor-allele frequency and by heterozygosity,
+and prunes by linkage disequilibrium. A marker must pass every requested filter.
+
+```{r filter-basic, message = FALSE}
+data("SNP55K_maize282_maf04")
+geno <- SNP55K_maize282_maf04
+
+# MAF window + only markers that carry heterozygotes (e.g. before dominance)
+g <- filter_geno(geno, maf_below = 0.48, hets = "include", verbose = FALSE)
+nrow(g)
+```
+
+Heterozygosity matters for dominance: a dominance deviation acts on
+heterozygotes, so on a near-inbred panel `dominance()` errors unless the loci
+have heterozygotes. Pre-filtering fixes that:
+
+```{r filter-dominance}
+simulate_phenotype(g, seed = 60) |>
+  additive(prop = 0.4, n_qtn = 5) |>
+  dominance(prop = 0.1)
+```
+
+**LD pruning and haplotype blocks.** The three sliding-window pruners take a
+`c(window, step, threshold)` specification; `blocks` groups markers into
+Gabriel *et al.* (2002) haplotype blocks and keeps one tag per block. (Shown on a
+single chromosome to keep the vignette quick.)
+
+```{r filter-ld, message = FALSE}
+chr1 <- geno[geno$chr == geno$chr[1], ][1:400, ]
+
+# pairwise composite-r2 pruning (r2 > 0.2 in 50-marker windows)
+nrow(filter_geno(chr1, indep_pairwise = c(50, 5, 0.2), verbose = FALSE))
+
+# phased (EM haplotype) r2 pruning
+nrow(filter_geno(chr1, indep_pairphase = c(50, 5, 0.2), verbose = FALSE))
+
+# variance-inflation-factor pruning (PLINK's --indep)
+nrow(filter_geno(chr1, indep = c(50, 5, 2), verbose = FALSE))
+
+# Gabriel haplotype blocks: keep one tag marker per block
+nrow(filter_geno(chr1, blocks = TRUE, block_max_kb = 2000, verbose = FALSE))
+```
+
+Using the VIF pruner or the block definition prints a one-per-session citation
+for the method it implements (PLINK's VIF procedure, or Gabriel *et al.* for the
+blocks); the pairwise pruners are generic r^2 operations and print nothing.
+
 # 2. The genetic map
 
 Meiosis needs distances in centiMorgans. `SNP55K_maize282_maf04` ships with a
@@ -449,7 +499,10 @@ the returned object instead.
 realized:
 
 ```{r inspect-print}
-ph_i <- simulate_phenotype(geno, h2 = 0.5, seed = 60) |>
+# dominance needs heterozygous loci; on this near-inbred panel filter to them
+# first (otherwise dominance() errors -- see filter_geno() above)
+gh <- filter_geno(geno, hets = "include", verbose = FALSE)
+ph_i <- simulate_phenotype(gh, h2 = 0.5, seed = 60) |>
   additive(prop = 0.3, n_qtn = 5) |>
   dominance(prop = 0.2)
 ph_i

@@ -85,6 +85,70 @@ as_numeric("my_genotypes.vcf",     to_r = TRUE)
 as_numeric("my_genotypes.bed",     to_r = TRUE)   # needs .bim and .fam alongside
 ```
 
+## Filtering markers with `filter_geno()`
+
+`filter_geno()` is one place to trim a genotype before simulating: it
+drops monomorphic markers, filters by minor-allele frequency and by
+heterozygosity, and prunes by linkage disequilibrium. A marker must pass
+every requested filter.
+
+``` r
+data("SNP55K_maize282_maf04")
+geno <- SNP55K_maize282_maf04
+
+# MAF window + only markers that carry heterozygotes (e.g. before dominance)
+g <- filter_geno(geno, maf_below = 0.48, hets = "include", verbose = FALSE)
+nrow(g)
+#> [1] 3884
+```
+
+Heterozygosity matters for dominance: a dominance deviation acts on
+heterozygotes, so on a near-inbred panel `dominance()` errors unless the
+loci have heterozygotes. Pre-filtering fixes that:
+
+``` r
+simulate_phenotype(g, seed = 60) |>
+  additive(prop = 0.4, n_qtn = 5) |>
+  dominance(prop = 0.1)
+#> <phenotype_sim>  (realized · long format)
+#>   Genotypes: g   Traits: 1   Architecture: independent   Seed: 60
+#>   Variance partition (proportions of V_P):
+#>     additive   0.40   (5 QTNs, geometric)
+#>     dominance  0.10   (same QTNs as additive)
+#>     residual   0.50
+#>   Requested genetic share = 0.50   realized H² = 0.48
+```
+
+**LD pruning and haplotype blocks.** The three sliding-window pruners
+take a `c(window, step, threshold)` specification; `blocks` groups
+markers into Gabriel *et al.* (2002) haplotype blocks and keeps one tag
+per block. (Shown on a single chromosome to keep the vignette quick.)
+
+``` r
+chr1 <- geno[geno$chr == geno$chr[1], ][1:400, ]
+
+# pairwise composite-r2 pruning (r2 > 0.2 in 50-marker windows)
+nrow(filter_geno(chr1, indep_pairwise = c(50, 5, 0.2), verbose = FALSE))
+#> [1] 273
+
+# phased (EM haplotype) r2 pruning
+nrow(filter_geno(chr1, indep_pairphase = c(50, 5, 0.2), verbose = FALSE))
+#> [1] 273
+
+# variance-inflation-factor pruning (PLINK's --indep)
+nrow(filter_geno(chr1, indep = c(50, 5, 2), verbose = FALSE))
+#> [1] 264
+
+# Gabriel haplotype blocks: keep one tag marker per block
+nrow(filter_geno(chr1, blocks = TRUE, block_max_kb = 2000, verbose = FALSE))
+#> [1] 329
+```
+
+Using the VIF pruner or the block definition prints a one-per-session
+citation for the method it implements (PLINK’s VIF procedure, or Gabriel
+*et al.* for the blocks); the pairwise pruners are generic r^2
+operations and print nothing.
+
 # 2. The genetic map
 
 Meiosis needs distances in centiMorgans. `SNP55K_maize282_maf04` ships
@@ -181,12 +245,12 @@ variance, so heritability is the sum of the genetic proportions.
 ph <- simulate_phenotype(geno, seed = 1) |>
   additive(prop = 0.5, n_qtn = 3)
 ph
-#> <phenotype_sim>  (realized <U+00B7> long format)
+#> <phenotype_sim>  (realized · long format)
 #>   Genotypes: geno   Traits: 1   Architecture: independent   Seed: 1
 #>   Variance partition (proportions of V_P):
 #>     additive   0.50   (3 QTNs, geometric)
 #>     residual   0.50
-#>   Implied h<U+00B2> (broad) = 0.50   realized = 0.48
+#>   Requested genetic share = 0.50   realized H² = 0.48
 ```
 
 ## Every layer
@@ -197,8 +261,13 @@ full <- simulate_phenotype(geno, seed = 2) |>
   dominance(prop = 0.1) |>
   epistasis(prop = 0.1, n_pairs = 2, interaction = 2) |>
   vqtl(prop = 0.1)
+#> In addition to citing:
+#> Fernandes, S.B., Lipka, A.E. simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic phenotypes. BMC Bioinformatics 21, 491 (2020). https://doi.org/10.1186/s12859-020-03804-y
+#> Please also cite:
+#> Murphy et al. (2022), Heredity 129:93-102, doi:10.1038/s41437-022-00541-1, for plant vQTL simulation.
+#> This message is displayed once per session.
 full
-#> <phenotype_sim>  (realized <U+00B7> long format)
+#> <phenotype_sim>  (realized · long format)
 #>   Genotypes: geno   Traits: 1   Architecture: independent   Seed: 2
 #>   Variance partition (proportions of V_P):
 #>     additive   0.30   (5 QTNs, geometric)
@@ -206,9 +275,9 @@ full
 #>     epistasis  0.10   (2 pairs, 2-way)
 #>     vqtl       0.10   (same QTNs as additive)
 #>     residual   0.40
-#>   Implied h<U+00B2> (broad) = 0.60   realized = 0.51
-#>   (vqtl varies the residual rather than adding genetic value, so it
-#>    counts toward the implied total but not the realized h<U+00B2>)
+#>   Requested genetic share = 0.50   realized H² = 0.51
+#>   (vqtl is a residual-heterogeneity component and is not counted in
+#>    broad-sense heritability)
 ```
 
 ## Layer options
@@ -217,50 +286,50 @@ full
 # Geometric effects with an explicit base (0.5, 0.25, 0.125, ...)
 simulate_phenotype(geno, seed = 3) |>
   additive(prop = 0.5, n_qtn = 3, effect = 0.5)
-#> <phenotype_sim>  (realized <U+00B7> long format)
+#> <phenotype_sim>  (realized · long format)
 #>   Genotypes: geno   Traits: 1   Architecture: independent   Seed: 3
 #>   Variance partition (proportions of V_P):
 #>     additive   0.50   (3 QTNs, geometric)
 #>     residual   0.50
-#>   Implied h<U+00B2> (broad) = 0.50   realized = 0.50
+#>   Requested genetic share = 0.50   realized H² = 0.50
 
 # Explicit effect series, one per QTN
 simulate_phenotype(geno, seed = 3) |>
   additive(prop = 0.5, n_qtn = 3, effect = c(0.6, 0.3, 0.1))
-#> <phenotype_sim>  (realized <U+00B7> long format)
+#> <phenotype_sim>  (realized · long format)
 #>   Genotypes: geno   Traits: 1   Architecture: independent   Seed: 3
 #>   Variance partition (proportions of V_P):
 #>     additive   0.50   (3 QTNs, geometric)
 #>     residual   0.50
-#>   Implied h<U+00B2> (broad) = 0.50   realized = 0.50
+#>   Requested genetic share = 0.50   realized H² = 0.50
 
 # Dominance and vQTL on their own loci rather than the additive ones
 simulate_phenotype(geno, seed = 4) |>
   additive(prop = 0.3, n_qtn = 5) |>
   dominance(prop = 0.1, same_as_add = FALSE, n_qtn = 3) |>
   vqtl(prop = 0.1, same_as_add = FALSE, n_qtn = 2)
-#> <phenotype_sim>  (realized <U+00B7> long format)
+#> <phenotype_sim>  (realized · long format)
 #>   Genotypes: geno   Traits: 1   Architecture: independent   Seed: 4
 #>   Variance partition (proportions of V_P):
 #>     additive   0.30   (5 QTNs, geometric)
 #>     dominance  0.10   (3 QTNs)
 #>     vqtl       0.10   (2 QTNs)
 #>     residual   0.50
-#>   Implied h<U+00B2> (broad) = 0.50   realized = 0.41
-#>   (vqtl varies the residual rather than adding genetic value, so it
-#>    counts toward the implied total but not the realized h<U+00B2>)
+#>   Requested genetic share = 0.40   realized H² = 0.42
+#>   (vqtl is a residual-heterogeneity component and is not counted in
+#>    broad-sense heritability)
 
 # Three-way epistasis
 simulate_phenotype(geno, seed = 5) |>
   additive(prop = 0.3, n_qtn = 4) |>
   epistasis(prop = 0.2, n_pairs = 2, interaction = 3)
-#> <phenotype_sim>  (realized <U+00B7> long format)
+#> <phenotype_sim>  (realized · long format)
 #>   Genotypes: geno   Traits: 1   Architecture: independent   Seed: 5
 #>   Variance partition (proportions of V_P):
 #>     additive   0.30   (4 QTNs, geometric)
 #>     epistasis  0.20   (2 pairs, 3-way)
 #>     residual   0.50
-#>   Implied h<U+00B2> (broad) = 0.50   realized = 0.48
+#>   Requested genetic share = 0.50   realized H² = 0.48
 ```
 
 ## Replications and per-trait proportions
@@ -286,20 +355,20 @@ head(phenotypes_wide(reps))
 
 ``` r
 simulate_phenotype(geno, h2 = 0.5, n_qtn = 3, seed = 7)              # model "A"
-#> <phenotype_sim>  (realized <U+00B7> long format)
+#> <phenotype_sim>  (realized · long format)
 #>   Genotypes: geno   Traits: 1   Architecture: independent   Seed: 7
 #>   Variance partition (proportions of V_P):
 #>     additive   0.50   (3 QTNs, geometric)
 #>     residual   0.50
-#>   Implied h<U+00B2> (broad) = 0.50   realized = 0.48
+#>   Requested genetic share = 0.50   realized H² = 0.48
 simulate_phenotype(geno, h2 = 0.6, n_qtn = 4, model = "AD", seed = 7)
-#> <phenotype_sim>  (realized <U+00B7> long format)
+#> <phenotype_sim>  (realized · long format)
 #>   Genotypes: geno   Traits: 1   Architecture: independent   Seed: 7
 #>   Variance partition (proportions of V_P):
 #>     additive   0.30   (4 QTNs, geometric)
 #>     dominance  0.30   (same QTNs as additive)
 #>     residual   0.40
-#>   Implied h<U+00B2> (broad) = 0.60   realized = 0.59
+#>   Requested genetic share = 0.60   realized H² = 0.59
 ```
 
 ## Fine control: fixed loci, phase, means, subsets
@@ -310,12 +379,12 @@ Give marker names or column indices:
 ``` r
 simulate_phenotype(geno, h2 = 0.5, seed = 1) |>
   additive(qtn = c("ss196442916", "ss196439337", "ss196480535"))
-#> <phenotype_sim>  (realized <U+00B7> long format)
+#> <phenotype_sim>  (realized · long format)
 #>   Genotypes: geno   Traits: 1   Architecture: independent   Seed: 1
 #>   Variance partition (proportions of V_P):
 #>     additive   0.50   (3 QTNs, geometric)
 #>     residual   0.50
-#>   Implied h<U+00B2> (broad) = 0.50   realized = 0.48
+#>   Requested genetic share = 0.50   realized H² = 0.48
 ```
 
 `phase = "repulsion"` alternates the effect signs so linked increasing
@@ -400,6 +469,11 @@ of traits**.
 ph2 <- simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 2,
                           cor = 0.6, seed = 9) |>
   additive(prop = 0.5, n_qtn = 200)
+#> In addition to citing:
+#> Fernandes, S.B., Lipka, A.E. simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic phenotypes. BMC Bioinformatics 21, 491 (2020). https://doi.org/10.1186/s12859-020-03804-y
+#> Please also cite:
+#> Prado et al. (in preparation), when controlling the correlation in the pleiotropic architecture.
+#> This message is displayed once per session.
 
 g <- genetic_values(ph2)
 round(cor(g[, 1], g[, 2]), 3)
@@ -457,12 +531,12 @@ simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 2,
                    cor = 0.6, n_pleio_major = 5, prop_var_major = 0.5,
                    seed = 11) |>
   additive(prop = 0.5, n_qtn = 100)
-#> <phenotype_sim>  (realized <U+00B7> long format)
+#> <phenotype_sim>  (realized · long format)
 #>   Genotypes: geno   Traits: 2   Architecture: pleiotropy   Seed: 11
 #>   Variance partition (proportions of V_P):
 #>     additive   0.50   (100 QTNs, geometric)
 #>     residual   [0.50, 0.50]
-#>   Implied h<U+00B2> (broad) = [0.50, 0.50]   realized = [0.49, 0.57]
+#>   Requested genetic share = [0.50, 0.50]   realized H² = [0.49, 0.57]
 ```
 
 Impossible requests are an error rather than a silent approximation:
@@ -483,22 +557,22 @@ The causal variant sits near, but not on, the marker a study would test.
 simulate_phenotype(geno, architecture = "ld", n_traits = 2,
                    ld_type = "indirect", seed = 13) |>
   additive(prop = 0.4, n_qtn = 3)
-#> <phenotype_sim>  (realized <U+00B7> long format)
+#> <phenotype_sim>  (realized · long format)
 #>   Genotypes: geno   Traits: 2   Architecture: ld   Seed: 13
 #>   Variance partition (proportions of V_P):
 #>     additive   0.40   (3 QTNs, geometric)
 #>     residual   [0.60, 0.60]
-#>   Implied h<U+00B2> (broad) = [0.40, 0.40]   realized = [0.50, 0.43]
+#>   Requested genetic share = [0.40, 0.40]   realized H² = [0.43, 0.43]
 
 simulate_phenotype(geno, architecture = "ld", n_traits = 2,
                    ld_type = "direct", r2_max = 0.9, r2_min = 0.4, seed = 14) |>
   additive(prop = 0.4, n_qtn = 3)
-#> <phenotype_sim>  (realized <U+00B7> long format)
+#> <phenotype_sim>  (realized · long format)
 #>   Genotypes: geno   Traits: 2   Architecture: ld   Seed: 14
 #>   Variance partition (proportions of V_P):
 #>     additive   0.40   (3 QTNs, geometric)
 #>     residual   [0.60, 0.60]
-#>   Implied h<U+00B2> (broad) = [0.40, 0.40]   realized = [0.39, 0.41]
+#>   Requested genetic share = [0.40, 0.40]   realized H² = [0.39, 0.40]
 ```
 
 ## Combining architectures
@@ -511,13 +585,13 @@ indep <- simulate_phenotype(geno, n_traits = 2, seed = 15) |>
   additive(prop = 0.3, n_qtn = 5)
 
 complex_phenotypes(pleio, indep, h2 = 0.5)
-#> <phenotype_sim>  (realized <U+00B7> long format)
+#> <phenotype_sim>  (realized · long format)
 #>   Genotypes: geno   Traits: 2   Architecture: complex   Seed: 15
 #>   Variance partition (proportions of V_P):
 #>     combined from: pleiotropy + independent
 #>     genetic    [0.50, 0.50]
 #>     residual   [0.50, 0.50]
-#>   Implied h<U+00B2> (broad) = [0.50, 0.50]   realized = [0.00, 0.00]
+#>   Requested genetic share = [0.50, 0.50]   realized H² = [0.53, 0.51]
 ```
 
 # 5. Breeding populations
@@ -543,6 +617,11 @@ dim(dosages(pop))
 
 ``` r
 f1  <- cross(pop[1], pop[2], n = 1, seed = 21)
+#> In addition to citing:
+#> Fernandes, S.B., Lipka, A.E. simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic phenotypes. BMC Bioinformatics 21, 491 (2020). https://doi.org/10.1186/s12859-020-03804-y
+#> Please also cite:
+#> Toledo, F.H., Perez-Rodriguez, P., Crossa, J. and Burgueno, J. (2019). isqg: A Binary Framework for in Silico Quantitative Genetics. G3 9(8):2425-2428, doi:10.1534/g3.119.400373, when using the crossing pipelines (cross, selfcross, double_haploid).
+#> This message is displayed once per session.
 f2  <- selfcross(f1, n = 200, seed = 22)
 dh  <- double_haploid(f1, n = 200, seed = 23)
 bc1 <- cross(f1, pop[1], n = 100, seed = 24)      # backcross to founder 1
@@ -616,12 +695,12 @@ genotypes.
 ``` r
 simulate_phenotype(f2, seed = 40) |>
   additive(prop = 0.6, n_qtn = 5)
-#> <phenotype_sim>  (realized <U+00B7> long format)
+#> <phenotype_sim>  (realized · long format)
 #>   Genotypes: <Population: selfcross(prog_1)>   Traits: 1   Architecture: independent   Seed: 40
 #>   Variance partition (proportions of V_P):
 #>     additive   0.60   (5 QTNs, geometric)
 #>     residual   0.40
-#>   Implied h<U+00B2> (broad) = 0.60   realized = 0.58
+#>   Requested genetic share = 0.60   realized H² = 0.58
 ```
 
 # 6. Inspecting a simulation
@@ -634,17 +713,20 @@ files lives in the returned object instead.
 actually realized:
 
 ``` r
-ph_i <- simulate_phenotype(geno, h2 = 0.5, seed = 60) |>
+# dominance needs heterozygous loci; on this near-inbred panel filter to them
+# first (otherwise dominance() errors -- see filter_geno() above)
+gh <- filter_geno(geno, hets = "include", verbose = FALSE)
+ph_i <- simulate_phenotype(gh, h2 = 0.5, seed = 60) |>
   additive(prop = 0.3, n_qtn = 5) |>
   dominance(prop = 0.2)
 ph_i
-#> <phenotype_sim>  (realized <U+00B7> long format)
-#>   Genotypes: geno   Traits: 1   Architecture: independent   Seed: 60
+#> <phenotype_sim>  (realized · long format)
+#>   Genotypes: gh   Traits: 1   Architecture: independent   Seed: 60
 #>   Variance partition (proportions of V_P):
 #>     additive   0.30   (5 QTNs, geometric)
 #>     dominance  0.20   (same QTNs as additive)
 #>     residual   0.50
-#>   Implied h<U+00B2> (broad) = 0.50   realized = 0.37
+#>   Requested genetic share = 0.50   realized H² = 0.49
 ```
 
 `genetic_values()` returns the genetic component, before the residual —
@@ -653,17 +735,17 @@ the equivalent of the old `Genetic_values.txt`:
 ``` r
 gv <- genetic_values(ph_i)
 head(gv)
-#>          Trait_1
-#> 4226   0.4056067
-#> 4722   0.5803295
-#> 33-16  0.3473657
-#> 38-11  0.5220886
-#> A188  -0.8174534
-#> A239   0.6385705
+#>           Trait_1
+#> 4226  -0.77902269
+#> 4722   0.04996093
+#> 33-16  0.17749688
+#> 38-11 -0.97032660
+#> A188   0.36880079
+#> A239  -0.20511095
 
 # Realized heritability, computed by hand from the same pieces
 round(var(gv[, 1]) / var(phenotypes_wide(ph_i)$Trait_1), 3)
-#> [1] 0.368
+#> [1] 0.491
 ```
 
 The `var_explained` column of `qtn_table()` gives each
@@ -676,27 +758,27 @@ expanded one row per member, sharing a `set` number and effect:
 ``` r
 qtn_table(ph_i)
 #>      trait     layer set         snp chr       pos       maf  effect
-#> 1  Trait_1  additive  NA ss196434773   2  41301290 0.4714286 0.50000
-#> 2  Trait_1  additive  NA ss196450383   3 215087731 0.4964286 0.25000
-#> 3  Trait_1  additive  NA ss196515031   3 114353242 0.4750000 0.12500
-#> 4  Trait_1  additive  NA ss196480636   7 149854371 0.4821429 0.06250
-#> 5  Trait_1  additive  NA ss196485905   8 112624962 0.4571429 0.03125
-#> 6  Trait_1 dominance  NA ss196434773   2  41301290 0.4714286 0.50000
-#> 7  Trait_1 dominance  NA ss196450383   3 215087731 0.4964286 0.25000
-#> 8  Trait_1 dominance  NA ss196515031   3 114353242 0.4750000 0.12500
-#> 9  Trait_1 dominance  NA ss196480636   7 149854371 0.4821429 0.06250
-#> 10 Trait_1 dominance  NA ss196485905   8 112624962 0.4571429 0.03125
-#>    var_explained companion ld_r2
-#> 1   0.2171552630      <NA>    NA
-#> 2   0.0544638872      <NA>    NA
-#> 3   0.0135826249      <NA>    NA
-#> 4   0.0033998246      <NA>    NA
-#> 5   0.0008447891      <NA>    NA
-#> 6   0.0000000000      <NA>    NA
-#> 7   0.0000000000      <NA>    NA
-#> 8   0.0000000000      <NA>    NA
-#> 9   0.0000000000      <NA>    NA
-#> 10  0.0000000000      <NA>    NA
+#> 1  Trait_1  additive  NA ss196502704   4  26399385 0.4875000 0.50000
+#> 2  Trait_1  additive  NA ss196505289   8 118005722 0.4589286 0.25000
+#> 3  Trait_1  additive  NA ss196488121   8 163213942 0.4303571 0.12500
+#> 4  Trait_1  additive  NA ss196469274   6   6514321 0.4482143 0.06250
+#> 5  Trait_1  additive  NA ss196513900   6 147443964 0.4375000 0.03125
+#> 6  Trait_1 dominance  NA ss196502704   4  26399385 0.4875000 0.50000
+#> 7  Trait_1 dominance  NA ss196505289   8 118005722 0.4589286 0.25000
+#> 8  Trait_1 dominance  NA ss196488121   8 163213942 0.4303571 0.12500
+#> 9  Trait_1 dominance  NA ss196469274   6   6514321 0.4482143 0.06250
+#> 10 Trait_1 dominance  NA ss196513900   6 147443964 0.4375000 0.03125
+#>    var_explained QTN_t1 QTN_t2 ld_r2
+#> 1   0.2600834274   <NA>   <NA>    NA
+#> 2   0.0646210924   <NA>   <NA>    NA
+#> 3   0.0159487281   <NA>   <NA>    NA
+#> 4   0.0040225778   <NA>   <NA>    NA
+#> 5   0.0010006474   <NA>   <NA>    NA
+#> 6   0.1442923666   <NA>   <NA>    NA
+#> 7   0.0360730916   <NA>   <NA>    NA
+#> 8   0.0090182729   <NA>   <NA>    NA
+#> 9   0.0022545682   <NA>   <NA>    NA
+#> 10  0.0005636421   <NA>   <NA>    NA
 ```
 
 Everything else the log recorded is a field on the object:
@@ -713,23 +795,24 @@ ph_i$var_budget
 #> 3 Trait_1  residual  0.5
 ```
 
-Note that a `vqtl()` layer counts toward the requested budget but not
-the realized h2, because it varies the residual rather than adding
-genetic value — `print()` says so when one is present:
+Note that a `vqtl()` layer is an explicit residual-heterogeneity
+variance share, not part of the broad-sense `h2` budget. It varies the
+conditional residual variance rather than adding genetic value;
+`print()` says so when one is present:
 
 ``` r
 simulate_phenotype(geno, h2 = 0.5, seed = 61) |>
   additive(prop = 0.3, n_qtn = 4) |>
   vqtl(prop = 0.2)
-#> <phenotype_sim>  (realized <U+00B7> long format)
+#> <phenotype_sim>  (realized · long format)
 #>   Genotypes: geno   Traits: 1   Architecture: independent   Seed: 61
 #>   Variance partition (proportions of V_P):
 #>     additive   0.30   (4 QTNs, geometric)
 #>     vqtl       0.20   (same QTNs as additive)
 #>     residual   0.50
-#>   Implied h<U+00B2> (broad) = 0.50   realized = 0.29
-#>   (vqtl varies the residual rather than adding genetic value, so it
-#>    counts toward the implied total but not the realized h<U+00B2>)
+#>   Requested genetic share = 0.30   realized H² = 0.27
+#>   (vqtl is a residual-heterogeneity component and is not counted in
+#>    broad-sense heritability)
 ```
 
 `plot()` gives a four-panel diagnostic summary – variance partition,
@@ -815,7 +898,7 @@ invisible(create_phenotypes(
   home_dir = legacy_home, verbose = FALSE
 ))
 #> Simulation completed!
-#> Results are saved at:/var/folders/k3/kdzmjr9j38q0gt1j2rjy7pl00000gp/T//RtmpwaIqeM/sp_legacy/simplePHENOTYPES_output
+#> Results are saved at:/var/folders/k3/kdzmjr9j38q0gt1j2rjy7pl00000gp/T//Rtmpjkncsp/sp_legacy/simplePHENOTYPES_output
 
 list.files(legacy_home)                                  # one folder
 #> [1] "simplePHENOTYPES_output"
@@ -833,16 +916,16 @@ invisible(create_phenotypes(
   home_dir = legacy_home, output_dir = "my_run", verbose = FALSE
 ))
 #> Simulation completed!
-#> Results are saved at:/var/folders/k3/kdzmjr9j38q0gt1j2rjy7pl00000gp/T//RtmpwaIqeM/sp_legacy/my_run
+#> Results are saved at:/var/folders/k3/kdzmjr9j38q0gt1j2rjy7pl00000gp/T//Rtmpjkncsp/sp_legacy/my_run
 invisible(create_phenotypes(
   geno_obj = geno, add_QTN_num = 3, add_effect = 0.2,
   rep = 1, h2 = 0.5, model = "A",
   home_dir = legacy_home, output_dir = "my_run", verbose = FALSE
 ))
 #> Directory name provided by 'output_dir' alredy exists! 
-#> Creating: /var/folders/k3/kdzmjr9j38q0gt1j2rjy7pl00000gp/T//RtmpwaIqeM/sp_legacy/my_run(1)
+#> Creating: /var/folders/k3/kdzmjr9j38q0gt1j2rjy7pl00000gp/T//Rtmpjkncsp/sp_legacy/my_run(1)
 #> Simulation completed!
-#> Results are saved at:/var/folders/k3/kdzmjr9j38q0gt1j2rjy7pl00000gp/T//RtmpwaIqeM/sp_legacy/my_run(1)
+#> Results are saved at:/var/folders/k3/kdzmjr9j38q0gt1j2rjy7pl00000gp/T//Rtmpjkncsp/sp_legacy/my_run(1)
 
 list.files(legacy_home)      # my_run and my_run(1): nothing is overwritten
 #> [1] "my_run"                  "my_run(1)"              
@@ -853,16 +936,16 @@ list.files(legacy_home)      # my_run and my_run(1): nothing is overwritten
 
 ``` r
 sessionInfo()
-#> R version 4.4.3 (2025-02-28)
-#> Platform: aarch64-apple-darwin20
-#> Running under: macOS 26.6.2
+#> R version 4.6.1 (2026-06-24)
+#> Platform: aarch64-apple-darwin23
+#> Running under: macOS Tahoe 26.6.2
 #> 
 #> Matrix products: default
-#> BLAS:   /Library/Frameworks/R.framework/Versions/4.4-arm64/Resources/lib/libRblas.0.dylib 
-#> LAPACK: /Library/Frameworks/R.framework/Versions/4.4-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.0
+#> BLAS:   /Library/Frameworks/R.framework/Versions/4.6/Resources/lib/libRblas.0.dylib 
+#> LAPACK: /Library/Frameworks/R.framework/Versions/4.6/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
 #> 
 #> locale:
-#> [1] C
+#> [1] C.UTF-8/C.UTF-8/C.UTF-8/C/C.UTF-8/C.UTF-8
 #> 
 #> time zone: America/Chicago
 #> tzcode source: internal
@@ -871,14 +954,20 @@ sessionInfo()
 #> [1] stats     graphics  grDevices utils     datasets  methods   base     
 #> 
 #> other attached packages:
-#> [1] simplePHENOTYPES_1.4.0-9001
+#> [1] simplePHENOTYPES_1.4.0-9001 testthat_3.3.2             
 #> 
 #> loaded via a namespace (and not attached):
-#>  [1] digest_0.6.39       fastmap_1.2.0       xfun_0.56          
-#>  [4] glue_1.8.0          knitr_1.51          htmltools_0.5.9    
-#>  [7] rmarkdown_2.30      lifecycle_1.0.5     cli_3.6.5          
-#> [10] gdsfmt_1.42.1       SNPRelate_1.40.0    vctrs_0.7.1        
-#> [13] data.table_1.18.2.1 compiler_4.4.3      tools_4.4.3        
-#> [16] pillar_1.11.1       evaluate_1.0.5      yaml_2.3.12        
-#> [19] otel_0.2.0          rlang_1.1.7
+#>  [1] vctrs_0.7.3         knitr_1.51          cli_3.6.6          
+#>  [4] xfun_0.60           rlang_1.3.0         otel_0.2.0         
+#>  [7] purrr_1.2.2         pkgload_1.5.3       data.table_1.18.6.1
+#> [10] glue_1.8.1          htmltools_0.5.9     rprojroot_2.1.1    
+#> [13] SNPRelate_1.46.0    pkgbuild_1.4.8      brio_1.1.5         
+#> [16] rmarkdown_2.32      evaluate_1.0.5      ellipsis_0.3.3     
+#> [19] fastmap_1.2.0       yaml_2.3.12         mvtnorm_1.4-2      
+#> [22] lifecycle_1.0.5     RhpcBLASctl_0.23-42 gdsfmt_1.48.2      
+#> [25] memoise_2.0.1       compiler_4.6.1      fs_2.1.0           
+#> [28] sessioninfo_1.2.4   rstudioapi_0.19.0   digest_0.6.39      
+#> [31] R6_2.6.1            pillar_1.11.1       usethis_3.2.1      
+#> [34] magrittr_2.0.5      tools_4.6.1         devtools_2.5.2     
+#> [37] cachem_1.1.0        desc_1.4.3
 ```

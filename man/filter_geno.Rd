@@ -11,7 +11,10 @@ filter_geno(
   hets = c("any", "include", "remove"),
   remove_monomorphic = TRUE,
   indep_pairwise = NULL,
+  indep_pairphase = NULL,
   indep = NULL,
+  blocks = FALSE,
+  block_max_kb = 500,
   window_unit = c("variants", "kb"),
   verbose = TRUE
 )
@@ -32,11 +35,20 @@ heterozygotes).}
 
 \item{remove_monomorphic}{drop markers with no variation (default \code{TRUE}).}
 
-\item{indep_pairwise}{optional \code{c(window, step, r2)} for PLINK
-\code{--indep-pairwise} pruning (see the LD section). \code{NULL} skips it.}
+\item{indep_pairwise}{optional \code{c(window, step, r2)} for composite-r^2 pairwise
+pruning (see the LD section). \code{NULL} skips it.}
 
-\item{indep}{optional \code{c(window, step, vif)} for PLINK \code{--indep} VIF pruning
-(see the LD section). \code{NULL} skips it.}
+\item{indep_pairphase}{optional \code{c(window, step, r2)} for haplotypic-r^2
+pairwise pruning (EM-phased; see the LD section). \code{NULL} skips it.}
+
+\item{indep}{optional \code{c(window, step, vif)} for variance-inflation-factor
+pruning (PLINK's \code{--indep}; see the LD section). \code{NULL} skips it.}
+
+\item{blocks}{\code{TRUE} to define Gabriel et al. (2002) haplotype blocks and keep
+one tag marker per block (default \code{FALSE}).}
+
+\item{block_max_kb}{maximum block span in kilobases for \code{blocks} (default
+500).}
 
 \item{window_unit}{\code{"variants"} (default) or \code{"kb"} -- the unit of the pruning
 \code{window}. \code{"kb"} needs the data-frame input (uses the \code{pos} column).}
@@ -59,27 +71,33 @@ Filters are applied in order: monomorphic removal, minor-allele frequency,
 heterozygosity, then LD pruning. A marker must pass every requested filter to
 be kept.
 }
-\section{LD pruning (PLINK 1.9 compatible)}{
+\section{LD pruning and haplotype blocks}{
 
-The LD arguments mirror \href{https://www.cog-genomics.org/plink/1.9/ld}{PLINK
-1.9}'s pruning commands and take the same three-number specification:
+The three sliding-window pruners take the same three-number specification used
+by common tools (\code{c(window, step, threshold)}); \code{window_unit} sets whether
+\code{window} counts markers (default) or kilobases (\code{"kb"}, using the \code{pos}
+column).
 \describe{
-\item{\code{indep_pairwise = c(window, step, r2)}}{PLINK \code{--indep-pairwise}:
-within a sliding window advanced \code{step} markers at a time, drop one marker
-of every pair whose squared correlation exceeds \code{r2} (keeping the earlier
-one). \code{c(50, 5, 0.2)} reproduces the usual \verb{--indep-pairwise 50 5 0.2}.}
-\item{\code{indep = c(window, step, vif)}}{PLINK \code{--indep}: multi-marker pruning
-by variance inflation factor. Within each window the marker with the
-largest VIF = 1 / (1 - R^2) from regressing it on the others is dropped
-while any VIF exceeds \code{vif}, e.g. \code{c(50, 5, 2)}.}
+\item{\code{indep_pairwise = c(window, step, r2)}}{drop one marker of every pair
+whose squared correlation of the \code{-1/0/1} dosage (the composite LD r^2)
+exceeds \code{r2}, keeping the earlier one. This is generic pairwise r^2
+pruning, e.g. \code{c(50, 5, 0.2)}.}
+\item{\code{indep_pairphase = c(window, step, r2)}}{the same, but r^2 is the
+\emph{haplotypic} r^2 estimated per pair by a two-locus EM that resolves the
+double-heterozygote phase, rather than the composite genotype r^2.}
+\item{\code{indep = c(window, step, vif)}}{multi-marker pruning by variance
+inflation factor: within each window the largest-VIF marker
+(VIF = 1 / (1 - R^2) from regressing it on the others) is dropped while any
+VIF exceeds \code{vif}, e.g. \code{c(50, 5, 2)}. This is PLINK's \code{--indep} procedure
+(Purcell et al. 2007).}
+\item{\code{blocks = TRUE}}{define haplotype blocks by the method of Gabriel et
+al. (2002) -- markers are grouped where the D' confidence intervals show
+strong LD and few recombination-consistent pairs -- and keep one tag
+marker (highest MAF) per block. \code{block_max_kb} bounds the block span.}
 }
-\code{window_unit} sets whether \code{window} counts markers (default) or kilobases
-(\code{"kb"}, using the \code{pos} column). r^2 is the composite LD measure (squared
-Pearson correlation of the \code{-1/0/1} dosages), matching PLINK's default for
-unphased data; phased (\code{--indep-pairphase}) and Gabriel/Haploview
-haplotype-block definition (\code{--blocks}) are not yet implemented. Using either
-pruner prints a one-per-session citation for PLINK and the LD/haplotype-block
-methods it builds on.
+The VIF pruner emits a one-per-session citation for PLINK (Purcell et al.
+2007), and the block method one for Gabriel et al. (2002); the two pairwise
+pruners are generic r^2 operations and need no citation.
 }
 
 \examples{
@@ -88,21 +106,16 @@ data("SNP55K_maize282_maf04")
 # Common-variant, heterozygote-bearing markers (e.g. before a dominance model)
 g <- filter_geno(SNP55K_maize282_maf04, maf_above = 0.1, hets = "include")
 
-# PLINK-style LD pruning: --indep-pairwise 50 5 0.2
+# Pairwise r^2 pruning in 50-marker windows
 p <- filter_geno(SNP55K_maize282_maf04, indep_pairwise = c(50, 5, 0.2))
 }
 \references{
 Purcell, S. \emph{et al.} (2007). PLINK: a tool set for whole-genome
 association and population-based linkage analyses. \emph{Am. J. Hum. Genet.}
-81, 559--575. \doi{10.1086/519795}\cr
-Chang, C.C. \emph{et al.} (2015). Second-generation PLINK: rising to the
-challenge of larger and richer datasets. \emph{GigaScience} 4, 7.
-\doi{10.1186/s13742-015-0047-8}\cr
-Barrett, J.C. \emph{et al.} (2005). Haploview: analysis and visualization of
-LD and haplotype maps. \emph{Bioinformatics} 21, 263--265.
-\doi{10.1093/bioinformatics/bth457}\cr
+81, 559--575. \doi{10.1086/519795} (the VIF pruner).\cr
 Gabriel, S.B. \emph{et al.} (2002). The structure of haplotype blocks in the
 human genome. \emph{Science} 296, 2225--2229. \doi{10.1126/science.1069424}
+(the haplotype-block definition).
 }
 \seealso{
 \code{\link[=as_numeric]{as_numeric()}}, \code{\link[=simulate_phenotype]{simulate_phenotype()}}, \code{\link[=dominance]{dominance()}}.

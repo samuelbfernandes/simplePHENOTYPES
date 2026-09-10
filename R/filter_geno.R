@@ -11,26 +11,32 @@
 #' heterozygosity, then LD pruning. A marker must pass every requested filter to
 #' be kept.
 #'
-#' @section LD pruning (PLINK 1.9 compatible):
-#' The LD arguments mirror \href{https://www.cog-genomics.org/plink/1.9/ld}{PLINK
-#' 1.9}'s pruning commands and take the same three-number specification:
+#' @section LD pruning and haplotype blocks:
+#' The three sliding-window pruners take the same three-number specification used
+#' by common tools (`c(window, step, threshold)`); `window_unit` sets whether
+#' `window` counts markers (default) or kilobases (`"kb"`, using the `pos`
+#' column).
 #' \describe{
-#'   \item{`indep_pairwise = c(window, step, r2)`}{PLINK `--indep-pairwise`:
-#'     within a sliding window advanced `step` markers at a time, drop one marker
-#'     of every pair whose squared correlation exceeds `r2` (keeping the earlier
-#'     one). `c(50, 5, 0.2)` reproduces the usual `--indep-pairwise 50 5 0.2`.}
-#'   \item{`indep = c(window, step, vif)`}{PLINK `--indep`: multi-marker pruning
-#'     by variance inflation factor. Within each window the marker with the
-#'     largest VIF = 1 / (1 - R^2) from regressing it on the others is dropped
-#'     while any VIF exceeds `vif`, e.g. `c(50, 5, 2)`.}
+#'   \item{`indep_pairwise = c(window, step, r2)`}{drop one marker of every pair
+#'     whose squared correlation of the `-1/0/1` dosage (the composite LD r^2)
+#'     exceeds `r2`, keeping the earlier one. This is generic pairwise r^2
+#'     pruning, e.g. `c(50, 5, 0.2)`.}
+#'   \item{`indep_pairphase = c(window, step, r2)`}{the same, but r^2 is the
+#'     *haplotypic* r^2 estimated per pair by a two-locus EM that resolves the
+#'     double-heterozygote phase, rather than the composite genotype r^2.}
+#'   \item{`indep = c(window, step, vif)`}{multi-marker pruning by variance
+#'     inflation factor: within each window the largest-VIF marker
+#'     (VIF = 1 / (1 - R^2) from regressing it on the others) is dropped while any
+#'     VIF exceeds `vif`, e.g. `c(50, 5, 2)`. This is PLINK's `--indep` procedure
+#'     (Purcell et al. 2007).}
+#'   \item{`blocks = TRUE`}{define haplotype blocks by the method of Gabriel et
+#'     al. (2002) -- markers are grouped where the D' confidence intervals show
+#'     strong LD and few recombination-consistent pairs -- and keep one tag
+#'     marker (highest MAF) per block. `block_max_kb` bounds the block span.}
 #' }
-#' `window_unit` sets whether `window` counts markers (default) or kilobases
-#' (`"kb"`, using the `pos` column). r^2 is the composite LD measure (squared
-#' Pearson correlation of the `-1/0/1` dosages), matching PLINK's default for
-#' unphased data; phased (`--indep-pairphase`) and Gabriel/Haploview
-#' haplotype-block definition (`--blocks`) are not yet implemented. Using either
-#' pruner prints a one-per-session citation for PLINK and the LD/haplotype-block
-#' methods it builds on.
+#' The VIF pruner emits a one-per-session citation for PLINK (Purcell et al.
+#' 2007), and the block method one for Gabriel et al. (2002); the two pairwise
+#' pruners are generic r^2 operations and need no citation.
 #'
 #' @param geno the genotype object (numeric-format data frame, or an
 #'   individuals-by-markers `-1/0/1` matrix). Convert other formats with
@@ -42,10 +48,16 @@
 #'   layer on a near-inbred panel), or `"remove"` (keep only markers with no
 #'   heterozygotes).
 #' @param remove_monomorphic drop markers with no variation (default `TRUE`).
-#' @param indep_pairwise optional `c(window, step, r2)` for PLINK
-#'   `--indep-pairwise` pruning (see the LD section). `NULL` skips it.
-#' @param indep optional `c(window, step, vif)` for PLINK `--indep` VIF pruning
-#'   (see the LD section). `NULL` skips it.
+#' @param indep_pairwise optional `c(window, step, r2)` for composite-r^2 pairwise
+#'   pruning (see the LD section). `NULL` skips it.
+#' @param indep_pairphase optional `c(window, step, r2)` for haplotypic-r^2
+#'   pairwise pruning (EM-phased; see the LD section). `NULL` skips it.
+#' @param indep optional `c(window, step, vif)` for variance-inflation-factor
+#'   pruning (PLINK's `--indep`; see the LD section). `NULL` skips it.
+#' @param blocks `TRUE` to define Gabriel et al. (2002) haplotype blocks and keep
+#'   one tag marker per block (default `FALSE`).
+#' @param block_max_kb maximum block span in kilobases for `blocks` (default
+#'   500).
 #' @param window_unit `"variants"` (default) or `"kb"` -- the unit of the pruning
 #'   `window`. `"kb"` needs the data-frame input (uses the `pos` column).
 #' @param verbose report how many markers each filter removed (default `TRUE`).
@@ -53,15 +65,10 @@
 #' @references
 #' Purcell, S. \emph{et al.} (2007). PLINK: a tool set for whole-genome
 #' association and population-based linkage analyses. \emph{Am. J. Hum. Genet.}
-#' 81, 559--575. \doi{10.1086/519795}\cr
-#' Chang, C.C. \emph{et al.} (2015). Second-generation PLINK: rising to the
-#' challenge of larger and richer datasets. \emph{GigaScience} 4, 7.
-#' \doi{10.1186/s13742-015-0047-8}\cr
-#' Barrett, J.C. \emph{et al.} (2005). Haploview: analysis and visualization of
-#' LD and haplotype maps. \emph{Bioinformatics} 21, 263--265.
-#' \doi{10.1093/bioinformatics/bth457}\cr
+#' 81, 559--575. \doi{10.1086/519795} (the VIF pruner).\cr
 #' Gabriel, S.B. \emph{et al.} (2002). The structure of haplotype blocks in the
 #' human genome. \emph{Science} 296, 2225--2229. \doi{10.1126/science.1069424}
+#' (the haplotype-block definition).
 #' @seealso [as_numeric()], [simulate_phenotype()], [dominance()].
 #' @export
 #' @examples
@@ -70,7 +77,7 @@
 #' # Common-variant, heterozygote-bearing markers (e.g. before a dominance model)
 #' g <- filter_geno(SNP55K_maize282_maf04, maf_above = 0.1, hets = "include")
 #'
-#' # PLINK-style LD pruning: --indep-pairwise 50 5 0.2
+#' # Pairwise r^2 pruning in 50-marker windows
 #' p <- filter_geno(SNP55K_maize282_maf04, indep_pairwise = c(50, 5, 0.2))
 filter_geno <- function(geno,
                         maf_above = NULL,
@@ -78,7 +85,10 @@ filter_geno <- function(geno,
                         hets = c("any", "include", "remove"),
                         remove_monomorphic = TRUE,
                         indep_pairwise = NULL,
+                        indep_pairphase = NULL,
                         indep = NULL,
+                        blocks = FALSE,
+                        block_max_kb = 500,
                         window_unit = c("variants", "kb"),
                         verbose = TRUE) {
   hets <- match.arg(hets)
@@ -101,10 +111,13 @@ filter_geno <- function(geno,
     Dm  <- t(geno)                                   # markers x individuals
     chr <- rep(1L, nrow(Dm))
     pos <- seq_len(nrow(Dm))
-    if ((!is.null(indep_pairwise) || !is.null(indep)) &&
-        window_unit == "kb") {
-      stop("window_unit = \"kb\" needs marker positions; supply the ",
-           "numeric-format data frame (with a `pos` column).", call. = FALSE)
+    uses_pos <- (window_unit == "kb" &&
+                   (!is.null(indep_pairwise) || !is.null(indep_pairphase) ||
+                      !is.null(indep))) || isTRUE(blocks)
+    if (uses_pos) {
+      stop("this LD option needs marker positions; supply the numeric-format ",
+           "data frame (with `chr` / `pos` columns) rather than a bare matrix.",
+           call. = FALSE)
     }
   } else {
     stop("`geno` must be a numeric-format data frame or an ",
@@ -146,8 +159,11 @@ filter_geno <- function(geno,
     before <- sum(keep); keep <- keep & n_het == 0; note("hets = remove", before)
   }
 
-  if (!is.null(indep_pairwise) || !is.null(indep)) {
-    .cite_plink_ld()
+  if (!is.null(indep)) {
+    .cite_ld("vif")
+  }
+  if (isTRUE(blocks)) {
+    .cite_ld("gabriel")
   }
   if (!is.null(indep_pairwise)) {
     spec <- .ld_spec(indep_pairwise, "indep_pairwise", need = "r2")
@@ -155,7 +171,15 @@ filter_geno <- function(geno,
     keep <- .ld_prune(Dm, chr, pos, keep, method = "pairwise",
                       window = spec[1], step = spec[2], thresh = spec[3],
                       unit = window_unit)
-    note(paste0("indep-pairwise r2 > ", spec[3]), before)
+    note(paste0("pairwise r2 > ", spec[3]), before)
+  }
+  if (!is.null(indep_pairphase)) {
+    spec <- .ld_spec(indep_pairphase, "indep_pairphase", need = "r2")
+    before <- sum(keep)
+    keep <- .ld_prune(Dm, chr, pos, keep, method = "pairphase",
+                      window = spec[1], step = spec[2], thresh = spec[3],
+                      unit = window_unit)
+    note(paste0("pairphase r2 > ", spec[3]), before)
   }
   if (!is.null(indep)) {
     spec <- .ld_spec(indep, "indep", need = "vif")
@@ -164,6 +188,11 @@ filter_geno <- function(geno,
                       window = spec[1], step = spec[2], thresh = spec[3],
                       unit = window_unit)
     note(paste0("indep VIF > ", spec[3]), before)
+  }
+  if (isTRUE(blocks)) {
+    before <- sum(keep)
+    keep <- .gabriel_blocks(Dm, chr, pos, keep, maf, max_kb = block_max_kb)
+    note("Gabriel blocks (one tag/block)", before)
   }
 
   if (verbose) {
@@ -176,13 +205,13 @@ filter_geno <- function(geno,
   if (is_df) geno[keep, , drop = FALSE] else geno[, keep, drop = FALSE]
 }
 
-#' Validate a PLINK-style c(window, step, threshold) argument
+#' Validate a c(window, step, threshold) LD-pruning argument
 #' @keywords internal
 #' @noRd
 .ld_spec <- function(x, arg, need) {
   if (length(x) != 3L || anyNA(x) || any(x <= 0)) {
     stop(arg, " must be c(window, step, ", need, ") with three positive ",
-         "numbers, as in PLINK (e.g. c(50, 5, ",
+         "numbers (e.g. c(50, 5, ",
          if (need == "r2") "0.2" else "2", ")).", call. = FALSE)
   }
   as.numeric(x)
@@ -217,11 +246,10 @@ filter_geno <- function(geno,
       if (length(win) < 2L) {
         next
       }
-      drop <- if (method == "pairwise") {
-        .prune_pairwise(Dm, win, thresh)
-      } else {
-        .prune_vif(Dm, win, thresh)
-      }
+      drop <- switch(method,
+        pairwise  = .prune_pairwise(Dm, win, thresh),
+        pairphase = .prune_pairphase(Dm, win, thresh),
+        vif       = .prune_vif(Dm, win, thresh))
       keep[drop] <- FALSE
     }
   }
@@ -243,6 +271,26 @@ filter_geno <- function(geno,
     } else {
       kept[j] <- TRUE
     }
+  }
+  drop
+}
+
+#' Greedy pairwise pruning by haplotypic (EM-phased) r^2; returns indices to drop
+#' @keywords internal
+#' @noRd
+.prune_pairphase <- function(Dm, win, r2) {
+  G <- Dm[win, , drop = FALSE] + 1L               # markers x individuals, 0/1/2
+  kept <- integer(0)
+  drop <- integer(0)
+  for (j in seq_along(win)) {
+    over <- FALSE
+    for (k in kept) {
+      if (.hap_r2(G[k, ], G[j, ]) > r2) {
+        over <- TRUE
+        break
+      }
+    }
+    if (over) drop <- c(drop, win[j]) else kept <- c(kept, j)
   }
   drop
 }
@@ -274,19 +322,25 @@ filter_geno <- function(geno,
   drop
 }
 
-#' Citation notice for the PLINK-derived LD pruning, once per session
+#' Citation notice for a specific LD method, once per session
+#'
+#' Only the reference for the method actually used is emitted: `"vif"` credits
+#' PLINK (Purcell et al. 2007) for the variance-inflation pruner, `"gabriel"`
+#' credits Gabriel et al. (2002) for the haplotype-block definition. The generic
+#' pairwise pruners need no citation.
 #' @keywords internal
 #' @noRd
-.cite_plink_ld <- function() {
+.cite_ld <- function(which) {
+  ref <- switch(which,
+    vif = paste0("Purcell et al. (2007), Am J Hum Genet 81:559-575, ",
+                 "doi:10.1086/519795, for the variance-inflation-factor LD ",
+                 "pruning (PLINK's --indep)."),
+    gabriel = paste0("Gabriel et al. (2002), Science 296:2225-2229, ",
+                     "doi:10.1126/science.1069424, for the haplotype-block ",
+                     "definition."))
   rlang::inform(
-    .cite_main("Purcell et al. (2007), Am J Hum Genet 81:559-575, ",
-               "doi:10.1086/519795, and Chang et al. (2015), GigaScience 4:7, ",
-               "doi:10.1186/s13742-015-0047-8, for the PLINK LD-pruning methods, ",
-               "and Barrett et al. (2005), Bioinformatics 21:263-265, ",
-               "doi:10.1093/bioinformatics/bth457 (Haploview) and Gabriel et al. ",
-               "(2002), Science 296:2225-2229, doi:10.1126/science.1069424, for ",
-               "the LD / haplotype-block methodology they build on."),
+    .cite_main(ref),
     .frequency = "once",
-    .frequency_id = "simplePHENOTYPES_plink_ld_citation"
+    .frequency_id = paste0("simplePHENOTYPES_ld_", which, "_citation")
   )
 }

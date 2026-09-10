@@ -38,12 +38,24 @@ test_that("PLINK-style LD pruning reduces markers (indep-pairwise and VIF)", {
                "window, step")
 })
 
-test_that("kb windows need positions; maf/het still work on a bare matrix", {
+test_that("phased pruning and Gabriel blocks reduce markers", {
+  sub <- G[G$chr == G$chr[1], ][1:200, ]           # keep it quick
+  pp <- filter_geno(sub, indep_pairphase = c(50, 5, 0.2), verbose = FALSE)
+  expect_lt(nrow(pp), nrow(sub))
+  bl <- filter_geno(sub, blocks = TRUE, block_max_kb = 2000, verbose = FALSE)
+  expect_lt(nrow(bl), nrow(sub))
+  # two-locus EM r2 is 1 for a marker against itself, in [0, 1] generally
+  g <- as.numeric(sub[1, -(1:5)]) + 1
+  expect_equal(simplePHENOTYPES:::.hap_r2(g, g), 1)
+})
+
+test_that("kb windows and blocks need positions; maf/het still work on a matrix", {
   m <- matrix(sample(c(-1L, 0L, 1L), 600L, replace = TRUE), nrow = 20)
   expect_error(
     filter_geno(m, indep_pairwise = c(50, 5, 0.2), window_unit = "kb",
                 verbose = FALSE),
     "pos")
+  expect_error(filter_geno(m, blocks = TRUE, verbose = FALSE), "pos")
   expect_true(is.matrix(filter_geno(m, maf_above = 0, verbose = FALSE)))
 })
 
