@@ -13,13 +13,18 @@ MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.or
 [![DOI](https://img.shields.io/badge/DOI-10.1186%2Fs12859--020--03804--y-blue)](https://doi.org/10.1186/s12859-020-03804-y)
 <!-- badges: end -->
 
+<p align="center">
+
+<img src="head.png" alt="Simulation of Pleiotropic, Linked and Epistatic Phenotypes" width="100%" />
+</p>
+
 Simulation of pleiotropic, linked and epistatic phenotypes from real
 marker data. Version 2 adds a composable grammar for building genetic
 architectures, control of the genetic correlation between traits, and
 multi-generation crossing, so a mapping population can be simulated from
 real founders and then phenotyped.
 
-<a href="SP_logo.png"><img src="SP_logo.png" alt="simplePHENOTYPES logo" width="150" align="right" /></a>
+<a href="SP_logo.png"><img src="SP_logo.png" alt="simplePHENOTYPES logo" width="300" align="right" /></a>
 
 ### Contents
 
@@ -28,7 +33,7 @@ real founders and then phenotyped.
 - [Building an architecture](#building-an-architecture)
 - [Heritability](#heritability)
 - [Correlated traits](#correlated-traits)
-- [Linked but not causal](#linked-but-not-causal)
+- [Linked but not pleiotropic](#linked-but-not-pleiotropic)
 - [Breeding populations](#breeding-populations)
 - [Reading genotype data](#reading-genotype-data)
 - [Documentation](#documentation)
@@ -37,19 +42,38 @@ real founders and then phenotyped.
 
 # Installation
 
-Part of the package is written in Rust, so a **Rust toolchain (`cargo`
-and `rustc` \>= 1.65) must be available** to build from source. Install
-it from <https://rustup.rs> if you do not already have it.
+Install a precompiled binary from
+[R-universe](https://samuelbfernandes.r-universe.dev) — nothing to
+compile, no Rust needed (Windows and macOS):
+
+``` r
+install.packages("simplePHENOTYPES",
+                 repos = c("https://samuelbfernandes.r-universe.dev",
+                           "https://cloud.r-project.org"))
+```
+
+<details>
+
+<summary>
+
+Building from source instead (Linux, or <code>install_github()</code>)
+</summary>
+
+Part of the package is written in Rust, so building it *from source*
+needs a **Rust toolchain** (`cargo` and `rustc` \>= 1.65) — install it
+once from <https://rustup.rs>, then:
 
 ``` r
 devtools::install_github("samuelbfernandes/simplePHENOTYPES", build_vignettes = TRUE)
 ```
 
-Two Bioconductor packages, **SNPRelate** and **gdsfmt**, are now
-*optional* (`Suggests`): they are only needed to read GDS / VCF / PLINK
-BED/PED input, and to run the legacy `create_phenotypes()` engine. The
-v2 grammar works without them on HapMap, the bundled numeric object, and
-plain −1/0/1 matrices. Install them only if you need those formats:
+</details>
+
+Two Bioconductor packages, **SNPRelate** and **gdsfmt**, are *optional*
+(`Suggests`): they are only needed to read GDS / VCF / PLINK BED/PED
+input, or to run the legacy `create_phenotypes()` engine. The v2 grammar
+works without them on HapMap, the bundled numeric object, and plain
+−1/0/1 matrices. Install them only if you need those formats:
 
 ``` r
 if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
