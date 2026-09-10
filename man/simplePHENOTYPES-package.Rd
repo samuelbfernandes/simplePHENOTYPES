@@ -21,6 +21,7 @@ Useful links:
 
 Authors:
 \itemize{
+  \item Samuel Fernandes \email{fernandessb101@gmail.com} (\href{https://orcid.org/0000-0001-8269-535X}{ORCID})
   \item Alexander Lipka \email{alipka@illinois.edu} (\href{https://orcid.org/0000-0003-1571-8528}{ORCID})
 }
 

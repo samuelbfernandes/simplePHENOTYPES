@@ -49,6 +49,17 @@ create_phenotypes(
   home_dir = tempdir())
 ```
 
+**V2 equivalent.** The grammar has no `big_add_QTN_effect`; give the large-effect
+QTN its value explicitly through `effect`. Heritability emerges as the sum of the
+layer `prop`s, so a single additive layer takes all of `h2 = 0.7`. (The realized
+phenotypes will not match v1 number-for-number — the v2 engine has its own clean
+seed scheme, DECISION-009 — but the architecture is the same.)
+
+```{r STv2, eval = FALSE}
+simulate_phenotype(SNP55K_maize282_maf04, seed = 1, n_reps = 10) |>
+  additive(prop = 0.7, n_qtn = 3, effect = c(0.9, 0.2, 0.2^2))
+```
+
 # Multiple Traits: Pleiotropy Architecture
 simplePHENOTYPES provides three multi-trait simulation scenarios: pleiotropy, partial pleiotropy, and spurious pleiotropy. In this example, we are simulating three (`ntraits = 3`) pleiotropic (`architecture = "pleiotropic"`) trait controlled by three additive and four dominance QTNs. The effect size of the largest-effect additive QTN is 0.3 for all traits (`big_add_QTN_effect = c(0.3, 0.3, 0.3)`), while the additive and dominance effect sizes are 0.04, 0.2, and 0.1 for each trait, respectively. Heritability for trait_1 is 0.2, while the heritability of the two correlated traits is 0.4. Each replicate is being recorded in a different file (`output_format = "multi-file"`) in a folder named “Results_Pleiotropic”. In this setting, we do not specify the correlation between traits; instead, the observed (realized) correlation is an artifact of different allelic effects for each trait. The same QTNs are used to generate phenotypes in all ten replications (`vary_QTN = FALSE`)(default); alternatively, we could select different QTNs in each replicate using `vary_QTN = TRUE`. As mentioned above, the first  QTN of each trait will get the effect provided by big_add_QTN_effect; all other QTNs will have the effect size assigned by `add_effect` and `dom_effect`. The vector `add_effect` contains one allelic effect for each trait, and a geometric series (default) is being used to generate allelic effects for each one of the two additive QTNs (`add_QTN_num = 3`) and three dominance QTNs (`dom_QTN_num = 4`). All results will be saved to file, and a data.frame with all phenotypes will be assigned to an object called “test1” (to_r = TRUE).
 ```{r MT P, results = "hide", eval = FALSE}
@@ -106,6 +117,18 @@ Optionally, we may input a list of allelic effects (`sim_method = "custom"`). In
  all.equal(test1, test2)
 ```
 
+**V2 equivalent.** `architecture = "pleiotropy"` shares the QTNs across traits,
+and the big difference is that **`cor` now sets the genetic correlation
+directly** — in v1 the correlation was an uncontrolled by-product of the
+per-trait effect sizes. Per-layer `prop` replaces the `h2` + `add_effect` /
+`dom_effect` bookkeeping; a custom effect series still goes through `effect =`.
+
+```{r MTPv2, eval = FALSE}
+simulate_phenotype(SNP55K_maize282_maf04, architecture = "pleiotropy",
+                   n_traits = 3, cor = 0.5, seed = 10) |>
+  additive(prop = 0.3, n_qtn = 3) |>
+  dominance(prop = 0.1, same_as_add = TRUE)
+```
 
 # Multiple Traits: Partial Pleiotropy Architecture
 In this example, we simulate 20 replicates of three partially pleiotropic traits (`architecture = "partially"`), which are respectively controlled by seven, 13, and four QTNs. All QTNs will have additive effects that follow a geometric series, where the effect size of the i^th^ QTN is add_effect^i. For instance, trait_2 is controlled by three pleiotropic additive QTNs and ten trait-specific additive QTNs; consequently, the first pleiotropic additive QTN will have an additive effect of 0.33 and the 13^th^ trait-specific additive QTN will have an effect of 0.33^13^. Correlation among traits is assigned to be equal to the cor_matrix object. All 20 replicates of these three simulated traits will be saved in one file, specifically in a long format and with an additional column named "Rep". Results will be saved in a directory called "Results_Partially". In this example, the genotype file will also be saved in numeric format.
@@ -139,6 +162,23 @@ sim_results <- create_phenotypes(
 )
 ```
 
+**V2 equivalent.** There is no `"partially"` architecture; partial pleiotropy is
+built by combining a **shared** (`"pleiotropy"`) model with a **trait-specific**
+(`"independent"`) model through `complex_phenotypes()`. A grammar layer uses one
+`n_qtn` per call, so the per-trait `trait_spec_a_QTN_num = c(4, 10, 1)` collapses
+to a single count here (build one independent model per trait and combine them if
+you truly need different counts).
+
+```{r MTPPv2, eval = FALSE}
+cor_matrix <- matrix(c(1, 0.3, -0.9, 0.3, 1, -0.5, -0.9, -0.5, 1), 3)
+shared   <- simulate_phenotype(SNP55K_maize282_maf04, architecture = "pleiotropy",
+                               n_traits = 3, cor = cor_matrix, seed = 10) |>
+  additive(prop = 0.5, n_qtn = 3)
+specific <- simulate_phenotype(SNP55K_maize282_maf04, architecture = "independent",
+                               n_traits = 3, seed = 10) |>
+  additive(prop = 0.5, n_qtn = 5)
+complex_phenotypes(shared, specific, h2 = c(0.2, 0.4, 0.8))
+```
 
 # Multiple Traits: Spurious Pleiotropy Architecture
 Another architecture implemented is Spurious Pleiotropy. In this case, we have two options: direct or indirect LD (`type_of_ld = "indirect"`). In the example below, we simulate a case of indirect LD with five replicates of two traits controlled by three additive QTNs each. For each QTN, a marker is first selected (intermediate marker), and then two separate markers (one upstream and another downstream) are picked to be QTNs for each of the two traits. This QTN selection is based on an r^2^ threshold of at most 0.8 (`ld_max=0.8`) with the intermediate marker. The three QTNs will have additive effects that follow a geometric series, where the effect size of the i^th^ QTN is 0.02^i^ for one trait and 0.05^i^ for the other trait. Starting seed number is 200, and output phenotypes are saved in one file, but in a “wide” format with each replicate of two traits being added as additional columns. Plink fam, bim, and bed files are also saved at Results_LD.
@@ -163,6 +203,17 @@ create_phenotypes(
   type_of_ld = "indirect",
   home_dir = tempdir()
 )
+```
+
+**V2 equivalent.** `architecture = "ld"` (two traits, each with its own causal
+locus in linkage disequilibrium). `type_of_ld` → `ld_type` (now defaulting to
+`"direct"`), and `ld_max` / `ld_min` → `r2_max` / `r2_min`. `qtn_table()` reports
+the linked pair (`QTN_t1`, `QTN_t2`) and their `ld_r2`.
+
+```{r MTLDv2, eval = FALSE}
+simulate_phenotype(SNP55K_maize282_maf04, architecture = "ld", n_traits = 2,
+                   ld_type = "indirect", r2_max = 0.8, r2_min = 0.2, seed = 200) |>
+  additive(prop = c(0.2, 0.4), n_qtn = 3)
 ```
 
 # Multiple Traits: Partial Pleiotropy Architecture with other useful parameters
@@ -203,6 +254,15 @@ create_phenotypes(
 )
 ```
 
+**V2 equivalent.** Build partial pleiotropy as above (a `"pleiotropy"` model plus
+an `"independent"` model, joined with `complex_phenotypes()`), adding an
+`epistasis()` layer for the "E" of ADE. `QTN_variance = TRUE` becomes
+`qtn_table()`, which always reports a `var_explained` column; `vary_QTN` becomes
+`vary_qtn`; and constraining QTNs by MAF or heterozygosity is now done up front
+with `filter_geno()` (e.g. `filter_geno(geno, maf_above = 0.3, maf_below = 0.44,
+hets = "include")`). Residual correlation (`cor_res`) has no grammar equivalent
+yet -- it lives only in the frozen `create_phenotypes()`.
+
 # Using Selected Markers to be QTN
 As of the version `1.2.15`, it is also possible to select what markers will be used as QTNS. The arguments `QTN_list` takes a lists of additive, dominance or epistatic QTNs. In the example below, the SNP `ss196523212` is selected to be the additive QTN. Another argument that is exemplified below is `epi_interaction`.  It defines the number of markers to be involved in an epistatic interaction. The parameter `out_geno` is defining that the marker data used in the simulation will be exported as plink BED files.
 ```{r qtn_list, results = "hide", eval = FALSE}
@@ -232,7 +292,15 @@ create_phenotypes(
 
 ```
 
+**V2 equivalent.** `QTN_list` becomes each layer's `qtn =` argument (the other
+layers stay random); `epistasis()` takes an `n_pairs x interaction` matrix.
 
+```{r qtn_list_v2, eval = FALSE}
+simulate_phenotype(SNP55K_maize282_maf04, n_traits = 2, seed = 1) |>
+  additive(prop = 0.5, qtn = "ss196523212") |>
+  dominance(prop = 0.2, qtn = c("ss196510214", "ss196472187")) |>
+  epistasis(prop = 0.2, qtn = matrix(c("ss196530605", "ss196475446"), nrow = 1))
+```
 
 # Using Multiple Marker Data Files
 If files are saved by chromosome, they can be read directly into create_phenotypes using options `geno_path` (recommendation: consider having all marker data files in a separate folder). If multiple files are saved in the same folder as the marker data, the parameter `prefix` might be used to select only the marker data. For example, if your data is saved as "WGS_chrm_1.hmp.txt", ..., "WGS_chrm_10.hmp.txt", one would use `prefix = "WGS_chrm_"` .
@@ -251,3 +319,18 @@ create_phenotypes(
   home_dir = tempdir()
 )
 ```
+
+**V2 equivalent.** `as_numeric()` reads one file at a time, so convert the
+per-chromosome files and stack them, then pipe the numeric object into
+`simulate_phenotype()`. (The multi-file `geno_path` / `prefix` reader still lives
+in the frozen `create_phenotypes()` if you prefer it.)
+
+```{r multifile_v2, eval = FALSE}
+files <- list.files("PATH/TO/FILE", pattern = "^WGS_chrm_", full.names = TRUE)
+num   <- do.call(rbind, lapply(files, as_numeric, to_r = TRUE))
+simulate_phenotype(num, h2 = 0.2, n_qtn = 3, seed = 200) |>
+  additive(prop = 0.2)
+```
+
+For a full, side-by-side migration reference see the **v1-to-v2** vignette
+(`vignette("v1-to-v2")`).

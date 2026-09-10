@@ -51,10 +51,13 @@ argument: the ratio of dominance to additive variance is
 degree-of-dominance scalar would be washed out by the per-component variance
 scaling and is therefore not offered.)
 
-Dominance needs heterozygotes to be identifiable. In a fully inbred panel
-(such as the bundled maize lines, ~0.4\% heterozygous) there are almost none,
-so a dominance layer is near-degenerate and its realized variance is noisy --
-simulate dominance on an outbred or F2-type population instead.
+Dominance needs heterozygotes to be identifiable: it is identically zero at a
+locus with no heterozygous individuals. If the selected loci carry none
+(common on a near-inbred panel such as the bundled maize lines, ~0.4\%
+heterozygous), \code{dominance()} \strong{errors} rather than silently substituting
+loci. Pre-filter to heterozygous markers with \code{filter_geno(hets = "include")},
+fix het-bearing loci with \verb{qtn =}, or simulate dominance on an outbred or
+F2-type population instead.
 }
 \examples{
 data("SNP55K_maize282_maf04")
@@ -72,5 +75,5 @@ simulate_phenotype(SNP55K_maize282_maf04, seed = 2) |>
   dominance(prop = 0.1, same_as_add = FALSE, n_qtn = 3)
 }
 \seealso{
-\code{\link[=additive]{additive()}}, \code{\link[=epistasis]{epistasis()}}, \code{\link[=vqtl]{vqtl()}}.
+\code{\link[=additive]{additive()}}, \code{\link[=epistasis]{epistasis()}}, \code{\link[=vqtl]{vqtl()}}, \code{\link[=filter_geno]{filter_geno()}}.
 }

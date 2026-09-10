@@ -171,6 +171,18 @@ test_that("dominance no longer takes a (washed-out) degree argument", {
     "unused argument")
 })
 
+test_that("dominance errors clearly when the selected loci have no heterozygotes", {
+  # On the near-inbred maize panel this seed's additive QTNs carry no
+  # heterozygotes, so same_as_add dominance cannot be realized: it must error
+  # with a message naming the heterozygote problem, not silently substitute loci.
+  expect_error(
+    simulate_phenotype(G, h2 = 0.5, seed = 60) |>
+      additive(prop = 0.3, n_qtn = 5) |>
+      dominance(prop = 0.2),
+    "no heterozygous"
+  )
+})
+
 test_that("effect/dist on a pleiotropic additive layer error", {
   expect_error(
     simulate_phenotype(G, architecture = "pleiotropy", n_traits = 2,

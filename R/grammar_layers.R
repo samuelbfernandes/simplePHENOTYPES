@@ -120,11 +120,14 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
 #' degree-of-dominance scalar would be washed out by the per-component variance
 #' scaling and is therefore not offered.)
 #'
-#' Dominance needs heterozygotes to be identifiable. In a fully inbred panel
-#' (such as the bundled maize lines, ~0.4% heterozygous) there are almost none,
-#' so a dominance layer is near-degenerate and its realized variance is noisy --
-#' simulate dominance on an outbred or F2-type population instead.
-#' @seealso [additive()], [epistasis()], [vqtl()].
+#' Dominance needs heterozygotes to be identifiable: it is identically zero at a
+#' locus with no heterozygous individuals. If the selected loci carry none
+#' (common on a near-inbred panel such as the bundled maize lines, ~0.4%
+#' heterozygous), `dominance()` **errors** rather than silently substituting
+#' loci. Pre-filter to heterozygous markers with `filter_geno(hets = "include")`,
+#' fix het-bearing loci with `qtn =`, or simulate dominance on an outbred or
+#' F2-type population instead.
+#' @seealso [additive()], [epistasis()], [vqtl()], [filter_geno()].
 #' @export
 #' @examples
 #' data("SNP55K_maize282_maf04")
@@ -178,6 +181,17 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
   fixed <- !is.null(user_qtn) ||
     (isTRUE(same_as_add) && is.null(add_layer$qtn_reps))
   drawn <- .draw_layer(sim, "dominance", occ, build, fixed = fixed)
+  # A dominance deviation is a heterozygote effect, so it is identically zero at
+  # a locus with no heterozygotes. Rather than silently substitute loci, fail
+  # with a clear message so the user knows the (near-inbred) data has none.
+  if (.dom_hetless(sim, drawn$qtn)) {
+    stop("dominance(): the selected loci have no heterozygous individuals, so a ",
+         "dominance deviation (which acts on heterozygotes) cannot be ",
+         "simulated -- the genotype is (near-)inbred at those loci. Pre-filter ",
+         "to heterozygous markers with filter_geno(hets = \"include\"), choose ",
+         "loci with heterozygotes via qtn =, or use an outbred / F2 population.",
+         call. = FALSE)
+  }
   layer <- list(type = "dominance", prop = prop, n_qtn = nq, dist = dist,
                 same_as_add = same_as_add,
                 qtn = drawn$qtn, effect = drawn$effect)
@@ -185,7 +199,8 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
     layer$qtn_reps <- drawn$qtn_reps
     layer$effect_reps <- drawn$effect_reps
   }
-  layer$ld <- if (isTRUE(same_as_add)) add_layer$ld else attr(drawn$qtn, "ld")
+  layer$ld <- if (isTRUE(layer$same_as_add)) add_layer$ld else
+    attr(drawn$qtn, "ld")
   .add_layer(sim, layer)
 }
 
@@ -510,6 +525,22 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
     qtn_reps   = lapply(reps, function(x) x$qtn),
     effect_reps = lapply(reps, function(x) x$effect)
   )
+}
+
+#' TRUE when a reused QTN set cannot support a dominance deviation
+#'
+#' A dominance layer is a heterozygote effect, so a trait whose reused loci carry
+#' no heterozygotes would contribute exactly zero variance and fail to realize
+#' `prop`. Returns TRUE if any trait's loci are entirely homozygous.
+#' @keywords internal
+#' @noRd
+.dom_hetless <- function(sim, q) {
+  any(vapply(q, function(idx) {
+    if (is.null(idx) || length(idx) == 0L) {
+      return(FALSE)
+    }
+    sum(.geno_cols(sim, idx) == 0, na.rm = TRUE) == 0
+  }, logical(1)))
 }
 
 #' A prior layer's QTNs for a given replication (per-rep if it varied)

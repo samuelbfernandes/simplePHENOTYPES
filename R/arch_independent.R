@@ -21,7 +21,7 @@
 .draw_qtn <- function(sim, n_qtn, sub_seed) {
   cand <- .candidate_markers(sim)
   if (n_qtn > length(cand)) {
-    stop("Requested n_qtn (", n_qtn, ") exceeds the number of candidate ",
+    stop("Requested n_qtn (", n_qtn, ") exceeds the number of polymorphic ",
          "markers (", length(cand), ").", call. = FALSE)
   }
   old <- .Random.seed_safe()
@@ -102,7 +102,11 @@
   lapply(seq_len(nt), function(t) make_one())
 }
 
-#' Candidate polymorphic marker columns
+#' Candidate marker columns for QTN selection
+#'
+#' Excludes monomorphic markers (no variation, so they can realize no variance
+#' component); use [filter_geno()] to constrain the pool further (MAF, LD,
+#' heterozygosity) before simulating.
 #' @keywords internal
 #' @noRd
 .candidate_markers <- function(sim) {
