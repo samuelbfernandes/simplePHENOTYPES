@@ -73,6 +73,23 @@ embarrass the release.
 
 Design work is understood; each is contained.
 
+- [ ] **Validate `filter_geno()` LD pruning against PLINK 1.9 — next, and load-bearing.**
+      `filter_geno()` now implements pairwise composite-r^2 pruning, phased
+      (EM-haplotype) r^2 pruning, VIF pruning (PLINK `--indep`) and Gabriel-block
+      tag selection. Because it will be used constantly, it must be **verified
+      against PLINK 1.9 on the same dataset** so the kept/removed marker sets (and
+      the block boundaries) match, not just look plausible — build a fixture that
+      runs PLINK `--indep-pairwise` / `--indep` / `--blocks` on
+      `SNP55K_maize282_maf04` and diffs the marker lists. Pressure-test edge cases
+      (windows in variants vs kb, monomorphic/low-MAF loci, chromosome ends, the
+      double-het EM at extreme allele frequencies). **If the R implementation is
+      too slow** at whole-genome scale (the pairphase EM and the O(m^2)-within-window
+      Gabriel classification are the suspects), port the deterministic inner loops
+      to Rust — this fits the Rust boundary (DECISION-006): the r^2 / D' / EM
+      computation and the block scan are pure and deterministic, so they may move
+      to Rust while nothing about QTN sampling does. Keep the R version as the
+      parity reference for the Rust port, mirroring the isqg approach.
+
 - [x] **`mean` per trait in the grammar.** `simulate_phenotype(mean=)`, applied
       at the phenotype level; genetic values stay centered.
 - [x] **Supply QTNs for one layer and randomize the rest.** Every layer takes
