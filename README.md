@@ -52,6 +52,13 @@ install.packages("simplePHENOTYPES",
                            "https://cloud.r-project.org"))
 ```
 
+> **Requires a current R (R ≥ 4.5).** The binaries are built for the
+> current R releases. On an older R, `install.packages()` finds no
+> matching binary and quietly installs the old CRAN version (1.3.0)
+> instead — so update R first ([latest
+> release](https://cran.r-project.org)) if you want the v2 grammar
+> without compiling.
+
 <details>
 
 <summary>
