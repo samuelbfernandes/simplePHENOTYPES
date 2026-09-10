@@ -130,21 +130,26 @@
 #' @noRd
 .cite_pleioarch <- function() {
   rlang::inform(
-    paste0(.cite_main(), " please cite Prado et al. (in preparation) when ",
-           "controlling the correlation in the pleiotropic architecture."),
+    .cite_main("Prado et al. (in preparation), when controlling the ",
+               "correlation in the pleiotropic architecture."),
     .frequency = "once",
     .frequency_id = "simplePHENOTYPES_pleioarch_citation"
   )
 }
 
-#' The primary citation, shared by every "please also cite" notice
+#' The primary citation notice, shared by every "please also cite" message
+#'
+#' Builds the multi-line notice: the lead-in, the main simplePHENOTYPES
+#' reference, then the feature-specific reference(s) passed in `...`.
 #' @keywords internal
 #' @noRd
-.cite_main <- function() {
-  paste0("In addition to citing \"Fernandes, S.B., Lipka, A.E. ",
-         "simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic ",
-         "phenotypes. BMC Bioinformatics 21, 491 (2020). ",
-         "https://doi.org/10.1186/s12859-020-03804-y\"")
+.cite_main <- function(...) {
+  paste0("In addition to citing:\n",
+         "Fernandes, S.B., Lipka, A.E. simplePHENOTYPES: SIMulation of ",
+         "pleiotropic, linked and epistatic phenotypes. BMC Bioinformatics 21, ",
+         "491 (2020). https://doi.org/10.1186/s12859-020-03804-y\n",
+         "Please also cite:\n",
+         ...)
 }
 
 #' Per-trait pleiotropic variance share

@@ -664,10 +664,8 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
 #' @noRd
 .cite_vqtl <- function() {
   rlang::inform(
-    paste0(.cite_main(), " please cite Ronnegard and Valdar (2011), ",
-           "doi:10.1534/genetics.111.127068, for log-linked residual ",
-           "variance models and Murphy et al. (2022), Heredity 129:93-102, ",
-           "doi:10.1038/s41437-022-00541-1, for plant vQTL simulation."),
+    .cite_main("Murphy et al. (2022), Heredity 129:93-102, ",
+               "doi:10.1038/s41437-022-00541-1, for plant vQTL simulation."),
     .frequency = "once",
     .frequency_id = "simplePHENOTYPES_vqtl_citation"
   )

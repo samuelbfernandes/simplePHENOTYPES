@@ -50,9 +50,9 @@ vQTL <- function(QTN,
                  fam = NULL,
                  to_r = NULL,
                  remove_add_effect = F) {
-  msg <- paste0("In addition to citing \"", "Fernandes, S.B., Lipka, A.E. simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic phenotypes. BMC Bioinformatics 21, 491 (2020). https://doi.org/10.1186/s12859-020-03804-y", "\" ",
-                "please cite Murphy et al. (2022), Heredity 129:93-102, ",
-                "doi:10.1038/s41437-022-00541-1 when simulating variance QTL (vQTLs).")
+  msg <- .cite_main("Murphy et al. (2022), Heredity 129:93-102, ",
+                    "doi:10.1038/s41437-022-00541-1, when simulating variance ",
+                    "QTL (vQTLs).")
   rlang::inform(msg, .frequency = "once", .frequency_id = msg)
   base_line_trait <- scale(base_line_trait)
   if (output_format == "multi-file") {

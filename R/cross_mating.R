@@ -15,11 +15,11 @@
 #' @noRd
 .cite_isqg <- function() {
   rlang::inform(
-    paste0(.cite_main(), " please cite Toledo, F.H., Perez-Rodriguez, P., ",
-           "Crossa, J. and Burgueno, J. (2019). isqg: A Binary Framework for ",
-           "in Silico Quantitative Genetics. G3 9(8):2425-2428, ",
-           "doi:10.1534/g3.119.400373 when using the crossing pipelines ",
-           "(cross, selfcross, double_haploid)."),
+    .cite_main("Toledo, F.H., Perez-Rodriguez, P., Crossa, J. and Burgueno, J. ",
+               "(2019). isqg: A Binary Framework for in Silico Quantitative ",
+               "Genetics. G3 9(8):2425-2428, doi:10.1534/g3.119.400373, when ",
+               "using the crossing pipelines (cross, selfcross, ",
+               "double_haploid)."),
     .frequency = "once",
     .frequency_id = "simplePHENOTYPES_isqg_citation"
   )

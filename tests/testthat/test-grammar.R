@@ -226,7 +226,7 @@ test_that("controlling cor emits the citation once per session", {
   expect_message(
     simulate_phenotype(G, architecture = "pleiotropy", n_traits = 2,
                        cor = 0.5, seed = 1) |> additive(prop = 0.5, n_qtn = 5),
-    "please cite Prado et al\\."   # year left loose: the reference is not final yet
+    "Prado et al\\."   # year left loose: the reference is not final yet
   )
   # Second use in the same session stays quiet.
   expect_no_message(
