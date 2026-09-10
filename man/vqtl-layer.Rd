@@ -4,24 +4,80 @@
 \alias{vqtl}
 \title{Add a variance-QTL (vQTL) component}
 \usage{
-vqtl(sim, prop, same_as_add = TRUE, n_qtn = NULL, dist = "geometric")
+vqtl(
+  sim,
+  prop = NULL,
+  same_as_add = TRUE,
+  n_qtn = NULL,
+  qtn = NULL,
+  dist = "geometric"
+)
 }
 \arguments{
-\item{sim}{a `phenotype_sim`.}
+\item{sim}{a \code{phenotype_sim}.}
 
 \item{prop}{proportion of total phenotypic variance (scalar or length
-`n_traits`).}
+\code{n_traits}). May be omitted when \code{h2} was set in \code{\link[=simulate_phenotype]{simulate_phenotype()}},
+in which case the layer takes whatever of that budget is unspent -- so a
+single \code{additive()} layer gets \code{prop = h2}. When \code{prop} is given and \code{h2}
+is set, the layer \code{prop} values must sum to \code{h2}.}
 
-\item{same_as_add}{reuse the additive layer's QTNs (default `TRUE`).}
+\item{same_as_add}{reuse the additive layer's QTNs (default \code{TRUE}).}
 
-\item{n_qtn}{number of additive QTNs; overrides the baseline `n_qtn` from
-[simulate_phenotype()] (with a warning when both are given).}
+\item{n_qtn}{number of additive QTNs; overrides the baseline \code{n_qtn} from
+\code{\link[=simulate_phenotype]{simulate_phenotype()}} (with a warning when both are given).}
+
+\item{qtn}{optional user-supplied QTNs for this layer, so you can fix the
+causal loci for one effect type while the others are drawn at random. Give
+marker names (matched against the map) or column indices; a vector is used
+for every trait, or a length-\code{n_traits} list sets each trait's loci
+separately. \code{n_qtn} is then taken from what you supply. Fixed loci are not
+redrawn by \code{vary_qtn}.}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
 }
 \value{
-the updated `phenotype_sim`.
+the updated \code{phenotype_sim}.
 }
 \description{
-Add a variance-QTL (vQTL) component
+A variance QTL affects the \emph{spread} of a trait rather than its mean:
+genotypes at a vQTL differ in how variable they are. Here \code{prop} is the
+marginal phenotypic-variance share assigned to a heterogeneous residual
+component; it is not genetic variance and is not included in broad-sense
+heritability. An explicit \code{prop} is therefore always required, even when the
+simulation has an \code{h2} budget.
+}
+\details{
+Conditional residual variance uses a log link,
+\verb{log Var(E_v | genotype) = constant + loading}, where \code{loading} is the sum of
+standardized vQTL genotype scores. This guarantees positive conditional
+variances. The resulting heterogeneous residual is scaled to sample variance
+\code{prop}; finite-sample covariance among components means total realized
+phenotypic variance need not be exactly one.
+}
+\examples{
+data("SNP55K_maize282_maf04")
+
+# A vQTL on the same loci that carry the additive effects (the default).
+ph <- simulate_phenotype(SNP55K_maize282_maf04, seed = 1) |>
+  additive(prop = 0.3, n_qtn = 4) |>
+  vqtl(prop = 0.2)
+ph
+
+# Independent variance-only loci: set same_as_add = FALSE and say how many.
+simulate_phenotype(SNP55K_maize282_maf04, seed = 2) |>
+  additive(prop = 0.3, n_qtn = 4) |>
+  vqtl(prop = 0.2, same_as_add = FALSE, n_qtn = 2)
+}
+\references{
+Ronnegard, L. and Valdar, W. (2011). Detecting major genetic loci
+controlling phenotypic variability in experimental crosses. \emph{Genetics}
+188, 435--447. \doi{10.1534/genetics.111.127068}
+
+Murphy, M.D., Fernandes, S.B., Morota, G. et al. (2022). Assessment of two
+statistical approaches for variance genome-wide association studies in plants.
+\emph{Heredity} 129, 93--102. \doi{10.1038/s41437-022-00541-1}
+}
+\seealso{
+\code{\link[=additive]{additive()}}, \code{\link[=dominance]{dominance()}}, \code{\link[=epistasis]{epistasis()}}.
 }

@@ -6,13 +6,12 @@
 #' GAPIT: genome association and prediction integrated tool, Bioinformatics,
 #' Volume 28, Issue 18, 15 September 2012, Pages 2397–2399.
 #' @keywords internal
-#' @param x ggg
+#' @param x a character genotype matrix to numericalize
 #' @param bit = NULL,
 #' @param effect = 'Add',
 #' @param impute = 'None',
 #' @return Corresponding numerical value
 #' Last update: Apr 20, 2020
-#'--------------------------numericalization---------------------------------
 numericalization <-
   function(x,
            bit = NULL,
@@ -25,7 +24,7 @@ numericalization <-
       # heterozygose has the largest value
       x[x == "R" |
           x == "Y" | x == "S" | x == "W" | x == "K" | x == "M"] <- "Z"
-      if (class(x) != "matrix") {
+      if (!inherits(x, "matrix")) {
         x <- as.matrix(x)
       }
       # Genotype counts

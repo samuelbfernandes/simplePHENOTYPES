@@ -17,6 +17,7 @@
 #' @param chr_prefix Chromosome prefix string for VCF (passed to SNPRelate).
 #' @return list(GT, GD, GI, input_format, out_name, temp).
 #' @author Samuel Fernandes
+#'
 file_loader <- function(geno_obj   = NULL,
                         geno_file  = NULL,
                         geno_path  = NULL,
@@ -110,6 +111,11 @@ file_loader <- function(geno_obj   = NULL,
     out_name     <- tools::file_path_sans_ext(basename(geno_file))
     out_name     <- gsub("\\.hmp$", "", out_name, ignore.case = TRUE)
     input_format <- detect_format(geno_file)
+    if (input_format %in% c("vcf", "gds", "bed", "ped") &&
+        (!requireNamespace("SNPRelate", quietly = TRUE) ||
+         !requireNamespace("gdsfmt", quietly = TRUE))) {
+      stop(.gds_needed(toupper(input_format)), call. = FALSE)
+    }
 
     if (input_format == "hapmap") {
       if (verbose) message("Performing numericalization")
@@ -265,9 +271,15 @@ file_loader <- function(geno_obj   = NULL,
   }
 
   input_format <- detect_format(files[1L])
+  if (input_format %in% c("vcf", "gds", "bed", "ped") &&
+      (!requireNamespace("SNPRelate", quietly = TRUE) ||
+       !requireNamespace("gdsfmt", quietly = TRUE))) {
+    stop(.gds_needed(toupper(input_format)), call. = FALSE)
+  }
 
   if (input_format == "hapmap") {
-    if (verbose) { message("Reading HapMap files:"); message(files, sep = "\n") }
+    if (verbose) { message("Reading HapMap files:"); message(paste(files, collapse = "
+")) }
     G_list <- lapply(files, function(f) {
       data.table::fread(f, header = TRUE, nrows = nrows,
                         na.strings = na_string, data.table = FALSE)
@@ -279,7 +291,8 @@ file_loader <- function(geno_obj   = NULL,
     GD <- .hapmap_to_GD(G)
 
   } else if (input_format %in% c("vcf", "VCF")) {
-    if (verbose) { message("Reading VCF files:"); message(files, sep = "\n") }
+    if (verbose) { message("Reading VCF files:"); message(paste(files, collapse = "
+")) }
     SNPRelate::snpgdsVCF2GDS(vcf.fn = files, out.fn = temp,
                               method = "biallelic.only", snpfirstdim = FALSE,
                               verbose = FALSE, ignore.chr.prefix = chr_prefix)
@@ -296,7 +309,8 @@ file_loader <- function(geno_obj   = NULL,
     SNPRelate::snpgdsClose(genofile)
 
   } else if (input_format == "bed") {
-    if (verbose) { message("Reading BED files:"); message(files, sep = "\n") }
+    if (verbose) { message("Reading BED files:"); message(paste(files, collapse = "
+")) }
     SNPRelate::snpgdsBED2GDS(
       bed.fn = files,
       fam.fn = paste0(sub("\\.bed$", "", files, ignore.case = TRUE), ".fam"),
@@ -318,7 +332,8 @@ file_loader <- function(geno_obj   = NULL,
     SNPRelate::snpgdsClose(genofile)
 
   } else if (input_format == "ped") {
-    if (verbose) { message("Reading PED files:"); message(files, sep = "\n") }
+    if (verbose) { message("Reading PED files:"); message(paste(files, collapse = "
+")) }
     SNPRelate::snpgdsPED2GDS(
       ped.fn = files,
       map.fn = paste0(sub("\\.ped$", "", files, ignore.case = TRUE), ".map"),
@@ -336,7 +351,8 @@ file_loader <- function(geno_obj   = NULL,
     SNPRelate::snpgdsClose(genofile)
 
   } else if (input_format == "gds") {
-    if (verbose) { message("Reading GDS files:"); message(files, sep = "\n") }
+    if (verbose) { message("Reading GDS files:"); message(paste(files, collapse = "
+")) }
     genofile <- SNPRelate::snpgdsOpen(files)
     GD <- SNPRelate::snpgdsGetGeno(genofile, snpfirstdim = FALSE, verbose = FALSE) - 1L
     GT <- as.matrix(gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "sample.id")))

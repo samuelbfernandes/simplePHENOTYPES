@@ -12,10 +12,8 @@
 #' @param verbose = verbose
 #' @param chr_prefix = "chrm"
 #' @return A numeric HapMap
-#' @author Samuel Fernandes and Alexander Lipka
-#' Last update: Apr 20, 2020
+#' @author Samuel Fernandes and Alexander Lipka. Last update: Apr 20, 2020
 #'
-#'------------------------------------------------------------------------------
 genotypes <-
   function(geno_obj = NULL,
            geno_file = NULL,

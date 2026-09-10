@@ -9,7 +9,6 @@
 #' @return Return a filtered dataset to be used when selecting QTNs.
 #' Last update: Apr 20, 2020
 #'
-#'----------------------------- constrain ---------------------------------
 constraint <-
   function(genotypes = NULL,
            maf_above = NULL,

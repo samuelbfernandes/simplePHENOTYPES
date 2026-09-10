@@ -18,42 +18,42 @@ synthetic_map(
 \item{chr}{chromosome identifier per marker.}
 
 \item{pos}{physical position per marker, in base pairs. Must be
-non-decreasing within each chromosome. Co-located markers (equal `pos`)
+non-decreasing within each chromosome. Co-located markers (equal \code{pos})
 are allowed and receive equal cM, which correctly implies no recombination
 between them.}
 
 \item{total_cm}{target genetic length per chromosome, in cM. Either a single
 value applied to every chromosome, a vector with one entry per chromosome,
-or `NULL` (default) to derive it from `cm_per_mb`.}
+or \code{NULL} (default) to derive it from \code{cm_per_mb}.}
 
-\item{cm_per_mb}{average centiMorgans per megabase, used when `total_cm` is
-`NULL`. The default of 0.73 gives roughly 1,500 cM across a 2.05 Gb maize
+\item{cm_per_mb}{average centiMorgans per megabase, used when \code{total_cm} is
+\code{NULL}. The default of 0.73 gives roughly 1,500 cM across a 2.05 Gb maize
 genome, the scale of published maize consensus maps.}
 
 \item{centromere}{centromere position per chromosome, in base pairs. Either
-a named vector (names matching `chr` values), an unnamed vector in the
-order chromosomes first appear, or `NULL` (default) to place each
+a named vector (names matching \code{chr} values), an unnamed vector in the
+order chromosomes first appear, or \code{NULL} (default) to place each
 centromere at the midpoint of its chromosome's span.}
 
-\item{suppression}{strength of pericentromeric suppression, between 0 (a
-uniform map) and 1 (essentially no recombination at the centromere).}
+\item{suppression}{strength of pericentromeric suppression, from 0 (a
+uniform map) up to, but not including, 1.}
 
 \item{width}{width of the suppressed region as a fraction of the chromosome
 span.}
 }
 \value{
 A numeric vector of centiMorgan positions, one per marker, starting
-  at 0 on each chromosome and non-decreasing within it.
+at 0 on each chromosome and non-decreasing within it.
 }
 \description{
-Meiosis simulation ([cross()], [selfcross()], [double_haploid()]) needs
+Meiosis simulation (\code{\link[=cross]{cross()}}, \code{\link[=selfcross]{selfcross()}}, \code{\link[=double_haploid]{double_haploid()}}) needs
 recombination distances in Morgans, but marker data usually carries only
-physical positions in base pairs. `synthetic_map()` converts physical
+physical positions in base pairs. \code{synthetic_map()} converts physical
 positions into a plausible centiMorgan map.
 }
 \section{This map is synthetic}{
 
-The output is a *model*, not a measured linkage map. It is not derived from
+The output is a \emph{model}, not a measured linkage map. It is not derived from
 any published genetic map and its cM values should not be quoted as
 estimates of real recombination distances. Use it to give simulations a
 realistic recombination landscape; if you have a real map for your
@@ -65,7 +65,7 @@ population, supply that instead.
 Crossovers are not distributed uniformly along a chromosome. In maize and
 many other species recombination is strongly suppressed around the
 centromere and elevated toward the telomeres, so a large fraction of the
-physical genome contributes very little genetic distance. `synthetic_map()`
+physical genome contributes very little genetic distance. \code{synthetic_map()}
 reproduces that pattern by giving each position a local rate
 
 \deqn{r(p) = 1 - s \exp(-0.5 ((p - c) / (w L))^2)}
@@ -75,7 +75,7 @@ suppression strength and \eqn{w} the relative width of the suppressed
 region. The rate is integrated across marker intervals and rescaled so each
 chromosome spans its target length, so cM is a monotone function of bp.
 
-Setting `suppression = 0` gives a uniform map, i.e. cM proportional to bp.
+Setting \code{suppression = 0} gives a uniform map, i.e. cM proportional to bp.
 }
 
 \examples{

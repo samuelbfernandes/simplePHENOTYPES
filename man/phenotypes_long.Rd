@@ -7,12 +7,27 @@
 phenotypes_long(sim)
 }
 \arguments{
-\item{sim}{a `phenotype_sim`.}
+\item{sim}{a \code{phenotype_sim}.}
 }
 \value{
 a data frame in long format.
 }
 \description{
 The canonical output of the v2 grammar: one row per individual x trait x rep
-with columns `id`, `trait`, `rep`, `value`.
+with columns \code{id}, \code{trait}, \code{rep}, \code{value}.
+}
+\examples{
+data("SNP55K_maize282_maf04")
+ph <- simulate_phenotype(SNP55K_maize282_maf04, n_traits = 2, seed = 1) |>
+  additive(prop = 0.5, n_qtn = 3)
+
+long <- phenotypes_long(ph)
+head(long)
+
+# One row per individual x trait x rep, which is the shape most
+# mixed-model and plotting tools expect.
+table(long$trait)
+}
+\seealso{
+\code{\link[=phenotypes_wide]{phenotypes_wide()}}, \code{\link[=write_phenotypes]{write_phenotypes()}}.
 }

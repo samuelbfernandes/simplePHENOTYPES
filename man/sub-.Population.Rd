@@ -7,12 +7,12 @@
 \method{[}{Population}(x, i)
 }
 \arguments{
-\item{x}{a `Population`.}
+\item{x}{a \code{Population}.}
 
 \item{i}{individuals to keep, by name, position or logical mask.}
 }
 \value{
-A `Population` with the selected individuals.
+A \code{Population} with the selected individuals.
 }
 \description{
 Subset the individuals of a Population

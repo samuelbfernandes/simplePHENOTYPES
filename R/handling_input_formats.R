@@ -79,23 +79,21 @@ handle_hapmap <- function(file,
     geno_chars <- as.matrix(G[, -(1:11)])
 
     if (is.numeric(geno_chars[1L, 1L])) {
-      # Already numeric — just wrap
-      G_out <- assemble_output(meta, sample_ids, geno_chars)
+      stop("HapMap genotype columns are already numeric, so their allele ",
+           "orientation cannot be inferred safely. Supply a five-metadata-",
+           "column numeric-format object instead.", call. = FALSE)
     } else {
-      if (is.null(ref_allele)) {
-        ref_allele_vec <- gsub("/.", "", G[[2]])
-        rlang::inform(
-          paste0('"ref_allele" was not provided. ',
-                 'The first allele in the HapMap file will be used.'),
-          .frequency = "once",
-          .frequency_id = "hapmap_ref_allele_default"
-        )
-      } else {
-        ref_allele_vec <- ref_allele
-      }
+      ref_allele_vec <- ref_allele
       allele1 <- gsub("/.*", "", G[[2]])
+      allele2 <- sub(".*/", "", G[[2]])
+      if (identical(method, "reference") &&
+          (length(ref_allele_vec) != nrow(G) || anyNA(ref_allele_vec) ||
+           any(ref_allele_vec != allele1 & ref_allele_vec != allele2))) {
+        stop("`ref_allele` must give allele 1 or allele 2 for every HapMap ",
+             "marker.", call. = FALSE)
+      }
 
-      raw   <- parse_hapmap_chars_to_raw(geno_chars)
+      raw   <- parse_hapmap_chars_to_raw(geno_chars, allele1 = allele1)
       G_out <- .apply_coding(
         raw_mat    = raw,
         meta       = meta,
@@ -112,10 +110,49 @@ handle_hapmap <- function(file,
     if (to_file) {
       data.table::fwrite(G_out, file_name, row.names = FALSE, sep = "\t",
                          quote = FALSE, na = NA, showProgress = FALSE)
-      cat("\nNumeric file saved as '", file_name, "'\n")
+      if (verbose) message("Numeric file saved as '", file_name, "'.")
     }
   }
   if (to_r) return(G_out)
+}
+
+# ---------------------------------------------------------------------------
+# Already-numeric simplePHENOTYPES input
+# ---------------------------------------------------------------------------
+
+handle_numeric <- function(file, file_name, to_file, to_r, code_as, model,
+                           impute, method, ref_allele, verbose) {
+  if (is.character(file)) {
+    file <- data.table::fread(file, data.table = FALSE, showProgress = verbose)
+  }
+  if (!is.data.frame(file)) {
+    stop("Numeric-format input must be a data frame with five metadata ",
+         "columns.", call. = FALSE)
+  }
+  if (ncol(file) < 6L ||
+      !identical(tolower(names(file)[1:5]),
+                 c("snp", "allele", "chr", "pos", "cm"))) {
+    stop("Numeric-format input must start with columns snp, allele, chr, pos, ",
+         "and cm.", call. = FALSE)
+  }
+  if (model != "Add" || impute != "None" || method != "frequency" ||
+      !is.null(ref_allele)) {
+    stop("An already-numeric input cannot be re-oriented, imputed, or changed ",
+         "to another genetic model; convert from the original allele-coded ",
+         "data instead.", call. = FALSE)
+  }
+  values <- as.matrix(file[, -(1:5), drop = FALSE])
+  allowed <- if (code_as == "-101") c(-1, 0, 1) else c(0, 1, 2)
+  if (!is.numeric(values) || any(!is.na(values) & !values %in% allowed)) {
+    stop("The genotype values do not match code_as = \"", code_as, "\".",
+         call. = FALSE)
+  }
+  if (to_file) {
+    data.table::fwrite(file, file_name, row.names = FALSE, sep = "\t",
+                       quote = FALSE, na = NA, showProgress = FALSE)
+    if (verbose) message("Numeric file saved as '", file_name, "'.")
+  }
+  if (to_r) file else invisible(NULL)
 }
 
 # ---------------------------------------------------------------------------
@@ -159,7 +196,7 @@ handle_table <- function(file,
       suppressMessages(data.table::fwrite(
         G_out, file_name, row.names = FALSE, sep = "\t",
         quote = FALSE, na = NA, showProgress = FALSE, verbose = FALSE))
-      cat("\nNumeric file saved as '", file_name, "'\n")
+      if (verbose) message("Numeric file saved as '", file_name, "'.")
     }
   }
   if (to_r) return(G_out)
@@ -210,7 +247,15 @@ handle_vcf <- function(file,
                        method,
                        verbose) {
   if (all(file_class == "character")) {
-    temp <- paste0(gsub(".*/", "", tempfile()), ".gds")
+    if (!requireNamespace("SNPRelate", quietly = TRUE) ||
+        !requireNamespace("gdsfmt", quietly = TRUE)) {
+      stop(.gds_needed("VCF"), call. = FALSE)
+    }
+    # Keep the full tempfile() path: stripping the directory makes this
+    # relative, which drops the intermediate GDS in the user's working
+    # directory and leaves it behind.
+    temp <- tempfile(fileext = ".gds")
+    on.exit(unlink(temp), add = TRUE)
     SNPRelate::snpgdsVCF2GDS(
       vcf.fn = file, out.fn = temp,
       method = "copy.num.of.ref", snpfirstdim = FALSE, verbose = FALSE)
@@ -231,7 +276,7 @@ handle_vcf <- function(file,
       if (to_file) {
         data.table::fwrite(G_out, file_name, row.names = FALSE, sep = "\t",
                            quote = FALSE, na = NA, showProgress = FALSE)
-        cat("\nNumeric file saved as '", file_name, "'\n")
+        if (verbose) message("Numeric file saved as '", file_name, "'.")
       }
     }
     SNPRelate::snpgdsClose(genofile)
@@ -240,7 +285,7 @@ handle_vcf <- function(file,
   }
 
   # In-memory vcfR / VCF data.frame
-  if (from == "vcfR") {
+  if (from %in% c("vcfr", "vcfr_object") || inherits(file, "vcfR")) {
     G          <- data.frame(file@gt[, colnames(file@gt) != "FORMAT"],
                              stringsAsFactors = FALSE)
     ref_allele <- file@fix[, "REF"]
@@ -267,7 +312,7 @@ handle_vcf <- function(file,
       suppressMessages(data.table::fwrite(
         G_out, file_name, row.names = FALSE, sep = "\t",
         quote = FALSE, na = NA, showProgress = FALSE, verbose = FALSE))
-      cat("\nNumeric file saved as '", file_name, "'\n")
+      if (verbose) message("Numeric file saved as '", file_name, "'.")
     }
   }
   if (to_r) return(G_out)
@@ -279,6 +324,10 @@ handle_vcf <- function(file,
 
 handle_gds <- function(file, file_name, to_file, to_r, to,
                        code_as, model, impute, method, verbose) {
+  if (!requireNamespace("SNPRelate", quietly = TRUE) ||
+      !requireNamespace("gdsfmt", quietly = TRUE)) {
+    stop(.gds_needed("GDS"), call. = FALSE)
+  }
   if (to == "numeric") {
     genofile <- SNPRelate::snpgdsOpen(file)
     parts    <- .read_gds_to_raw(genofile)
@@ -297,7 +346,7 @@ handle_gds <- function(file, file_name, to_file, to_r, to,
     if (to_file) {
       data.table::fwrite(G_out, file_name, row.names = FALSE, sep = "\t",
                          quote = FALSE, na = NA, showProgress = FALSE)
-      cat("\nNumeric file saved as '", file_name, "'\n")
+      if (verbose) message("Numeric file saved as '", file_name, "'.")
     }
   }
   if (to_r) return(G_out)
@@ -307,10 +356,39 @@ handle_gds <- function(file, file_name, to_file, to_r, to,
 # BED handler
 # ---------------------------------------------------------------------------
 
+#' Genetic distances from a PLINK .bim / .map file, when they are populated
+#'
+#' Column 3 of both formats is the genetic distance in centiMorgans. PLINK
+#' writes 0 there when it is unknown, which is the common case, so an all-zero
+#' column is reported as missing rather than as a map where every marker sits
+#' at position 0.
+#' @keywords internal
+#' @noRd
+.plink_cm <- function(path, n_markers) {
+  if (!file.exists(path)) {
+    return(rep(NA_real_, n_markers))
+  }
+  cm <- tryCatch({
+    tab <- data.table::fread(path, header = FALSE, select = 3L,
+                             data.table = FALSE, showProgress = FALSE)
+    as.numeric(tab[[1L]])
+  }, error = function(e) rep(NA_real_, n_markers))
+  if (length(cm) != n_markers || all(!is.finite(cm)) ||
+      all(cm[is.finite(cm)] == 0)) {
+    return(rep(NA_real_, n_markers))
+  }
+  cm
+}
+
 handle_bed <- function(file, file_name, to_file, to_r, to,
                        code_as, model, impute, method, verbose) {
+  if (!requireNamespace("SNPRelate", quietly = TRUE) ||
+      !requireNamespace("gdsfmt", quietly = TRUE)) {
+    stop(.gds_needed("PLINK BED"), call. = FALSE)
+  }
   if (to == "numeric") {
     temp <- tempfile(fileext = ".gds")
+    on.exit(unlink(temp), add = TRUE)
     base <- sub("\\.bed$", "", file, ignore.case = TRUE)
     SNPRelate::snpgdsBED2GDS(
       bed.fn = file, fam.fn = paste0(base, ".fam"),
@@ -327,6 +405,7 @@ handle_bed <- function(file, file_name, to_file, to_r, to,
       function(x) if (length(x) == 2L) paste(x[2L], x[1L], sep = "/") else x[[1L]],
       character(1L))
     parts$allele1 <- sub("/.*", "", parts$meta$allele)
+    parts$meta$cm <- .plink_cm(paste0(base, ".bim"), nrow(parts$meta))
 
     G_out <- .apply_coding(
       raw_mat    = parts$raw,
@@ -341,7 +420,7 @@ handle_bed <- function(file, file_name, to_file, to_r, to,
     if (to_file) {
       data.table::fwrite(G_out, file_name, row.names = FALSE, sep = "\t",
                          quote = FALSE, na = NA, showProgress = FALSE)
-      cat("\nNumeric file saved as '", file_name, "'\n")
+      if (verbose) message("Numeric file saved as '", file_name, "'.")
     }
   }
   if (to_r) return(G_out)
@@ -353,8 +432,13 @@ handle_bed <- function(file, file_name, to_file, to_r, to,
 
 handle_ped <- function(file, file_name, to_file, to_r, to,
                        code_as, model, impute, method, verbose) {
+  if (!requireNamespace("SNPRelate", quietly = TRUE) ||
+      !requireNamespace("gdsfmt", quietly = TRUE)) {
+    stop(.gds_needed("PLINK PED"), call. = FALSE)
+  }
   if (to == "numeric") {
     temp <- tempfile(fileext = ".gds")
+    on.exit(unlink(temp), add = TRUE)
     base <- sub("\\.ped$", "", file, ignore.case = TRUE)
     SNPRelate::snpgdsPED2GDS(
       ped.fn = file, map.fn = paste0(base, ".map"),
@@ -362,6 +446,7 @@ handle_ped <- function(file, file_name, to_file, to_r, to,
     genofile <- SNPRelate::snpgdsOpen(temp)
     parts    <- .read_gds_to_raw(genofile)
     SNPRelate::snpgdsClose(genofile)
+    parts$meta$cm <- .plink_cm(paste0(base, ".map"), nrow(parts$meta))
 
     G_out <- .apply_coding(
       raw_mat    = parts$raw,
@@ -376,7 +461,7 @@ handle_ped <- function(file, file_name, to_file, to_r, to,
     if (to_file) {
       data.table::fwrite(G_out, file_name, row.names = FALSE, sep = "\t",
                          quote = FALSE, na = NA, showProgress = FALSE)
-      cat("\nNumeric file saved as '", file_name, "'\n")
+      if (verbose) message("Numeric file saved as '", file_name, "'.")
     }
   }
   if (to_r) return(G_out)
@@ -476,7 +561,7 @@ handle_finalreport <- function(file, file_name, to_file, to_r, to,
   if (to_file) {
     data.table::fwrite(G_out, file_name, row.names = FALSE, sep = "\t",
                        quote = FALSE, na = NA, showProgress = FALSE)
-    cat("\nNumeric file saved as '", file_name, "'\n")
+    if (verbose) message("Numeric file saved as '", file_name, "'.")
   }
   if (to_r) return(G_out)
 }

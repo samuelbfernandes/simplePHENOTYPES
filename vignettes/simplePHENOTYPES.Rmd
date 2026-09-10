@@ -1,5 +1,5 @@
 ---
-title: "Introduction to simplePHENOTYPES"
+title: "Original implementation of create_phenotypes"
 subtitle: Samuel B Fernandes and Alexander E Lipka
 author: "simplePHENOTYPES v 1.3 (`r Sys.Date()`)"
 output:
@@ -12,7 +12,7 @@ output:
 
 
 vignette: >
-  %\VignetteIndexEntry{Introduction to simplePHENOTYPES}
+  %\VignetteIndexEntry{Original implementation of create_phenotypes}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---

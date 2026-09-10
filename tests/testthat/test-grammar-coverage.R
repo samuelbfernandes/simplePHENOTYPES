@@ -11,7 +11,7 @@ G <- SNP55K_maize282_maf04
 # SNP55K is stored markers x individuals (5 metadata cols + one col per
 # individual), so the number of individuals is ncol(G) - 5.
 n_ind <- ncol(G) - 5L
-gen_mat <- function(sim) simplePHENOTYPES:::.genetic_matrix(sim)
+gen_mat <- function(sim) genetic_values(sim)
 
 # ---------------------------------------------------------------------------
 # epistasis layer
@@ -66,14 +66,13 @@ test_that("vqtl(same_as_add = TRUE) without a prior additive errors", {
 })
 
 # ---------------------------------------------------------------------------
-# dominance: fresh-loci and degree branches
+# dominance: fresh-loci branch
 # ---------------------------------------------------------------------------
 test_that("dominance(same_as_add = FALSE) draws fresh dominance loci", {
   ph <- additive(simulate_phenotype(G, seed = 3), prop = 0.4, n_qtn = 4)
-  ph <- dominance(ph, prop = 0.1, same_as_add = FALSE, n_qtn = 6, degree = 0.5)
+  ph <- dominance(ph, prop = 0.1, same_as_add = FALSE, n_qtn = 6)
   expect_length(ph$layers[[2]]$qtn[[1]], 6)
   expect_false(identical(ph$layers[[1]]$qtn, ph$layers[[2]]$qtn))
-  expect_equal(ph$layers[[2]]$degree, 0.5)
 })
 
 test_that("dominance(same_as_add = TRUE) without a prior additive errors", {
@@ -135,27 +134,36 @@ test_that("requesting more QTNs than markers errors", {
 # ---------------------------------------------------------------------------
 # LD architecture annotation and reporting
 # ---------------------------------------------------------------------------
-test_that("LD architecture annotates companion markers within the r2 window", {
-  ld <- additive(simulate_phenotype(G, architecture = "ld", seed = 200,
-                                    ld_type = "indirect", r2_min = 0.2,
-                                    r2_max = 0.8),
+test_that("LD architecture links the two traits' distinct causal loci", {
+  ld <- additive(simulate_phenotype(G, architecture = "ld", n_traits = 2,
+                                    seed = 200, ld_type = "indirect",
+                                    r2_min = 0.2, r2_max = 0.8),
                  prop = 0.5, n_qtn = 3)
-  ann <- ld$layers[[1]]$ld[[1]]
-  expect_named(ann, c("causal", "companion", "r2"))
-  ok <- !is.na(ann$r2)
-  expect_true(all(ann$r2[ok] >= 0.2 & ann$r2[ok] <= 0.8))
+  ann <- ld$layers[[1]]$ld
+  expect_named(ann, c("qtn_t1", "qtn_t2", "r2", "cause"))
+  # each trait's causal loci are its own; the two sets are disjoint
+  q1 <- ld$layers[[1]]$qtn[[1]]
+  q2 <- ld$layers[[1]]$qtn[[2]]
+  expect_length(intersect(q1, q2), 0L)
+  # the pair frame names each trait's causal SNP of the pair
+  expect_identical(ann$qtn_t1, q1)
+  expect_identical(ann$qtn_t2, q2)
+  # indirect: the cause is a shared hidden locus that is not causal for either
+  # trait, and each trait's QTN is in the requested window with it
+  expect_true(all(!is.na(ann$cause)))
+  expect_length(intersect(ann$cause, c(q1, q2)), 0L)
 })
 
-test_that("ld_type switches which markers are reported", {
-  mk <- function(type) {
-    ld <- additive(simulate_phenotype(G, architecture = "ld", seed = 200,
-                                      ld_type = type), prop = 0.5, n_qtn = 3)
-    simplePHENOTYPES:::.ld_reported_qtn(ld, ld$layers[[1]])[[1]]
-  }
-  # direct reports the causal markers themselves
-  ld <- additive(simulate_phenotype(G, architecture = "ld", seed = 200,
-                                    ld_type = "direct"), prop = 0.5, n_qtn = 3)
-  expect_identical(mk("direct"), ld$layers[[1]]$qtn[[1]])
+test_that("direct ld reports the pair's own r2 inside the window", {
+  ld <- additive(simulate_phenotype(G, architecture = "ld", n_traits = 2,
+                                    seed = 200, ld_type = "direct"),
+                 prop = 0.5, n_qtn = 3)
+  ann <- ld$layers[[1]]$ld
+  # trait 1's and trait 2's causal SNPs are the pair, linked directly
+  expect_identical(ann$qtn_t1, ld$layers[[1]]$qtn[[1]])
+  expect_identical(ann$qtn_t2, ld$layers[[1]]$qtn[[2]])
+  expect_true(all(is.na(ann$cause)))
+  expect_true(all(ann$r2 >= 0.2 & ann$r2 <= 0.8))
 })
 
 # ---------------------------------------------------------------------------

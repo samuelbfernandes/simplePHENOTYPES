@@ -5,7 +5,7 @@ Version: 1.4.0-9001
 Title: Simulation of Pleiotropic, Linked and Epistatic Phenotypes
 Description: The number of studies involving correlated traits and the availability of tools to handle this type of data has increased considerably in the last decade. With such a demand, we need tools for testing hypotheses related to single and multi-trait (correlated) phenotypes based on many genetic settings. Thus, we implemented various options for simulation of pleiotropy and Linkage Disequilibrium under additive, dominance and epistatic models. The simulation currently takes a marker data set as an input and then uses it for simulating multiple traits as described in Fernandes and Lipka (2020) <doi:10.1186/s12859-020-03804-y>.
 Authors@R: c(
-    person("Samuel", "Fernandes", email = "samuelf@illinois.edu", role = c("aut", "cre"),		
+    person("Samuel", "Fernandes", email = "fernandessb101@gmail.com", role = c("aut", "cre"),
     	comment = c(ORCID = "0000-0001-8269-535X")),
     person("Alexander", "Lipka", email = "alipka@illinois.edu" , role = "aut",
     	comment = c(ORCID = "0000-0003-1571-8528"))
@@ -20,13 +20,15 @@ Imports:
     mvtnorm,
     stats,
     utils,
-    SNPRelate,
-    gdsfmt,
     rlang
 Suggests:
+    SNPRelate,
+    gdsfmt,
     knitr,
     rmarkdown,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    withr
+Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 VignetteBuilder: knitr
 URL: https://github.com/samuelbfernandes/simplePHENOTYPES

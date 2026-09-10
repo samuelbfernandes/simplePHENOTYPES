@@ -1,5 +1,11 @@
 #' Simulating vQTL
-#' @export
+#'
+#' Internal helper for the frozen legacy engine. It is called only from
+#' `create_phenotypes()` and takes objects built inside that call (`QTN`,
+#' `base_line_trait`), so it is not usable on its own. The user-facing
+#' variance-QTL function is the grammar layer [vqtl()].
+#' @keywords internal
+#' @noRd
 #' @import utils
 #' @import stats
 #' @importFrom rlang inform
@@ -29,8 +35,8 @@
 #' @references Fernandes, S.B., and Lipka, A.E., 2020 simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic
 #' SIMulation of Pleiotropic, Linked and Epistatic PHENOTYPES. BMC Bioinformatics 21(1):491,
 #' \doi{https://doi.org/10.1186/s12859-020-03804-y} \cr
-#' @author Matthew Murphy, Samuel B Fernandes and Alexander E Lipka
-#' Last update: APR 2, 2021
+#' @author Matthew Murphy, Samuel B Fernandes and Alexander E Lipka. Last update: APR 2, 2021
+#'
 
 vQTL <- function(QTN,
                  base_line_trait = NULL,
@@ -44,7 +50,9 @@ vQTL <- function(QTN,
                  fam = NULL,
                  to_r = NULL,
                  remove_add_effect = F) {
-  msg <- "Please cite Murphy et al. (2021) when simulating vQTLs!"
+  msg <- paste0("In addition to citing \"", "Fernandes, S.B., Lipka, A.E. simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic phenotypes. BMC Bioinformatics 21, 491 (2020). https://doi.org/10.1186/s12859-020-03804-y", "\" ",
+                "please cite Murphy et al. (2022), Heredity 129:93-102, ",
+                "doi:10.1038/s41437-022-00541-1 when simulating variance QTL (vQTLs).")
   rlang::inform(msg, .frequency = "once", .frequency_id = msg)
   base_line_trait <- scale(base_line_trait)
   if (output_format == "multi-file") {
@@ -187,7 +195,7 @@ vQTL <- function(QTN,
   print(h2)
   if(!remove_add_effect){cat("\nSample Heritability (Average of",
       rep,
-      " replications): \n[This value might be biased, please read Murphy et al. (2021)] \n")
+      " replications): \n[This value might be biased, please read Murphy et al. (2022)] \n")
   print(H2)
   }
   if (to_r) {

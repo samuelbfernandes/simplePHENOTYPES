@@ -1,27 +1,24 @@
 #' Calculate genetic value based on QTN objects.
-#' @keywords internal
-#' @param add_obj hhh
-#' @param dom_obj hhh
-#' @param epi_obj hhh
-#' @param add_effect hhh
-#' @param dom_effect = NULL,
-#' @param epi_effect kkkk
-#' @param epi_interaction = NULL,
-#' @param ntraits hhh
-#' @param cor hhh
-#' @param architecture hhh
+#' @param add_obj additive QTN object
+#' @param dom_obj dominance QTN object
+#' @param epi_obj epistatic QTN object
+#' @param add_effect additive effect sizes
+#' @param dom_effect dominance effect sizes
+#' @param epi_effect epistatic effect sizes
+#' @param epi_interaction markers per epistatic interaction
+#' @param ntraits number of traits
+#' @param cor genetic correlation
+#' @param architecture genetic architecture
 #' @param rep = 1,
 #' @param rep_by = 'QTN',
-#' @param add = NULL,
-#' @param dom = NULL,
+#' @param add additive flag
+#' @param dom dominance flag
 #' @param epi = NULL
-#' @param sim_method = NULL,
+#' @param sim_method effect-simulation method
 #' @param verbose = TRUE
 #' @return A matrix of Genetic values for multiple traits
 #' @author Samuel Fernandes
-#' Last update: Apr 20, 2020
-#'
-#'-------------------------------base_line_multi_traits-------------------------
+#' @keywords internal
 base_line_multi_traits <-
   function(add_obj = NULL,
            dom_obj = NULL,

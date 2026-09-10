@@ -17,7 +17,7 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: Samuel Fernandes \email{samuelf@illinois.edu} (\href{https://orcid.org/0000-0001-8269-535X}{ORCID})
+\strong{Maintainer}: Samuel Fernandes \email{fernandessb101@gmail.com} (\href{https://orcid.org/0000-0001-8269-535X}{ORCID})
 
 Authors:
 \itemize{

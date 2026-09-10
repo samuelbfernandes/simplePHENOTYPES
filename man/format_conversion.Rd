@@ -19,8 +19,7 @@ format_conversion(
   model = "Add",
   impute = "None",
   method = "frequency",
-  verbose = TRUE,
-  ...
+  verbose = TRUE
 )
 }
 \arguments{
@@ -64,17 +63,19 @@ minor = -1; default) or \code{"012"} (major = 2, het = 1, minor = 0).}
 \code{"reference"} (requires \code{ref_allele}).}
 
 \item{verbose}{Logical; print progress messages when \code{TRUE}.}
-
-\item{...}{Additional arguments (currently unused).}
 }
 \value{
 When \code{to_r = TRUE}: a data.frame with columns
-  \code{snp, allele, chr, pos, cm} followed by one column per sample.
-  When \code{to_r = FALSE}: \code{invisible(NULL)}.
+\code{snp, allele, chr, pos, cm} followed by one column per sample.
+When \code{to_r = FALSE}: \code{invisible(NULL)}.
 }
 \description{
 Convert genomic data between formats or to a numeric dosage matrix.
 }
+\seealso{
+\code{\link[=as_numeric]{as_numeric()}}, a shorthand for \code{to = "numeric"}.
+}
 \author{
 Samuel Fernandes
 }
+\keyword{internal}

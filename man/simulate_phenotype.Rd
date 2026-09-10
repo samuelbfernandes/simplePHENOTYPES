@@ -13,59 +13,101 @@ simulate_phenotype(
   vary_qtn = FALSE,
   seed = NULL,
   h2 = NULL,
+  mean = NULL,
+  individuals = NULL,
   model = "A",
   ...
 )
 }
 \arguments{
 \item{geno}{genotype input: a simplePHENOTYPES numeric-format data frame
-(first five columns `c("snp", "allele", "chr", "pos", "cm")`, e.g.
-[SNP55K_maize282_maf04]), an individuals-by-markers numeric matrix coded
--1/0/1, or a [Population][as_population()] from [cross()], [selfcross()] or
-[double_haploid()].}
+(first five columns \code{c("snp", "allele", "chr", "pos", "cm")}, e.g.
+\link{SNP55K_maize282_maf04}), an individuals-by-markers numeric matrix coded
+-1/0/1, or a \link[=as_population]{Population} from \code{\link[=cross]{cross()}}, \code{\link[=selfcross]{selfcross()}} or
+\code{\link[=double_haploid]{double_haploid()}}.}
 
-\item{architecture}{one of "independent", "pleiotropy", "ld".}
+\item{architecture}{one of "independent" (each trait its own QTNs),
+"pleiotropy" (shared QTNs with a controlled genetic correlation), or "ld"
+(two traits whose \emph{distinct} causal loci are in linkage disequilibrium, so
+they covary through linkage rather than pleiotropy; requires
+\code{n_traits = 2}).}
 
 \item{n_traits}{number of traits to simulate.}
 
-\item{n_qtn}{baseline QTN count; a per-layer `n_qtn` overrides it with a
+\item{n_qtn}{baseline QTN count; a per-layer \code{n_qtn} overrides it with a
 warning.}
 
 \item{n_reps}{number of replications.}
 
-\item{vary_qtn}{if `TRUE`, redraw QTNs each replication (not yet implemented;
-reserved).}
+\item{vary_qtn}{if \code{TRUE}, each replication (\code{n_reps}) draws an independent
+set of QTNs and effects, so replications are distinct genetic architectures
+rather than the same one with fresh residuals. Layers given an explicit
+\code{qtn} keep their fixed loci across replications.}
 
 \item{seed}{RNG seed stored on the object and threaded to every layer.}
 
-\item{h2}{optional target heritability for one-call simulation (see Details).}
+\item{h2}{optional requested genetic-variance share for one-call simulation.
+For a single mean-effect layer this is the simulated broad-sense
+heritability apart from finite-sample covariance with the residual. With
+multiple non-orthogonal layers, see Details and the reported realized h2.}
+
+\item{mean}{optional per-trait intercept added to the phenotype (scalar or
+length \code{n_traits}). Genetic values stay centered; only the phenotype is
+shifted.}
+
+\item{individuals}{optional subset of individuals to simulate, given as IDs
+or indices. Marker minor-allele frequencies are recomputed on the subset,
+and the genotypes are never copied -- only the selected rows are read.}
 
 \item{model}{one-call model string: "A" (additive, default), "AD"
 (additive + dominance), "AE" (additive + epistasis).}
 
-\item{...}{architecture-specific arguments. For "pleiotropy": `cor`,
-`pi_target`, `pi_secondary`, `n_pleio_major`, `prop_var_major`. For "ld":
-`ld_type`, `r2_max`, `r2_min`, `r2_method`.}
+\item{...}{architecture-specific arguments (validated -- an unknown name is
+an error, and an argument for a different architecture warns). For
+\code{"pleiotropy"}: \code{cor}, \code{pi} (or the two-trait \code{pi_target} /
+\code{pi_secondary}), \code{n_pleio_major}, \code{prop_var_major}. For \code{"ld"} (two traits
+only): \code{ld_type} (\code{"indirect"}/\code{"direct"}), \code{r2_min}, \code{r2_max} (the r2
+window the linked causal pair must fall in; see \code{\link[=qtn_table]{qtn_table()}}). For
+\code{"independent"}: \code{distinct_chr} (\code{TRUE} puts each trait's QTNs on disjoint
+chromosomes). \code{ld_type} defaults to \code{"direct"} (the two traits' causal SNPs
+are directly in LD).
+
+\code{cor} is the target \strong{genetic} correlation and works for any number of
+traits: a scalar applied to every trait pair, or a full
+\verb{n_traits x n_traits} matrix (negative correlations allowed). The request
+must be attainable -- the implied genetic covariance matrix has to be
+positive semi-definite, which for two traits is \code{cor^2 <= pi_1 * pi_2} --
+otherwise an error is raised rather than an approximation returned.
+Using \code{cor} prints a citation notice once per session.}
 }
 \value{
-a `phenotype_sim` object.
+a \code{phenotype_sim} object.
 }
 \description{
-`simulate_phenotype()` is the entry point of the composable v2 grammar. It
+\code{simulate_phenotype()} is the entry point of the composable v2 grammar. It
 fixes the genetic architecture and residual variance and returns a realized
-`phenotype_sim` object. With no genetic layers the trait is pure noise
-(broad-sense heritability h2 = 0); pipe it into [additive()], [dominance()],
-[epistasis()] and [vqtl()] to add genetic variance components, each expressed
-as a proportion of total phenotypic variance.
+\code{phenotype_sim} object. With no genetic layers the trait is pure noise
+(broad-sense heritability h2 = 0); pipe it into \code{\link[=additive]{additive()}}, \code{\link[=dominance]{dominance()}},
+\code{\link[=epistasis]{epistasis()}} to add mean-effect genetic components, and \code{\link[=vqtl]{vqtl()}} to add a
+genotype-dependent residual-variance component. Each layer is expressed as
+a requested marginal proportion of phenotypic variance.
 }
 \details{
 The pipe runs eagerly: every object already carries the realized phenotypes,
-so there is no terminal `simulate()` call.
+so there is no terminal \code{simulate()} call.
 
 One-call vs piped: if the call already carries a self-sufficient genetic
-specification (`h2` together with `n_qtn > 0`), `simulate_phenotype()` builds
+specification (\code{h2} together with \code{n_qtn > 0}), \code{simulate_phenotype()} builds
 the implied model and realizes a complete phenotype in a single call.
 Otherwise it returns the h2 = 0 foundation, ready to be completed with layers.
+
+Layer proportions are marginal sample variances after scaling. The simple
+-1/0/1 additive, heterozygote-indicator dominance, and centered-product
+epistatic designs are not a Fisher/NOIA-orthogonal decomposition. Their
+covariance can therefore make realized broad-sense heritability differ from
+the requested sum in a finite sample, especially when layers reuse linked
+loci. The object's print method reports realized H2 from the simulated
+genetic and phenotypic values rather than concealing that difference.
 }
 \examples{
 data("SNP55K_maize282_maf04")

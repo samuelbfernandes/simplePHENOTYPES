@@ -7,19 +7,22 @@
 complex_phenotypes(..., h2)
 }
 \arguments{
-\item{...}{two or more `phenotype_sim` objects.}
+\item{...}{two or more \code{phenotype_sim} objects.}
 
-\item{h2}{target heritability (scalar or length `n_traits`).}
+\item{h2}{requested genetic variance share (scalar or length \code{n_traits}).}
 }
 \value{
-a combined `phenotype_sim` (architecture "complex").
+a combined \code{phenotype_sim} (architecture "complex").
 }
 \description{
-`complex_phenotypes()` merges two or more realized `phenotype_sim` objects
+\code{complex_phenotypes()} merges two or more realized \code{phenotype_sim} objects
 built on the same genotypes with the same number of traits. The inputs'
 genetic values are summed (so each contributes in proportion to its genetic
-variance), a common residual is applied to reach the target heritability
-`h2`, and the inputs' individual residuals are discarded. This recreates
+variance), the sum is scaled to the requested genetic variance share \code{h2},
+and a common residual is added; the inputs' individual residuals are
+discarded. Realized H2 is reported from the resulting sample and can differ
+slightly because the generated genetic and residual vectors need not be
+exactly orthogonal. This recreates
 partial pleiotropy by combining, for example, a "pleiotropy" model with an
 "independent" model.
 }

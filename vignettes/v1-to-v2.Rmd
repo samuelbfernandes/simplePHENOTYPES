@@ -1,0 +1,284 @@
+---
+title: "Migrating from v1 create_phenotypes() to the v2 grammar"
+subtitle: Samuel B Fernandes and Alexander E Lipka
+author: "simplePHENOTYPES (`r Sys.Date()`)"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+    theme: spacelab
+    highlight: textmate
+
+vignette: >
+  %\VignetteIndexEntry{Migrating from v1 create_phenotypes() to the v2 grammar}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#",
+  fig.width = 7,
+  fig.height = 4
+)
+```
+
+```{r setup}
+library(simplePHENOTYPES)
+data("SNP55K_maize282_maf04")
+geno <- SNP55K_maize282_maf04
+```
+
+This vignette re-creates every example from the original (v1) README / vignette
+using the v2 grammar, so a v1 user can see the direct translation. The legacy
+`create_phenotypes()` is **still shipped** (frozen, bug-fix only) if you need
+bit-for-bit continuity with old scripts; everything below shows the *new* way.
+
+Two structural differences to keep in mind:
+
+- **Heritability emerges from variance proportions.** In v1 you set `h2` and
+  effect sizes; in v2 each layer takes a `prop` (share of phenotypic variance)
+  and the trait's h² is the sum of those proportions. You can still pass a target
+  `h2` to `simulate_phenotype()` for the one-call shortcut.
+- **`big_add_QTN_effect` is gone from the grammar** (it lives only in the frozen
+  `create_phenotypes()`). Give a large-effect QTN an explicit `effect` instead.
+
+# Single trait
+
+**v1**
+
+```{r v1-single, eval = FALSE}
+create_phenotypes(
+  geno_obj = SNP55K_maize282_maf04,
+  add_QTN_num = 3,
+  add_effect = 0.2,
+  big_add_QTN_effect = 0.9,
+  rep = 10,
+  h2 = 0.7,
+  model = "A",
+  home_dir = tempdir())
+```
+
+**v2** — an additive layer taking 70% of the variance over three QTNs. The
+one-call form (`h2` + `n_qtn`) is the closest analogue:
+
+```{r v2-single}
+ph <- simulate_phenotype(geno, h2 = 0.7, n_qtn = 3, n_reps = 10, seed = 1)
+ph
+```
+
+To reproduce the v1 "one big QTN plus a geometric tail", give the effects
+explicitly instead of `big_add_QTN_effect`:
+
+```{r v2-single-big}
+simulate_phenotype(geno, seed = 1) |>
+  additive(prop = 0.7, n_qtn = 3, effect = c(0.9, 0.2, 0.2^2))
+```
+
+# Pleiotropy
+
+In v1, three pleiotropic traits shared QTNs and the genetic correlation was an
+*uncontrolled* by-product of the per-trait effect sizes. **v2 lets you set the
+genetic correlation directly** (the PleioArch engine), which is the main reason
+to prefer the grammar here.
+
+**v1**
+
+```{r v1-pleio, eval = FALSE}
+create_phenotypes(
+  geno_obj = SNP55K_maize282_maf04,
+  add_QTN_num = 3, dom_QTN_num = 4,
+  big_add_QTN_effect = c(0.3, 0.3, 0.3),
+  h2 = c(0.2, 0.4, 0.4),
+  add_effect = c(0.04, 0.2, 0.1),
+  dom_effect = c(0.04, 0.2, 0.1),
+  ntraits = 3, rep = 10, architecture = "pleiotropic",
+  model = "AD", seed = 10, to_r = TRUE)
+```
+
+**v2** — additive + dominance on the same shared QTNs, three traits. Without
+`cor` the correlation is emergent (as in v1); with `cor` it is realized on
+target:
+
+```{r v2-pleio}
+ph <- simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 3,
+                         cor = 0.5, seed = 10) |>
+  additive(prop = 0.3, n_qtn = 3) |>
+  dominance(prop = 0.1, same_as_add = TRUE)
+round(cor(genetic_values(ph)), 2)
+```
+
+`cor` also accepts a full matrix for asymmetric targets:
+
+```{r v2-pleio-matrix}
+R <- matrix(c(1, 0.3, -0.5,
+              0.3, 1, -0.2,
+              -0.5, -0.2, 1), 3)
+simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 3,
+                   cor = R, seed = 10) |>
+  additive(prop = 0.4, n_qtn = 100) |>
+  genetic_values() |>
+  cor() |>
+  round(2)
+```
+
+# Partial pleiotropy
+
+v1 had a dedicated `architecture = "partially"`. **v2 builds it by combining a
+pleiotropic model (shared loci) with an independent model (trait-specific loci)
+via `complex_phenotypes()`** — which is exactly what "partial pleiotropy" means:
+some loci are shared, some are trait-specific.
+
+**v1**
+
+```{r v1-partial, eval = FALSE}
+cor_matrix <- matrix(c(1, 0.3, -0.9,
+                       0.3, 1, -0.5,
+                       -0.9, -0.5, 1), 3)
+create_phenotypes(
+  geno_obj = SNP55K_maize282_maf04,
+  ntraits = 3, pleio_a = 3,
+  trait_spec_a_QTN_num = c(4, 10, 1),
+  h2 = c(0.2, 0.4, 0.8),
+  cor = cor_matrix,
+  architecture = "partially", model = "A", rep = 20, to_r = TRUE)
+```
+
+**v2** — the shared (pleiotropic) component carries the correlation; the
+independent component adds trait-specific loci; `complex_phenotypes()` merges
+them under a common heritability:
+
+```{r v2-partial}
+cor_matrix <- matrix(c(1, 0.3, -0.9,
+                       0.3, 1, -0.5,
+                       -0.9, -0.5, 1), 3)
+
+shared <- simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 3,
+                             cor = cor_matrix, seed = 10) |>
+  additive(prop = 0.5, n_qtn = 3)
+
+specific <- simulate_phenotype(geno, architecture = "independent", n_traits = 3,
+                               seed = 10) |>
+  additive(prop = 0.5, n_qtn = 5)
+
+partial <- complex_phenotypes(shared, specific, h2 = c(0.2, 0.4, 0.8))
+partial
+```
+
+The realized correlation is now driven by the shared loci while each trait still
+carries its own private QTNs — the definition of partial pleiotropy. (A grammar
+layer uses one QTN count per call, so the v1 per-trait `trait_spec_a_QTN_num =
+c(4, 10, 1)` becomes a single `n_qtn` here; if you need different trait-specific
+counts, build one independent model per trait and combine them.)
+
+# Spurious pleiotropy (LD)
+
+v1's `architecture = "LD"` with `type_of_ld` maps directly onto v2's
+`architecture = "ld"`. The two traits get **distinct** causal loci that sit in
+linkage disequilibrium; `ld_type = "direct"` (the v2 default) links the two
+traits' causal SNPs to each other, `"indirect"` links each to a shared hidden
+cause-of-LD locus. `ld_max`/`ld_min` become `r2_max`/`r2_min`.
+
+**v1**
+
+```{r v1-ld, eval = FALSE}
+create_phenotypes(
+  geno_obj = SNP55K_maize282_maf04,
+  add_QTN_num = 3,
+  h2 = c(0.2, 0.4),
+  add_effect = c(0.02, 0.05),
+  rep = 5, seed = 200, architecture = "LD",
+  ld_max = 0.8, ld_min = 0.2, type_of_ld = "indirect", model = "A")
+```
+
+**v2**
+
+```{r v2-ld}
+ph_ld <- simulate_phenotype(geno, architecture = "ld", n_traits = 2,
+                            ld_type = "indirect", r2_max = 0.8, r2_min = 0.2,
+                            seed = 200) |>
+  additive(prop = c(0.2, 0.4), n_qtn = 3)
+
+# distinct causal loci per trait: QTN_t1 / QTN_t2 are the linked pair
+qtn_table(ph_ld)[, c("trait", "snp", "QTN_t1", "QTN_t2", "ld_r2")]
+```
+
+# Choosing the QTNs yourself
+
+v1 took a `QTN_list`; in v2 every layer accepts a `qtn` argument (marker names or
+indices). The other layers stay random.
+
+**v1**
+
+```{r v1-qtnlist, eval = FALSE}
+QTN_list <- list()
+QTN_list$add[[1]] <- c("ss196523212")
+QTN_list$dom[[1]] <- c("ss196510214", "ss196472187")
+QTN_list$epi[[1]] <- c("ss196530605", "ss196475446")
+create_phenotypes(
+  geno_obj = SNP55K_maize282_maf04,
+  add_QTN_num = 1, dom_QTN_num = 2, epi_QTN_num = 1, epi_interaction = 2,
+  h2 = 0.9, QTN_list = QTN_list, ntraits = 1, model = "ADE")
+```
+
+**v2** — pass the loci to each layer; `epistasis(qtn=)` takes an
+`n_pairs × interaction` matrix:
+
+```{r v2-qtnlist}
+simulate_phenotype(geno, seed = 1) |>
+  additive(prop = 0.5, qtn = "ss196523212") |>
+  dominance(prop = 0.2, qtn = c("ss196510214", "ss196472187")) |>
+  epistasis(prop = 0.2,
+            qtn = matrix(c("ss196530605", "ss196475446"), nrow = 1))
+```
+
+# Variance explained by each QTN
+
+v1 used `QTN_variance = TRUE`. In v2 the per-QTN variance is always available
+from `qtn_table()`:
+
+```{r v2-varexp}
+ph <- simulate_phenotype(geno, h2 = 0.6, seed = 1) |>
+  additive(prop = 0.4, n_qtn = 5) |>
+  dominance(prop = 0.2, same_as_add = TRUE)
+qtn_table(ph)[, c("trait", "layer", "snp", "effect", "var_explained")]
+```
+
+# Output formats
+
+v1 controlled output with `output_format` / `out_geno` / `to_r`. In v2 the object
+is always returned, and the exporters are separate:
+
+```{r v2-output, eval = FALSE}
+ph <- simulate_phenotype(geno, h2 = 0.5, n_qtn = 3, n_traits = 2, seed = 1)
+
+phenotypes_long(ph)                       # long (default), one row per id x trait x rep
+phenotypes_wide(ph)                        # wide, one column per trait
+write_phenotypes(ph, "pheno.txt")          # to disk (long)
+write_phenotypes(ph, "pheno_wide.csv", format = "wide", sep = ",")
+```
+
+# Reading genotypes from files
+
+v1 read files through `geno_obj` / `geno_file` / `geno_path`. In v2, convert to
+the numeric object once with `as_numeric()` (HapMap / VCF / GDS / PLINK / numeric)
+and pass it to `simulate_phenotype()`:
+
+```{r v2-files, eval = FALSE}
+num <- as_numeric("WGS_chrm_1.hmp.txt")    # or .vcf, .gds, .bed, ...
+simulate_phenotype(num, h2 = 0.2, n_qtn = 3, seed = 200)
+```
+
+# Not yet in the grammar
+
+A few v1 knobs do not have a grammar equivalent yet and remain only in the frozen
+`create_phenotypes()`:
+
+- **Residual correlation** (`cor_res`) — the grammar controls *genetic*
+  correlation (`cor`); a residual-correlation argument is planned but not yet
+  implemented.
+- **`big_add_QTN_effect`** — intentionally dropped (use an explicit `effect`).
+- **`architecture = "partially"`** as a single call — recreated with
+  `complex_phenotypes()`, as shown above.

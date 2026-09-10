@@ -24,10 +24,8 @@
 #' @param export_gt = FALSE
 #' @param verbose = verbose
 #' @return Genotype of selected SNPs
-#' @author Samuel Fernandes and Alexander Lipka
-#' Last update: Apr 20, 2020
+#' @author Samuel Fernandes and Alexander Lipka. Last update: Apr 20, 2020
 #'
-#'----------------------------- QTN_partially_pleiotropic ----------------------
 qtn_partially_pleiotropic <-
   function(genotypes = NULL,
            seed = NULL,

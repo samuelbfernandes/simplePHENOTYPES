@@ -13,6 +13,21 @@
 .HOMO <- c("A","AA","T","TT","C","CC","G","GG")
 .MISS <- c("N","NN","NA","--","XX","00","+","++"," ","")
 
+#' Install hint for the optional Bioconductor readers.
+#'
+#' SNPRelate and gdsfmt are in `Suggests` (they are Bioconductor, not CRAN), so
+#' they are only needed to read GDS / VCF / PLINK BED / PLINK PED. Every read
+#' site guards with `requireNamespace()` and raises this message when they are
+#' absent. HapMap, the numeric object, and a plain -1/0/1 matrix never need them.
+#' @noRd
+.gds_needed <- function(fmt) {
+  paste0("Reading ", fmt, " files needs the Bioconductor packages SNPRelate ",
+         "and gdsfmt, which are not installed. Install them with:\n",
+         "  if (!requireNamespace(\"BiocManager\", quietly = TRUE)) ",
+         "install.packages(\"BiocManager\")\n",
+         "  BiocManager::install(c(\"SNPRelate\", \"gdsfmt\"))")
+}
+
 #' Detect the genotype-data format of a file path or in-memory object.
 #'
 #' @param file Character file path, a data.frame/matrix, or a gds.class / vcfR
@@ -22,12 +37,20 @@
 #' @noRd
 detect_format <- function(file) {
   if (all(class(file) == "character")) {
-    upper <- toupper(file[[1]])
+    # Compressed text is handled transparently by data.table::fread(); strip a
+    # trailing .gz/.bz2 so the real extension is what drives detection.
+    upper <- sub("\\.(GZ|BZ2)$", "", toupper(file[[1]]))
     if (endsWith(upper, ".HMP.TXT")) return("hapmap")
     if (endsWith(upper, ".GDS"))     return("gds")
     if (endsWith(upper, ".VCF"))     return("vcf")
     if (endsWith(upper, ".BED"))     return("bed")
     if (endsWith(upper, ".PED"))     return("ped")
+    # Content sniff for text with a generic (or wrong) extension: VCF carries a
+    # "##fileformat=VCF" preamble and Illumina FinalReport an "[Header]" block,
+    # neither of which a header-name match would catch (fread would read the
+    # preamble, not the real column line).
+    sniff <- .sniff_text_signature(file[[1]])
+    if (!is.null(sniff)) return(sniff)
     if (endsWith(upper, ".TXT") || endsWith(upper, ".CSV")) {
       hdr <- tryCatch(
         data.table::fread(file[[1]], nrows = 0L, data.table = FALSE),
@@ -50,6 +73,27 @@ detect_format <- function(file) {
     return(.detect_df_format(as.data.frame(file)))
   }
   "unknown"
+}
+
+#' Sniff the first non-empty lines of a text file for a format signature.
+#'
+#' Catches formats whose extension may be generic (`.txt`) but whose content is
+#' unambiguous: a VCF `##fileformat=VCF...` preamble (or a `#CHROM POS ID REF ALT`
+#' header line) and an Illumina FinalReport `[Header]` block. Returns the format
+#' string, or `NULL` when nothing matches (so the caller falls back to
+#' header-name detection). Reads at most a handful of lines and never errors.
+#' @noRd
+.sniff_text_signature <- function(path) {
+  lines <- tryCatch(
+    readLines(path, n = 40L, warn = FALSE),
+    error = function(e) character(0)
+  )
+  if (!length(lines)) return(NULL)
+  lines <- trimws(lines)
+  if (any(grepl("^##fileformat=VCF", lines, ignore.case = TRUE))) return("vcf")
+  if (any(grepl("^#CHROM\t|^#CHROM ", lines))) return("vcf")
+  if (any(grepl("^\\[Header\\]", lines, ignore.case = TRUE))) return("finalreport")
+  NULL
 }
 
 .detect_df_format <- function(df) {
@@ -86,10 +130,13 @@ detect_format <- function(file) {
 #'
 #' @param geno_mat Character matrix (SNPs × samples) from a HapMap file
 #'   (columns 12: after the 11 metadata columns).
+#' @param allele1 optional allele-1 label from the HapMap `alleles` field. When
+#'   supplied, raw dosage 0 is anchored to that allele rather than to the most
+#'   frequent homozygote. This is required for reference-based orientation.
 #' @return Integer matrix (SNPs × samples): 0 = hom allele-1, 1 = het,
 #'   2 = hom allele-2, NA_integer_ = missing.
 #' @noRd
-parse_hapmap_chars_to_raw <- function(geno_mat) {
+parse_hapmap_chars_to_raw <- function(geno_mat, allele1 = NULL) {
   n_snp  <- nrow(geno_mat)
   n_samp <- ncol(geno_mat)
   raw    <- matrix(NA_integer_, nrow = n_snp, ncol = n_samp)
@@ -115,11 +162,18 @@ parse_hapmap_chars_to_raw <- function(geno_mat) {
       next
     }
 
-    allele1 <- names(counts)[1L]  # most frequent homozygote = allele-1
+    first <- if (is.null(allele1)) {
+      names(counts)[1L]
+    } else {
+      a <- as.character(allele1[[i]])
+      candidates <- c(a, paste0(a, a))
+      hit <- candidates[candidates %in% hom_vals]
+      if (length(hit)) hit[[1L]] else candidates[[1L]]
+    }
 
-    raw[i, row == allele1] <- 0L
+    raw[i, row == first] <- 0L
     raw[i, is_het]         <- 1L
-    raw[i, is_hom & row != allele1] <- 2L
+    raw[i, is_hom & row != first] <- 2L
     # missing stays NA_integer_
   }
   raw
@@ -127,7 +181,8 @@ parse_hapmap_chars_to_raw <- function(geno_mat) {
 
 #' Compute per-SNP flip flags from a raw 0/1/2 dosage matrix.
 #'
-#' flip[i] = TRUE when allele-2 (raw 2) is more frequent than allele-1 (raw 0).
+#' `flip[i] = TRUE` when allele-2 (raw 2) is more frequent than allele-1
+#' (raw 0).
 #' This is used to ensure that numericalize_core() assigns major_val to the
 #' more common homozygote.
 #'
@@ -140,12 +195,18 @@ parse_hapmap_chars_to_raw <- function(geno_mat) {
 #' @noRd
 compute_flip <- function(raw, method = "frequency",
                          allele1 = NULL, ref = NULL) {
+  method <- match.arg(method, c("frequency", "reference"))
   if (method == "reference") {
     if (is.null(ref)) {
       stop(
         'method = "reference" requires the ref_allele argument.',
         call. = FALSE
       )
+    }
+    if (is.null(allele1) || length(allele1) != nrow(raw) ||
+        length(ref) != nrow(raw) || anyNA(allele1) || anyNA(ref)) {
+      stop("`allele1` and `ref_allele` must be complete vectors with one ",
+           "entry per marker.", call. = FALSE)
     }
     # flip when allele1 does NOT match the reference (ref is major → allele1
     # should be treated as major, so no flip needed when allele1 == ref).

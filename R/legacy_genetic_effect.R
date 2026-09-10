@@ -12,10 +12,8 @@
 #' @param dom = NULL,
 #' @param epi = NULL
 #' @return A vector of Genetic values
-#' @author Samuel Fernandes
-#' Last update: Apr 20, 2020
+#' @author Samuel Fernandes. Last update: Apr 20, 2020
 #'
-#'-----------------------------genetic_effect----------------------------
 genetic_effect <-
   function(add_obj = NULL,
            dom_obj = NULL,

@@ -43,8 +43,8 @@
 #'   a named vector (names matching `chr` values), an unnamed vector in the
 #'   order chromosomes first appear, or `NULL` (default) to place each
 #'   centromere at the midpoint of its chromosome's span.
-#' @param suppression strength of pericentromeric suppression, between 0 (a
-#'   uniform map) and 1 (essentially no recombination at the centromere).
+#' @param suppression strength of pericentromeric suppression, from 0 (a
+#'   uniform map) up to, but not including, 1.
 #' @param width width of the suppressed region as a fraction of the chromosome
 #'   span.
 #' @return A numeric vector of centiMorgan positions, one per marker, starting
@@ -66,6 +66,10 @@ synthetic_map <- function(chr,
                           centromere = NULL,
                           suppression = 0.85,
                           width = 0.15) {
+  if (!is.null(total_cm) && !missing(cm_per_mb)) {
+    stop("Supply either `total_cm` or `cm_per_mb`, not both; `cm_per_mb` is ",
+         "used only when `total_cm` is NULL.", call. = FALSE)
+  }
   if (length(chr) != length(pos)) {
     stop("`chr` and `pos` must have the same length; got ", length(chr),
          " and ", length(pos), ".", call. = FALSE)
@@ -73,10 +77,23 @@ synthetic_map <- function(chr,
   if (anyNA(chr) || anyNA(pos)) {
     stop("`chr` and `pos` must not contain NA.", call. = FALSE)
   }
-  if (suppression < 0 || suppression >= 1) {
+  if (!length(chr)) {
+    stop("`chr` and `pos` must contain at least one marker.", call. = FALSE)
+  }
+  if (!is.numeric(pos) || any(!is.finite(pos)) || any(pos < 0)) {
+    stop("`pos` must contain finite, non-negative numeric positions.",
+         call. = FALSE)
+  }
+  if (!is.numeric(cm_per_mb) || length(cm_per_mb) != 1L ||
+      !is.finite(cm_per_mb) || cm_per_mb <= 0) {
+    stop("`cm_per_mb` must be one finite positive number.", call. = FALSE)
+  }
+  if (!is.numeric(suppression) || length(suppression) != 1L ||
+      !is.finite(suppression) || suppression < 0 || suppression >= 1) {
     stop("`suppression` must be in [0, 1); got ", suppression, ".", call. = FALSE)
   }
-  if (width <= 0) {
+  if (!is.numeric(width) || length(width) != 1L || !is.finite(width) ||
+      width <= 0) {
     stop("`width` must be positive; got ", width, ".", call. = FALSE)
   }
 
@@ -100,7 +117,16 @@ synthetic_map <- function(chr,
     span <- max(p) - min(p)
     len_cm <- if (!is.null(target)) target[[k]] else cm_per_mb * span / 1e6
 
-    if (length(p) == 1L || span == 0 || len_cm <= 0) {
+    if (!is.finite(len_cm) || len_cm < 0) {
+      stop("The target genetic length for chromosome ", chr_levels[[k]],
+           " must be finite and non-negative.", call. = FALSE)
+    }
+
+    if ((length(p) == 1L || span == 0) && len_cm > 0) {
+      stop("Chromosome ", chr_levels[[k]], " has no physical span, so a ",
+           "positive `total_cm` cannot be represented.", call. = FALSE)
+    }
+    if (length(p) == 1L || span == 0 || len_cm == 0) {
       # A single marker, or all markers co-located: no genetic distance to
       # distribute. L = 0 makes rpois() draw no crossovers, which is correct.
       cm[idx] <- 0
@@ -108,6 +134,11 @@ synthetic_map <- function(chr,
     }
 
     centre <- if (!is.null(centro)) centro[[k]] else min(p) + span / 2
+    if (!is.finite(centre) || centre < min(p) || centre > max(p)) {
+      stop("The centromere for chromosome ", chr_levels[[k]],
+           " must be finite and fall within its physical span [", min(p),
+           ", ", max(p), "].", call. = FALSE)
+    }
     rate <- 1 - suppression * exp(-0.5 * ((p - centre) / (width * span))^2)
 
     # Trapezoidal integration of the rate across marker intervals: equal
@@ -132,19 +163,26 @@ synthetic_map <- function(chr,
   }
   n_chr <- length(chr_levels)
   if (!is.null(names(x))) {
+    extra <- setdiff(names(x), as.character(chr_levels))
+    if (length(extra)) {
+      stop("`", arg, "` has entries for chromosome(s) not present in `chr`: ",
+           paste(extra, collapse = ", "), ".", call. = FALSE)
+    }
     missing <- setdiff(as.character(chr_levels), names(x))
     if (length(missing)) {
       stop("`", arg, "` is missing entries for chromosome(s): ",
            paste(missing, collapse = ", "), ".", call. = FALSE)
     }
-    return(unname(x[as.character(chr_levels)]))
-  }
-  if (length(x) == 1L) {
-    return(rep(x, n_chr))
-  }
-  if (length(x) != n_chr) {
+    x <- unname(x[as.character(chr_levels)])
+  } else if (length(x) == 1L) {
+    x <- rep(x, n_chr)
+  } else if (length(x) != n_chr) {
     stop("`", arg, "` must have length 1 or one entry per chromosome (",
          n_chr, "); got ", length(x), ".", call. = FALSE)
+  }
+  if (!is.numeric(x) || any(!is.finite(x))) {
+    stop("`", arg, "` must contain only finite numeric values.",
+         call. = FALSE)
   }
   x
 }

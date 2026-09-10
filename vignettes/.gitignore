@@ -1,2 +1,3 @@
-simplePHENOTYPES.html
-simplePHENOTYPES.R
+*.R
+*.html
+*_cache/

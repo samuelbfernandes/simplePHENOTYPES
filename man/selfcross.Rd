@@ -7,18 +7,18 @@
 selfcross(parent, n = 1, seed = NULL)
 }
 \arguments{
-\item{parent}{a single-individual `Population`.}
+\item{parent}{a single-individual \code{Population}.}
 
 \item{n}{number of progeny.}
 
-\item{seed}{optional RNG seed. All randomness is drawn in R, so `set.seed()`
+\item{seed}{optional RNG seed. All randomness is drawn in R, so \code{set.seed()}
 before the call works equally well.}
 }
 \value{
-A `Population` of `n` progeny.
+A \code{Population} of \code{n} progeny.
 }
 \description{
-Produces `n` progeny by selfing: both gametes come from independent meioses
+Produces \code{n} progeny by selfing: both gametes come from independent meioses
 of the same individual. Selfing a heterozygous individual halves
 heterozygosity each generation, so repeated selfing drives a line toward
 homozygosity.
@@ -30,6 +30,11 @@ f1 <- cross(pop[1], pop[2], n = 1, seed = 1)
 f2 <- selfcross(f1, n = 10, seed = 2)
 f2
 }
+\references{
+Toledo, F.H., Perez-Rodriguez, P., Crossa, J. and Burgueno, J. (2019). isqg:
+A Binary Framework for in Silico Quantitative Genetics. \emph{G3
+Genes|Genomes|Genetics} 9(8), 2425--2428. \doi{10.1534/g3.119.400373}
+}
 \seealso{
-[cross()], [double_haploid()]
+\code{\link[=cross]{cross()}}, \code{\link[=double_haploid]{double_haploid()}}
 }

@@ -1,0 +1,342 @@
+---
+title: "Simulating breeding populations"
+author: "simplePHENOTYPES"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 2
+vignette: >
+  %\VignetteIndexEntry{Simulating breeding populations}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#")
+```
+
+```{r setup}
+library(simplePHENOTYPES)
+data("SNP55K_maize282_maf04")
+geno <- SNP55K_maize282_maf04
+```
+
+simplePHENOTYPES can simulate meiosis directly, which means you can build a
+pedigree from real founder genotypes: cross two lines, self the offspring,
+produce doubled haploids, and then simulate phenotypes on the result.
+
+These functions implement the algorithms from the `isqg` package, reimplemented
+in Rust. Recombination follows the Karlin & Liberman count-location model: the
+number of crossovers on a chromosome is Poisson with mean equal to its length in
+Morgans, crossover positions are uniform along it, and chromosomes assort
+independently.
+
+There are four functions to learn:
+
+| Function | What it does |
+|---|---|
+| `as_population()` | turns genotype data into phased founders |
+| `cross()` | mates two individuals |
+| `selfcross()` | self-pollinates one individual |
+| `double_haploid()` | makes fully homozygous progeny in one step |
+
+# Before you start: you need a genetic map
+
+Meiosis is driven by *genetic* distance, in centiMorgans, not physical distance
+in base pairs. Two markers 1 Mb apart may recombine freely or almost never,
+depending on where they sit relative to the centromere.
+
+The genetic map lives in the `cm` column of your genotype data:
+
+```{r map-check}
+aggregate(cm ~ chr, data = geno, FUN = max)
+```
+
+If yours is empty, `as_population()` will stop and tell you so. Build one with
+`synthetic_map()`:
+
+```{r map-build, eval = FALSE}
+geno$cm <- synthetic_map(geno$chr, geno$pos)
+```
+
+The map bundled with this data set is synthetic — a model, not a measured maize
+linkage map. See `vignette("genetic-maps")` for how it is built, how to tune it,
+and how to substitute a real map.
+
+# Founders
+
+`as_population()` converts genotype data into a `Population`: the phased
+representation meiosis needs. Pick your founders with `individuals`.
+
+```{r founders}
+pop <- as_population(geno, individuals = c("33-16", "38-11"))
+pop
+```
+
+A dosage matrix says an individual is heterozygous but not *which* homologue
+carries which allele, so heterozygotes are phased arbitrarily. For an inbred
+panel like this one that is nearly lossless, because heterozygotes are rare. For
+outbred material it is a real assumption — see `?as_population`.
+
+## Working with a Population
+
+```{r pop-basics}
+n_individuals(pop)
+pop[1]                       # subset individuals
+dim(dosages(pop))            # markers x individuals, coded -1/0/1
+dosages(pop)[1:4, ]
+```
+
+`dosages()` collapses the phased haplotypes back to the familiar -1 / 0 / 1
+coding: `-1` and `1` are the two homozygotes, `0` is a heterozygote.
+
+# Your first cross
+
+`cross()` mates two individuals. Each parent must be a *single* individual, so
+subset with `[` if your population holds more.
+
+```{r f1}
+f1 <- cross(pop[1], pop[2], n = 1, seed = 11)
+f1
+```
+
+The markers worth watching are the ones that can tell the founders apart: both
+founders homozygous, and for *different* alleles. At those the F1 must be
+heterozygous, because it received one homologue from each parent.
+
+```{r f1-het}
+d_pop <- dosages(pop)
+informative <- which(d_pop[, 1] != d_pop[, 2] & d_pop[, 1] != 0 & d_pop[, 2] != 0)
+length(informative)
+
+all(dosages(f1)[informative, 1] == 0)
+```
+
+Requiring both founders to be homozygous matters. A locus where one founder is
+heterozygous also "differs" between them, but the F1 there is heterozygous only
+half the time, and including such loci quietly blurs every ratio that follows.
+
+Ask for more progeny with `n`. Each is an independent draw, so full sibs differ:
+
+```{r f1-many}
+sibs <- cross(pop[1], pop[2], n = 5, seed = 12)
+sibs
+```
+
+# Selfing
+
+`selfcross()` pollinates an individual with itself. Both gametes come from
+independent meioses of the same plant, so an F2 segregates:
+
+```{r f2}
+f2 <- selfcross(f1, n = 200, seed = 13)
+f2
+```
+
+At the informative markers the classic 1:2:1 ratio appears:
+
+```{r f2-segregation}
+round(prop.table(table(dosages(f2)[informative, ])), 3)
+```
+
+# Doubled haploids
+
+`double_haploid()` takes a single gamete and doubles it, producing a completely
+homozygous individual in one generation. This is the fast route to a fixed line:
+
+```{r dh}
+dh <- double_haploid(f1, n = 200, seed = 14)
+
+any(dosages(dh) == 0)                                    # no heterozygotes at all
+round(prop.table(table(dosages(dh)[informative, ])), 3)  # 1:1
+```
+
+# Backcrossing
+
+A backcross is just a cross back to one of the parents — there is no separate
+function:
+
+```{r backcross}
+bc1 <- cross(f1, pop[1], n = 100, seed = 15)
+```
+
+Every BC1 gets one gamete from the recurrent parent, so at an informative locus
+it is either homozygous for that parent or still heterozygous — never homozygous
+for the donor. Counting how many of the two alleles came from the recurrent
+parent:
+
+```{r backcross-alleles}
+recurrent <- dosages(pop[1])[informative, 1]
+d_bc <- dosages(bc1)[informative, ]
+
+n_recurrent <- ifelse(d_bc == recurrent, 2, ifelse(d_bc == 0, 1, 0))
+round(prop.table(table(n_recurrent)), 3)
+
+mean(n_recurrent) / 2   # fraction of the genome from the recurrent parent
+```
+
+Half the loci are fixed for the recurrent parent and half are heterozygous, which
+works out to 75% of alleles — the familiar backcross arithmetic (50% from its own
+gamete, plus half of the F1's 50%).
+
+# Recurrent selfing: from an F1 to inbred lines
+
+Repeated selfing halves heterozygosity each generation. Single-seed descent is a
+loop — advance each line by selfing one plant per generation:
+
+```{r ssd}
+het_of <- function(x) mean(dosages(x)[informative, 1] == 0)
+
+set.seed(7)
+lines <- vector("list", 20)                              # 20 independent F2 lines
+for (i in seq_along(lines)) lines[[i]] <- selfcross(f1, n = 1)
+
+het <- numeric(6)
+het_all <- function(pop_list) {
+  out <- numeric(length(pop_list))
+  for (i in seq_along(pop_list)) out[i] <- het_of(pop_list[[i]])
+  out
+}
+
+het[1] <- mean(het_all(lines))
+for (g in 2:6) {
+  for (i in seq_along(lines)) lines[[i]] <- selfcross(lines[[i]], n = 1)
+  het[g] <- mean(het_all(lines))
+}
+
+data.frame(
+  generation = paste0("F", 2:7),
+  heterozygosity = round(het, 3),
+  expected = round(0.5^(1:6), 3)
+)
+```
+
+Averaged across lines, heterozygosity halves each generation, as theory says it
+should. After six generations the lines are essentially fixed — the same endpoint
+`double_haploid()` reaches in one step, which is why doubled haploids are
+attractive when the technology exists for your crop.
+
+Note the averaging. Any *single* line is a poor estimate of the expectation,
+because heterozygosity is not scattered locus by locus — it survives in long
+chromosomal blocks, so a genome carries far fewer independent pieces of
+information than it has markers:
+
+```{r ssd-spread}
+round(range(het_all(lines)), 3)
+```
+
+At F7 individual lines range from essentially fixed to several percent
+heterozygous. That spread is real biology, not simulation noise, and it is why
+breeding programmes carry many lines rather than one.
+
+# Checking the simulation is doing what you think
+
+Segregation ratios confirm the alleles are being transmitted correctly, but they
+say nothing about *linkage*. To check recombination you have to ask which parent
+each locus came from.
+
+Doubled haploids make this easy: they are homozygous, so their allele names the
+founder it came from directly.
+
+```{r linkage}
+on_chr1 <- geno$chr == 1
+p1 <- dosages(pop[1])[on_chr1, 1]
+p2 <- dosages(pop[2])[on_chr1, 1]
+
+# Informative loci: both founders homozygous, for different alleles.
+inf1 <- which(p1 != p2 & p1 != 0 & p2 != 0)
+cm1 <- geno$cm[on_chr1][inf1]
+
+from_p1 <- dosages(dh)[on_chr1, ][inf1, ] == p1[inf1]
+
+pick <- c(5, 20, 100, 400)
+data.frame(
+  distance_cM   = round(cm1[pick] - cm1[1], 1),
+  recombination = round(rowMeans(from_p1[pick, ] != from_p1[rep(1, 4), ]), 3),
+  haldane       = round((1 - exp(-2 * (cm1[pick] - cm1[1]) / 100)) / 2, 3)
+)
+```
+
+The observed recombination fractions track Haldane's map function,
+$(1 - e^{-2d})/2$ at distance $d$ Morgans. Nearby loci travel together, distant
+ones approach one half — and never exceed it, because a recombination fraction
+above 0.5 is impossible.
+
+This check is worth remembering: it is sensitive to bugs that segregation ratios
+cannot see. An earlier version of this package reconstructed progeny phase from
+dosages, which silently produced haplotypes the founders never had. F2 and DH
+ratios still looked perfect; the recombination fractions came out at 0.99, which
+is what exposed it.
+
+# Reproducibility
+
+All randomness is drawn by R, so a pedigree is exactly reproducible. Either pass
+`seed`, or set one beforehand:
+
+```{r seeds}
+a <- selfcross(f1, n = 5, seed = 99)
+b <- selfcross(f1, n = 5, seed = 99)
+identical(dosages(a), dosages(b))
+
+set.seed(99)
+c1 <- selfcross(f1, n = 5)
+set.seed(99)
+c2 <- selfcross(f1, n = 5)
+identical(dosages(c1), dosages(c2))
+```
+
+# Phenotyping a pedigree
+
+A `Population` is accepted anywhere `simulate_phenotype()` takes genotype data,
+so you can go straight from pedigree to phenotype:
+
+```{r phenotype}
+ph <- simulate_phenotype(f2, seed = 21) |>
+  additive(prop = 0.6, n_qtn = 5)
+ph
+
+head(phenotypes_long(ph))
+```
+
+This is the natural way to simulate a mapping population: build the pedigree,
+then lay a genetic architecture over it. See `vignette("simplePHENOTYPES-v2")`
+for the full grammar.
+
+# A complete example
+
+Putting it together — a biparental doubled-haploid mapping population with a
+simulated trait:
+
+```{r complete}
+founders <- as_population(geno, individuals = c("33-16", "38-11"))
+f1_line  <- cross(founders[1], founders[2], n = 1, seed = 1)
+dh_pop   <- double_haploid(f1_line, n = 150, seed = 2)
+
+trait <- simulate_phenotype(dh_pop, seed = 3) |>
+  additive(prop = 0.5, n_qtn = 10)
+
+n_individuals(dh_pop)
+head(phenotypes_wide(trait))
+```
+
+# Common problems
+
+**"`mother` must contain exactly one individual"** — the mating functions take
+one individual at a time. Subset with `[`: `cross(pop[1], pop[2])`, not
+`cross(pop, pop)`.
+
+**"The genetic map (`cm`) is all NA"** — meiosis needs recombination distances.
+Build a map with `synthetic_map()` first.
+
+**"`cm` must be non-decreasing within each chromosome"** — sort your markers by
+chromosome and position before converting.
+
+**Progeny look unexpectedly similar to one parent** — check how many markers are
+actually informative. Two founders that share an allele at a locus produce
+progeny that are uninformative there no matter how meiosis went.
+
+# Session information
+
+```{r session}
+sessionInfo()
+```

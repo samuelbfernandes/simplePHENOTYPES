@@ -2,7 +2,8 @@
 #' architectures.
 #'
 #' @description
-#' \strong{[Superseded]} `create_phenotypes()` is the frozen v1 engine, retained
+#' \strong{Superseded.} `create_phenotypes()` is the frozen original engine,
+#' retained
 #' unchanged for backward compatibility (full v1 signature, legacy seed
 #' arithmetic, and `RNGversion("3.5.1")`). It is bugfix-only and is \emph{not} a
 #' wrapper over the v2 grammar (the two implementations coexist). For new work
@@ -12,8 +13,6 @@
 #' @import utils
 #' @import stats
 #' @importFrom data.table fwrite fread
-#' @importFrom SNPRelate snpgdsOpen snpgdsLDpair snpgdsClose snpgdsCreateGeno
-#' @importFrom gdsfmt read.gdsn index.gdsn ls.gdsn
 #' @param geno_obj Marker data set loaded as an R object.
 #' Currently either HapMap or numericalized files
 #' (code as aa = -1, Aa = 0 and AA = 1, e.g. `data("SNP55K_maize282_maf04")`)
@@ -36,7 +35,7 @@
 #' @param rep The number of experiments (replicates of a trait with the same
 #' genetic architecture) to be simulated.
 #' @param ntraits The number of multi-trait phenotypes to simulate under
-#' pleiotropic, partially [pleiotropic], and LD (spurious pleiotropy)
+#' pleiotropic, partially pleiotropic, and LD (spurious pleiotropy)
 #' architectures (see `architecture`). If not assigned, a single trait will be
 #' simulated. Currently, the only option for the LD architecture is
 #' `ntraits = 2`.
@@ -65,7 +64,7 @@
 #' additive epistasis are simulated) QTNs to be simulated.
 #' @param var_QTN_num The number of variance quantitative trait nucleotides
 #' (QTNs) to be simulated.
-#' @param epi_type to be implemented...
+#' @param epi_type reserved for future epistasis types; currently unused.
 #' @param epi_interaction Number of markers that compose an epistatic QTN. 
 #' If `epi_interaction = 2` (default), a 2-way interaction (marker1 x marker2) will be 
 #' used to simulate epistatic QTNs. If `epi_interaction = 3` a 3-way interaction (marker1 x marker2 x marker3) will be used instead.
@@ -92,7 +91,7 @@
 #' to `ntraits`.
 #' @param add_effect Additive effect size to be simulated. It may be either
 #' a vector (assuming `ntraits` = 1 or one allelic effect per trait to create a
-#' geometric series [`sim_method = "geometric"`]) or a list
+#' geometric series, `sim_method = "geometric"`) or a list
 #' of length = `ntraits`, i.e., if `ntraits` > 1, a list with one vector of
 #' additive effects should be provided for each trait. Unless
 #' `big_add_QTN_effect` is provided, the length of each vector
@@ -168,8 +167,14 @@
 #' used will be `round( (123 * 21 * 21) * 2)`. The master seed (unique value required to reproduce  results) is saved at the top of the log file. Unless verbose = FALSE the actual seed used in every  simulation is exported along with simulated phenotypes.
 #' @param home_dir Directory where files should be saved. It may be
 #' home_dir = getwd().
-#' @param output_dir Name to be used to create a folder inside `home_dir` and
-#' save output files.
+#' @param output_dir Name of the folder created inside `home_dir` to hold this
+#' run's output files. A single run writes several files (phenotypes, selected
+#' QTNs, genetic values and a log), so they are always collected in a folder of
+#' their own rather than written loose. Defaults to
+#' `"simplePHENOTYPES_output"`; if that folder already exists, a numbered
+#' variant such as `simplePHENOTYPES_output(1)` is created so earlier results
+#' are never overwritten. Use `output_dir = ""` to write directly into
+#' `home_dir`, which was the behavior before version 2.0.
 #' @param export_gt If TRUE genotypes of selected QTNs will be saved at file.
 #' If FALSE (default), only the QTN information will be saved.
 #' @param output_format Four options are available for saving simulated
@@ -191,7 +196,7 @@
 #' @param remove_QTN Whether or not a copy of the genotypic file should be saved
 #' without the simulated QTNs. The default is FALSE. If `vary_QTN = TRUE`, the
 #' question "Are you sure that you want to save one genotypic file/rep
-#' (remove_QTN = TRUE and vary_QTN = TRUE) [type yes or no] ?" will pop up to
+#' (remove_QTN = TRUE and vary_QTN = TRUE) (type yes or no) ?" will pop up to
 #' avoid saving multiple large files unintentionally
 #' @param warning_file_saver Skips the interactive question and saves all files
 #' when `remove_QTN = TRUE` and `vary_QTN = TRUE`.
@@ -230,8 +235,7 @@
 #' @references Fernandes, S.B., and Lipka, A.E., 2020 simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic
 #' SIMulation of Pleiotropic, Linked and Epistatic PHENOTYPES. BMC Bioinformatics 21(1):491,
 #' \doi{https://doi.org/10.1186/s12859-020-03804-y} \cr
-#' @author Samuel B Fernandes and Alexander E Lipka
-#' Last update: Jan 19, 2021
+#' @author Samuel B Fernandes and Alexander E Lipka. Last update: Jan 19, 2021
 #' @examples
 #' # Simulate 50 replications of a single phenotype.
 #' data("SNP55K_maize282_maf04")
@@ -319,6 +323,15 @@ create_phenotypes <-
            RNGversion = '3.5.1'
            ) {
     # -------------------------------------------------------------------------
+    # The frozen legacy engine uses SNPRelate/gdsfmt throughout (LD selection,
+    # BED/GDS/GEMMA output, and the on.exit GDS cleanup), so it requires them
+    # even though they are only Suggests for the package as a whole. The v2
+    # grammar (simulate_phenotype()) does not, and installs without them.
+    if (!requireNamespace("SNPRelate", quietly = TRUE) ||
+        !requireNamespace("gdsfmt", quietly = TRUE)) {
+      stop(.gds_needed("create_phenotypes() (the legacy engine)"),
+           call. = FALSE)
+    }
     check_in(geno_obj = geno_obj,
                      geno_file = geno_file,
                      geno_path = geno_path,
@@ -447,9 +460,11 @@ create_phenotypes <-
       }
       if (is.null(input_format))
         input_format <- "numeric"
-      if (!is.null(output_dir)) {    
+      # check_in() defaults output_dir to a folder name, so results are
+      # collected in one place; output_dir = "" opts back into home_dir.
+      if (!is.null(output_dir) && nzchar(output_dir)) {
         path_out <- tempdir
-        dir.create(path_out)
+        dir.create(path_out, recursive = TRUE, showWarnings = FALSE)
         setwd(path_out)
       } else {
         path_out <- home_dir
@@ -511,7 +526,7 @@ create_phenotypes <-
             verbose = F,
             snpfirstdim = F
           ), silent = TRUE)
-          if (class(try_bed) == "try-error") {
+          if (inherits(try_bed, "try-error")) {
             stop(
               "Conversion to Bed files failed, probably because of chromosome names. Try using \'chr_prefix\' to remove the prefix and have names as numbers.",
               call. = F
@@ -838,7 +853,7 @@ create_phenotypes <-
             if (rep_by == "QTN" |
                 architecture == "partially" |
                 architecture == "LD") {
-              if (class(QTN$add_ef_trait_obj[[1]]) == "matrix") {
+              if (inherits(QTN$add_ef_trait_obj[[1]], "matrix")) {
                 hets <- lapply(QTN$add_ef_trait_obj,
                                function(x) {
                                  f <- apply(x, 2, function(b) {
@@ -872,7 +887,7 @@ create_phenotypes <-
           } else {
             if (rep_by == "QTN" |
                 architecture != "pleiotropic") {
-              if (class(QTN$dom_ef_trait_obj[[1]]) == "matrix") {
+              if (inherits(QTN$dom_ef_trait_obj[[1]], "matrix")) {
                 hets <- lapply(QTN$dom_ef_trait_obj,
                                function(x) {
                                  f <- apply(x, 2, function(b) {

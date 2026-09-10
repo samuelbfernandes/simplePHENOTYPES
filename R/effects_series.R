@@ -17,6 +17,13 @@
   if (n <= 0) {
     return(numeric(0))
   }
+  if (!is.character(dist) || length(dist) != 1L || is.na(dist)) {
+    stop("`dist` must be one non-missing character value.", call. = FALSE)
+  }
+  if (!is.null(effect) &&
+      (!is.numeric(effect) || any(!is.finite(effect)))) {
+    stop("`effect` must contain only finite numeric values.", call. = FALSE)
+  }
   if (!is.null(effect) && length(effect) == n && n > 1) {
     return(as.numeric(effect))
   }
@@ -43,7 +50,7 @@
 #' Draw a residual vector to hit a target residual variance proportion
 #'
 #' Assumes total phenotypic variance is scaled to 1, so the residual variance
-#' equals `1 - sum(genetic proportions)`. RNG stays in R (DECISION-006).
+#' equals `1 - sum(genetic proportions)`. RNG stays in R.
 #'
 #' @param n number of individuals.
 #' @param resid_var target residual variance (>= 0).

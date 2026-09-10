@@ -4,25 +4,92 @@
 \alias{additive}
 \title{Add an additive variance component}
 \usage{
-additive(sim, prop, n_qtn = NULL, effect = NULL, dist = "geometric")
+additive(
+  sim,
+  prop = NULL,
+  n_qtn = NULL,
+  qtn = NULL,
+  effect = NULL,
+  phase = c("coupling", "repulsion"),
+  dist = "geometric"
+)
 }
 \arguments{
-\item{sim}{a `phenotype_sim`.}
+\item{sim}{a \code{phenotype_sim}.}
 
 \item{prop}{proportion of total phenotypic variance (scalar or length
-`n_traits`).}
+\code{n_traits}). May be omitted when \code{h2} was set in \code{\link[=simulate_phenotype]{simulate_phenotype()}},
+in which case the layer takes whatever of that budget is unspent -- so a
+single \code{additive()} layer gets \code{prop = h2}. When \code{prop} is given and \code{h2}
+is set, the layer \code{prop} values must sum to \code{h2}.}
 
-\item{n_qtn}{number of additive QTNs; overrides the baseline `n_qtn` from
-[simulate_phenotype()] (with a warning when both are given).}
+\item{n_qtn}{number of additive QTNs; overrides the baseline \code{n_qtn} from
+\code{\link[=simulate_phenotype]{simulate_phenotype()}} (with a warning when both are given).}
+
+\item{qtn}{optional user-supplied QTNs for this layer, so you can fix the
+causal loci for one effect type while the others are drawn at random. Give
+marker names (matched against the map) or column indices; a vector is used
+for every trait, or a length-\code{n_traits} list sets each trait's loci
+separately. \code{n_qtn} is then taken from what you supply. Fixed loci are not
+redrawn by \code{vary_qtn}.}
 
 \item{effect}{optional geometric base (scalar) or explicit effect series
-(length `n_qtn`).}
+(length \code{n_qtn}).}
+
+\item{phase}{QTN linkage phase, \code{"coupling"} (default) or \code{"repulsion"}.
+Under repulsion the effect signs alternate across the layer's QTNs, so the
+increasing allele at one locus is paired with the decreasing allele at the
+next -- the classic repulsion architecture, in which a GWAS sees effects
+that partially cancel and linked causal loci mask one another. The realized
+genetic variance is still \code{prop} (variance is pinned by the partition, not
+by phase); what changes is the sign structure of the per-QTN effects and
+the covariance among loci. Coupling leaves the drawn signs untouched.
+\code{phase} is \strong{architecture-independent} -- it acts on whichever QTNs the
+additive layer draws, so it is meaningful under \code{"independent"},
+\code{"pleiotropy"} and \code{"ld"} alike. Its effect on the cross-locus covariance is
+only material when a trait's additive QTNs are physically linked (on the
+same chromosome); for QTNs that are effectively unlinked, alternating the
+signs just relabels which allele is "increasing" and leaves the covariance
+structure unchanged.}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
 }
 \value{
-the updated `phenotype_sim`.
+the updated \code{phenotype_sim}.
 }
 \description{
 Add an additive variance component
+}
+\details{
+The additive value is the -1/0/1 dosage weighted by the QTN effects, centered,
+and scaled to \code{prop} of the phenotypic variance. This is a simulation
+convention, not Fisher's average-effect decomposition; for an additive-only
+model \code{prop} equals the narrow-sense h2 under Hardy-Weinberg.
+}
+\examples{
+data("SNP55K_maize282_maf04")
+
+# Additive trait: 3 QTNs explaining half the phenotypic variance,
+# so h2 = 0.5 and the remaining 0.5 is residual.
+ph <- simulate_phenotype(SNP55K_maize282_maf04, seed = 1) |>
+  additive(prop = 0.5, n_qtn = 3)
+ph
+
+head(phenotypes_long(ph))
+
+# Effect sizes follow a geometric series by default. `effect` sets its base,
+# so QTN effects here are 0.5, 0.25, 0.125, ...
+simulate_phenotype(SNP55K_maize282_maf04, seed = 1) |>
+  additive(prop = 0.5, n_qtn = 3, effect = 0.5)
+
+# Or give the effects explicitly, one per QTN.
+simulate_phenotype(SNP55K_maize282_maf04, seed = 1) |>
+  additive(prop = 0.5, n_qtn = 3, effect = c(0.6, 0.3, 0.1))
+
+# Fix the additive QTNs yourself by marker name.
+simulate_phenotype(SNP55K_maize282_maf04, seed = 1) |>
+  additive(prop = 0.5, qtn = c("ss196442916", "ss196439337", "ss196480535"))
+}
+\seealso{
+\code{\link[=dominance]{dominance()}}, \code{\link[=epistasis]{epistasis()}}, \code{\link[=vqtl]{vqtl()}} for the other layers.
 }

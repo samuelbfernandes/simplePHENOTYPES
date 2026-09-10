@@ -7,20 +7,20 @@
 cross(mother, father, n = 1, seed = NULL)
 }
 \arguments{
-\item{mother, father}{single-individual `Population`s (use `[` to select one).
+\item{mother, father}{single-individual \code{Population}s (use \code{[} to select one).
 Their roles are symmetric apart from which homologue a progeny inherits
 first; there is no sex-specific recombination.}
 
 \item{n}{number of progeny.}
 
-\item{seed}{optional RNG seed. All randomness is drawn in R, so `set.seed()`
+\item{seed}{optional RNG seed. All randomness is drawn in R, so \code{set.seed()}
 before the call works equally well.}
 }
 \value{
-A `Population` of `n` progeny.
+A \code{Population} of \code{n} progeny.
 }
 \description{
-Produces `n` progeny from a biparental cross. Each progeny receives one
+Produces \code{n} progeny from a biparental cross. Each progeny receives one
 recombinant gamete from each parent, so the two parents contribute one
 homologue apiece.
 }
@@ -28,8 +28,8 @@ homologue apiece.
 Recombination follows the count-location model: the number of crossovers on
 a chromosome is Poisson with mean equal to its length in Morgans, and their
 positions are uniform along it. Chromosomes assort independently. The
-genetic map is taken from the `cm` column of the population's marker map, so
-it must not be missing - see [synthetic_map()] if you only have physical
+genetic map is taken from the \code{cm} column of the population's marker map, so
+it must not be missing - see \code{\link[=synthetic_map]{synthetic_map()}} if you only have physical
 positions.
 }
 \examples{
@@ -38,6 +38,11 @@ pop <- as_population(SNP55K_maize282_maf04, individuals = c("33-16", "38-11"))
 f1 <- cross(pop[1], pop[2], n = 5, seed = 1)
 f1
 }
+\references{
+Toledo, F.H., Perez-Rodriguez, P., Crossa, J. and Burgueno, J. (2019). isqg:
+A Binary Framework for in Silico Quantitative Genetics. \emph{G3
+Genes|Genomes|Genetics} 9(8), 2425--2428. \doi{10.1534/g3.119.400373}
+}
 \seealso{
-[selfcross()], [double_haploid()], [as_population()]
+\code{\link[=selfcross]{selfcross()}}, \code{\link[=double_haploid]{double_haploid()}}, \code{\link[=as_population]{as_population()}}
 }

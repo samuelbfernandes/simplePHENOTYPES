@@ -6,31 +6,71 @@
 \usage{
 dominance(
   sim,
-  prop,
+  prop = NULL,
   same_as_add = TRUE,
   n_qtn = NULL,
-  degree = NULL,
+  qtn = NULL,
   dist = "geometric"
 )
 }
 \arguments{
-\item{sim}{a `phenotype_sim`.}
+\item{sim}{a \code{phenotype_sim}.}
 
 \item{prop}{proportion of total phenotypic variance (scalar or length
-`n_traits`).}
+\code{n_traits}). May be omitted when \code{h2} was set in \code{\link[=simulate_phenotype]{simulate_phenotype()}},
+in which case the layer takes whatever of that budget is unspent -- so a
+single \code{additive()} layer gets \code{prop = h2}. When \code{prop} is given and \code{h2}
+is set, the layer \code{prop} values must sum to \code{h2}.}
 
-\item{same_as_add}{reuse the additive layer's QTNs (default `TRUE`).}
+\item{same_as_add}{reuse the additive layer's QTNs (default \code{TRUE}).}
 
-\item{n_qtn}{number of additive QTNs; overrides the baseline `n_qtn` from
-[simulate_phenotype()] (with a warning when both are given).}
+\item{n_qtn}{number of additive QTNs; overrides the baseline \code{n_qtn} from
+\code{\link[=simulate_phenotype]{simulate_phenotype()}} (with a warning when both are given).}
 
-\item{degree}{degree of dominance (optional; modulates the effect series).}
+\item{qtn}{optional user-supplied QTNs for this layer, so you can fix the
+causal loci for one effect type while the others are drawn at random. Give
+marker names (matched against the map) or column indices; a vector is used
+for every trait, or a length-\code{n_traits} list sets each trait's loci
+separately. \code{n_qtn} is then taken from what you supply. Fixed loci are not
+redrawn by \code{vary_qtn}.}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
 }
 \value{
-the updated `phenotype_sim`.
+the updated \code{phenotype_sim}.
 }
 \description{
 Add a dominance variance component
+}
+\details{
+Dominance is modelled as a deviation applied to heterozygotes (the het
+indicator), with its share of phenotypic variance set by \code{prop}. In this
+variance-partition grammar there is no separate "degree of dominance"
+argument: the ratio of dominance to additive variance is
+\code{prop_dominance / prop_additive}, set through the layer proportions. (A single
+degree-of-dominance scalar would be washed out by the per-component variance
+scaling and is therefore not offered.)
+
+Dominance needs heterozygotes to be identifiable. In a fully inbred panel
+(such as the bundled maize lines, ~0.4\% heterozygous) there are almost none,
+so a dominance layer is near-degenerate and its realized variance is noisy --
+simulate dominance on an outbred or F2-type population instead.
+}
+\examples{
+data("SNP55K_maize282_maf04")
+
+# Dominance reuses the additive QTNs by default, so the trait has
+# h2 = 0.4 + 0.1 = 0.5 spread over one set of loci.
+ph <- simulate_phenotype(SNP55K_maize282_maf04, seed = 1) |>
+  additive(prop = 0.4, n_qtn = 5) |>
+  dominance(prop = 0.1)
+ph
+
+# same_as_add = FALSE draws separate dominance-only loci instead.
+simulate_phenotype(SNP55K_maize282_maf04, seed = 2) |>
+  additive(prop = 0.4, n_qtn = 5) |>
+  dominance(prop = 0.1, same_as_add = FALSE, n_qtn = 3)
+}
+\seealso{
+\code{\link[=additive]{additive()}}, \code{\link[=epistasis]{epistasis()}}, \code{\link[=vqtl]{vqtl()}}.
 }

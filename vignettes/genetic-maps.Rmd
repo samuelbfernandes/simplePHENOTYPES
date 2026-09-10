@@ -1,0 +1,196 @@
+---
+title: "Genetic maps and recombination"
+author: "simplePHENOTYPES"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 2
+vignette: >
+  %\VignetteIndexEntry{Genetic maps and recombination}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE, comment = "#", fig.width = 6, fig.height = 3.5
+)
+```
+
+```{r setup}
+library(simplePHENOTYPES)
+data("SNP55K_maize282_maf04")
+geno <- SNP55K_maize282_maf04
+```
+
+The crossing functions — `cross()`, `selfcross()` and `double_haploid()` — need
+to know how often two markers recombine. This vignette explains what they need,
+how `synthetic_map()` supplies it when you have nothing better, and how to
+replace it with a real map.
+
+# Why base pairs are not enough
+
+Marker files almost always carry *physical* positions in base pairs. Meiosis
+does not care about those. What matters is *genetic* distance in centiMorgans:
+1 cM means a 1% chance of a crossover between two loci per generation.
+
+The two are not proportional. Recombination is heavily suppressed near the
+centromere and elevated toward the chromosome ends, so two markers 10 Mb apart
+can be tightly linked in one region and freely recombining in another.
+
+simplePHENOTYPES keeps the genetic map in the `cm` column, alongside `pos`:
+
+```{r columns}
+head(geno[, 1:5])
+```
+
+If `cm` is missing, `as_population()` stops rather than guessing:
+
+```{r no-map, error = TRUE}
+no_map <- geno
+no_map$cm <- NA
+as_population(no_map, individuals = c("33-16", "38-11"))
+```
+
+# `synthetic_map()`
+
+`synthetic_map()` turns physical positions into a plausible centiMorgan map.
+
+```{r basic}
+cm <- synthetic_map(geno$chr, geno$pos)
+aggregate(cm ~ chr, data = data.frame(chr = geno$chr, cm = cm), FUN = max)
+```
+
+**This is a model, not a measurement.** It is not derived from any published
+linkage map, and its values should not be reported as estimated recombination
+distances. Its purpose is to give a simulation a realistic recombination
+landscape when no real map is at hand. If you have a real map, use it (see
+below).
+
+## What the model does
+
+Each marker gets a local recombination rate that dips around the centromere:
+
+$$r(p) = 1 - s \exp\left(-\tfrac{1}{2}\left(\frac{p - c}{wL}\right)^2\right)$$
+
+with centromere `c`, chromosome span `L`, suppression strength `s` and relative
+width `w`. That rate is integrated along the chromosome and rescaled to the
+target length, so cM always increases with bp.
+
+The consequence is the flat middle section of the curve — a large stretch of
+physical genome that contributes very little genetic distance:
+
+```{r shape}
+on1 <- geno$chr == 1
+plot(geno$pos[on1] / 1e6, geno$cm[on1], type = "l", lwd = 2,
+     xlab = "Physical position, chromosome 1 (Mb)", ylab = "Genetic position (cM)")
+lines(geno$pos[on1] / 1e6, synthetic_map(geno$chr, geno$pos, suppression = 0)[on1],
+      lwd = 2, lty = 2, col = "grey50")
+legend("topleft", c("centromere-suppressed", "uniform"),
+       lwd = 2, lty = c(1, 2), col = c("black", "grey50"), bty = "n")
+```
+
+Local rate, in cM per Mb, makes the same point more directly:
+
+```{r local-rate}
+pos1 <- geno$pos[on1] / 1e6
+cm1  <- geno$cm[on1]
+bin  <- cut(pos1, breaks = seq(0, 310, by = 20), labels = FALSE)
+
+along <- data.frame(pos = pos1, cm = cm1, bin = bin)
+span  <- aggregate(cbind(cm, pos) ~ bin, data = along,
+                   FUN = function(x) diff(range(x)))
+span$cM_per_Mb <- round(span$cm / span$pos, 2)
+
+span[, c("bin", "cM_per_Mb")]
+```
+
+Rates drop to roughly 0.2 cM/Mb in the middle against about 1 cM/Mb on the arms.
+
+## Tuning it
+
+| Argument | Effect |
+|---|---|
+| `cm_per_mb` | overall scale; default 0.73 gives ~1,500 cM for this genome |
+| `total_cm` | set chromosome lengths directly instead of by rate |
+| `suppression` | 0 = uniform map, closer to 1 = stronger centromeric suppression |
+| `width` | how much of the chromosome the suppressed region covers |
+| `centromere` | centromere positions in bp; defaults to each chromosome's midpoint |
+
+```{r tuning}
+# A uniform map: cM strictly proportional to bp
+flat <- synthetic_map(geno$chr, geno$pos, suppression = 0)
+
+# Fixed lengths, one per chromosome
+fixed <- synthetic_map(geno$chr, geno$pos, total_cm = 150)
+aggregate(cm ~ chr, data = data.frame(chr = geno$chr, cm = fixed), FUN = max)
+
+# Real centromere positions, if you know them
+limits <- aggregate(pos ~ chr, data = geno,
+                    FUN = function(p) min(p) + 0.45 * diff(range(p)))
+tuned <- synthetic_map(geno$chr, geno$pos, centromere = limits$pos)
+```
+
+# Using a real map
+
+If you have measured genetic positions, use them — just put them in `cm`, in
+centiMorgans, sorted within each chromosome:
+
+```{r real-map, eval = FALSE}
+geno$cm <- my_map$cM[match(geno$snp, my_map$marker)]
+```
+
+The map must satisfy three conditions, which `as_population()` checks:
+
+1. no missing values,
+2. non-decreasing within each chromosome,
+3. markers ordered by position.
+
+Co-located markers may share a cM value; that correctly means no recombination
+between them.
+
+```{r validate}
+sorted <- aggregate(cm ~ chr, data = geno, FUN = function(x) !is.unsorted(x))
+ok <- all(!is.na(geno$cm)) && all(sorted$cm)
+ok
+```
+
+# How the map changes results
+
+The map is not decoration — it determines how much recombination happens. The
+number of crossovers on a chromosome is Poisson with mean equal to its length in
+Morgans, so a 150 cM chromosome averages 1.5 crossovers per meiosis.
+
+Compare linkage under the default map with linkage under a map ten times
+shorter, where crossovers are rare and markers stay linked much further:
+
+```{r compare}
+long_map  <- geno
+short_map <- geno
+short_map$cm <- geno$cm / 10
+
+linkage <- function(g, seed) {
+  pop <- as_population(g, individuals = c("33-16", "38-11"))
+  f1  <- cross(pop[1], pop[2], n = 1, seed = seed)
+  dh  <- double_haploid(f1, n = 100, seed = seed + 1)
+
+  on1 <- g$chr == 1
+  p1 <- dosages(pop[1])[on1, 1]; p2 <- dosages(pop[2])[on1, 1]
+  inf <- which(p1 != p2 & p1 != 0 & p2 != 0)
+  from_p1 <- dosages(dh)[on1, ][inf, ] == p1[inf]
+  # recombination between the first informative locus and one ~100 loci away
+  mean(from_p1[100, ] != from_p1[1, ])
+}
+
+c(default = linkage(long_map, 1), ten_times_shorter = linkage(short_map, 1))
+```
+
+Shortening the map keeps the same markers linked far more tightly. If your
+simulated population shows implausibly long haplotype blocks, or breaks up far
+faster than your species should, the map is the first thing to check.
+
+# Session information
+
+```{r session}
+sessionInfo()
+```

@@ -6,31 +6,88 @@
 \usage{
 epistasis(
   sim,
-  prop,
+  prop = NULL,
   n_pairs = NULL,
   interaction = 2,
+  interaction_type = "a",
+  qtn = NULL,
   effect = NULL,
   dist = "geometric"
 )
 }
 \arguments{
-\item{sim}{a `phenotype_sim`.}
+\item{sim}{a \code{phenotype_sim}.}
 
 \item{prop}{proportion of total phenotypic variance (scalar or length
-`n_traits`).}
+\code{n_traits}). May be omitted when \code{h2} was set in \code{\link[=simulate_phenotype]{simulate_phenotype()}},
+in which case the layer takes whatever of that budget is unspent -- so a
+single \code{additive()} layer gets \code{prop = h2}. When \code{prop} is given and \code{h2}
+is set, the layer \code{prop} values must sum to \code{h2}.}
 
 \item{n_pairs}{number of interacting QTN sets.}
 
 \item{interaction}{number of markers per epistatic QTN (default 2, pairwise).}
 
+\item{interaction_type}{how each marker in an interacting set contributes:
+\code{"a"} (additive -- the centered dosage) or \code{"d"} (dominance -- the centered
+heterozygote indicator). A single value applies to every position, or a
+length-\code{interaction} vector sets each position: \code{c("a", "a")} is
+additive-by-additive (default), \code{c("a", "d")} additive-by-dominance,
+\code{c("d", "d")} dominance-by-dominance.}
+
+\item{qtn}{optional user-supplied QTNs for this layer, so you can fix the
+causal loci for one effect type while the others are drawn at random. Give
+marker names (matched against the map) or column indices; a vector is used
+for every trait, or a length-\code{n_traits} list sets each trait's loci
+separately. \code{n_qtn} is then taken from what you supply. Fixed loci are not
+redrawn by \code{vary_qtn}.}
+
 \item{effect}{optional geometric base (scalar) or explicit effect series
-(length `n_qtn`).}
+(length \code{n_qtn}).}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
 }
 \value{
-the updated `phenotype_sim`.
+the updated \code{phenotype_sim}.
 }
 \description{
 Add an epistatic variance component
+}
+\details{
+The epistatic value is the product of the interacting markers' design terms
+times a per-set effect, then centered and scaled to \code{prop}. Each design term
+is \strong{centered per locus} before multiplying, which subtracts out the
+lower-order (additive/dominance main-effect) marginals, so the component is a
+cleaner a x a / a x d / d x d interaction. It is still not a full
+Fisher-orthogonal variance component (that is a planned genotypic-model mode),
+so the "epistatic proportion" remains a simulation quantity.
+
+\code{interaction_type} values of \code{"d"} depend on heterozygotes and are
+near-degenerate on a fully inbred panel (see \code{\link[=dominance]{dominance()}}); use \code{"a"} (the
+default) for inbred data, or an outbred/F2-type population for \code{"d"}.
+}
+\examples{
+data("SNP55K_maize282_maf04")
+
+# Two pairs of interacting loci contributing 10\% of the variance,
+# on top of an additive background.
+ph <- simulate_phenotype(SNP55K_maize282_maf04, seed = 1) |>
+  additive(prop = 0.4, n_qtn = 5) |>
+  epistasis(prop = 0.1, n_pairs = 2)
+ph
+
+# interaction = 3 makes each epistatic term a three-way interaction
+# rather than the default pairwise one.
+simulate_phenotype(SNP55K_maize282_maf04, seed = 3) |>
+  additive(prop = 0.3, n_qtn = 4) |>
+  epistasis(prop = 0.2, n_pairs = 2, interaction = 3)
+
+# Additive-by-dominance and dominance-by-dominance interactions.
+simulate_phenotype(SNP55K_maize282_maf04, seed = 4) |>
+  additive(prop = 0.3, n_qtn = 4) |>
+  epistasis(prop = 0.1, n_pairs = 2, interaction_type = c("a", "d")) |>
+  epistasis(prop = 0.1, n_pairs = 2, interaction_type = c("d", "d"))
+}
+\seealso{
+\code{\link[=additive]{additive()}}, \code{\link[=dominance]{dominance()}}, \code{\link[=vqtl]{vqtl()}}.
 }

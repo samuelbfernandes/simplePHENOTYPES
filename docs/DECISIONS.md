@@ -226,6 +226,104 @@ behavior."
 
 ---
 
+## DECISION-013: PleioArch generalized to any number of traits
+
+**Question:** DECISION-010 restricted exact correlation control to two traits and sent
+`n_traits > 2` to a Cholesky fallback that warned individual QTN effects were not
+guaranteed. Can the exact engine cover any number of traits?
+
+**Decision:** **Yes — the exact engine now handles any `n_traits`, and the Cholesky
+fallback is removed.** The bivariate normal generalizes directly to an `n x n`
+multivariate normal:
+
+```
+Sigma[i,i] = pi_i   * V_i                 pleiotropic share of trait i
+Sigma[i,j] = cor_ij * sqrt(V_i * V_j)     the whole genetic covariance
+```
+
+Trait-specific effects stay univariate with variance `(1 - pi_i) * V_i`. Because
+trait-specific loci are independent across traits, each trait's total genetic variance is
+still `V_i` while the entire covariance comes from the shared loci, so every pair realizes
+`cor_ij` in expectation. For two traits this reduces algebraically to the bivariate
+reference implementation, so DECISION-007 is preserved rather than replaced.
+
+`cor` accepts a scalar (applied to all pairs) or a full `n_traits x n_traits` matrix,
+negative correlations included. `pi` accepts a scalar or one value per trait;
+`pi_target`/`pi_secondary` remain as the two-trait spelling.
+
+**Feasibility:** the `cor^2 <= pi_i * pi_j` constraint generalizes to "`Sigma` must be
+positive semi-definite", checked by eigenvalue. This is strictly more informative: with
+three or more traits it also catches mutually inconsistent requests that no pairwise check
+would (three traits cannot all be strongly negatively correlated). Unattainable requests
+raise an error naming the smallest eigenvalue, rather than being silently approximated.
+
+**Rationale:** the Cholesky fallback correlated the *genetic values* after the fact, so
+the QTN effects no longer corresponded to the realized correlation — the very defect
+DECISION-007 adopted PleioArch to remove. Verified on `SNP55K_maize282_maf04` at
+`n_qtn = 300` over 25 seeds: realized correlations match target at 2, 3, 5 and 8 traits
+with no loss of precision as traits are added (mean 0.69 for a 0.7 target, SD ~0.05
+throughout), and an asymmetric target matrix `(0.8, -0.4, -0.2)` realizes as
+`(0.78, -0.39, -0.18)`.
+
+**Supersedes:** DECISION-010's two-trait restriction and its Cholesky fallback. The rest
+of DECISION-010 stands: the argument keeps the v1 name `cor`, and v1's `cor`/`cor_res`
+survive inside the frozen `create_phenotypes()`.
+**Reaffirms:** DECISION-007.
+**Date:** 2026-09-07
+
+---
+
+## DECISION-014: the `"ld"` architecture simulates linked *distinct* causal loci
+
+**Question:** What does `architecture = "ld"` mean in the v2 grammar? The first
+implementation drew each trait's QTNs independently (as for `"independent"`) and then, per
+causal QTN, annotated a *companion* tag marker in an r2 window for **reporting only** —
+under `ld_type = "indirect"` the tag was reported in place of the (hidden) causal marker.
+That is a single-trait, GWAS-style "you observe a tag SNP" annotation: the companion never
+enters any genetic value, and the two traits' causal loci are not linked to each other, so
+the traits are effectively independent. It does not reproduce the classic simplePHENOTYPES
+linkage architecture (`legacy_QTN_linkage.R`), whose point is a *spurious* cross-trait
+correlation produced by linkage between distinct causal loci.
+
+**Decision:** `"ld"` is a **two-trait** architecture (`n_traits = 2`, else an error) in
+which the two traits have **distinct** causal loci that sit in linkage disequilibrium, so
+the traits covary through linkage rather than through a shared locus. For each of `n_qtn`
+loci a linked pair is drawn — one SNP causal for trait 1, the other for trait 2, with
+squared correlation r2 in `[r2_min, r2_max]`. No SNP is causal for both traits; the genetic
+correlation is a consequence of the linkage, not of shared effects. Two flavors:
+
+- `ld_type = "direct"` (**default**): trait 1's and trait 2's causal SNPs are directly in
+  LD.
+- `ld_type = "indirect"`: both causal SNPs flank a shared, **non-causal** cause-of-LD locus
+  and are each in LD with it (one flanking marker upstream, one downstream).
+
+`qtn_table()` reports the linked marker (`companion` — the other trait's causal SNP for
+`"direct"`, the shared cause-of-LD locus for `"indirect"`) and the r2 with it (`ld_r2`).
+The old reporting-only `.annotate_ld()` / `.ld_reported_qtn()` helpers are removed; the
+linkage is now established during QTN sampling (`.draw_qtn_ld()`), RNG staying in R
+(DECISION-006).
+
+**Rationale:** the companion-annotation model answered a different question (tag-SNP
+observation for one trait) than the one the architecture name implies and than the v1
+engine implements (linked-but-not-pleiotropic cross-trait correlation). Verified on
+`SNP55K_maize282_maf04` (`seed = 200`, `n_qtn = 3`): the realized genetic correlation
+between traits is strong under `"ld"` (|r| ≈ 0.67 direct / 0.76 indirect) and ≈ 0 for the
+same setup under `"independent"`, with the two traits' causal-locus sets disjoint. `direct`
+is the default because it is the more common and more directly interpretable request (the
+two observed causal SNPs are themselves the linked pair); `indirect` remains for the hidden
+cause-of-LD scenario. This is the grammar counterpart of the frozen legacy `qtn_linkage`
+engine, which keeps its own behavior (DECISION-008).
+
+**Scope:** two traits only, by design (matching v1). Generalizing linked causal loci to
+`n_traits > 2` (round-robin or star topologies) was considered and deferred — no v1
+precedent and no current demand.
+
+**Reaffirms:** DECISION-006 (RNG stays in R), DECISION-009 (grammar owes v1 no bit-parity —
+this is a clean reimplementation of the *concept*, not the v1 code path).
+**Date:** 2026-09-09
+
+---
+
 ## Decision Log Summary
 
 | ID | Decision | Status |
@@ -239,6 +337,8 @@ behavior."
 | 007 | PleioArch for `"pleiotropy"` | locked (refined by 010) |
 | 008 | `create_phenotypes()` = frozen legacy, not a delegation shim | locked (2026-06-10) |
 | 009 | New grammar has no bit-for-bit v1 parity; references guard the legacy fn | locked (2026-06-10) |
-| 010 | Correlation via `cor`: PleioArch (2 traits) + Cholesky fallback (>2, warns) | locked (2026-06-10; amended 2026-06-11) |
+| 010 | Correlation via `cor`: PleioArch (2 traits) + Cholesky fallback (>2, warns) | superseded in part by 013 |
 | 011 | Single rextendr package; Cargo-workspace plan dropped | locked (2026-06-10) |
 | 012 | Meiosis randomness drawn in R; Rust core pure; exact isqg bit-parity is the gate | locked (2026-09-07) |
+| 013 | PleioArch generalized to any n_traits; Cholesky fallback removed | locked (2026-09-07) |
+| 014 | `"ld"` = two-trait linked *distinct* causal loci (`direct` default); companion-annotation model removed | locked (2026-09-09) |

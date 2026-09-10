@@ -21,10 +21,8 @@
 #' @param ld_min = NULL,
 #' @param ld_max = NULL,
 #' @return Genotype of selected SNPs
-#' @author Samuel Fernandes and Alexander Lipka
-#' Last update: Jan 7, 2021
+#' @author Samuel Fernandes and Alexander Lipka. Last update: Jan 7, 2021
 #'
-#'----------------------------- qtn_from_user ----------------------
 qtn_from_user <-
   function(genotypes = NULL, 
            QTN_list,
@@ -52,6 +50,10 @@ qtn_from_user <-
     ns <- ncol(genotypes) - 5
     n <- nrow(genotypes)
     if (architecture == "LD") {
+      if (!requireNamespace("SNPRelate", quietly = TRUE) ||
+          !requireNamespace("gdsfmt", quietly = TRUE)) {
+        stop(.gds_needed("LD-architecture"), call. = FALSE)
+      }
       add_ef_trait_obj <- NULL
       dom_ef_trait_obj <- NULL
       if (type_of_ld == "indirect") {

@@ -5,6 +5,7 @@ CLAUDE.md
 .claude/
 .claude-cache/
 docs/PROJECT_CONTEXT.md
+context/
 
 # Note: docs/ARCHITECTURE.md, docs/DECISIONS.md, docs/SPEC.md, docs/BUGS.md,
 # docs/NEXT_STEPS.md ARE project documentation and SHOULD be committed.
@@ -35,6 +36,10 @@ src/*.so
 src/*.dll
 src/*.rds
 src/symbols.rds
+
+# Coverage artifacts (covr / gcov)
+*.gcda
+*.gcno
 
 # ============================================
 # Rust

@@ -1,0 +1,585 @@
+---
+title: "Complete reference: every option in one place"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Complete reference: every option in one place}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+This vignette exercises **every option added in version 2**, end to end, in one
+runnable document. It is deliberately exhaustive rather than gentle: if you want
+a guided introduction, start with `vignette("simplePHENOTYPES-v2")`, then
+`vignette("breeding-populations")` and `vignette("genetic-maps")`.
+
+Everything below actually runs when this vignette is built, so the printed
+output is real, not illustrative.
+
+```{r library}
+library(simplePHENOTYPES)
+data("SNP55K_maize282_maf04")
+geno <- SNP55K_maize282_maf04
+dim(geno)
+```
+
+The first five columns are marker metadata (`snp`, `allele`, `chr`, `pos`,
+`cm`); the rest are individuals.
+
+```{r peek}
+geno[1:5, 1:8]
+```
+
+# 1. Genotype input
+
+## Converting from other formats
+
+`as_numeric()` reads HapMap, VCF, GDS and PLINK bed/ped and returns the numeric
+format used throughout.
+
+```{r as-numeric}
+hmp <- data.frame(
+  `rs#`   = c("snp1", "snp2", "snp3"),
+  alleles = c("C/T", "A/G", "G/T"),
+  chrom   = c(1, 1, 2),
+  pos     = c(100, 500, 200),
+  strand  = "+", `assembly#` = NA, center = NA,
+  protLSID = NA, assayLSID = NA, panelLSID = NA, QCcode = NA,
+  L1 = c("C", "A", "G"), L2 = c("T", "G", "T"),
+  L3 = c("C", "A", "T"), L4 = c("T", "G", "G"),
+  check.names = FALSE, stringsAsFactors = FALSE
+)
+
+as_numeric(hmp, to_r = TRUE, verbose = FALSE)
+```
+
+Coding schemes and allele orientation:
+
+```{r as-numeric-options}
+# 0 / 1 / 2 instead of -1 / 0 / 1
+as_numeric(hmp, to_r = TRUE, code_as = "012", verbose = FALSE)[, 1:8]
+
+# Orient against a supplied reference allele rather than by frequency
+as_numeric(hmp, to_r = TRUE, verbose = FALSE,
+           method = "reference", ref_allele = c("C", "A", "G"))[, 1:8]
+```
+
+Reading from files (not run here, since it needs your data):
+
+```{r read-files, eval = FALSE}
+as_numeric("my_genotypes.hmp.txt", to_r = TRUE)
+as_numeric("my_genotypes.vcf",     to_r = TRUE)
+as_numeric("my_genotypes.bed",     to_r = TRUE)   # needs .bim and .fam alongside
+```
+
+# 2. The genetic map
+
+Meiosis needs distances in centiMorgans. `SNP55K_maize282_maf04` ships with a
+**synthetic** map in `cm` — modelled from the physical positions, *not* a
+published maize linkage map, and not to be quoted as measured recombination
+distance.
+
+```{r map-shipped}
+chrom_length <- aggregate(cm ~ chr, data = geno, FUN = max)
+chrom_length
+
+round(sum(chrom_length$cm))             # total genetic length, cM
+```
+
+`synthetic_map()` builds such a map for your own data. Every argument:
+
+```{r map-options}
+# Default: pericentromeric suppression, length from cm_per_mb
+cm_default <- synthetic_map(geno$chr, geno$pos)
+
+# Uniform map: cM strictly proportional to bp
+cm_uniform <- synthetic_map(geno$chr, geno$pos, suppression = 0)
+
+# Fixed total length per chromosome
+cm_fixed <- synthetic_map(geno$chr, geno$pos,
+                          total_cm = c(200, 180, 175, 170, 160,
+                                       130, 130, 125, 115, 110))
+
+# Explicit centromere positions, and a wider/stronger suppressed region
+chr1 <- geno$pos[geno$chr == 1]
+mid <- aggregate(pos ~ chr, data = geno, FUN = median)
+cm_custom <- synthetic_map(geno$chr, geno$pos,
+                           centromere = mid$pos,
+                           suppression = 0.95, width = 0.25)
+
+round(c(default = max(cm_default[geno$chr == 1]),
+        uniform = max(cm_uniform[geno$chr == 1]),
+        fixed   = max(cm_fixed[geno$chr == 1]),
+        custom  = max(cm_custom[geno$chr == 1])), 1)
+```
+
+The suppression model concentrates recombination on the chromosome arms:
+
+```{r map-landscape}
+along_chr1 <- data.frame(
+  pos = chr1,
+  cm  = cm_default[geno$chr == 1],
+  bin = cut(chr1, breaks = 8, labels = FALSE)
+)
+
+span <- aggregate(cbind(cm, pos) ~ bin, data = along_chr1,
+                  FUN = function(x) max(x) - min(x))
+span$cM_per_Mb <- round(span$cm / (span$pos / 1e6), 2)
+
+span[, c("bin", "cM_per_Mb")]     # low near the centromere, high on the arms
+```
+
+To use your own real map, just assign it:
+
+```{r map-real, eval = FALSE}
+geno$cm <- my_real_map_in_cM
+```
+
+# 3. The simulation grammar
+
+A simulation starts with `simulate_phenotype()` and gains variance components as
+layers. Each `prop` is a proportion of total phenotypic variance, so
+heritability is the sum of the genetic proportions.
+
+```{r grammar-basic}
+ph <- simulate_phenotype(geno, seed = 1) |>
+  additive(prop = 0.5, n_qtn = 3)
+ph
+```
+
+## Every layer
+
+```{r grammar-layers}
+full <- simulate_phenotype(geno, seed = 2) |>
+  additive(prop = 0.3, n_qtn = 5) |>
+  dominance(prop = 0.1) |>
+  epistasis(prop = 0.1, n_pairs = 2, interaction = 2) |>
+  vqtl(prop = 0.1)
+full
+```
+
+## Layer options
+
+```{r grammar-layer-options}
+# Geometric effects with an explicit base (0.5, 0.25, 0.125, ...)
+simulate_phenotype(geno, seed = 3) |>
+  additive(prop = 0.5, n_qtn = 3, effect = 0.5)
+
+# Explicit effect series, one per QTN
+simulate_phenotype(geno, seed = 3) |>
+  additive(prop = 0.5, n_qtn = 3, effect = c(0.6, 0.3, 0.1))
+
+# Dominance and vQTL on their own loci rather than the additive ones
+simulate_phenotype(geno, seed = 4) |>
+  additive(prop = 0.3, n_qtn = 5) |>
+  dominance(prop = 0.1, same_as_add = FALSE, n_qtn = 3) |>
+  vqtl(prop = 0.1, same_as_add = FALSE, n_qtn = 2)
+
+# Three-way epistasis
+simulate_phenotype(geno, seed = 5) |>
+  additive(prop = 0.3, n_qtn = 4) |>
+  epistasis(prop = 0.2, n_pairs = 2, interaction = 3)
+```
+
+## Replications and per-trait proportions
+
+```{r grammar-reps}
+reps <- simulate_phenotype(geno, n_traits = 2, n_reps = 3, seed = 6) |>
+  additive(prop = c(0.6, 0.3), n_qtn = 4)     # different h2 per trait
+table(phenotypes_long(reps)$rep)
+head(phenotypes_wide(reps))
+```
+
+## One call instead of a pipe
+
+```{r grammar-one-call}
+simulate_phenotype(geno, h2 = 0.5, n_qtn = 3, seed = 7)              # model "A"
+simulate_phenotype(geno, h2 = 0.6, n_qtn = 4, model = "AD", seed = 7)
+```
+
+## Fine control: fixed loci, phase, means, subsets
+
+Set the causal loci for one layer while the rest are drawn at random. Give
+marker names or column indices:
+
+```{r fine-qtn}
+simulate_phenotype(geno, h2 = 0.5, seed = 1) |>
+  additive(qtn = c("ss196442916", "ss196439337", "ss196480535"))
+```
+
+`phase = "repulsion"` alternates the effect signs so linked increasing and
+decreasing alleles oppose one another (the realized variance is still `prop`;
+only the sign structure changes):
+
+```{r fine-phase}
+ph_rep <- simulate_phenotype(geno, h2 = 0.5, seed = 1) |>
+  additive(n_qtn = 6, phase = "repulsion")
+qtn_table(ph_rep)$effect
+```
+
+A per-trait intercept with `mean`, and a subset of individuals with
+`individuals`:
+
+```{r fine-mean}
+ph_m <- simulate_phenotype(geno, n_traits = 2, h2 = 0.5, mean = c(10, 20),
+                           seed = 1) |>
+  additive(n_qtn = 5)
+colMeans(phenotypes_wide(ph_m)[, c("Trait_1", "Trait_2")])
+```
+
+```{r fine-subset}
+ph_s <- simulate_phenotype(geno, h2 = 0.5,
+                           individuals = c("33-16", "38-11", "A188", "B73"),
+                           seed = 1) |>
+  additive(n_qtn = 3)
+n_individuals_sim <- ph_s$n_ind
+n_individuals_sim
+```
+
+`vary_qtn = TRUE` gives each replication its own QTNs, and `distinct_chr = TRUE`
+puts each trait's QTNs on separate chromosomes:
+
+```{r fine-vary}
+ph_v <- simulate_phenotype(geno, h2 = 0.5, n_reps = 3, vary_qtn = TRUE,
+                           seed = 1) |>
+  additive(n_qtn = 4)
+# a different QTN set per replication
+lengths(ph_v$layers[[1]]$qtn_reps)
+
+ph_d <- simulate_phenotype(geno, n_traits = 2, h2 = 0.4, distinct_chr = TRUE,
+                           seed = 1) |>
+  additive(n_qtn = 3)
+lapply(ph_d$layers[[1]]$qtn, function(i) unique(geno$chr[i]))
+```
+
+# 4. Genetic architectures
+
+## Independent
+
+Trait-specific QTNs, no enforced sharing.
+
+```{r arch-independent}
+ind <- simulate_phenotype(geno, n_traits = 2, h2 = 0.4, seed = 8) |>
+  additive(n_qtn = 5)
+
+qtn <- ind$layers[[1]]$qtn
+head(qtn[[1]], 3)      # trait 1
+head(qtn[[2]], 3)      # trait 2: different loci
+```
+
+## Pleiotropy with a target genetic correlation
+
+Shared QTNs whose effects are drawn from a multivariate normal, so the genetic
+correlation is the target in expectation. Works for **any number of traits**.
+
+```{r arch-pleiotropy}
+ph2 <- simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 2,
+                          cor = 0.6, seed = 9) |>
+  additive(prop = 0.5, n_qtn = 200)
+
+g <- genetic_values(ph2)
+round(cor(g[, 1], g[, 2]), 3)
+```
+
+Any number of traits, with a full target matrix including negative
+correlations:
+
+```{r arch-pleiotropy-matrix}
+R <- matrix(c( 1.0,  0.8, -0.4,
+               0.8,  1.0, -0.2,
+              -0.4, -0.2,  1.0), 3, 3)
+
+# Average over 20 seeds, since any single simulation scatters around the target
+total <- matrix(0, 3, 3)
+for (s in 1:20) {
+  sim <- simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 3,
+                            cor = R, h2 = 0.5, seed = s) |>
+    additive(n_qtn = 300)
+  total <- total + cor(genetic_values(sim))
+}
+
+round(total / 20, 2)      # compare with R above
+```
+
+Partial pleiotropy — only some of each trait's genetic variance is shared —
+via `pi`:
+
+```{r arch-pleiotropy-pi}
+part <- simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 3,
+                           cor = 0.5, pi = c(1, 0.8, 0.6), seed = 10) |>
+  additive(prop = 0.5, n_qtn = 100)
+
+# Every trait keeps n_qtn loci; a shared core carries the covariance
+qtn_pi <- part$layers[[1]]$qtn
+lengths(qtn_pi)
+
+shared <- intersect(intersect(qtn_pi[[1]], qtn_pi[[2]]), qtn_pi[[3]])
+length(shared)
+```
+
+Concentrating variance in major pleiotropic loci. This is available but costs
+precision in the realized correlation, so both arguments default to zero:
+
+```{r arch-pleiotropy-major}
+simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 2,
+                   cor = 0.6, n_pleio_major = 5, prop_var_major = 0.5,
+                   seed = 11) |>
+  additive(prop = 0.5, n_qtn = 100)
+```
+
+Impossible requests are an error rather than a silent approximation:
+
+```{r arch-pleiotropy-error, error = TRUE}
+simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 2,
+                   cor = 0.9, pi = 0.5, seed = 12) |>
+  additive(prop = 0.5, n_qtn = 20)
+```
+
+## Linkage disequilibrium
+
+The causal variant sits near, but not on, the marker a study would test.
+
+```{r arch-ld}
+simulate_phenotype(geno, architecture = "ld", n_traits = 2,
+                   ld_type = "indirect", seed = 13) |>
+  additive(prop = 0.4, n_qtn = 3)
+
+simulate_phenotype(geno, architecture = "ld", n_traits = 2,
+                   ld_type = "direct", r2_max = 0.9, r2_min = 0.4, seed = 14) |>
+  additive(prop = 0.4, n_qtn = 3)
+```
+
+## Combining architectures
+
+```{r arch-complex}
+pleio <- simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 2,
+                            cor = 0.5, seed = 15) |>
+  additive(prop = 0.4, n_qtn = 5)
+indep <- simulate_phenotype(geno, n_traits = 2, seed = 15) |>
+  additive(prop = 0.3, n_qtn = 5)
+
+complex_phenotypes(pleio, indep, h2 = 0.5)
+```
+
+# 5. Breeding populations
+
+Meiosis is simulated directly, so a pedigree can be built from real founders and
+phenotyped without leaving the package.
+
+```{r pop-founders}
+pop <- as_population(geno, individuals = c("33-16", "38-11", "A188", "B73"))
+pop
+n_individuals(pop)
+dim(dosages(pop))
+```
+
+## Crossing, selfing, doubled haploids
+
+```{r pop-crosses}
+f1  <- cross(pop[1], pop[2], n = 1, seed = 21)
+f2  <- selfcross(f1, n = 200, seed = 22)
+dh  <- double_haploid(f1, n = 200, seed = 23)
+bc1 <- cross(f1, pop[1], n = 100, seed = 24)      # backcross to founder 1
+
+c(F1 = n_individuals(f1), F2 = n_individuals(f2),
+  DH = n_individuals(dh), BC1 = n_individuals(bc1))
+```
+
+Checking the genetics came out right:
+
+```{r pop-checks}
+d <- dosages(pop)
+inf <- which(d[, 1] != d[, 2] & d[, 1] != 0 & d[, 2] != 0)  # informative loci
+
+# F1 is heterozygous everywhere the founders differ
+all(dosages(f1)[inf, 1] == 0)
+
+# F2 segregates 1:2:1
+round(prop.table(table(dosages(f2)[inf, ])), 3)
+
+# Doubled haploids are fully homozygous, ~1:1
+any(dosages(dh) == 0)
+round(prop.table(table(dosages(dh)[inf, ])), 3)
+
+# Backcross to founder 1: half heterozygous, half like the recurrent parent
+round(prop.table(table(dosages(bc1)[inf, ])), 3)
+```
+
+## Recurrent selfing
+
+Single-seed descent: each generation one plant is selfed, and the next
+generation descends from one of its progeny.
+
+```{r pop-recurrent}
+gen <- f1
+het <- numeric(5)
+for (i in 1:5) {
+  gen <- selfcross(gen[1], n = 100, seed = 30 + i)
+  het[i] <- mean(dosages(gen)[inf, ] == 0)
+}
+round(het, 3)     # heterozygosity halves each generation
+```
+
+## Reproducibility
+
+```{r pop-repro}
+identical(dosages(selfcross(f1, n = 10, seed = 99)),
+          dosages(selfcross(f1, n = 10, seed = 99)))
+```
+
+## Phenotyping a pedigree
+
+A `Population` is accepted anywhere `simulate_phenotype()` takes genotypes.
+
+```{r pop-phenotype}
+simulate_phenotype(f2, seed = 40) |>
+  additive(prop = 0.6, n_qtn = 5)
+```
+
+# 6. Inspecting a simulation
+
+Nothing is written to disk unless you ask for it. Everything the original
+`create_phenotypes()` wrote to `Log_Sim.txt` and its companion files lives in
+the returned object instead.
+
+`print()` shows the requested variance budget alongside what was actually
+realized:
+
+```{r inspect-print}
+ph_i <- simulate_phenotype(geno, h2 = 0.5, seed = 60) |>
+  additive(prop = 0.3, n_qtn = 5) |>
+  dominance(prop = 0.2)
+ph_i
+```
+
+`genetic_values()` returns the genetic component, before the residual — the
+equivalent of the old `Genetic_values.txt`:
+
+```{r inspect-gv}
+gv <- genetic_values(ph_i)
+head(gv)
+
+# Realized heritability, computed by hand from the same pieces
+round(var(gv[, 1]) / var(phenotypes_wide(ph_i)$Trait_1), 3)
+```
+
+The `var_explained` column of `qtn_table()` gives each additive/dominance QTN's
+marginal share of phenotypic variance (`NA` for epistatic sets, where variance
+is not per-locus). `qtn_table()` names the causal loci and their effects — the equivalent of
+`Additive_QTNs.txt` and `QTN_effects_summary.txt`. Epistatic sets are expanded
+one row per member, sharing a `set` number and effect:
+
+```{r inspect-qtn}
+qtn_table(ph_i)
+```
+
+Everything else the log recorded is a field on the object:
+
+```{r inspect-fields}
+ph_i$seed
+ph_i$n_traits
+ph_i$var_budget
+```
+
+Note that a `vqtl()` layer is an explicit residual-heterogeneity variance share,
+not part of the broad-sense `h2` budget. It varies the conditional residual
+variance rather than adding genetic value; `print()` says so when one is present:
+
+```{r inspect-vqtl}
+simulate_phenotype(geno, h2 = 0.5, seed = 61) |>
+  additive(prop = 0.3, n_qtn = 4) |>
+  vqtl(prop = 0.2)
+```
+
+`plot()` gives a four-panel diagnostic summary -- variance partition, phenotype
+distribution, QTN effects, and (for two or more traits) the genetic-value
+scatter:
+
+```{r inspect-plot, fig.width = 8, fig.height = 6}
+ph_plot <- simulate_phenotype(geno, n_traits = 2, h2 = 0.5, seed = 62) |>
+  additive(prop = 0.4, n_qtn = 8) |>
+  dominance(prop = 0.1)
+plot(ph_plot)
+```
+
+# 7. Output
+
+## In memory
+
+```{r out-memory}
+ph3 <- simulate_phenotype(geno, n_traits = 2, seed = 50) |>
+  additive(prop = 0.5, n_qtn = 3)
+
+head(phenotypes_long(ph3))
+head(phenotypes_wide(ph3))
+```
+
+## Written to disk
+
+Each call writes exactly the file you name — nothing else is created alongside
+it.
+
+```{r out-disk}
+out_dir <- file.path(tempdir(), "sp_demo")
+dir.create(out_dir, showWarnings = FALSE)
+
+write_phenotypes(ph3, file = file.path(out_dir, "phenotypes_long.txt"))
+write_phenotypes(ph3, file = file.path(out_dir, "phenotypes_wide.csv"),
+                 format = "wide", sep = ",")
+
+list.files(out_dir)
+head(read.delim(file.path(out_dir, "phenotypes_long.txt")))
+```
+
+# 8. Original implementation of create_phenotypes
+
+`create_phenotypes()` is the original interface, kept frozen so published
+results stay reproducible. It receives bug fixes only; new work should use the
+grammar above.
+
+Its output always lands in a folder of its own, so a directory is never
+littered with loose files:
+
+```{r legacy}
+legacy_home <- file.path(tempdir(), "sp_legacy")
+dir.create(legacy_home, showWarnings = FALSE)
+
+invisible(create_phenotypes(
+  geno_obj = geno, add_QTN_num = 3, add_effect = 0.2,
+  rep = 2, h2 = 0.5, model = "A",
+  home_dir = legacy_home, verbose = FALSE
+))
+
+list.files(legacy_home)                                  # one folder
+list.files(file.path(legacy_home, "simplePHENOTYPES_output"))
+```
+
+Naming the folder yourself, and re-running without overwriting:
+
+```{r legacy-outdir}
+invisible(create_phenotypes(
+  geno_obj = geno, add_QTN_num = 3, add_effect = 0.2,
+  rep = 1, h2 = 0.5, model = "A",
+  home_dir = legacy_home, output_dir = "my_run", verbose = FALSE
+))
+invisible(create_phenotypes(
+  geno_obj = geno, add_QTN_num = 3, add_effect = 0.2,
+  rep = 1, h2 = 0.5, model = "A",
+  home_dir = legacy_home, output_dir = "my_run", verbose = FALSE
+))
+
+list.files(legacy_home)      # my_run and my_run(1): nothing is overwritten
+```
+
+```{r cleanup, include = FALSE}
+unlink(c(out_dir, legacy_home), recursive = TRUE)
+```
+
+# Session information
+
+```{r session}
+sessionInfo()
+```

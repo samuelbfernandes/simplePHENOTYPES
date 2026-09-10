@@ -20,10 +20,8 @@
 #' @param type_of_ld = NULL
 #' @param verbose = verbose
 #' @return Genotype of selected SNPs
-#' @author Samuel Fernandes
-#' Last update: Apr 20, 2020
+#' @author Samuel Fernandes. Last update: Apr 20, 2020
 #'
-#'----------------------------- QTN_linkage ------------------------------------
 qtn_linkage <-
   function(genotypes = NULL,
            seed = NULL,
@@ -45,6 +43,10 @@ qtn_linkage <-
            type_of_ld = NULL,
            verbose = verbose) {
     #---------------------------------------------------------------------------
+    if (!requireNamespace("SNPRelate", quietly = TRUE) ||
+        !requireNamespace("gdsfmt", quietly = TRUE)) {
+      stop(.gds_needed("LD-architecture"), call. = FALSE)
+    }
     add_ef_trait_obj <- NULL
     dom_ef_trait_obj <- NULL
     add_QTN <- TRUE

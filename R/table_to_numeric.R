@@ -15,7 +15,6 @@
 #' @param verbose Logical; if TRUE prints a progress message.
 #' @return Corresponding numerical value
 #' Last update: Sep 29, 2021
-#---------------------------------------------------------------------------
 table_to_numeric <-
   function(xx,
            code_as = "-101",

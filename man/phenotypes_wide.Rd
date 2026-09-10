@@ -7,11 +7,25 @@
 phenotypes_wide(sim)
 }
 \arguments{
-\item{sim}{a `phenotype_sim`.}
+\item{sim}{a \code{phenotype_sim}.}
 }
 \value{
 a data frame in wide format.
 }
 \description{
 One row per individual x rep; one column per trait.
+}
+\examples{
+data("SNP55K_maize282_maf04")
+ph <- simulate_phenotype(SNP55K_maize282_maf04, n_traits = 2, seed = 1) |>
+  additive(prop = 0.5, n_qtn = 3)
+
+wide <- phenotypes_wide(ph)
+head(wide)
+
+# One column per trait, which makes cross-trait comparisons direct.
+round(cor(wide$Trait_1, wide$Trait_2), 2)
+}
+\seealso{
+\code{\link[=phenotypes_long]{phenotypes_long()}}, \code{\link[=write_phenotypes]{write_phenotypes()}}.
 }

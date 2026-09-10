@@ -29,26 +29,26 @@ Plant Physiology 158:824-834
 The first five columns are marker metadata and the remaining 280 are
 individuals, coded -1 / 0 / 1.
 \describe{
-  \item{snp}{marker name.}
-  \item{allele}{allele pair, e.g. "A/G".}
-  \item{chr}{chromosome, 1-10.}
-  \item{pos}{physical position in base pairs (B73 AGPv2).}
-  \item{cm}{genetic position in centiMorgans - see the note below.}
+\item{snp}{marker name.}
+\item{allele}{allele pair, e.g. "A/G".}
+\item{chr}{chromosome, 1-10.}
+\item{pos}{physical position in base pairs (B73 AGPv2).}
+\item{cm}{genetic position in centiMorgans - see the note below.}
 }
 }
 
 \section{The genetic map is synthetic}{
 
-`cm` holds a **modelled** genetic map, generated from the physical positions
-by [synthetic_map()]; it is not taken from any published maize linkage map
+\code{cm} holds a \strong{modelled} genetic map, generated from the physical positions
+by \code{\link[=synthetic_map]{synthetic_map()}}; it is not taken from any published maize linkage map
 (IBM, NAM, or otherwise) and should not be quoted as measured recombination
-distance. It exists so that the meiosis-based functions ([cross()],
-[selfcross()], [double_haploid()]) have usable recombination distances on the
+distance. It exists so that the meiosis-based functions (\code{\link[=cross]{cross()}},
+\code{\link[=selfcross]{selfcross()}}, \code{\link[=double_haploid]{double_haploid()}}) have usable recombination distances on the
 bundled example data. It totals about 1,497 cM over the ten chromosomes, at
 roughly 0.73 cM/Mb on average, with recombination suppressed around each
 centromere - about 0.2 cM/Mb pericentromerically against about 1.05 cM/Mb on
-the arms. Earlier package versions carried `cm` as an all-`NA` placeholder.
-The generating script is `data-raw/make_SNP55K_map.R`.
+the arms. Earlier package versions carried \code{cm} as an all-\code{NA} placeholder.
+The generating script is \code{data-raw/make_SNP55K_map.R}.
 }
 
 \keyword{internal}

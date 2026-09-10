@@ -14,10 +14,8 @@
 #' @param QTN_variance = FALSE
 #' @param cor_res = NULL
 #' @return Phenotypes for ntraits traits
-#' @author Samuel Fernandes and Alexander Lipka
-#' Last update: Apr 20, 2020
+#' @author Samuel Fernandes and Alexander Lipka. Last update: Apr 20, 2020
 #'
-#'----------------------------phenotypes---------------------------------------
 phenotypes <-
   function(base_line_trait = NULL,
            h2 = NULL,

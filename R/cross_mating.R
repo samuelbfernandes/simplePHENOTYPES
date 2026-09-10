@@ -1,14 +1,34 @@
 # Multi-generation crossing.
 #
 # R draws every random quantity here, in the order isqg draws them, and the
-# Rust core performs only the deterministic remainder (DECISION-012). Keeping
+# Rust core performs only the deterministic remainder. Keeping
 # the draws on R's RNG is what makes set.seed() reproducible and what lets
 # tests/testthat/test-isqg-parity.R assert exact agreement with isqg.
+
+#' Citation notice for the crossing pipeline (isqg algorithms), once per session
+#'
+#' The meiosis / crossing / double-haploid algorithms are ported from isqg
+#' (Toledo et al. 2019), so credit it the first time a crossing function runs in
+#' a session. An [rlang::inform()] message, silenceable with
+#' `suppressMessages()`.
+#' @keywords internal
+#' @noRd
+.cite_isqg <- function() {
+  rlang::inform(
+    paste0(.cite_main(), " please cite Toledo, F.H., Perez-Rodriguez, P., ",
+           "Crossa, J. and Burgueno, J. (2019). isqg: A Binary Framework for ",
+           "in Silico Quantitative Genetics. G3 9(8):2425-2428, ",
+           "doi:10.1534/g3.119.400373 when using the crossing pipelines ",
+           "(cross, selfcross, double_haploid)."),
+    .frequency = "once",
+    .frequency_id = "simplePHENOTYPES_isqg_citation"
+  )
+}
 
 #' Draw the randomness for `n_events` whole-genome meiosis events
 #'
 #' Per event, per chromosome in ascending order:
-#'   n_x       ~ rpois(1, L)              L = last map position, in Morgans
+#'   n_x       ~ rpois(1, L)              L = chromosome span, in Morgans
 #'   chiasmata ~ sort(runif(n_x, 0, L))   not drawn when n_x == 0
 #'   flip      ~ rbinom(1, 1, 0.5)        ALWAYS drawn, even when n_x == 0
 #'
@@ -47,20 +67,18 @@
 #' @keywords internal
 #' @noRd
 .mate <- function(p1, p2, n, design, seed, origin, prefix) {
-  if (!is.numeric(n) || length(n) != 1L || is.na(n) || n < 1) {
-    stop("`n` must be a single positive number of progeny; got ",
-         deparse(substitute(n)), ".", call. = FALSE)
-  }
-  n <- as.integer(n)
+  .cite_isqg()
+  n <- .validate_count(n, "n", minimum = 1L)
+  seed <- .validate_seed(seed)
 
-  if (!identical(p1$map$snp, p2$map$snp)) {
+  if (!identical(p1$map, p2$map)) {
     stop("The two parents carry different marker maps; they must come from ",
          "the same Population.", call. = FALSE)
   }
 
   map <- p1$map
   # cm -> Morgans: isqg's Poisson mean is the chromosome length in Morgans.
-  by_chr <- split(map$cm / 100, map$chr)
+  by_chr <- lapply(split(map$cm, map$chr), function(x) (x - min(x)) / 100)
   loci_per_chr <- as.integer(vapply(by_chr, length, integer(1)))
   positions <- as.numeric(unlist(by_chr))
 
@@ -125,6 +143,10 @@
 #'   before the call works equally well.
 #' @return A `Population` of `n` progeny.
 #' @seealso [selfcross()], [double_haploid()], [as_population()]
+#' @references
+#' Toledo, F.H., Perez-Rodriguez, P., Crossa, J. and Burgueno, J. (2019). isqg:
+#' A Binary Framework for in Silico Quantitative Genetics. \emph{G3
+#' Genes|Genomes|Genetics} 9(8), 2425--2428. \doi{10.1534/g3.119.400373}
 #' @export
 #' @examples
 #' data("SNP55K_maize282_maf04")
@@ -150,6 +172,10 @@ cross <- function(mother, father, n = 1, seed = NULL) {
 #' @param parent a single-individual `Population`.
 #' @return A `Population` of `n` progeny.
 #' @seealso [cross()], [double_haploid()]
+#' @references
+#' Toledo, F.H., Perez-Rodriguez, P., Crossa, J. and Burgueno, J. (2019). isqg:
+#' A Binary Framework for in Silico Quantitative Genetics. \emph{G3
+#' Genes|Genomes|Genetics} 9(8), 2425--2428. \doi{10.1534/g3.119.400373}
 #' @export
 #' @examples
 #' data("SNP55K_maize282_maf04")
@@ -174,6 +200,10 @@ selfcross <- function(parent, n = 1, seed = NULL) {
 #' @inheritParams selfcross
 #' @return A `Population` of `n` fully homozygous progeny.
 #' @seealso [cross()], [selfcross()]
+#' @references
+#' Toledo, F.H., Perez-Rodriguez, P., Crossa, J. and Burgueno, J. (2019). isqg:
+#' A Binary Framework for in Silico Quantitative Genetics. \emph{G3
+#' Genes|Genomes|Genetics} 9(8), 2425--2428. \doi{10.1534/g3.119.400373}
 #' @export
 #' @examples
 #' data("SNP55K_maize282_maf04")

@@ -7,6 +7,8 @@
 ^CLAUDE\.md$
 ^\.claude$
 ^\.claude-cache$
+(^|/)\.claude$
+(^|/)\.cc-writes$
 
 # Project documentation (kept in git, but not shipped to CRAN)
 ^docs$
@@ -82,3 +84,18 @@
 # Large local-only as_numeric fixtures, 76MB and untracked. Tests that use them
 # skip when absent, so the bundle stays small.
 ^tests/SNP55K_maize282_AGPv2.*$
+
+# Dev-only top-level files (kept in git, not shipped to CRAN)
+^LICENSE\.md$
+^TODO\.md$
+^TODO_newfeatures\.md$
+^_config\.yml$
+^SP_logo\.png$
+^data-raw$
+
+# Purled vignette scripts and rendered HTML: build artifacts that would
+# otherwise ship stale copies of the vignette code.
+^vignettes/.*\.R$
+^vignettes/.*\.html$
+^Rplots\.pdf$
+^REVIEW_GUIDE\.md$

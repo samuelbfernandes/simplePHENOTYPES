@@ -1,21 +1,84 @@
 citHeader("To cite simplePHENOTYPES in publications use:")
 
-citEntry(
-    entry = "Article",
-    title = "simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic phenotypes",
-    author = c(
-        person("Samuel B.", "Fernandes"),
-        person("Alexander E.", "Lipka")
-    ),
-    journal = "BMC Bioinformatics",
-    year = "2020",
-    volume = "21",
-    number = "1",
-    pages = "491",
-    doi = "10.1186/s12859-020-03804-y",
-    textVersion = paste(
-        "Fernandes, S.B., and Lipka, A.E., 2020 ",
-        "simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic phenotypes.",
-        "BMC Bioinformatics 21(1):491. https://doi.org/10.1186/s12859-020-03804-y"
-    )
+bibentry(
+  bibtype = "Article",
+  title   = "simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic phenotypes",
+  author  = c(
+    person("Samuel B.", "Fernandes"),
+    person("Alexander E.", "Lipka")
+  ),
+  journal = "BMC Bioinformatics",
+  year    = "2020",
+  volume  = "21",
+  number  = "1",
+  pages   = "491",
+  doi     = "10.1186/s12859-020-03804-y",
+  textVersion = paste(
+    "Fernandes, S.B., and Lipka, A.E. (2020).",
+    "simplePHENOTYPES: SIMulation of pleiotropic, linked and epistatic phenotypes.",
+    "BMC Bioinformatics 21(1):491. https://doi.org/10.1186/s12859-020-03804-y"
+  )
+)
+
+bibentry(
+  bibtype = "Unpublished",
+  header  = paste(
+    "When controlling the genetic correlation in the pleiotropy architecture",
+    "(the `cor` argument), also cite:"
+  ),
+  title   = "Exact control of the genetic correlation in multi-trait phenotype simulation",
+  author  = person("Prado", "et al."),
+  year    = "in preparation",
+  note    = "Manuscript in preparation",
+  textVersion = paste(
+    "Prado et al. (in preparation).",
+    "Exact control of the genetic correlation in multi-trait phenotype simulation."
+  )
+)
+
+
+bibentry(
+  bibtype = "Article",
+  header  = "When simulating variance QTL (the vqtl() layer), also cite:",
+  title   = "Assessment of two statistical approaches for variance genome-wide association studies in plants",
+  author  = c(
+    person("Matthew D.", "Murphy"),
+    person("Samuel B.", "Fernandes"),
+    person("Gota", "Morota"),
+    person("Alexander E.", "Lipka")
+  ),
+  journal = "Heredity",
+  year    = "2022",
+  volume  = "129",
+  pages   = "93--102",
+  doi     = "10.1038/s41437-022-00541-1",
+  textVersion = paste(
+    "Murphy, M.D., Fernandes, S.B., Morota, G. et al. (2022).",
+    "Assessment of two statistical approaches for variance genome-wide association studies in plants.",
+    "Heredity 129, 93-102. https://doi.org/10.1038/s41437-022-00541-1"
+  )
+)
+
+
+bibentry(
+  bibtype = "Article",
+  header  = "When using the crossing pipelines (cross/selfcross/double_haploid), also cite the isqg framework they are ported from:",
+  title   = "isqg: A Binary Framework for in Silico Quantitative Genetics",
+  author  = c(
+    person("Fernando H.", "Toledo"),
+    person(c("Paulino"), "Perez-Rodriguez"),
+    person(c("Jose"), "Crossa"),
+    person(c("Juan"), "Burgueno")
+  ),
+  journal = "G3 Genes|Genomes|Genetics",
+  year    = "2019",
+  volume  = "9",
+  number  = "8",
+  pages   = "2425--2428",
+  doi     = "10.1534/g3.119.400373",
+  textVersion = paste(
+    "Toledo, F.H., Perez-Rodriguez, P., Crossa, J. and Burgueno, J. (2019).",
+    "isqg: A Binary Framework for in Silico Quantitative Genetics.",
+    "G3 Genes|Genomes|Genetics 9(8), 2425-2428. https://doi.org/10.1534/g3.119.400373"
+  )
 )

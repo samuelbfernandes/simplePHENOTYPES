@@ -13,7 +13,7 @@ Volume 28, Issue 18, 15 September 2012, Pages 2397–2399.}
 numericalization(x, bit = NULL, effect = "Add", impute = "None")
 }
 \arguments{
-\item{x}{ggg}
+\item{x}{a character genotype matrix to numericalize}
 
 \item{bit}{= NULL,}
 
@@ -24,7 +24,6 @@ numericalization(x, bit = NULL, effect = "Add", impute = "None")
 \value{
 Corresponding numerical value
 Last update: Apr 20, 2020
---------------------------numericalization---------------------------------
 }
 \description{
 Converts character SNP genotype to numerical (-1, 0, 1) were 1 is the major

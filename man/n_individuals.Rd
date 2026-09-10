@@ -7,7 +7,7 @@
 n_individuals(x)
 }
 \arguments{
-\item{x}{a `Population`.}
+\item{x}{a \code{Population}.}
 }
 \value{
 An integer.

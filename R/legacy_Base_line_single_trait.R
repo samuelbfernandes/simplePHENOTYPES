@@ -1,24 +1,21 @@
 #' Calculate genetic value based on QTN objects.
-#' @keywords internal
-#' @param add_obj hhh
-#' @param dom_obj hhh
-#' @param epi_obj hhh
-#' @param add_effect hhh
-#' @param dom_effect = NULL,
-#' @param epi_effect hhh
-#' @param epi_interaction = NULL,
-#' @param rep = NULL,
-#' @param rep_by = NULL,
+#' @param add_obj additive QTN object
+#' @param dom_obj dominance QTN object
+#' @param epi_obj epistatic QTN object
+#' @param add_effect additive effect sizes
+#' @param dom_effect dominance effect sizes
+#' @param epi_effect epistatic effect sizes
+#' @param epi_interaction markers per epistatic interaction
+#' @param rep number of replicates
+#' @param rep_by replication scheme
 #' @param ntraits = NULL
-#' @param add = NULL,
-#' @param dom = NULL,
+#' @param add additive flag
+#' @param dom dominance flag
 #' @param epi = NULL
-#' @param sim_method = NULL,
+#' @param sim_method effect-simulation method
 #' @return A vector of Genetic values
 #' @author Samuel Fernandes and Alexander Lipka
-#' Last update: Apr 20, 2020
-#'
-#'-----------------------------Base_line_single_trait---------------------------
+#' @keywords internal
 base_line_single_trait <-
   function(add_obj = NULL,
            dom_obj = NULL,

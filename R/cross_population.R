@@ -15,7 +15,9 @@
 #' [SNP55K_maize282_maf04] this is nearly lossless because heterozygotes are
 #' rare, but for an outbred sample the phase of each heterozygote is a guess,
 #' and linkage between heterozygous sites in the first generation will not be
-#' realistic. Supply already-phased founders if that matters for your design.
+#' realistic. The current public API does not import external haplotype phase,
+#' so `as_population()` should not be used for multi-generation recombination
+#' studies of substantially heterozygous, unphased founders.
 #'
 #' @param geno a numeric-format data frame whose first five columns are
 #'   `c("snp", "allele", "chr", "pos", "cm")`, as returned by [as_numeric()],
@@ -47,20 +49,41 @@ as_population <- function(geno, individuals = NULL) {
   )
   .check_map(map)
 
-  dose <- as.matrix(geno[, -(1:5), drop = FALSE])   # markers x individuals
+  geno_values <- geno[, -(1:5), drop = FALSE]
+  if (!all(vapply(geno_values, is.numeric, logical(1)))) {
+    stop("Every genotype column must be numeric and coded -1/0/1.",
+         call. = FALSE)
+  }
+  dose <- as.matrix(geno_values)   # markers x individuals
   storage.mode(dose) <- "double"
   colnames(dose) <- colnames(geno)[-(1:5)]
 
   if (!is.null(individuals)) {
-    missing <- setdiff(as.character(individuals), colnames(dose))
-    if (is.character(individuals) && length(missing)) {
-      stop("individual(s) not found in `geno`: ",
-           paste(missing, collapse = ", "), ".", call. = FALSE)
+    if (!length(individuals) || anyNA(individuals) ||
+        anyDuplicated(individuals)) {
+      stop("`individuals` must be non-empty, complete, and contain no ",
+           "duplicates.", call. = FALSE)
     }
-    dose <- dose[, individuals, drop = FALSE]
+    if (is.character(individuals)) {
+      missing <- setdiff(individuals, colnames(dose))
+      if (length(missing)) {
+        stop("individual(s) not found in `geno`: ",
+             paste(missing, collapse = ", "), ".", call. = FALSE)
+      }
+      sel <- match(individuals, colnames(dose))
+    } else {
+      if (!is.numeric(individuals) || any(!is.finite(individuals)) ||
+          any(individuals != floor(individuals)) ||
+          any(individuals < 1 | individuals > ncol(dose))) {
+        stop("Numeric `individuals` must be whole-number column indices in ",
+             "range.", call. = FALSE)
+      }
+      sel <- as.integer(individuals)
+    }
+    dose <- dose[, sel, drop = FALSE]
   }
 
-  if (!all(dose %in% c(-1, 0, 1))) {
+  if (any(!is.finite(dose)) || !all(dose %in% c(-1, 0, 1))) {
     stop("`geno` must be coded -1/0/1; found other values. ",
          "Convert with as_numeric(code_as = \"-101\") first.", call. = FALSE)
   }
@@ -88,6 +111,18 @@ as_population <- function(geno, individuals = NULL) {
 #' @keywords internal
 #' @noRd
 .check_map <- function(map) {
+  if (anyNA(map$snp) || any(!nzchar(map$snp)) || anyDuplicated(map$snp)) {
+    stop("Marker names in `snp` must be non-missing, non-empty, and unique.",
+         call. = FALSE)
+  }
+  if (anyNA(map$chr)) {
+    stop("The marker map (`chr`) must not contain missing values.",
+         call. = FALSE)
+  }
+  if (!is.numeric(map$pos) || any(!is.finite(map$pos)) || any(map$pos < 0)) {
+    stop("Physical positions (`pos`) must be finite, non-negative numbers.",
+         call. = FALSE)
+  }
   if (all(is.na(map$cm))) {
     stop("The genetic map (`cm`) is all NA, so recombination distances are ",
          "unknown and meiosis cannot be simulated. Build one from the physical ",
@@ -97,6 +132,10 @@ as_population <- function(geno, individuals = NULL) {
   if (anyNA(map$cm)) {
     stop("The genetic map (`cm`) contains ", sum(is.na(map$cm)),
          " missing value(s); every marker needs a genetic position.",
+         call. = FALSE)
+  }
+  if (any(!is.finite(map$cm)) || any(map$cm < 0)) {
+    stop("Genetic positions (`cm`) must be finite, non-negative numbers.",
          call. = FALSE)
   }
   by_chr <- split(map$cm, map$chr)
@@ -155,8 +194,13 @@ dosages <- function(x) {
 
 #' @export
 print.Population <- function(x, ...) {
+  if (length(list(...))) {
+    stop("print.Population() does not accept additional arguments.",
+         call. = FALSE)
+  }
   chr <- unique(x$map$chr)
-  len <- tapply(x$map$cm, x$map$chr, max)
+  len <- vapply(split(x$map$cm, x$map$chr), function(z) max(z) - min(z),
+                numeric(1))
   cat("<Population>\n")
   cat(sprintf("  Individuals: %d   Markers: %d   Chromosomes: %d\n",
               n_individuals(x), nrow(x$map), length(chr)))

@@ -61,10 +61,8 @@
 #' @param verbose = TRUE,
 #' @param RNGversion = '3.5.1'
 #' @return Phenotypes for ntraits traits
-#' @author Samuel Fernandes and Alexander Lipka
-#' Last update: Apr 20, 2020
+#' @author Samuel Fernandes and Alexander Lipka. Last update: Apr 20, 2020
 #'
-#'----------------------------phenotypes---------------------------------------
 check_in <-
   function(geno_obj = NULL,
            geno_file = NULL,
@@ -168,7 +166,14 @@ check_in <-
       stop("Directory provided in \'home_dir\' does not exist!.",
            call. = F)
     }
-    if (!is.null(output_dir)) {
+    # A run writes several files (phenotypes, QTNs, genetic values, log). They
+    # always go in a folder of their own so a directory is never littered with
+    # loose output; `output_dir = ""` restores the pre-2.0 behavior of writing
+    # straight into `home_dir`.
+    if (is.null(output_dir)) {
+      output_dir <- "simplePHENOTYPES_output"
+    }
+    if (nzchar(output_dir)) {
       tempdir <- paste0(home_dir, "/", output_dir)
       if (dir.exists(tempdir)) {
         j <- 1

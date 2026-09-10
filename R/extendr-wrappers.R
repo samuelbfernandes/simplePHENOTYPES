@@ -49,7 +49,7 @@ meiosis_core <- function(loci_per_chr, positions, p1_cis, p1_trans, p2_cis, p2_t
 
 #' Progeny haplotypes from pre-drawn meiosis randomness.
 #'
-#' Same arguments as [`meiosis_core`], but returns the phased strands rather
+#' Same arguments as `meiosis_core()`, but returns the phased strands rather
 #' than the `-1/0/1` genotype: element `2i` is progeny `i`'s first strand and
 #' `2i + 1` its second, each a '0'/'1' string in ascending map order.
 #'

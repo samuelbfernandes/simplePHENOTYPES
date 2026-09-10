@@ -32,10 +32,16 @@ data("SNP55K_maize282_maf04")
 geno <- SNP55K_maize282_maf04
 ```
 
-This vignette walks through every user-facing function in simplePHENOTYPES v2,
-using the bundled maize 282 panel throughout. The v1 function
-`create_phenotypes()` is covered at the end: it is still supported, but it is
-frozen, and new work should use the grammar described here.
+This vignette walks through simulating phenotypes with the simplePHENOTYPES v2
+grammar, using the bundled maize 282 panel throughout. The original
+`create_phenotypes()` interface is covered at the end: it is still supported,
+but it is superseded, and new work should use the grammar described here.
+
+Two companion vignettes go deeper on the topics this one only introduces:
+
+- `vignette("breeding-populations")` — crossing, selfing and doubled haploids:
+  building a pedigree from real founders.
+- `vignette("genetic-maps")` — what `cm` is for, and how to build or replace it.
 
 # The example data
 
@@ -53,7 +59,7 @@ geno[1:5, 1:8]
 this column empty, which meant nothing in the package could simulate meiosis.
 
 ```{r map}
-tapply(geno$cm, geno$chr, max)
+aggregate(cm ~ chr, data = geno, FUN = max)
 ```
 
 **This map is synthetic.** It is generated from the physical positions by
@@ -62,24 +68,15 @@ cM values should not be quoted as measured recombination distances. It exists so
 the crossing functions have realistic distances to work with. If you have a real
 map for your population, use that instead — just put it in `cm`.
 
-Recombination is not spread evenly along a chromosome. In maize it is strongly
-suppressed around the centromere, so a large share of the physical genome
-contributes very little genetic distance. `synthetic_map()` models that, and it
-is visible as the flat middle section of each curve:
+To build one for your own data:
 
-```{r map-shape}
-plot(geno$pos[geno$chr == 1] / 1e6, geno$cm[geno$chr == 1],
-     type = "l", lwd = 2,
-     xlab = "Physical position on chromosome 1 (Mb)",
-     ylab = "Genetic position (cM)")
+```{r synthetic-map, eval = FALSE}
+geno$cm <- synthetic_map(geno$chr, geno$pos)
 ```
 
-To build a map for your own data, or to compare against a uniform one:
-
-```{r synthetic-map}
-uniform <- synthetic_map(geno$chr, geno$pos, suppression = 0)
-head(round(uniform, 2))
-```
+The map only matters for the crossing functions; the grammar below does not use
+it. See `vignette("genetic-maps")` for the recombination model, how to tune it,
+and how to validate a real map.
 
 # Reading genotype data
 
@@ -90,18 +87,19 @@ handling HapMap, VCF, GDS and PLINK bed/ped input.
 num <- as_numeric("my_genotypes.hmp.txt")
 ```
 
-`format_conversion()` converts between formats without simulating anything:
+It handles the other formats the same way:
 
-```{r format-conversion, eval = FALSE}
-format_conversion(file = "my_genotypes.vcf", to = "numeric", to_r = TRUE)
+```{r as-numeric-vcf, eval = FALSE}
+num <- as_numeric("my_genotypes.vcf", to_r = TRUE)
 ```
 
 # Simulating phenotypes: the grammar
 
 A simulation starts with `simulate_phenotype()`, which fixes the genetic
 architecture, and then adds variance components as layers. Each layer's `prop`
-is a proportion of total phenotypic variance, so heritability is the sum of the
-genetic proportions and the residual is whatever is left.
+is a requested marginal proportion of total phenotypic variance. Broad-sense
+heritability is based on the additive, dominance, and epistatic genetic values;
+the vQTL layer is residual heterogeneity and is not included.
 
 ```{r single-trait}
 ph <- simulate_phenotype(geno, seed = 1) |>
@@ -124,7 +122,7 @@ reuse the additive QTNs; set `same_as_add = FALSE` to draw fresh ones.
 ```{r layers}
 ph_ade <- simulate_phenotype(geno, seed = 2) |>
   additive(prop = 0.4, n_qtn = 5) |>
-  dominance(prop = 0.1, degree = 0.5) |>
+  dominance(prop = 0.1) |>
   epistasis(prop = 0.1, n_pairs = 2)
 ph_ade
 ```
@@ -162,27 +160,86 @@ traits with $h^2 = 0.5$ shows up as a phenotypic correlation near 0.3.
 
 *It is realized, not fixed.* `cor` is achieved in expectation over repeated
 simulations, not exactly in any one of them. The QTN effects are random draws,
-so the realized correlation scatters around the target — and with few QTNs that
-scatter is wide. Averaged over 12 seeds the realized genetic correlation for a
-target of 0.6 comes out near 0.6 either way, but the spread across individual
-runs has a standard deviation of roughly 0.4 at `n_qtn = 10`, against roughly
-0.16 at `n_qtn = 200`. If you need a tight correlation in a particular data set,
-use many QTNs, and check what you actually got rather than assuming.
+so the realized correlation scatters around the target, and the scatter narrows
+as QTNs are added. Measuring the genetic correlation directly, over 30 seeds:
 
-With more than two traits the exact algorithm does not apply and the package
-falls back to a Cholesky decomposition, warning that the phenotypes will be
-correlated as requested but individual effect sizes are not guaranteed.
+```{r cor-scatter}
+scatter <- data.frame(n_qtn = c(20, 100, 400), mean = NA_real_, sd = NA_real_)
 
-## Linked, not causal: the "ld" architecture
+for (i in seq_len(nrow(scatter))) {
+  realized <- numeric(30)
+  for (s in 1:30) {
+    sim <- simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 2,
+                              cor = 0.6, h2 = 0.5, seed = s) |>
+      additive(n_qtn = scatter$n_qtn[i])
+    g <- genetic_values(sim)
+    realized[s] <- cor(g[, 1], g[, 2])
+  }
+  scatter$mean[i] <- round(mean(realized), 3)
+  scatter$sd[i]   <- round(sd(realized), 3)
+}
 
-`architecture = "ld"` places the causal variant near, but not on, the marker
-that a study would actually test — the spurious-pleiotropy scenario.
+scatter
+```
+
+The mean sits on the target at every size; the standard deviation falls as
+$1/\sqrt{n_{qtn}}$, as drawing more effects from the same bivariate normal
+should. If you need a tight correlation in one particular data set, use many
+QTNs — and check what you actually got rather than assuming.
+
+*Any number of traits.* The same engine covers three, five or twenty traits —
+`cor` is either a scalar applied to every pair or a full `n_traits x n_traits`
+matrix. The genetic covariance matrix must be positive semi-definite, which for
+two traits is the familiar `cor^2 <= pi_1 * pi_2` and for more traits also rules
+out mutually inconsistent requests; impossible targets are an error, not a
+silent approximation.
+
+```{r pleiotropy-multi}
+R <- matrix(c(1, 0.8, -0.4,
+              0.8, 1, -0.2,
+             -0.4, -0.2, 1), 3, 3)
+
+# Averaged over 20 seeds, since any single simulation scatters around the target
+total <- matrix(0, 3, 3)
+for (s in 1:20) {
+  ph3 <- simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 3,
+                            cor = R, h2 = 0.5, seed = s) |>
+    additive(n_qtn = 300)
+  total <- total + cor(genetic_values(ph3))
+}
+
+round(total / 20, 2)
+```
+
+*Major QTNs trade precision for realism.* `n_pleio_major` and `prop_var_major`
+concentrate part of the pleiotropic variance in a few large-effect loci. Both
+default to zero, because a locus carrying a large share of the variance makes
+the realized correlation hinge on that one effect draw, and the convergence
+above disappears — the standard deviation stops improving with `n_qtn`
+altogether. Set them when a major pleiotropic gene is the object of study, not
+otherwise.
+
+## Linked, not pleiotropic: the "ld" architecture
+
+`architecture = "ld"` is the spurious-pleiotropy scenario: two traits whose
+**distinct** causal loci sit in linkage disequilibrium, so the traits covary
+through linkage even though no locus is causal for both. It is a two-trait
+construct (`n_traits = 2`) — one causal SNP per trait per locus-pair. `ld_type`
+picks how the pair is linked: `"direct"` (the default) puts trait 1's and trait
+2's causal SNPs directly in LD; `"indirect"` links each to a shared hidden,
+non-causal "cause-of-LD" locus. `r2_min`/`r2_max` set the window the linked
+pair's squared correlation must fall in. `qtn_table()` reports the linked pair
+on each row: `QTN_t1` / `QTN_t2` (the two traits' causal SNPs) and `ld_r2` (the
+r² between them).
 
 ```{r ld}
 ph_ld <- simulate_phenotype(geno, architecture = "ld", n_traits = 2,
-                            ld_type = "indirect", seed = 5) |>
+                            seed = 5) |>
   additive(prop = 0.4, n_qtn = 3)
 ph_ld
+
+# distinct causal loci per trait, with the r2 between the linked pair
+qtn_table(ph_ld)[, c("trait", "snp", "QTN_t1", "QTN_t2", "ld_r2")]
 ```
 
 ## Combining architectures
@@ -227,75 +284,15 @@ head(phenotypes_wide(ph_pleio))
 # Multi-generation crosses
 
 The crossing functions simulate meiosis directly, so they can build a pedigree
-from real founder genotypes. Start by phasing the founders into a `Population`:
-
-```{r population}
-pop <- as_population(geno, individuals = c("33-16", "38-11"))
-pop
-```
-
-Heterozygotes have to be phased arbitrarily, which is nearly lossless for an
-inbred panel like this one but a real assumption for outbred material — see
-`?as_population`.
-
-## Making an F1, an F2 and doubled haploids
+from real founder genotypes. Phase the founders into a `Population`, then cross,
+self or make doubled haploids:
 
 ```{r pedigree}
-f1 <- cross(pop[1], pop[2], n = 1, seed = 11)
-f2 <- selfcross(f1, n = 200, seed = 12)
-dh <- double_haploid(f1, n = 400, seed = 13)
+pop <- as_population(geno, individuals = c("33-16", "38-11"))
+f1  <- cross(pop[1], pop[2], n = 1, seed = 11)
+f2  <- selfcross(f1, n = 200, seed = 12)
 f2
 ```
-
-The result is textbook genetics. At markers where the two founders differ, the
-F1 is heterozygous, the F2 segregates 1:2:1, and the doubled haploids are
-completely homozygous and split 1:1:
-
-```{r segregation}
-het_in_f1 <- which(dosages(f1)[, 1] == 0)
-
-round(prop.table(table(dosages(f2)[het_in_f1, ])), 3)
-round(prop.table(table(dosages(dh)[het_in_f1, ])), 3)
-any(dosages(dh) == 0)
-```
-
-Recombination follows the genetic map. To see it, measure which *parent* each
-doubled haploid inherited a locus from, rather than comparing genotypes
-directly — the two founders happen to share an allele at many markers, and
-those markers carry no information about recombination. Restricting to loci
-where the F1 is heterozygous, and asking whether a locus came from the same
-homologue as the first locus, recovers the recombination fraction:
-
-```{r linkage}
-on_chr1 <- geno$chr == 1
-p1 <- dosages(pop[1])[on_chr1, 1]
-p2 <- dosages(pop[2])[on_chr1, 1]
-
-# Informative loci: both founders homozygous, and for different alleles.
-inf <- which(p1 != p2 & p1 != 0 & p2 != 0)
-cm1 <- geno$cm[on_chr1][inf]
-
-# A doubled haploid is homozygous, so its allele names the founder it came from.
-from_p1 <- dosages(dh)[on_chr1, ][inf, ] == p1[inf]
-
-pick <- c(5, 20, 100, 400)
-data.frame(
-  distance_cM   = round(cm1[pick] - cm1[1], 1),
-  recombination = round(rowMeans(from_p1[pick, ] != from_p1[rep(1, 4), ]), 3),
-  haldane       = round((1 - exp(-2 * (cm1[pick] - cm1[1]) / 100)) / 2, 3)
-)
-```
-
-The observed fractions track Haldane's map function, which is what the
-count-location model implies: crossovers arrive as a Poisson process along the
-chromosome with no interference, so loci recombine with probability
-$(1 - e^{-2d})/2$ at distance $d$ Morgans, approaching one half — never
-exceeding it — as they become unlinked.
-
-All randomness is drawn by R, so `set.seed()` or the `seed =` argument makes any
-pedigree exactly reproducible.
-
-## Phenotyping a simulated pedigree
 
 A `Population` is accepted anywhere `simulate_phenotype()` takes `geno`, so a
 pedigree can be phenotyped without any conversion:
@@ -304,10 +301,13 @@ pedigree can be phenotyped without any conversion:
 ph_f2 <- simulate_phenotype(f2, seed = 14) |>
   additive(prop = 0.6, n_qtn = 5)
 ph_f2
-head(phenotypes_long(ph_f2))
 ```
 
-# The v1 interface
+`vignette("breeding-populations")` covers this properly: backcrosses, recurrent
+selfing to inbred lines, doubled haploids, and how to check that segregation and
+recombination are behaving.
+
+# Original implementation of create_phenotypes
 
 `create_phenotypes()` is the original v1 function. It is **frozen**: it keeps
 its original code paths and seed handling so that existing scripts keep

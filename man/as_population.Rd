@@ -8,23 +8,23 @@ as_population(geno, individuals = NULL)
 }
 \arguments{
 \item{geno}{a numeric-format data frame whose first five columns are
-`c("snp", "allele", "chr", "pos", "cm")`, as returned by [as_numeric()],
+\code{c("snp", "allele", "chr", "pos", "cm")}, as returned by \code{\link[=as_numeric]{as_numeric()}},
 with the remaining columns individuals coded -1/0/1.}
 
 \item{individuals}{optional character or numeric vector selecting which
 individuals to keep, in the order given. Defaults to all of them.}
 }
 \value{
-A `Population`.
+A \code{Population}.
 }
 \description{
 Meiosis needs to know which allele sits on which of an individual's two
 homologous chromosomes, information that a -1/0/1 dosage matrix does not
-carry. `as_population()` builds that phased representation so the result can
-be passed to [cross()], [selfcross()] and [double_haploid()].
+carry. \code{as_population()} builds that phased representation so the result can
+be passed to \code{\link[=cross]{cross()}}, \code{\link[=selfcross]{selfcross()}} and \code{\link[=double_haploid]{double_haploid()}}.
 }
 \details{
-A `Population` is also accepted anywhere [simulate_phenotype()] takes `geno`,
+A \code{Population} is also accepted anywhere \code{\link[=simulate_phenotype]{simulate_phenotype()}} takes \code{geno},
 so a simulated pedigree can be phenotyped directly.
 }
 \section{Phasing of heterozygotes}{
@@ -32,10 +32,12 @@ so a simulated pedigree can be phenotyped directly.
 Homozygous genotypes (-1 and 1) determine both strands exactly. Heterozygotes
 do not, and are assigned arbitrarily as allele-1 on the first strand and
 allele-2 on the second. For inbred panels such as
-[SNP55K_maize282_maf04] this is nearly lossless because heterozygotes are
+\link{SNP55K_maize282_maf04} this is nearly lossless because heterozygotes are
 rare, but for an outbred sample the phase of each heterozygote is a guess,
 and linkage between heterozygous sites in the first generation will not be
-realistic. Supply already-phased founders if that matters for your design.
+realistic. The current public API does not import external haplotype phase,
+so \code{as_population()} should not be used for multi-generation recombination
+studies of substantially heterozygous, unphased founders.
 }
 
 \examples{
@@ -44,5 +46,5 @@ pop <- as_population(SNP55K_maize282_maf04, individuals = c("33-16", "38-11"))
 pop
 }
 \seealso{
-[cross()], [selfcross()], [double_haploid()], [synthetic_map()]
+\code{\link[=cross]{cross()}}, \code{\link[=selfcross]{selfcross()}}, \code{\link[=double_haploid]{double_haploid()}}, \code{\link[=synthetic_map]{synthetic_map()}}
 }

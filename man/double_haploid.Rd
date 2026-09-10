@@ -7,18 +7,18 @@
 double_haploid(parent, n = 1, seed = NULL)
 }
 \arguments{
-\item{parent}{a single-individual `Population`.}
+\item{parent}{a single-individual \code{Population}.}
 
 \item{n}{number of progeny.}
 
-\item{seed}{optional RNG seed. All randomness is drawn in R, so `set.seed()`
+\item{seed}{optional RNG seed. All randomness is drawn in R, so \code{set.seed()}
 before the call works equally well.}
 }
 \value{
-A `Population` of `n` fully homozygous progeny.
+A \code{Population} of \code{n} fully homozygous progeny.
 }
 \description{
-Produces `n` doubled-haploid progeny: a single recombinant gamete is drawn
+Produces \code{n} doubled-haploid progeny: a single recombinant gamete is drawn
 and then doubled, so every individual is completely homozygous at every
 marker. This is the one-generation route to a fully inbred line, and the
 result contains no heterozygotes at all.
@@ -31,6 +31,11 @@ dh <- double_haploid(f1, n = 10, seed = 3)
 # No heterozygotes by construction:
 any(dosages(dh) == 0)
 }
+\references{
+Toledo, F.H., Perez-Rodriguez, P., Crossa, J. and Burgueno, J. (2019). isqg:
+A Binary Framework for in Silico Quantitative Genetics. \emph{G3
+Genes|Genomes|Genetics} 9(8), 2425--2428. \doi{10.1534/g3.119.400373}
+}
 \seealso{
-[cross()], [selfcross()]
+\code{\link[=cross]{cross()}}, \code{\link[=selfcross]{selfcross()}}
 }

@@ -7,7 +7,7 @@
 write_phenotypes(sim, file, format = c("long", "wide"), sep = "\\t")
 }
 \arguments{
-\item{sim}{a `phenotype_sim`.}
+\item{sim}{a \code{phenotype_sim}.}
 
 \item{file}{output path.}
 
@@ -16,9 +16,29 @@ write_phenotypes(sim, file, format = c("long", "wide"), sep = "\\t")
 \item{sep}{field separator (default tab).}
 }
 \value{
-`file`, invisibly.
+\code{file}, invisibly.
 }
 \description{
 Writes the long (default) or wide table as a delimited file. Specialized
 exporters (gemma / plink / multi-file) are out of scope for the grammar core.
+}
+\examples{
+data("SNP55K_maize282_maf04")
+ph <- simulate_phenotype(SNP55K_maize282_maf04, n_traits = 2, seed = 1) |>
+  additive(prop = 0.5, n_qtn = 3)
+
+# Written to a temporary directory here; use your own path in practice.
+out <- file.path(tempdir(), "phenotypes.txt")
+write_phenotypes(ph, file = out)
+head(read.delim(out))
+
+# Wide layout, comma separated.
+out_wide <- file.path(tempdir(), "phenotypes_wide.csv")
+write_phenotypes(ph, file = out_wide, format = "wide", sep = ",")
+head(read.csv(out_wide))
+
+unlink(c(out, out_wide))
+}
+\seealso{
+\code{\link[=phenotypes_long]{phenotypes_long()}}, \code{\link[=phenotypes_wide]{phenotypes_wide()}}.
 }

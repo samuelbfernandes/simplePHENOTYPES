@@ -2,20 +2,114 @@
 % Please edit documentation in R/as_numeric.R
 \name{as_numeric}
 \alias{as_numeric}
-\title{Converts character SNP genotype to numerical (-1, 0, 1) were 1 is the major allele}
+\title{Convert genotypes to numeric coding}
 \usage{
 as_numeric(x, ...)
 }
 \arguments{
-\item{x}{ggg}
+\item{x}{genotype data: a file path, or an object in memory (for example a
+HapMap-style data frame).}
 
-\item{...}{...}
+\item{...}{further options controlling the conversion:
+\describe{
+\item{\code{to_r}}{return the result as an R object (default \code{TRUE} for
+in-memory input, \code{FALSE} for file input).}
+\item{\code{to_file}}{write the result to a file; \code{file_name} sets the path.}
+\item{\code{code_as}}{\code{"-101"} (major = 1, het = 0, minor = -1; default) or
+\code{"012"} (major = 2, het = 1, minor = 0).}
+\item{\code{method}}{allele orientation: \code{"frequency"} (default) or
+\code{"reference"}, the latter requiring \code{ref_allele}.}
+\item{\code{ref_allele}}{reference allele per marker, for
+\code{method = "reference"}.}
+\item{\code{impute}}{missing-data handling: \code{"None"} (default), \code{"Middle"},
+\code{"Minor"} or \code{"Major"}.}
+\item{\code{model}}{\code{"Add"} (default), \code{"Dom"}, \code{"Left"} or \code{"Right"}.}
+\item{\code{from}}{input format, when automatic detection is not wanted.}
+\item{\code{verbose}}{print progress messages.}
+}}
 }
 \value{
-Corresponding numerical value
-Last update: Apr 13, 2021
---------------------------as_numeric---------------------------------
+The genotypes in numeric format: five metadata columns
+(\code{snp}, \code{allele}, \code{chr}, \code{pos}, \code{cm}) followed by one column per
+individual. Returned as a data frame when \code{to_r = TRUE}, otherwise written
+to file.
 }
 \description{
-Converts character SNP genotype to numerical (-1, 0, 1) were 1 is the major allele
+Converts character SNP genotypes to numeric coding, the format every
+simulation function in the package expects. HapMap, VCF, GDS and PLINK
+bed/ped input are recognized automatically, from a file path or from an
+object already in memory.
+}
+\section{Which allele becomes 1}{
+
+By default (\code{method = "frequency"}) the \strong{most frequent allele is the
+reference}: it is coded \code{1}, the minor allele \code{-1}, and the heterozygote
+\code{0}. Because the coding is decided per marker from the data itself, it does
+not depend on how the input file happened to order its alleles.
+
+Set \code{method = "reference"} with \code{ref_allele} to fix the reference allele
+yourself instead — for example to keep the coding consistent with an
+external panel, where the major allele in your sample may not be the one you
+want coded \code{1}.
+
+\code{code_as = "012"} switches to counting the reference allele (\code{2}/\code{1}/\code{0})
+rather than centering on the heterozygote.
+}
+
+\section{The output, and the \code{cm} column}{
+
+The result has five metadata columns — \code{snp}, \code{allele}, \code{chr}, \code{pos}, \code{cm} —
+followed by one column per individual.
+
+\code{cm} is the genetic map in centiMorgans, and it is \code{NA} unless the input
+format carries one. HapMap and VCF have no genetic-distance field, so \code{cm}
+is \code{NA} for them; PLINK \code{.bim} / \code{.map} files do (column 3), and it is kept
+when populated. This matters because meiosis needs recombination distances:
+\code{\link[=as_population]{as_population()}} and the crossing functions refuse to run on an all-\code{NA}
+map. Fill one in from the physical positions when you have no real map:
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{num <- as_numeric("my_genotypes.hmp.txt", to_r = TRUE)
+num$cm <- synthetic_map(num$chr, num$pos)
+}\if{html}{\out{</div>}}
+
+Note also that \code{aggregate(cm ~ chr, ...)} returns "no rows to aggregate" on
+an all-\code{NA} map, since the formula interface drops missing values.
+}
+
+\examples{
+# A small HapMap table: 11 metadata columns, then one column per individual.
+hmp <- data.frame(
+  `rs#`   = c("snp1", "snp2", "snp3"),
+  alleles = c("C/T", "A/G", "G/T"),
+  chrom   = c(1, 1, 2),
+  pos     = c(100, 500, 200),
+  strand  = "+", `assembly#` = NA, center = NA,
+  protLSID = NA, assayLSID = NA, panelLSID = NA, QCcode = NA,
+  L1 = c("C", "A", "G"),
+  L2 = c("T", "G", "T"),
+  L3 = c("C", "A", "T"),
+  L4 = c("T", "G", "G"),
+  check.names = FALSE, stringsAsFactors = FALSE
+)
+
+# to_r = TRUE returns the result instead of writing it to disk.
+num <- as_numeric(hmp, to_r = TRUE, verbose = FALSE)
+num
+
+# 0 / 1 / 2 coding instead of -1 / 0 / 1:
+as_numeric(hmp, to_r = TRUE, code_as = "012", verbose = FALSE)
+
+# Orient the coding against a reference allele rather than by frequency:
+as_numeric(hmp, to_r = TRUE, verbose = FALSE,
+           method = "reference", ref_allele = c("C", "A", "G"))
+
+# From a file, the format is detected from its contents:
+\dontrun{
+num <- as_numeric("my_genotypes.hmp.txt", to_r = TRUE)
+num <- as_numeric("my_genotypes.vcf", to_r = TRUE)
+}
+}
+\seealso{
+\code{\link[=synthetic_map]{synthetic_map()}} to supply a genetic map, \code{\link[=as_population]{as_population()}} and
+\code{\link[=cross]{cross()}} for what that map is needed for.
 }

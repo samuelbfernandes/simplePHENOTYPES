@@ -3,8 +3,7 @@
 #' @param m square matrix
 #' @param verbose = TRUE
 #' @return positive definite matrix
-#' @author Samuel Fernandes
-#' Last update: Jan 5, 2021
+#' @author Samuel Fernandes. Last update: Jan 5, 2021
 #'
 make_pd <- function(m, verbose = TRUE){
   e <- eigen(m)

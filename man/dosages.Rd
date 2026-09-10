@@ -7,7 +7,7 @@
 dosages(x)
 }
 \arguments{
-\item{x}{a `Population`.}
+\item{x}{a \code{Population}.}
 }
 \value{
 An integer matrix of markers by individuals, coded -1/0/1.
