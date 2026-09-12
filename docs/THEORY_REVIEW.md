@@ -41,9 +41,9 @@ THEORY: PASS | FAIL (n)
   correct** for the equation used. Known-good, already verified in this package:
   Smith 1936 *Ann. Eugen.* 7:240–250; Hazel 1943 *Genetics* 28:476–490;
   Lush 1947 *Am. Nat.* 81:241–261, 362–379. Others the code cites (VanRaden 2008
-  *J. Dairy Sci.* 91:4414–4423; Meuwissen 1997 *J. Anim. Sci.*; Zhong & Jannink 2007
-  *Genetics* 176:2453–2461; Lehermeier 2017 *Genetics*) — **verify the page against the
-  paper**, do not assume.
+  *J. Dairy Sci.* 91:4414–4423; Meuwissen 1997 *J. Anim. Sci.* 75:934–940;
+  Zhong & Jannink 2007 *Genetics* 177(1):567–576; Lehermeier et al. 2017 *Genetics*
+  207(4):1651–1661) — **verify the page against the paper**, do not assume.
 - **C2** No fabricated book chapter/page (e.g. "Bernardo ch. 7"): author-year only unless
   a page is verified.
 - **C3** The equation in the code matches the equation in the cited source (symbols,
