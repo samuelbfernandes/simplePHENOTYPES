@@ -94,7 +94,12 @@ $diff
   echo "→ independent theory review by: $REVIEWER  (scope: $scope)" >&2
   out="$(review "$prompt")"
   printf '%s\n' "$out"
-  audit_record "review" "$scope" "$(parse_verdict "$out")" "-" "$REVIEWER" "-" >&2 || true
+  # Persist the full findings so they are not lost when the terminal scrolls/clears.
+  audit_init
+  local tf; tf="$(audit_dir)/transcripts/review-$(date +%Y%m%d-%H%M%S).md"
+  { echo "# review — $scope  ($(date))"; echo; printf '%s\n' "$out"; } > "$tf" 2>/dev/null || tf="-"
+  audit_record "review" "$scope" "$(parse_verdict "$out")" "-" "$REVIEWER" "$tf" >&2 || true
+  [ "$tf" != "-" ] && echo "→ findings saved: $tf" >&2
 }
 
 # --- implement -> review -> fix loop --------------------------------------------
