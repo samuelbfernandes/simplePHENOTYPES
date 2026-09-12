@@ -13,8 +13,10 @@
 #
 # Env for --eval: REVIEWER=codex|claude (default codex), keep worktrees with KEEP=1.
 set -euo pipefail
-cd "$(git rev-parse --show-toplevel)"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Writable repo-local temp before any git/R call (see dev/dual.sh for why).
+export TMPDIR="${PIPELINE_TMPDIR:-$DIR/../.tmp}"; mkdir -p "$TMPDIR"
+cd "$(git rev-parse --show-toplevel)"
 DEV="$DIR/../dev"
 . "$DEV/lib/verdict.sh"; . "$DEV/lib/audit.sh"; . "$DEV/lib/worktree.sh"
 MUT="$DIR/mutations.json"
@@ -74,8 +76,8 @@ File: $1
 $body
 </file>"
   case "$REVIEWER" in
-    codex)  codex exec -s read-only --skip-git-repo-check "$prompt" </dev/null;;
-    claude) claude -p "$prompt" --permission-mode plan --allowedTools "Read,Grep,Glob";;
+    codex)  codex exec -s workspace-write --skip-git-repo-check "$prompt" </dev/null;;
+    claude) claude -p "$prompt" --permission-mode plan --allowedTools "Read,Grep,Glob,Bash(Rscript:*)";;
   esac
 }
 

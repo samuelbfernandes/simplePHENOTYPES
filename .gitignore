@@ -10,6 +10,8 @@ context/
 # Local provenance from the two-model pipeline (transcripts + run log) — not shipped.
 # The pipeline itself (dev/, evals/, .githooks/, AGENTS.md) IS committed.
 dev/.audit/
+# Repo-local temp the pipeline points TMPDIR at (macOS per-user temp workaround).
+.tmp/
 
 # Note: docs/ARCHITECTURE.md, docs/DECISIONS.md, docs/SPEC.md, docs/BUGS.md,
 # docs/NEXT_STEPS.md ARE project documentation and SHOULD be committed.

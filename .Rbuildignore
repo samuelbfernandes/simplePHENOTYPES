@@ -15,6 +15,7 @@
 ^\.githooks$
 ^dev$
 ^evals$
+^\.tmp$
 
 # Project documentation (kept in git, but not shipped to CRAN)
 ^docs$

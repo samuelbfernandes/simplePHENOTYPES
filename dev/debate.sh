@@ -18,8 +18,10 @@
 # machine-parseable JSON verdict; a max-rounds+escalate referee; claims settled by
 # runnable R, not rhetoric; and every run is recorded to dev/.audit/.
 set -euo pipefail
-cd "$(git rev-parse --show-toplevel)"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Writable repo-local temp before any git/R call (see dual.sh for why).
+export TMPDIR="${PIPELINE_TMPDIR:-$DIR/../.tmp}"; mkdir -p "$TMPDIR"
+cd "$(git rev-parse --show-toplevel)"
 . "$DIR/lib/verdict.sh"; . "$DIR/lib/audit.sh"; . "$DIR/lib/worktree.sh"
 
 RUBRIC="docs/THEORY_REVIEW.md"
@@ -39,7 +41,9 @@ call_claude_rw() { claude -p "$1" --permission-mode acceptEdits \
 call_claude_ro() { claude -p "$1" --permission-mode plan \
                      --allowedTools "Read,Grep,Glob,Bash(Rscript:*),Bash(git diff:*)"; }
 call_codex_rw()  { codex exec -s workspace-write --skip-git-repo-check "$1" </dev/null; }
-call_codex_ro()  { codex exec -s read-only       --skip-git-repo-check "$1" </dev/null; }
+# skeptic is workspace-write so it can RUN R for evidence (read-only blocks R's temp);
+# the skeptic prompt forbids editing source.
+call_codex_ro()  { codex exec -s workspace-write --skip-git-repo-check "$1" </dev/null; }
 defender() { case "$DEFENDER" in claude) call_claude_rw "$1";; codex) call_codex_rw "$1";; esac; }
 skeptic()  { case "$SKEPTIC"  in claude) call_claude_ro "$1";; codex) call_codex_ro "$1";; esac; }
 
@@ -83,8 +87,10 @@ fi
 
 # --- SKEPTIC opens ---------------------------------------------------------------
 OPEN="$(skeptic "You are the SKEPTIC (model: $SKEPTIC), reviewing a change for GENETIC-THEORY
-correctness. Apply the rubric $RUBRIC. Try hard to FALSIFY it. List each objection as
-O1, O2, … with rubric id, file:line, the flaw, and a concrete falsifying case. $RULES
+correctness. You REVIEW ONLY — do not modify, create, or delete any source file; you may
+run Rscript and create only temporary files to gather evidence. Apply the rubric $RUBRIC.
+Try hard to FALSIFY it. List each objection as O1, O2, … with rubric id, file:line, the
+flaw, and a concrete falsifying case. $RULES
 
 $(verdict_instruction)
 
@@ -112,9 +118,10 @@ $OPEN
 </skeptic>")"
     log "DEFENDER round $r ($DEFENDER)" "$REB"
     CHANGE="$(git diff)"
-    OPEN="$(skeptic "You are the SKEPTIC ($SKEPTIC). The defender responded below and may have edited
-the code. Re-examine EACH item. Concede only when an executed run convinces you; else
-PRESS with new evidence. Do not soften just to agree. $RULES
+    OPEN="$(skeptic "You are the SKEPTIC ($SKEPTIC). You REVIEW ONLY — do not modify any file; you
+may run Rscript and create only temp files. The defender responded below and may have
+edited the code. Re-examine EACH item. Concede only when an executed run convinces you;
+else PRESS with new evidence. Do not soften just to agree. $RULES
 
 $(verdict_instruction)
 <defender>

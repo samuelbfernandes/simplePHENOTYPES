@@ -16,8 +16,12 @@
 # Flags for each CLI are centralized in run_claude()/run_codex() below — if your codex
 # version uses different flags, fix them there only.
 set -euo pipefail
-cd "$(git rev-parse --show-toplevel)"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Writable temp INSIDE the repo, set before any git/R call. The macOS per-user temp is
+# unavailable in some terminals ("cannot create R_TempDir" / xcrun temp errors), and
+# codex's workspace-write sandbox always allows the repo tree. Override with PIPELINE_TMPDIR.
+export TMPDIR="${PIPELINE_TMPDIR:-$DIR/../.tmp}"; mkdir -p "$TMPDIR"
+cd "$(git rev-parse --show-toplevel)"
 . "$DIR/lib/verdict.sh"; . "$DIR/lib/audit.sh"
 
 RUBRIC="docs/THEORY_REVIEW.md"
@@ -37,8 +41,11 @@ run_claude_review() { claude -p "$1" --permission-mode plan \
 # Codex headless: exec = non-interactive. full-auto writes in the workspace; read-only
 # for review. (OpenAI Codex CLI: `codex exec`, `--full-auto`, `-s read-only`.)
 # stdin from /dev/null so codex never blocks waiting on it inside a script.
+# Reviewer uses workspace-write (NOT read-only): it must create temp files to RUN R and
+# gather executed evidence — read-only forbids all writes, so R can't even start. The
+# review prompt forbids editing source; verify with `git status` after if you like.
 run_codex_impl()    { codex exec -s workspace-write --skip-git-repo-check "$1" </dev/null; }
-run_codex_review()  { codex exec -s read-only     --skip-git-repo-check "$1" </dev/null; }
+run_codex_review()  { codex exec -s workspace-write --skip-git-repo-check "$1" </dev/null; }
 
 impl()   { case "$IMPL"     in claude) run_claude_impl   "$1";; codex) run_codex_impl   "$1";; esac; }
 review() { case "$REVIEWER" in claude) run_claude_review "$1";; codex) run_codex_review "$1";; esac; }
