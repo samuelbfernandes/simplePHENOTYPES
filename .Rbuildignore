@@ -14,6 +14,7 @@
 ^AGENTS\.md$
 ^\.githooks$
 ^dev$
+^evals$
 
 # Project documentation (kept in git, but not shipped to CRAN)
 ^docs$

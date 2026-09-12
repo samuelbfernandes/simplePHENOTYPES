@@ -1,0 +1,15 @@
+name: eval-check
+# Cheap, no-model guard that the seeded-bug golden set stays valid (every mutation still
+# applies to the current source). Catches a mutation whose target line moved before it
+# silently rots. The full model-scored eval (evals/run.sh --eval) is run locally.
+on:
+  push:
+  pull_request:
+
+jobs:
+  golden-set-valid:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: mutations apply cleanly
+        run: bash evals/run.sh --check

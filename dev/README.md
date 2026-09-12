@@ -58,6 +58,26 @@ The reviewer applies `docs/THEORY_REVIEW.md` and must end with `THEORY: PASS|FAI
 loop stops only when `devtools::test()` is green **and** the reviewer returns PASS. It
 never commits for you — you inspect the diff and commit.
 
+## Isolation, provenance, and structured verdicts
+
+- **Isolation** — `ISOLATE=1 dev/debate.sh --task "…"` runs the agent in a throwaway git
+  worktree (created in `$TMPDIR`, on branch `agent/<ts>`); your working tree is never
+  touched until you merge that branch. Recommended for any run that edits code.
+- **Provenance** — every review/debate/eval run appends a JSON record (models + versions,
+  rubric hash, verdict, commit, transcript path) to `dev/.audit/log.jsonl` and copies the
+  transcript to `dev/.audit/transcripts/`. `dev/.audit/` is gitignored (local, not shipped).
+- **Structured verdicts** — reviewer/skeptic replies end in a fenced JSON
+  `{"verdict":"AGREE|BLOCK","open":[…],"confidence":…}`, parsed by `dev/lib/parse_verdict.py`
+  — the harness never scrapes prose to decide agreement.
+
+## Evals — is the reviewer any good?
+
+`evals/` meta-tests the reviewer against seeded theory bugs (see `evals/README.md`):
+```bash
+evals/run.sh --check    # no model: golden set still applies (also runs in CI)
+evals/run.sh --eval     # score recall/precision of the reviewer on 5 seeded bugs
+```
+
 ## Guarantees
 
 - **No AI co-author, ever.** `.githooks/commit-msg` rejects any `Co-Authored-By` naming

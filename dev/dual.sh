@@ -17,6 +17,8 @@
 # version uses different flags, fix them there only.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$DIR/lib/verdict.sh"; . "$DIR/lib/audit.sh"
 
 RUBRIC="docs/THEORY_REVIEW.md"
 IMPL="${IMPL:-claude}"
@@ -68,20 +70,24 @@ cmd_review() {
   fi
   [ -z "$diff" ] && { echo "Nothing to review in: $scope"; exit 0; }
 
-  local prompt
+  local prompt out
   prompt="You are the INDEPENDENT reviewer (model: $REVIEWER). Review the change below for
-GENETIC-THEORY correctness and implementation bugs. Apply the rubric in $RUBRIC exactly,
-including its required output format and final 'THEORY: PASS|FAIL' line. Do NOT edit any
-file. Try to falsify each claim with a concrete numerical counterexample. Do not invent
-citations or page numbers — mark UNVERIFIABLE if you cannot confirm.
+GENETIC-THEORY correctness and implementation bugs. Apply the rubric in $RUBRIC exactly
+(its per-item format and evidence). Do NOT edit any file. Try to falsify each claim with a
+concrete numerical counterexample. Do not invent citations or page numbers — mark
+UNVERIFIABLE if you cannot confirm.
+
+$(verdict_instruction)
 
 Scope: $scope
 
 <change>
 $diff
 </change>"
-  echo "→ independent theory review by: $REVIEWER  (scope: $scope)"
-  review "$prompt"
+  echo "→ independent theory review by: $REVIEWER  (scope: $scope)" >&2
+  out="$(review "$prompt")"
+  printf '%s\n' "$out"
+  audit_record "review" "$scope" "$(parse_verdict "$out")" "-" "$REVIEWER" "-" >&2 || true
 }
 
 # --- implement -> review -> fix loop --------------------------------------------
@@ -102,9 +108,9 @@ Task: $task"
       continue
     fi
     local verdict
-    verdict="$(cmd_review 2>&1)"; echo "$verdict"
-    if printf '%s' "$verdict" | grep -qE 'THEORY:[[:space:]]*PASS'; then
-      echo "✓ tests green AND theory review PASS. Review the diff, then commit yourself."
+    verdict="$(cmd_review)"; echo "$verdict"
+    if [ "$(parse_verdict "$verdict")" = AGREE ]; then
+      echo "✓ tests green AND reviewer verdict AGREE. Review the diff, then commit yourself."
       return 0
     fi
     impl "The independent theory reviewer ($REVIEWER) reported issues below. Address each

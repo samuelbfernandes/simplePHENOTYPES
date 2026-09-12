@@ -1,0 +1,47 @@
+[
+  {
+    "id": "O1-vanraden-denominator",
+    "file": "R/ocs.R",
+    "rubric": "O1",
+    "find": "2 * sum(p * (1 - p))",
+    "replace": "sum(p * (1 - p))",
+    "bug": "Drops the 2 in VanRaden's denominator 2*sum p(1-p); G is scaled 2x and genomic inbreeding F = Gii-1 is wrong.",
+    "expect": "BLOCK"
+  },
+  {
+    "id": "O2-coancestry-half",
+    "file": "R/ocs.R",
+    "rubric": "O2",
+    "find": "0.5 * crossprod(c_opt, G %*% c_opt)",
+    "replace": "crossprod(c_opt, G %*% c_opt)",
+    "bug": "Drops the 1/2 in group coancestry (1/2) c'Gc; reported coancestry is doubled and the OCS constraint is mis-scaled.",
+    "expect": "BLOCK"
+  },
+  {
+    "id": "S1-intensity-divide-p",
+    "file": "R/select.R",
+    "rubric": "S1",
+    "find": "stats::dnorm(stats::qnorm(1 - p)) / p",
+    "replace": "stats::dnorm(stats::qnorm(1 - p))",
+    "bug": "Drops the /p in i(p)=phi(qnorm(1-p))/p; selection intensity is understated, so the resolved keep-count is wrong.",
+    "expect": "BLOCK"
+  },
+  {
+    "id": "S2-smith-hazel-swap",
+    "file": "R/select.R",
+    "rubric": "S2",
+    "find": "solve(Pcov, Gcov %*% weights)",
+    "replace": "solve(Gcov, Pcov %*% weights)",
+    "bug": "Swaps P and G in Smith-Hazel b = P^-1 G a, computing G^-1 P a instead; index weights are wrong.",
+    "expect": "BLOCK"
+  },
+  {
+    "id": "U1-usefulness-intensity",
+    "file": "R/usefulness.R",
+    "rubric": "U1",
+    "find": "mu + i_val * sdev",
+    "replace": "mu + sdev",
+    "bug": "Drops the intensity multiplier in usefulness U = mu + i*sigma; every cross is scored with i=1 regardless of select_top.",
+    "expect": "BLOCK"
+  }
+]

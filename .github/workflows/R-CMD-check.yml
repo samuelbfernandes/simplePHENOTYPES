@@ -1,0 +1,38 @@
+name: R-CMD-check
+# Objective gate on GitHub: build + check the package (with the Rust core and the
+# Bioconductor deps). Lean single job to start; expand the matrix (macOS/Windows, oldrel)
+# once it is green.
+on:
+  push:
+    branches: [main, master, restructure]
+  pull_request:
+
+jobs:
+  R-CMD-check:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain (for the src/rust core)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::rcmdcheck
+          needs: check
+        # SNPRelate + gdsfmt are Bioconductor; pak resolves them automatically.
+
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
