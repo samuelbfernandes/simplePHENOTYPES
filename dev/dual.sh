@@ -34,8 +34,9 @@ run_claude_review() { claude -p "$1" --permission-mode plan \
                         --allowedTools "Read,Grep,Glob,Bash(Rscript:*),Bash(git diff:*)"; }
 # Codex headless: exec = non-interactive. full-auto writes in the workspace; read-only
 # for review. (OpenAI Codex CLI: `codex exec`, `--full-auto`, `-s read-only`.)
-run_codex_impl()    { codex exec --full-auto "$1"; }
-run_codex_review()  { codex exec -s read-only "$1"; }
+# stdin from /dev/null so codex never blocks waiting on it inside a script.
+run_codex_impl()    { codex exec -s workspace-write --skip-git-repo-check "$1" </dev/null; }
+run_codex_review()  { codex exec -s read-only     --skip-git-repo-check "$1" </dev/null; }
 
 impl()   { case "$IMPL"     in claude) run_claude_impl   "$1";; codex) run_codex_impl   "$1";; esac; }
 review() { case "$REVIEWER" in claude) run_claude_review "$1";; codex) run_codex_review "$1";; esac; }

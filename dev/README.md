@@ -28,6 +28,28 @@ dev/dual.sh loop "add rrBLUP GEBV as an `on` criterion, per docs/THEORY_REVIEW.m
 dev/dual.sh check
 ```
 
+## Skeptical debate to consensus (`dev/debate.sh`)
+
+Stronger than a one-shot review: a **SKEPTIC** must be *convinced* and a **DEFENDER** must
+fix or rebut each objection **with an executed run** (rhetoric loses to a failing/passing
+`Rscript`). It proceeds only when the skeptic explicitly agrees **and** `devtools::test()`
+is green; on deadlock it **escalates to you** and never auto-proceeds or commits.
+
+```bash
+dev/debate.sh R/select.R              # debate the correctness of a file
+dev/debate.sh --staged               # debate the staged diff
+dev/debate.sh --task "add rrBLUP GEBV criterion per docs/THEORY_REVIEW.md M1"
+```
+Default: `claude` defends, `codex` is skeptic (swap with `DEFENDER=codex SKEPTIC=claude`).
+Keep them **different models** — cross-model independence is what makes agreement mean
+something; two of the same model can share a blind spot and confirm each other. The full
+dialogue is saved to a transcript file (path printed at start and end).
+
+> Why it works when `dual.sh` doesn't quite: it maintains a shared transcript (the
+> stateless CLIs get memory), gives the defender a real rebuttal turn, parses a structured
+> `VERDICT: AGREE|BLOCK` from both sides, caps rounds with a human-escalation referee, and
+> grounds every claim in executed R rather than persuasion.
+
 By default `claude` implements and `codex` reviews. Swap with
 `IMPL=codex REVIEWER=claude dev/dual.sh ...`. **The implementer never reviews its own
 genetics change** — that independence is the whole point.
