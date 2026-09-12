@@ -60,55 +60,61 @@ cmd_check() {
 }
 
 # ---------- --eval : does the reviewer catch them? --------------------------------
-review_diff() { # <scope-label>  (reads the worktree's diff via git); echoes model text
-  local prompt diff; diff="$(git diff)"
-  prompt="You are an INDEPENDENT reviewer (model: $REVIEWER) checking a change for
-GENETIC-THEORY correctness. Apply $RUBRIC. Try to falsify. Do not edit files.
+# Review the FULL CONTENTS of one file. We review the working-tree file directly (not a
+# git diff) because the target sources may be untracked WIP — a git diff cannot show an
+# untracked file, and a worktree cut from HEAD would not contain it at all.
+review_file() { # <file>
+  local body prompt; body="$(cat "$1")"
+  prompt="You are an INDEPENDENT reviewer (model: $REVIEWER) checking ONE source file for
+GENETIC-THEORY correctness. It may or may not contain a seeded error. Apply $RUBRIC and
+try to FALSIFY each formula against its primary source. Do not edit files.
 $(verdict_instruction)
-Scope: $1
-<change>
-$diff
-</change>"
+File: $1
+<file>
+$body
+</file>"
   case "$REVIEWER" in
     codex)  codex exec -s read-only --skip-git-repo-check "$prompt" </dev/null;;
-    claude) claude -p "$prompt" --permission-mode plan --allowedTools "Read,Grep,Glob,Bash(git diff:*)";;
+    claude) claude -p "$prompt" --permission-mode plan --allowedTools "Read,Grep,Glob";;
   esac
 }
 
 cmd_eval() {
   command -v "$REVIEWER" >/dev/null || { echo "✖ reviewer '$REVIEWER' not on PATH"; exit 127; }
-  local total; total="$(n)"; local caught=0; local localized=0
+  local total; total="$(n)"; local caught=0 localized=0 present=0
   [ "$total" -eq 0 ] && { echo "no mutations defined in $MUT — nothing to eval"; return 0; }
-  echo "→ eval: reviewer=$REVIEWER over $total seeded bugs + 1 clean control"; echo
+  echo "→ eval: reviewer=$REVIEWER over $total seeded bugs (+1 clean control)"; echo
 
-  # precision control: clean code should NOT be blocked
-  local wt br; IFS='|' read -r wt br <<< "$(wt_create)"
-  ( cd "$wt"; echo "# eval clean control" >> .eval_touch 2>/dev/null || true )
-  local clean; clean="$(cd "$wt" && review_diff "CLEAN CONTROL (no seeded bug)")"
-  local clean_v; clean_v="$(parse_verdict "$clean")"
-  wt_cleanup "$wt" "$br"
-  echo "clean control → verdict=$clean_v (want AGREE)"; echo
+  # precision control: a real target file, UNMUTATED, should NOT be blocked.
+  local ctrl clean clean_v="n/a"; ctrl="$(field 0 file)"
+  if [ -f "$ctrl" ]; then clean="$(review_file "$ctrl")"; clean_v="$(parse_verdict "$clean")"; fi
+  echo "clean control ($ctrl) → verdict=$clean_v (want AGREE)"; echo
 
   for i in $(seq 0 $((total-1))); do
-    local id file find repl rubric
+    local id file find repl rubric bak out v
     id="$(field "$i" id)"; file="$(field "$i" file)"; find="$(field "$i" find)"
     repl="$(field "$i" replace)"; rubric="$(field "$i" rubric)"
-    IFS='|' read -r wt br <<< "$(wt_create)"
-    ( cd "$wt" && apply_mut "$file" "$find" "$repl" >/dev/null ) || { echo "  ✖ $id: could not seed"; wt_cleanup "$wt" "$br"; continue; }
-    local out v; out="$(cd "$wt" && review_diff "seeded bug $id ($rubric)")"; v="$(parse_verdict "$out")"
+    if [ ! -f "$file" ]; then echo "  ○ $id: $file not present — skipped"; continue; fi
+    present=$((present+1))
+    bak="$(mktemp)"; cp "$file" "$bak"
+    trap 'cp "$bak" "$file" 2>/dev/null; rm -f "$bak"' INT TERM   # restore on interrupt
+    if ! apply_mut "$file" "$find" "$repl" >/dev/null 2>&1; then
+      echo "  ✖ $id: could not seed (find string not present)"; cp "$bak" "$file"; rm -f "$bak"; trap - INT TERM; continue
+    fi
+    out="$(review_file "$file")"; v="$(parse_verdict "$out")"
+    cp "$bak" "$file"; rm -f "$bak"; trap - INT TERM              # restore immediately
     local hit=no; [ "$v" = BLOCK ] && { caught=$((caught+1)); hit=yes; }
     local loc=no; printf '%s' "$out" | grep -qw "$rubric" && { localized=$((localized+1)); loc=yes; }
     printf '  %s %-26s verdict=%-7s (want BLOCK)  rubric-cited(%s)=%s\n' \
       "$([ "$hit" = yes ] && echo ✓ || echo ✖)" "$id" "$v" "$rubric" "$loc"
     audit_record "eval:$id" "$rubric" "$v" "-" "$REVIEWER" "-" >/dev/null 2>&1 || true
-    KEEP="${KEEP:-0}"; wt_cleanup "$wt" "$br" "$KEEP"
   done
 
   echo; echo "SCORECARD (reviewer=$REVIEWER)"
-  echo "  recall   (bugs blocked):     $caught/$total"
-  echo "  localized(right rubric id):  $localized/$total"
+  echo "  recall   (bugs blocked):     $caught/$present present"
+  echo "  localized(right rubric id):  $localized/$present"
   echo "  precision(clean not blocked): $([ "$clean_v" = AGREE ] && echo 'PASS (AGREE)' || echo "SUSPECT ($clean_v)")"
-  [ "$caught" -eq "$total" ] && [ "$clean_v" = AGREE ]
+  [ "$caught" -eq "$present" ] && [ "$clean_v" = AGREE ]
 }
 
 case "${1:---check}" in
