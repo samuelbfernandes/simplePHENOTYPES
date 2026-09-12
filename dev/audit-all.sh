@@ -63,7 +63,8 @@ for g in "${AUDIT_GROUPS[@]}"; do
 done
 
 # --- write findings to the TOP of TODO.md (idempotent, marker-delimited) ----------
-if [ ${#results[@]} -gt 0 ] && [ -f TODO.md ]; then
+if [ ${#results[@]} -gt 0 ]; then
+  [ -f TODO.md ] || printf '# TODO\n\n' > TODO.md    # create it if the repo has none
   block="<!-- AUDIT:BEGIN -->
 ## Audit findings — $(date +%F) (TOP PRIORITY — from dev/audit-all.sh)
 "
