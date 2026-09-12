@@ -10,6 +10,11 @@
 (^|/)\.claude$
 (^|/)\.cc-writes$
 
+# Dual-model dev pipeline (kept in git, not shipped to CRAN)
+^AGENTS\.md$
+^\.githooks$
+^dev$
+
 # Project documentation (kept in git, but not shipped to CRAN)
 ^docs$
 
