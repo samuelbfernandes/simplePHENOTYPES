@@ -16,6 +16,7 @@ filter_geno(
   blocks = FALSE,
   block_max_kb = 500,
   window_unit = c("variants", "kb"),
+  code_as = c("-101", "012"),
   verbose = TRUE
 )
 }
@@ -52,6 +53,12 @@ one tag marker per block (default \code{FALSE}).}
 
 \item{window_unit}{\code{"variants"} (default) or \code{"kb"} -- the unit of the pruning
 \code{window}. \code{"kb"} needs the data-frame input (uses the \code{pos} column).}
+
+\item{code_as}{the genotype coding of \code{geno}: \code{"-101"} (default; major = 1,
+het = 0, minor = -1) or \code{"012"} (major = 2, het = 1, minor = 0). This is
+declared rather than guessed, because a marker with only \code{0}/\code{1} present is
+ambiguous between the two schemes; values outside the declared set are an
+error. It sets how minor-allele frequency and heterozygosity are computed.}
 
 \item{verbose}{report how many markers each filter removed (default \code{TRUE}).}
 }

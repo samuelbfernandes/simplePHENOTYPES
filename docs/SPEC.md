@@ -136,8 +136,8 @@ Architecture-specific arguments:
     inconsistent requests (three traits cannot all be strongly negatively correlated).
     Unattainable requests are an error, not a silent approximation. Supplying `cor`
     emits a one-per-session citation message for the correlation-control algorithm
-    (published separately); it is an [rlang::inform()] message, silenceable with
-    `suppressMessages()`, and is not emitted when `cor` is absent.
+    (Prado et al., in preparation); it is an [rlang::inform()] message, silenceable
+    with `suppressMessages()`, and is not emitted when `cor` is absent.
   - `pi` — proportion of each trait's genetic variance explained by the pleiotropic QTNs
     (default 1, pure pleiotropy). Scalar or length-`n_traits`. `pi_target` /
     `pi_secondary` remain as the two-trait spelling.
@@ -546,8 +546,9 @@ cor² ≤ pi_target × pi_secondary
 ```
 
 ### Effect draws
-Pleiotropic effects are drawn from a **multivariate normal** (Cholesky decomposition of
-the per-SNP covariance matrix scaled by QTN count; bivariate when `n_traits = 2`):
+Pleiotropic effects are drawn from a **multivariate normal** (eigen (symmetric)
+square root of the per-SNP covariance matrix scaled by QTN count, so exactly singular
+but feasible covariances are still sampled; bivariate when `n_traits = 2`):
 ```
 Sigma_major = Sigma_pleio × prop_var_major   / n_pleio_major
 Sigma_minor = Sigma_pleio × (1−prop_var_major) / n_pleio_minor
@@ -560,7 +561,7 @@ to per-genotype scale (matching the `scaleQTNEffects()` step in the reference co
 
 ### Integration with the v2 grammar
 - Effect draws (bivariate/univariate normals) **remain in R** (DECISION-006 — parity RNG
-  constraint). Deterministic assembly (Cholesky, matrix multiply) may move to Rust.
+  constraint). Deterministic assembly (eigen square root, matrix multiply) may move to Rust.
 - `additive(prop=, ...)` calls this engine when the parent `phenotype_sim` carries
   `architecture = "pleiotropy"`, passing the resolved QTN effects directly.
 - v1 `create_phenotypes(architecture = "pleiotropic")` does **not** map to PleioArch — it

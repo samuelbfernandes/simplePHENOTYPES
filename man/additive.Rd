@@ -36,21 +36,20 @@ redrawn by \code{vary_qtn}.}
 \item{effect}{optional geometric base (scalar) or explicit effect series
 (length \code{n_qtn}).}
 
-\item{phase}{QTN linkage phase, \code{"coupling"} (default) or \code{"repulsion"}.
-Under repulsion the effect signs alternate across the layer's QTNs, so the
-increasing allele at one locus is paired with the decreasing allele at the
-next -- the classic repulsion architecture, in which a GWAS sees effects
-that partially cancel and linked causal loci mask one another. The realized
-genetic variance is still \code{prop} (variance is pinned by the partition, not
-by phase); what changes is the sign structure of the per-QTN effects and
-the covariance among loci. Coupling leaves the drawn signs untouched.
-\code{phase} is \strong{architecture-independent} -- it acts on whichever QTNs the
-additive layer draws, so it is meaningful under \code{"independent"},
-\code{"pleiotropy"} and \code{"ld"} alike. Its effect on the cross-locus covariance is
-only material when a trait's additive QTNs are physically linked (on the
-same chromosome); for QTNs that are effectively unlinked, alternating the
-signs just relabels which allele is "increasing" and leaves the covariance
-structure unchanged.}
+\item{phase}{QTN effect-sign pattern, \code{"coupling"} (default) or
+\code{"repulsion"}. Under \code{"repulsion"} the effect \strong{signs alternate across the
+layer's QTNs in draw order} (\verb{+, -, +, -, ...}); coupling leaves the drawn
+signs untouched. The realized genetic variance is still \code{prop} (variance is
+pinned by the partition, not by phase); what changes is the sign structure
+of the per-QTN effects. This is a convenient stand-in for a repulsion
+architecture, \strong{not} a phase derived from the haplotypes: it alternates by
+position in the draw, and does not inspect the sign of LD between the loci.
+It therefore induces genuine repulsion-style cancellation only when
+consecutively drawn QTNs happen to be in positive LD (same chromosome,
+coupling-phase alleles); for effectively unlinked QTNs it merely relabels
+which allele is "increasing" and leaves the cross-locus covariance
+unchanged. \code{phase} is architecture-independent -- it acts on whichever QTNs
+the additive layer draws.}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
 }

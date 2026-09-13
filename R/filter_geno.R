@@ -60,6 +60,11 @@
 #'   500).
 #' @param window_unit `"variants"` (default) or `"kb"` -- the unit of the pruning
 #'   `window`. `"kb"` needs the data-frame input (uses the `pos` column).
+#' @param code_as the genotype coding of `geno`: `"-101"` (default; major = 1,
+#'   het = 0, minor = -1) or `"012"` (major = 2, het = 1, minor = 0). This is
+#'   declared rather than guessed, because a marker with only `0`/`1` present is
+#'   ambiguous between the two schemes; values outside the declared set are an
+#'   error. It sets how minor-allele frequency and heterozygosity are computed.
 #' @param verbose report how many markers each filter removed (default `TRUE`).
 #' @return the filtered genotype object, in the same format as `geno`.
 #' @references
@@ -90,9 +95,11 @@ filter_geno <- function(geno,
                         blocks = FALSE,
                         block_max_kb = 500,
                         window_unit = c("variants", "kb"),
+                        code_as = c("-101", "012"),
                         verbose = TRUE) {
   hets <- match.arg(hets)
   window_unit <- match.arg(window_unit)
+  code_as <- match.arg(code_as)
 
   is_df <- is.data.frame(geno)
   if (is_df) {
@@ -130,10 +137,28 @@ filter_geno <- function(geno,
     return(geno)
   }
 
-  alt <- rowSums(Dm == 1, na.rm = TRUE) * 2 + rowSums(Dm == 0, na.rm = TRUE)
-  p   <- alt / (2 * n_ind)
+  # Convert to allele dosage (0/1/2, het = 1) from the DECLARED coding. The
+  # coding is not inferred from the values: a marker with only 0/1 present is
+  # ambiguous between -1/0/1 and 0/1/2, so guessing would silently mis-scale MAF.
+  # The whole-marker LD routines below also use this 0/1/2 dosage.
+  present <- unique(as.vector(Dm))
+  present <- present[!is.na(present)]
+  allowed <- if (code_as == "012") c(0, 1, 2) else c(-1, 0, 1)
+  if (length(present) && any(!present %in% allowed)) {
+    stop("`geno` contains values outside code_as = \"", code_as, "\" (allowed ",
+         paste(allowed, collapse = "/"), "): ",
+         paste(sort(setdiff(present, allowed)), collapse = ", "),
+         ". Set `code_as` to match how the genotypes are coded.", call. = FALSE)
+  }
+  dose <- if (code_as == "012") Dm else Dm + 1L
+  # MAF must divide by the number of *called* genotypes, not every individual,
+  # or missing data biases the frequency toward zero.
+  n_called <- rowSums(!is.na(dose))
+  allele_ct <- rowSums(dose, na.rm = TRUE)
+  p   <- ifelse(n_called > 0L, allele_ct / (2 * n_called), 0)
   maf <- pmin(p, 1 - p)
-  n_het <- rowSums(Dm == 0, na.rm = TRUE)
+  maf[n_called == 0L] <- 0
+  n_het <- rowSums(dose == 1L, na.rm = TRUE)
 
   keep <- rep(TRUE, n_mrk)
   note <- function(label, before) {
@@ -168,7 +193,7 @@ filter_geno <- function(geno,
   if (!is.null(indep_pairwise)) {
     spec <- .ld_spec(indep_pairwise, "indep_pairwise", need = "r2")
     before <- sum(keep)
-    keep <- .ld_prune(Dm, chr, pos, keep, method = "pairwise",
+    keep <- .ld_prune(dose, chr, pos, keep, method = "pairwise",
                       window = spec[1], step = spec[2], thresh = spec[3],
                       unit = window_unit)
     note(paste0("pairwise r2 > ", spec[3]), before)
@@ -176,7 +201,7 @@ filter_geno <- function(geno,
   if (!is.null(indep_pairphase)) {
     spec <- .ld_spec(indep_pairphase, "indep_pairphase", need = "r2")
     before <- sum(keep)
-    keep <- .ld_prune(Dm, chr, pos, keep, method = "pairphase",
+    keep <- .ld_prune(dose, chr, pos, keep, method = "pairphase",
                       window = spec[1], step = spec[2], thresh = spec[3],
                       unit = window_unit)
     note(paste0("pairphase r2 > ", spec[3]), before)
@@ -184,14 +209,14 @@ filter_geno <- function(geno,
   if (!is.null(indep)) {
     spec <- .ld_spec(indep, "indep", need = "vif")
     before <- sum(keep)
-    keep <- .ld_prune(Dm, chr, pos, keep, method = "vif",
+    keep <- .ld_prune(dose, chr, pos, keep, method = "vif",
                       window = spec[1], step = spec[2], thresh = spec[3],
                       unit = window_unit)
     note(paste0("indep VIF > ", spec[3]), before)
   }
   if (isTRUE(blocks)) {
     before <- sum(keep)
-    keep <- .gabriel_blocks(Dm, chr, pos, keep, maf, max_kb = block_max_kb)
+    keep <- .gabriel_blocks(dose, chr, pos, keep, maf, max_kb = block_max_kb)
     note("Gabriel blocks (one tag/block)", before)
   }
 
@@ -261,7 +286,10 @@ filter_geno <- function(geno,
 #' @noRd
 .prune_pairwise <- function(Dm, win, r2) {
   W <- t(Dm[win, , drop = FALSE])                 # individuals x markers
-  R2 <- suppressWarnings(stats::cor(W))^2
+  # pairwise.complete.obs so missing calls do not blank the whole matrix: two
+  # markers that are identical on their complete pairs still get r2 = 1 and one
+  # is pruned. Genuinely undefined pairs (a monomorphic marker) stay NA -> 0.
+  R2 <- suppressWarnings(stats::cor(W, use = "pairwise.complete.obs"))^2
   R2[!is.finite(R2)] <- 0
   kept <- logical(length(win))
   drop <- integer(0)
@@ -279,7 +307,7 @@ filter_geno <- function(geno,
 #' @keywords internal
 #' @noRd
 .prune_pairphase <- function(Dm, win, r2) {
-  G <- Dm[win, , drop = FALSE] + 1L               # markers x individuals, 0/1/2
+  G <- Dm[win, , drop = FALSE]                     # markers x individuals, 0/1/2
   kept <- integer(0)
   drop <- integer(0)
   for (j in seq_along(win)) {
@@ -300,7 +328,7 @@ filter_geno <- function(geno,
 #' @noRd
 .prune_vif <- function(Dm, win, vif_max) {
   W <- t(Dm[win, , drop = FALSE])
-  R <- suppressWarnings(stats::cor(W))
+  R <- suppressWarnings(stats::cor(W, use = "pairwise.complete.obs"))
   R[!is.finite(R)] <- 0
   active <- seq_along(win)
   drop <- integer(0)

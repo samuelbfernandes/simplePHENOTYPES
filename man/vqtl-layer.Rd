@@ -54,6 +54,16 @@ standardized vQTL genotype scores. This guarantees positive conditional
 variances. The resulting heterogeneous residual is scaled to sample variance
 \code{prop}; finite-sample covariance among components means total realized
 phenotypic variance need not be exactly one.
+
+The log-linear variance link is this package's simulation choice (a
+standard double-generalized-linear-model parameterization of the residual
+variance); it is \strong{not} a reproduction of the specific phenotype generator or
+fitted variance model of any one reference. The references below are for the
+vQTL concept and its detection in experimental crosses and plants -- the
+setting this layer creates data for -- rather than the source of this exact
+equation. In particular, Murphy et al. simulate variance heterogeneity with a
+different generator and fit a DGLM to detect it; only the modeling idea is
+shared, not the formula used here.
 }
 \examples{
 data("SNP55K_maize282_maf04")
@@ -72,11 +82,12 @@ simulate_phenotype(SNP55K_maize282_maf04, seed = 2) |>
 \references{
 Ronnegard, L. and Valdar, W. (2011). Detecting major genetic loci
 controlling phenotypic variability in experimental crosses. \emph{Genetics}
-188, 435--447. \doi{10.1534/genetics.111.127068}
+188, 435--447. \doi{10.1534/genetics.111.127068} (vQTL concept / detection.)
 
 Murphy, M.D., Fernandes, S.B., Morota, G. et al. (2022). Assessment of two
 statistical approaches for variance genome-wide association studies in plants.
-\emph{Heredity} 129, 93--102. \doi{10.1038/s41437-022-00541-1}
+\emph{Heredity} 129, 93--102. \doi{10.1038/s41437-022-00541-1} (plant vGWAS
+context; its simulation and DGLM differ from the log link used here.)
 }
 \seealso{
 \code{\link[=additive]{additive()}}, \code{\link[=dominance]{dominance()}}, \code{\link[=epistasis]{epistasis()}}.

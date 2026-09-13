@@ -68,6 +68,34 @@ test_that("parse_hapmap_chars_to_raw() sets non-biallelic SNP to NA", {
   expect_true(all(is.na(raw[1L, ])))
 })
 
+test_that("parse_hapmap_chars_to_raw() names alleles for a het-only marker", {
+  # Every call heterozygous: no homozygote to name alleles from, but the allele
+  # letters are recoverable from the het calls (digraph or IUPAC code) so a
+  # reference-oriented parse still has the metadata it needs.
+  raw_dg <- simplePHENOTYPES:::parse_hapmap_chars_to_raw(
+    matrix(c("AG", "AG"), nrow = 1L))
+  expect_equal(raw_dg[1L, ], c(1L, 1L))
+  expect_setequal(attr(raw_dg, "alleles")[1L, ], c("A", "G"))
+
+  raw_iupac <- simplePHENOTYPES:::parse_hapmap_chars_to_raw(
+    matrix(c("R", "R"), nrow = 1L))
+  expect_equal(raw_iupac[1L, ], c(1L, 1L))
+  expect_setequal(attr(raw_iupac, "alleles")[1L, ], c("A", "G"))
+})
+
+test_that("reference coding works for an all-heterozygote marker", {
+  for (het in c("AG", "R")) {   # digraph and IUPAC ambiguity code
+    tbl <- data.frame(s1 = het, s2 = het, stringsAsFactors = FALSE)
+    rownames(tbl) <- "m1"
+    out <- simplePHENOTYPES:::format_conversion(
+      tbl, from = "table", to = "numeric", method = "reference",
+      ref_allele = "G", to_r = TRUE, to_file = FALSE, verbose = FALSE)
+    # both samples A/G heterozygous -> centered (-1/0/1) dosage 0, not an error
+    expect_equal(as.numeric(out[1L, -(1:5)]), c(0, 0),
+                 info = paste("het code", het))
+  }
+})
+
 # ---------------------------------------------------------------------------
 # 3. compute_flip() — frequency and reference methods
 # ---------------------------------------------------------------------------

@@ -20,6 +20,7 @@
 #' table(long$trait)
 phenotypes_long <- function(sim) {
   .check_sim(sim)
+  .check_h2_complete(sim)
   sim$pheno
 }
 
@@ -43,6 +44,7 @@ phenotypes_long <- function(sim) {
 #' round(cor(wide$Trait_1, wide$Trait_2), 2)
 phenotypes_wide <- function(sim) {
   .check_sim(sim)
+  .check_h2_complete(sim)
   long <- sim$pheno
   wide <- stats::reshape(
     long[, c("id", "rep", "trait", "value")],
@@ -126,24 +128,28 @@ write_phenotypes <- function(sim, file, format = c("long", "wide"),
 #' round(var(g[, 1]) / var(pheno$Trait_1), 3)
 genetic_values <- function(sim, rep = 1L) {
   .check_sim(sim)
+  .check_h2_complete(sim)
   rep <- .validate_rep(sim, rep)
   out <- .genetic_matrix(sim, rep)
   dimnames(out) <- list(sim$ids, paste0("Trait_", seq_len(sim$n_traits)))
   out
 }
 
-#' Per-QTN proportion of phenotypic variance for a mean-effect layer
+#' Per-QTN proportion of realized phenotypic variance for a mean-effect layer
 #'
 #' The realized additive/dominance layer is scaled by `k = sqrt(prop) / sd(raw)`
-#' so its total variance equals `prop`. Each QTN's marginal contribution is then
-#' `k^2 * effect_j^2 * var(design_j)`, where the design variable is the dosage
-#' (additive) or the heterozygote indicator (dominance). These are marginal
-#' variances: with LD between causal loci they do not sum exactly to `prop`,
-#' because the cross-locus covariances are not attributed to any single QTN.
-#' vqtl layers return NA (they modulate the residual, not a genetic value).
+#' so its target variance equals `prop`. Each QTN's marginal contribution is
+#' `k^2 * effect_j^2 * var(design_j)` (design = the -1/0/1 dosage for additive,
+#' the heterozygote indicator for dominance), and `var_explained` reports it as a
+#' fraction of the *realized* phenotypic variance `var_p`. Dividing by the
+#' realized (not the nominal, =1) V_P matters because finite-sample covariance
+#' among components leaves the realized V_P slightly off 1. These are marginal
+#' proportions: with LD between causal loci they do not sum exactly to `prop`,
+#' because cross-locus covariances are not attributed to any single QTN. vqtl
+#' layers return NA (they modulate the residual, not a genetic value).
 #' @keywords internal
 #' @noRd
-.qtn_var <- function(sim, ly, t, idx, eff) {
+.qtn_var <- function(sim, ly, t, idx, eff, var_p) {
   if (!ly$type %in% c("additive", "dominance")) {
     return(rep(NA_real_, length(idx)))
   }
@@ -152,12 +158,13 @@ genetic_values <- function(sim, rep = 1L) {
   raw <- as.numeric(design %*% eff)
   s_raw <- stats::sd(raw)
   prop_t <- .expand_prop(ly$prop, sim$n_traits)[t]
-  if (!is.finite(s_raw) || s_raw <= 0 || prop_t <= 0) {
+  if (!is.finite(s_raw) || s_raw <= 0 || prop_t <= 0 ||
+      !is.finite(var_p) || var_p <= 0) {
     return(rep(0, length(idx)))
   }
   k2 <- prop_t / s_raw^2
   vapply(seq_along(idx),
-         function(j) k2 * eff[j]^2 * stats::var(design[, j]), numeric(1))
+         function(j) k2 * eff[j]^2 * stats::var(design[, j]) / var_p, numeric(1))
 }
 
 #' The QTNs behind a simulation, with their effects
@@ -199,7 +206,15 @@ genetic_values <- function(sim, rep = 1L) {
 #' subset(qtn_table(ph), layer == "additive")
 qtn_table <- function(sim, rep = 1L) {
   .check_sim(sim)
+  .check_h2_complete(sim)
   rep <- .validate_rep(sim, rep)
+  # Realized phenotypic variance per trait for this replication; var_explained
+  # is reported as a fraction of it (SPEC realized variance-ratio convention).
+  var_p <- vapply(seq_len(sim$n_traits), function(t) {
+    y <- sim$pheno$value[sim$pheno$trait == paste0("Trait_", t) &
+                         sim$pheno$rep == rep]
+    stats::var(y)
+  }, numeric(1))
   empty <- data.frame(
     trait = character(0), layer = character(0), set = integer(0),
     snp = character(0), chr = sim$map$chr[0], pos = sim$map$pos[0],
@@ -263,7 +278,7 @@ qtn_table <- function(sim, rep = 1L) {
         }
         rows[[length(rows) + 1L]] <-
           block(trait, ly$type, NA_integer_, idx, eff,
-                .qtn_var(sim, ly, t, idx, eff),
+                .qtn_var(sim, ly, t, idx, eff, var_p[t]),
                 QTN_t1 = qtn_t1, QTN_t2 = qtn_t2, ld_r2 = r2)
       }
     }

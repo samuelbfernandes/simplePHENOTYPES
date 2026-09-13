@@ -276,12 +276,111 @@ against it. These are open questions to resolve, not settled decisions.
   frontend and both executors. Define it *first*; the canvas is mechanical once
   the schema is stable. The schema should be runnable headless (paste JSON →
   execute) before any UI exists.
-- **Missing backend primitive — selection.** The maintainer's own example lists
-  a "selection type" node, but there is **no selection / truncation /
-  generation-advance function in the package today** (only the crossing
-  functions). The designer therefore needs *new simulation code*, not just a UI.
-  Build `select()` / generation-advance as plain, headless, tested R functions
-  **before** the UI, and settle their API before freezing the grammar for CRAN.
+- **Designer core — BUILT (2026-09-11, DECISION-017).** The DAG-JSON contract and
+  its headless R executor exist ahead of any UI, in `R/designer.R`, tested
+  (`test-designer.R`):
+  - `run_design(design, seed, data_objects)` — validates, topologically sorts, and
+    executes a design (an R list, or a JSON string/path via `jsonlite` in
+    Suggests). Returns a `design_result` keyed by node id, with `order` and
+    `terminal` attributes and a `print` method.
+  - `validate_design()` — unique ids, known node types, resolvable/required
+    inputs, acyclic (errors name the first problem or the cycle).
+  - `design_breeding_program()` — the exported launcher: runs a supplied design
+    headless, or (no argument) points to the schema and the companion canvas.
+  - **Node types** (each = one tested package function): `founders`
+    (`as_population`), `cross`/`self`/`dh` (crossing core), `ssd`/`bulk`
+    (schemes), `phenotype` (grammar model), `select` (`select_ind`), `ocs`
+    (`optimum_contribution` + `sample_parents`), `usefulness`
+    (`cross_usefulness`), `pedigree`/`recurrent` (selecting schemes; the genetic
+    model is a `model` sub-spec and the additive loci are **frozen** once so every
+    generation is scored on the same causal loci). Reproducible from one `seed`.
+  - So "paste JSON → run" works today with no server; the designer adds
+    orchestration, not new genetics.
+- **Designer UI — Phase 2 (working prototype built 2026-09-11).** A node canvas
+  (palette grouped by bucket, drag-to-wire ports, per-node inspector, live R /
+  Python / DAG-JSON with Copy, client-side validate + Run) is built as a
+  self-contained web page (the JS codegen mirrors `design_script()`). It opens on a
+  worked program and lets a user assemble a design and copy runnable code today.
+  Per §5 and the CRAN 5 MB / bundled-JS risk it stays a **companion app**, not in
+  the tarball. Live in-browser **Run** needs the R engine, which a sandboxed page
+  cannot reach; `inst/designer/plumber_api.R` exposes `validate_design` /
+  `run_design` / `design_script` over localhost so a locally served canvas can
+  execute against the machine's own data. Remaining Phase-2 work: harden the canvas
+  (React Flow if it earns its weight), wire Run to the plumber runner, host the
+  bundle, and have `design_breeding_program()` open/serve it. Everything the UI
+  produces round-trips through `validate_design()` + `run_design()`.
+- **Selection backend primitive — BUILT (2026-09-10, DECISION-015).** The
+  selection engine and generation-advance functions now exist as plain, headless,
+  tested R code, ahead of any UI:
+  - `select_ind()` — truncation on `on = "pheno" | "gv" | "bv" | <vector/function>`
+    (the custom vector/function hook is the genomic/phenomic-selection extension
+    point for the single-score methods; the multi-trait `index`/`quadratic_index`
+    methods score on true breeding values and ignore `on`), with methods mass /
+    within-family / among-family / combined (Lush index) /
+    Smith–Hazel `index` / quadratic_index / random; intensity by count /
+    proportion / standardized
+    `i`; both directions; returns a crossable `Population` subset carrying the
+    realized selection differential `S` and intensity `i`.
+  - Named scheme wrappers `single_seed_descent()`, `bulk()`, `pedigree()`,
+    `recurrent_selection()` compose `select_ind()` with the crossing primitives;
+    `c.Population()` pools progeny. These map to the designer's "selection bucket"
+    nodes (SSD / bulk / pedigree / recurrent), with personalized nodes wiring the
+    primitives directly.
+  - Efficiency: ranking + stochastic orchestration in R, meiosis in Rust
+    (DECISION-006); Populations are reference-based (no genotype copies).
+  Design decisions are logged in DECISION-015 and mirrored in the designer
+  manuscript (`breeding_designer/manuscript.tex`).
+- **Modern methods — BUILT (2026-09-11, DECISION-016).** `g_matrix()` (VanRaden
+  2008 genomic relationship), `optimum_contribution()` (Meuwissen 1997 OCS, with a
+  dependency-free Frank–Wolfe optimizer) + `sample_parents()`, `cross_usefulness()`
+  (Zhong & Jannink 2007; Lehermeier 2017 — cross ranking by µ + iσ, families
+  simulated), and the quadratic genomic selection index form of Cerón-Rojas et al.
+  (2026, *Nat Commun* 17:1991) as `select_ind(method = "quadratic_index")`. The
+  latter is a *simulation of the index's behaviour* on the known-truth breeding
+  values (the Fisher average-effect projection), not the paper's GEBV estimator:
+  the package fits no genomic-prediction model, and the multi-trait index methods
+  (`index`/`quadratic_index`) score on all traits' true breeding values, so they
+  do not take an external per-trait GEBV. Single-score genomic/phenomic selection
+  (e.g. `method = "mass"` on externally computed GEBVs) needs no engine code — it
+  enters via the `on` custom-criterion hook; the index methods do not use `on`.
+- **Modern methods — NEXT.**
+  - **BQP relatedness-minimizing multi-trait index** (Montesinos-López et al. 2026,
+    *Plant Methods*, doi:10.1186/s13007-025-01484-4): a discrete (binary) multi-trait
+    index that also minimizes genetic relatedness among the selected set, solved by
+    binary quadratic programming. Overlaps `optimum_contribution()` (same gain↔
+    diversity goal, discrete vs. continuous); open decision: exact MIQP solver
+    dependency vs. a dependency-free greedy+swap heuristic on the existing
+    `g_matrix()`.
+  - **PopVar-style cross selection from real data** (Mohammadi, Tiede & Smith 2015,
+    *Crop Sci* 55:2068): the real-data counterpart of `cross_usefulness()` —
+    predict biparental progeny mean/variance/correlated response from **estimated
+    marker effects** (from a training set) rather than simulation with known
+    effects. Needs a marker-effect estimation step (or a supplied effect vector).
+- **THEORETICAL-CORRECTNESS SCRUTINY GATE (load-bearing, before the designer/
+  selection engine ships).** The *entire* designer and selection-engine
+  implementation must pass a deep review of the **theoretical correctness** of every
+  method before release — not just "the tests pass," but that each estimator/optimizer
+  matches its published definition. Concretely: (a) selection response tracks the
+  breeder's equation R = i·h²·σ_P across intensities and heritabilities; (b) the
+  combined-index and Smith–Hazel weights reproduce worked textbook examples;
+  (c) OCS contributions match a reference solver (e.g. `optiSel`) on the same G and
+  merit, and realized ΔF matches the constraint; (d) `g_matrix()` matches an
+  independent VanRaden implementation; (e) `cross_usefulness()` µ/σ match analytic
+  expectations and an AlphaSimR-simulated benchmark; (f) QGSI reproduces the
+  Cerón-Rojas et al. reference behavior. This validation gates the manuscript and the
+  CRAN update; log outcomes in DECISIONS.md and the designer manuscript.
+- [x] **Fixed-scale additive value accessor (for cross-generation scoring).**
+      Shipped as exported `additive_value(x, qtn, effect)` (`R/cross_population.R`):
+      returns `sum_j dosage_ij * effect_j` over a given frozen architecture on the
+      -1/0/1 dosage scale, with **no per-population centring or rescaling**, so mean
+      additive value is comparable across generations (a selection response shows).
+      This is the counterpart to `genetic_values()` (which re-centres/re-scales each
+      layer to `prop` on the scored population and therefore cannot show a
+      cross-generational trend). The breeding designer's `program_metrics()` can now
+      delegate to it instead of re-deriving `breedingDesigner:::.bv_index` from
+      `.freeze_loci()` loci/effects and `dosages()` (removing the reimplementation
+      the review flagged, constitution #6 / ADR-0004). Accepts a `Population`, a
+      Population-backed `phenotype_sim`, or a dosage matrix; `qtn` by name or index.
 - **Open risk vs. the chosen sequence:**
   - Shipping the designer *inside* the CRAN tarball conflicts with §5 ("Shiny
     app inside the package") and the 5 MB budget (vendored Rust is already
@@ -294,6 +393,49 @@ against it. These are open questions to resolve, not settled decisions.
     Recommended alternative: release the grammar as **2.0 now**, ship the
     designer as **2.1 / companion**. Maintainer has chosen to ship within v2;
     revisit if the designer slips.
+
+### 8c. Digital-twin platform (north-star destination)
+
+**Destination, not a near-term deliverable.** Today simplePHENOTYPES + the designer
+is a **breeding-program simulator** (generic/parameterized, effects *specified*), the
+same category as AlphaSimR — **not** a digital twin. A digital twin models a
+*specific real* breeding program and is kept *synchronized* with its data. Naming the
+gradient keeps the claims honest:
+
+| Stage | What it is | Gap from here |
+|-------|-----------|----------------|
+| **Simulation** | generic/parameterized in-silico model | — (this is what exists) |
+| **Digital shadow** | initialized from a *specific* program's real genotypes + fitted architecture; virtual mirrors real (one-way) | needs estimation-from-data |
+| **Digital twin** | kept in sync each cycle with observed data; recommendations feed back to the real program | needs assimilation + validation + loop |
+
+**What it takes to reach the destination (ordered):**
+1. **Estimated, not specified, architecture.** Fit marker effects, variance
+   components, `h2`, and genetic correlations from the program's own historical
+   phenotypes (GBLUP/GWAS). This is the roadmap's PopVar-style / GS-predictor item
+   (§8a modern-methods NEXT) — the first concrete step, and it turns the simulator
+   into a **digital shadow**.
+2. **Data assimilation loop (the defining feature).** Each season, ingest what was
+   actually genotyped / planted / measured and update the twin's state, effects, and
+   accuracy so it tracks reality. The biggest missing piece; separates a twin from a
+   simulation.
+3. **Environment / G×E.** Explicit multi-environment / weather-covariate model so
+   simulated phenotypes match realized field means (today: `h2`-based residuals only).
+4. **Calibration & validation against reality.** Backtest against the program's
+   *observed* gain over past cycles; report uncertainty, not point estimates —
+   upgrading the designer's *projected* diagnostics to *validated* forecasts.
+5. **Decision feedback loop.** Optimize interventions on the twin (OCS / usefulness /
+   designer), apply to the real program, recalibrate from the realized outcome.
+6. **Platform engineering.** Each twin = a persistent, versioned object tied to a
+   program id, with a datastore, update API, provenance, and live connectors (LIMS,
+   field data, genotyping); the designer's pipeline tabs + `plumber` runner are the
+   seed.
+
+**Positioning rule:** call the current product a **breeding-program simulator /
+in-silico designer**. "Digital twin of a breeding population" becomes accurate only
+after steps 1–5. The genetics substrate (real genotypes, meiosis, variance
+partition, selection, OCS/usefulness) is already strong; the missing work is
+**estimation-from-data + synchronization**, not the genetics. (Mirrored in the
+designer manuscript Discussion.)
 
 ### 8b. Python package
 

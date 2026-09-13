@@ -56,11 +56,15 @@ Add an epistatic variance component
 \details{
 The epistatic value is the product of the interacting markers' design terms
 times a per-set effect, then centered and scaled to \code{prop}. Each design term
-is \strong{centered per locus} before multiplying, which subtracts out the
-lower-order (additive/dominance main-effect) marginals, so the component is a
-cleaner a x a / a x d / d x d interaction. It is still not a full
-Fisher-orthogonal variance component (that is a planned genotypic-model mode),
-so the "epistatic proportion" remains a simulation quantity.
+is centered per locus before multiplying, which removes each locus's mean so
+the product is not dominated by a constant offset. This does \strong{not}
+orthogonalize the interaction against the additive/dominance main effects:
+the centered product can still be correlated with the constituent dosages --
+strongly so when the interacting loci are in LD or away from allele frequency
+0.5 (with two perfectly linked loci it can be collinear with each additive
+term). It is therefore not a Fisher/NOIA-orthogonal variance component (that
+is a planned genotypic-model mode), so the "epistatic proportion" is a
+simulation quantity, not an orthogonal share of variance.
 
 \code{interaction_type} values of \code{"d"} depend on heterozygotes and are
 near-degenerate on a fully inbred panel (see \code{\link[=dominance]{dominance()}}); use \code{"a"} (the

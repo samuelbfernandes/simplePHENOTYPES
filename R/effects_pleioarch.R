@@ -20,6 +20,14 @@
 #' the additive layer can carry trait-specific loci alongside the shared
 #' pleiotropic ones.
 #'
+#' Provenance: the associated manuscript (Prado et al.) is in preparation and has
+#' no public reference, so the authoritative definition of this algorithm is the
+#' bundled reference implementation in `context/PleioArch-main/Functions/`
+#' (`simulateEffects.R`, `scaleQTNEffects.R`), against which this port is
+#' checked. The covariance construction and the `1/sqrt(2*MAF*(1-MAF))` scaling
+#' documented here are self-contained; do not cite them to a published paper
+#' until one exists.
+#'
 #' @param sim a `phenotype_sim` with `architecture = "pleiotropy"`.
 #' @param n_qtn total QTNs per trait.
 #' @param prop_vec per-trait additive variance proportions (length `n_traits`).
@@ -48,6 +56,26 @@
 
   vg <- prop_vec
 
+  # A correlation with a zero-variance trait is undefined: cov = cor*sqrt(Vi*Vj)
+  # is 0 and the realized correlation is 0/0 = NA, so cor cannot be attained.
+  # Reject a nonzero requested off-diagonal against any trait whose additive
+  # proportion is zero, rather than silently returning NA correlations.
+  if (any(vg <= 0)) {
+    nt_ <- length(vg)
+    for (i in seq_len(nt_ - 1L)) {
+      for (j in seq(i + 1L, nt_)) {
+        if (abs(R[i, j]) > 0 && (vg[i] <= 0 || vg[j] <= 0)) {
+          stop("architecture = \"pleiotropy\": a nonzero `cor` (", signif(R[i, j], 3),
+               ") was requested between trait ", i, " and trait ", j,
+               ", but trait ", if (vg[i] <= 0) i else j, " has zero additive ",
+               "variance (prop = 0), so that correlation is undefined and cannot ",
+               "be realized. Give every correlated trait a positive additive ",
+               "`prop`.", call. = FALSE)
+        }
+      }
+    }
+  }
+
   # Variance budget (phenotypic variance assumed 1; vg are the target props).
   # Off-diagonals carry the full genetic covariance because trait-specific loci
   # are independent; diagonals carry only the pleiotropic share.
@@ -59,12 +87,47 @@
   # QTN-count partition: pleiotropic (shared) vs trait-specific.
   pleio_n <- max(0L, round(mean(pi_vec) * n_qtn))
   pleio_n <- min(pleio_n, n_qtn)
+  # `pi` defines the shared/trait-specific variance partition whether or not a
+  # correlation is requested, so its feasibility is judged against `pi`, not
+  # against `cor`. If pi implies a shared class (mean(pi) > 0) but the QTN-count
+  # rounding leaves zero shared loci, that shared variance -- and, when cor != 0,
+  # the whole requested covariance -- would be lost; n_qtn is too small to
+  # represent the partition. Error rather than force one (collinear) locus or
+  # silently drop the share.
+  if (mean(pi_vec) > 0 && n_qtn > 0L && pleio_n < 1L) {
+    stop("architecture = \"pleiotropy\": n_qtn = ", n_qtn, " and pi = ",
+         paste(round(pi_vec, 3), collapse = ", "),
+         " round the shared (pleiotropic) class to zero, so the requested ",
+         "shared variance", if (any(abs(R[upper.tri(R)]) > 0))
+           " and correlation" else "", " cannot be represented. Increase ",
+         "n_qtn (or pi).", call. = FALSE)
+  }
   spec_n  <- n_qtn - pleio_n
+  # Trait-specific variance ((1 - pi) V) needs at least one trait-specific locus
+  # to carry it; if the partition leaves none while pi < 1, that variance would
+  # silently vanish. Error rather than lose it.
+  if (spec_n < 1L && any(pi_vec < 1)) {
+    stop("architecture = \"pleiotropy\": n_qtn = ", n_qtn, " leaves no ",
+         "trait-specific QTNs, but pi = ", paste(round(pi_vec, 3), collapse = ", "),
+         " (< 1) requests trait-specific variance. Increase n_qtn so both ",
+         "shared and trait-specific loci fit.", call. = FALSE)
+  }
   if (n_major > pleio_n) {
     stop("`n_pleio_major` (", n_major, ") cannot exceed the number of shared ",
          "pleiotropic QTNs implied by `pi` (", pleio_n, ").", call. = FALSE)
   }
   n_minor <- pleio_n - n_major
+  # With a major/minor split, prop_var_major < 1 allocates (1 - prop_var_major)
+  # of the pleiotropic variance to minor loci. If there are none, that share
+  # would silently vanish (attenuating the realized correlation); reject rather
+  # than lose it.
+  if (n_major > 0L && n_minor == 0L && propMaj < 1) {
+    stop("`prop_var_major` (", propMaj, ") < 1 assigns ", round(1 - propMaj, 3),
+         " of the pleiotropic variance to minor loci, but none remain ",
+         "(n_pleio_major equals the shared-QTN count implied by `pi`: ",
+         pleio_n, "). Increase `n_qtn`, lower `n_pleio_major`, or set ",
+         "`prop_var_major = 1`.", call. = FALSE)
+  }
 
   # Keep the major/minor split coherent: variance allocated to a major class
   # with no loci in it would simply vanish from the budget.
@@ -122,10 +185,11 @@
 
 #' Citation notice for the correlation-control engine, once per session
 #'
-#' The algorithm behind `cor` in the pleiotropy architecture is published
-#' separately, so credit it the first time it is used in a session. Emitted via
-#' [rlang::inform()] so it is a message, not a warning, and can be silenced with
-#' `suppressMessages()`.
+#' The algorithm behind `cor` in the pleiotropy architecture is described in a
+#' manuscript still in preparation (Prado et al.), so credit that the first time
+#' it is used in a session; the concrete definition is the bundled reference
+#' implementation in `context/PleioArch-main/`. Emitted via [rlang::inform()] so
+#' it is a message, not a warning, and can be silenced with `suppressMessages()`.
 #' @keywords internal
 #' @noRd
 .cite_pleioarch <- function() {
@@ -204,16 +268,30 @@
   if (nt == 2) {
     lhs <- R[1, 2]^2
     rhs <- pi_vec[1] * pi_vec[2]
-    if (lhs > rhs + 1e-12) {
-      stop("Biological constraint violated: cor^2 (", round(lhs, 3),
-           ") cannot exceed pi_target * pi_secondary (", round(rhs, 3),
+    # Reject at the level of floating-point roundoff only, scaled to the operands
+    # actually compared (not an absolute floor like max(1, rhs), which would let
+    # cor^2 > 0 slip through when pi1*pi2 = 0, e.g. pi = c(0.25, 0), where any
+    # nonzero correlation is impossible). cor^2 and pi1*pi2 are each one product,
+    # so a few ULPs of their magnitude is the right slack.
+    tol <- 8 * .Machine$double.eps * max(lhs, rhs)
+    if (lhs - rhs > tol) {
+      stop("Biological constraint violated: cor^2 (", signif(lhs, 6),
+           ") cannot exceed pi_target * pi_secondary (", signif(rhs, 6),
            ").", call. = FALSE)
     }
     return(invisible(TRUE))
   }
   ev <- eigen(sigma, symmetric = TRUE, only.values = TRUE)$values
-  tol <- nt * max(abs(ev)) * .Machine$double.eps
-  if (min(ev) < -max(tol, 1e-10)) {
+  # Reject a negative eigenvalue unless it is at the level of eigen-decomposition
+  # roundoff, which is a small multiple of (matrix scale) x (dimension) x eps --
+  # NOT sqrt(eps) (~1e-8), which is astronomically larger than real roundoff and
+  # would wave a genuinely indefinite matrix (e.g. min eigenvalue -1e-8) straight
+  # through to the effect draw. The tolerance is scale-relative so it also works
+  # for small-variance matrices; an exactly singular feasible boundary (min
+  # eigenvalue ~ 0) still passes and is drawn exactly by .draw_mvnorm().
+  scale <- max(abs(ev))
+  tol <- scale * nt * 64 * .Machine$double.eps
+  if (scale > 0 && min(ev) < -tol) {
     stop("The requested `cor` is not attainable with these pleiotropic ",
          "shares: the implied genetic covariance matrix is not positive ",
          "semi-definite (smallest eigenvalue ", format(min(ev), digits = 3),
@@ -224,6 +302,13 @@
 }
 
 #' Multivariate-normal effect draw with per-SNP variance scaling
+#'
+#' Uses the symmetric eigendecomposition square root rather than a Cholesky of a
+#' nudged matrix. Feasibility is already checked upstream, so `sigma` is PSD;
+#' the eigen root reproduces it exactly even when it is singular (the feasibility
+#' boundary `cor^2 = pi_1 * pi_2`, where `chol()` fails and any nudge would
+#' silently perturb a valid request). Only numerical-roundoff negative
+#' eigenvalues are floored at zero.
 #' @keywords internal
 #' @noRd
 .draw_mvnorm <- function(n, sigma) {
@@ -233,29 +318,9 @@
   }
   sigma_per <- sigma / n
   z <- matrix(stats::rnorm(n * nt), ncol = nt)
-  z %*% chol(.nudge_pd(sigma_per))
-}
-
-#' Nudge a covariance matrix to positive definiteness for chol()
-#'
-#' Only bites at the feasibility boundary (for example `cor^2 == pi_1 * pi_2`,
-#' where the matrix is singular and `chol()` fails outright). Deliberately not
-#' `make_pd()`, which rounds to two decimals -- per-SNP covariances here are on
-#' the order of 1e-3 and would be flattened to zero.
-#' @keywords internal
-#' @noRd
-.nudge_pd <- function(s) {
-  e <- eigen(s, symmetric = TRUE)
-  if (min(e$values) > 0) {
-    return(s)
-  }
-  floor_val <- max(abs(e$values)) * 1e-8
-  if (!is.finite(floor_val) || floor_val <= 0) {
-    floor_val <- .Machine$double.eps
-  }
-  vals <- pmax(e$values, floor_val)
-  out <- e$vectors %*% diag(vals, nrow(s)) %*% t(e$vectors)
-  (out + t(out)) / 2
+  e <- eigen(sigma_per, symmetric = TRUE)
+  root <- e$vectors %*% (sqrt(pmax(e$values, 0)) * t(e$vectors))
+  z %*% root
 }
 
 #' Univariate-normal effect draw with per-SNP variance scaling

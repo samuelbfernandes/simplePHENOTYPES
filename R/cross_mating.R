@@ -77,10 +77,27 @@
   }
 
   map <- p1$map
-  # cm -> Morgans: isqg's Poisson mean is the chromosome length in Morgans.
-  by_chr <- lapply(split(map$cm, map$chr), function(x) (x - min(x)) / 100)
-  loci_per_chr <- as.integer(vapply(by_chr, length, integer(1)))
-  positions <- as.numeric(unlist(by_chr))
+  # Match isqg exactly (DECISION-012). isqg sorts the map by (chr, pos) and
+  # builds BOTH the map and the parental haplotypes in that order, and takes each
+  # chromosome's length as its LAST map position in Morgans -- it does not rebase
+  # to a zero origin. So:
+  #   * sort markers by (chr, cm) and send the haplotype bits in that same order
+  #     (grouping/sorting only the map, as the old code did, mis-assigned
+  #     chromosome masks whenever the rows were interleaved or unsorted);
+  #   * use absolute positions cm/100 with L = last position (a `(cm - min)/100`
+  #     rebase changed both the Poisson mean and the phantom-crossover region
+  #     before the first marker, breaking parity on nonzero-origin maps);
+  #   * group by run length of the sorted chromosome labels, which ignores unused
+  #     factor levels (they otherwise produced empty chromosomes that crashed).
+  # The caller's original marker order is restored on the progeny via `inv`.
+  ord <- order(map$chr, map$cm)
+  inv <- order(ord)
+  chr_s <- as.character(map$chr[ord])
+  cm_s  <- map$cm[ord]
+  grp <- rle(chr_s)$lengths
+  by_chr <- split(cm_s / 100, rep.int(seq_along(grp), grp))
+  loci_per_chr <- as.integer(grp)
+  positions <- as.numeric(cm_s / 100)
 
   events_per <- if (design == "dh") 1L else 2L
 
@@ -98,10 +115,10 @@
   strands <- mate_haplotypes_core(
     loci_per_chr = loci_per_chr,
     positions    = positions,
-    p1_cis       = bits(p1$cis[, 1]),
-    p1_trans     = bits(p1$trans[, 1]),
-    p2_cis       = bits(p2$cis[, 1]),
-    p2_trans     = bits(p2$trans[, 1]),
+    p1_cis       = bits(p1$cis[ord, 1]),
+    p1_trans     = bits(p1$trans[ord, 1]),
+    p2_cis       = bits(p2$cis[ord, 1]),
+    p2_trans     = bits(p2$trans[ord, 1]),
     chiasmata    = draws$chiasmata,
     counts       = draws$counts,
     flips        = draws$flips,
@@ -109,10 +126,12 @@
     n_prog       = n
   )
 
-  # Element 2i-1 is progeny i's first strand, 2i its second.
+  # Element 2i-1 is progeny i's first strand, 2i its second. The Rust core
+  # returns strands in the sorted marker order; `inv` restores the caller's.
   unpack <- function(codes) {
-    matrix(as.integer(unlist(strsplit(codes, "", fixed = TRUE))),
-           nrow = nrow(map), ncol = n)
+    m <- matrix(as.integer(unlist(strsplit(codes, "", fixed = TRUE))),
+                nrow = nrow(map), ncol = n)
+    m[inv, , drop = FALSE]
   }
   ids <- paste0(prefix, seq_len(n))
   cis <- unpack(strands[seq(1, length(strands), by = 2)])

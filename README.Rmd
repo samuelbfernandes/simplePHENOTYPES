@@ -39,7 +39,9 @@ phenotyped.
 - [Linked but not pleiotropic](#linked-but-not-pleiotropic)
 - [Breeding populations](#breeding-populations)
 - [Reading genotype data](#reading-genotype-data)
+- [Testing and coverage](#testing-and-coverage)
 - [Documentation](#documentation)
+- [Legacy: `create_phenotypes()`](#legacy-create_phenotypes)
 - [Citation](#citation)
 - [Contact](#contact)
 
@@ -287,4 +289,6 @@ citation("simplePHENOTYPES")
 
 # Contact
 
-Samuel B Fernandes fernandessb101 [at] gmail [dot] com
+**Samuel B Fernandes**
+
+fernandessb101 [at] gmail [dot] com

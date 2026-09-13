@@ -28,19 +28,48 @@
     sum(gA == 1 & gB == 2)
   n11 <- sum(gA == 1 & gB == 1)                 # double heterozygotes
   two_n <- 2 * n
+  cnt <- matrix(0, 3, 3)
+  for (a in 0:2) for (b in 0:2) cnt[a + 1, b + 1] <- sum(gA == a & gB == b)
 
-  pAB <- pA * pB                                # start at equilibrium
-  for (i in seq_len(max_iter)) {
-    pAb <- pA - pAB; paB <- pB - pAB; pab <- 1 - pA - pB + pAB
-    denom <- pAB * pab + pAb * paB
-    w <- if (denom > 0) (pAB * pab) / denom else 0.5
-    new <- (detAB + n11 * w) / two_n
-    new <- min(max(new, 1e-12), min(pA, pB) - 1e-12)
-    if (abs(new - pAB) < tol) {
-      pAB <- new
-      break
+  # Feasible range for pAB (all four haplotype frequencies >= 0).
+  lo <- max(0, pA + pB - 1) + 1e-12
+  hi <- min(pA, pB) - 1e-12
+  if (hi <= lo) {
+    pAB <- min(max(pA * pB, lo), hi)
+  } else {
+    # Multi-start EM: initialising only at linkage equilibrium (pAB = pA*pB) can
+    # leave the estimator stranded on a non-maximal stationary point (e.g. an
+    # all-double-heterozygote table, where LE is a saddle). Run the EM from
+    # several starts spanning the feasible range and keep the highest-likelihood
+    # fixed point, so it returns the true ML gamete frequencies.
+    run_from <- function(start) {
+      pAB <- min(max(start, lo), hi)
+      for (i in seq_len(max_iter)) {
+        pAb <- pA - pAB; paB <- pB - pAB; pab <- 1 - pA - pB + pAB
+        denom <- pAB * pab + pAb * paB
+        w <- if (denom > 0) (pAB * pab) / denom else 0.5
+        new <- (detAB + n11 * w) / two_n
+        new <- min(max(new, lo), hi)
+        if (abs(new - pAB) < tol) {
+          pAB <- new
+          break
+        }
+        pAB <- new
+      }
+      pAB
     }
-    pAB <- new
+    starts <- unique(c(pA * pB, seq(lo, hi, length.out = 9L)))
+    pAB <- NA_real_
+    best_ll <- -Inf
+    for (s in starts) {
+      cand <- run_from(s)
+      ll <- .two_locus_loglik(cnt, pA, pB, cand - pA * pB)
+      if (is.finite(ll) && ll > best_ll) {
+        best_ll <- ll
+        pAB <- cand
+      }
+    }
+    if (!is.finite(pAB)) pAB <- min(max(pA * pB, lo), hi)
   }
   D  <- pAB - pA * pB
   dmax <- if (D >= 0) min(pA * (1 - pB), (1 - pA) * pB) else
@@ -132,7 +161,7 @@
 .gabriel_blocks <- function(Dm, chr, pos, keep, maf,
                             max_kb = 500, strong_lo = 0.70, strong_hi = 0.98,
                             recomb_hi = 0.90, frac = 0.95, conf = 0.90) {
-  Gdose <- Dm + 1L                              # -1/0/1 -> 0/1/2
+  Gdose <- Dm                                   # already 0/1/2 dosage
   span_bp <- max_kb * 1000
   for (k in unique(chr)) {
     on_chr <- which(keep & chr == k)

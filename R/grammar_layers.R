@@ -16,21 +16,20 @@
 #'   redrawn by `vary_qtn`.
 #' @param effect optional geometric base (scalar) or explicit effect series
 #'   (length `n_qtn`).
-#' @param phase QTN linkage phase, `"coupling"` (default) or `"repulsion"`.
-#'   Under repulsion the effect signs alternate across the layer's QTNs, so the
-#'   increasing allele at one locus is paired with the decreasing allele at the
-#'   next -- the classic repulsion architecture, in which a GWAS sees effects
-#'   that partially cancel and linked causal loci mask one another. The realized
-#'   genetic variance is still `prop` (variance is pinned by the partition, not
-#'   by phase); what changes is the sign structure of the per-QTN effects and
-#'   the covariance among loci. Coupling leaves the drawn signs untouched.
-#'   `phase` is **architecture-independent** -- it acts on whichever QTNs the
-#'   additive layer draws, so it is meaningful under `"independent"`,
-#'   `"pleiotropy"` and `"ld"` alike. Its effect on the cross-locus covariance is
-#'   only material when a trait's additive QTNs are physically linked (on the
-#'   same chromosome); for QTNs that are effectively unlinked, alternating the
-#'   signs just relabels which allele is "increasing" and leaves the covariance
-#'   structure unchanged.
+#' @param phase QTN effect-sign pattern, `"coupling"` (default) or
+#'   `"repulsion"`. Under `"repulsion"` the effect **signs alternate across the
+#'   layer's QTNs in draw order** (`+, -, +, -, ...`); coupling leaves the drawn
+#'   signs untouched. The realized genetic variance is still `prop` (variance is
+#'   pinned by the partition, not by phase); what changes is the sign structure
+#'   of the per-QTN effects. This is a convenient stand-in for a repulsion
+#'   architecture, **not** a phase derived from the haplotypes: it alternates by
+#'   position in the draw, and does not inspect the sign of LD between the loci.
+#'   It therefore induces genuine repulsion-style cancellation only when
+#'   consecutively drawn QTNs happen to be in positive LD (same chromosome,
+#'   coupling-phase alleles); for effectively unlinked QTNs it merely relabels
+#'   which allele is "increasing" and leaves the cross-locus covariance
+#'   unchanged. `phase` is architecture-independent -- it acts on whichever QTNs
+#'   the additive layer draws.
 #' @param dist within-layer effect distribution (default "geometric").
 #' @return the updated `phenotype_sim`.
 #' @details
@@ -69,6 +68,23 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
   phase <- match.arg(phase)
   prop <- .resolve_prop(sim, prop, "additive")
   user_qtn <- .resolve_qtn_arg(sim, qtn, "additive")
+  # Fixing the additive loci is incompatible with the architectures that draw
+  # their own loci to build a controlled cross-trait correlation. Under
+  # "pleiotropy" the shared/specific partition and the multivariate (PleioArch)
+  # effect draw -- with its PSD feasibility check and MAF scaling -- would be
+  # bypassed, giving identical per-trait effects and a realized correlation of
+  # +1 regardless of `cor`; under "ld" the same locus would become causal for
+  # both traits instead of a distinct linked pair. Reject rather than silently
+  # mis-simulate (SPEC 4.1; DECISION-007/013/014).
+  if (!is.null(user_qtn) &&
+      ((sim$architecture == "pleiotropy" && sim$n_traits > 1) ||
+       sim$architecture == "ld")) {
+    stop("additive(qtn=) fixes the causal loci, which architecture = \"",
+         sim$architecture, "\" cannot honour: it draws its own loci (shared + ",
+         "trait-specific for \"pleiotropy\"; distinct linked pairs for \"ld\") ",
+         "and controls the cross-trait correlation through them. Omit `qtn`, or ",
+         "use architecture = \"independent\" to fix loci.", call. = FALSE)
+  }
   nq <- if (!is.null(user_qtn)) length(user_qtn[[1]]) else
     .resolve_n_qtn(sim, n_qtn, "additive")
   occ <- .type_occurrence(sim, "additive")
@@ -219,11 +235,15 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
 #' @details
 #' The epistatic value is the product of the interacting markers' design terms
 #' times a per-set effect, then centered and scaled to `prop`. Each design term
-#' is **centered per locus** before multiplying, which subtracts out the
-#' lower-order (additive/dominance main-effect) marginals, so the component is a
-#' cleaner a x a / a x d / d x d interaction. It is still not a full
-#' Fisher-orthogonal variance component (that is a planned genotypic-model mode),
-#' so the "epistatic proportion" remains a simulation quantity.
+#' is centered per locus before multiplying, which removes each locus's mean so
+#' the product is not dominated by a constant offset. This does **not**
+#' orthogonalize the interaction against the additive/dominance main effects:
+#' the centered product can still be correlated with the constituent dosages --
+#' strongly so when the interacting loci are in LD or away from allele frequency
+#' 0.5 (with two perfectly linked loci it can be collinear with each additive
+#' term). It is therefore not a Fisher/NOIA-orthogonal variance component (that
+#' is a planned genotypic-model mode), so the "epistatic proportion" is a
+#' simulation quantity, not an orthogonal share of variance.
 #'
 #' `interaction_type` values of `"d"` depend on heterozygotes and are
 #' near-degenerate on a fully inbred panel (see [dominance()]); use `"a"` (the
@@ -301,17 +321,28 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
 #' `prop`; finite-sample covariance among components means total realized
 #' phenotypic variance need not be exactly one.
 #'
+#' The log-linear variance link is this package's simulation choice (a
+#' standard double-generalized-linear-model parameterization of the residual
+#' variance); it is **not** a reproduction of the specific phenotype generator or
+#' fitted variance model of any one reference. The references below are for the
+#' vQTL concept and its detection in experimental crosses and plants -- the
+#' setting this layer creates data for -- rather than the source of this exact
+#' equation. In particular, Murphy et al. simulate variance heterogeneity with a
+#' different generator and fit a DGLM to detect it; only the modeling idea is
+#' shared, not the formula used here.
+#'
 #' @inheritParams additive
 #' @param same_as_add reuse the additive layer's QTNs (default `TRUE`).
 #' @return the updated `phenotype_sim`.
 #' @references
 #' Ronnegard, L. and Valdar, W. (2011). Detecting major genetic loci
 #' controlling phenotypic variability in experimental crosses. \emph{Genetics}
-#' 188, 435--447. \doi{10.1534/genetics.111.127068}
+#' 188, 435--447. \doi{10.1534/genetics.111.127068} (vQTL concept / detection.)
 #'
 #' Murphy, M.D., Fernandes, S.B., Morota, G. et al. (2022). Assessment of two
 #' statistical approaches for variance genome-wide association studies in plants.
-#' \emph{Heredity} 129, 93--102. \doi{10.1038/s41437-022-00541-1}
+#' \emph{Heredity} 129, 93--102. \doi{10.1038/s41437-022-00541-1} (plant vGWAS
+#' context; its simulation and DGLM differ from the log link used here.)
 #' @seealso [additive()], [dominance()], [epistasis()].
 #' @rdname vqtl-layer
 #' @export
@@ -696,17 +727,22 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
 .cite_vqtl <- function() {
   rlang::inform(
     .cite_main("Murphy et al. (2022), Heredity 129:93-102, ",
-               "doi:10.1038/s41437-022-00541-1, for plant vQTL simulation."),
+               "doi:10.1038/s41437-022-00541-1, for the plant variance-QTL ",
+               "(vGWAS) context (the log-variance link used here is this ",
+               "package's own simulation choice, not Murphy et al.'s ",
+               "generator)."),
     .frequency = "once",
     .frequency_id = "simplePHENOTYPES_vqtl_citation"
   )
 }
 
-#' Impose coupling / repulsion phase on a per-trait effect list
+#' Impose coupling / repulsion effect-sign pattern on a per-trait effect list
 #'
-#' Repulsion alternates the sign of successive QTN effects within each trait, so
-#' the increasing alleles oppose one another and the genetic variance is partly
-#' cancelled. Coupling returns the effects unchanged.
+#' Repulsion alternates the sign of successive QTN effects within each trait, in
+#' draw order (`+, -, +, -, ...`). This is a positional sign pattern, not a phase
+#' derived from the haplotypes; it produces repulsion-style cancellation only
+#' when the alternately-signed loci are actually in positive LD (see the `phase`
+#' argument of additive()). Coupling returns the effects unchanged.
 #' @keywords internal
 #' @noRd
 .apply_phase <- function(eff_list, phase) {

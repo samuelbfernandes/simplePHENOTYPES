@@ -537,7 +537,12 @@ simulate_phenotype <- function(geno,
     return(NULL)
   }
   base <- sum(utf8ToInt(layer_type))
-  as.integer((seed * 1009L + base * 7919L + occurrence * 104729L) %%
+  # Do the mixing in double precision: a valid seed can be as large as
+  # .Machine$integer.max, and `seed * 1009L` would overflow 32-bit integer
+  # arithmetic to NA. Doubles hold these products exactly (< 2^53), and the
+  # final %% brings the result back into integer range. For ordinary small
+  # seeds the value is identical to the previous integer computation.
+  as.integer((as.double(seed) * 1009 + base * 7919 + occurrence * 104729) %%
                .Machine$integer.max)
 }
 
@@ -586,6 +591,16 @@ print.phenotype_sim <- function(x, ...) {
   cat(sprintf("    %-10s %s\n", "residual", fmt(1 - .total_variance_prop(x))))
   cat(sprintf("  Requested genetic share = %s   realized H\u00b2 = %s\n",
               fmt(.total_genetic_prop(x)), fmt(.realized_h2(x))))
+  if (!is.null(x$h2)) {
+    spent <- .total_genetic_prop(x)
+    h2v <- .expand_prop(x$h2, x$n_traits)
+    if (any(spent < h2v - 1e-8)) {
+      cat(sprintf("  ! Incomplete h2 allocation: genetic layers sum to %s of ",
+                  fmt(spent)),
+          sprintf("h2 = %s; extracting phenotypes will error until the ", fmt(h2v)),
+          "budget is filled (SPEC 4.1).\n", sep = "")
+    }
+  }
   if (any(vapply(x$layers, function(l) identical(l$type, "vqtl"), TRUE))) {
     cat("  (vqtl is a residual-heterogeneity component and is not counted in\n",
         "   broad-sense heritability)\n",

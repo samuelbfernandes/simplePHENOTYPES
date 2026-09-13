@@ -2,7 +2,7 @@
 % Please edit documentation in R/legacy_Genotypes.R
 \name{genotypes}
 \alias{genotypes}
-\title{Generate a numeric (dosage) HapMap file}
+\title{Load and numericalize marker data for create_phenotypes().}
 \usage{
 genotypes(
   geno_obj = NULL,
@@ -19,35 +19,40 @@ genotypes(
 )
 }
 \arguments{
-\item{geno_obj}{= NULL,}
+\item{geno_obj}{In-memory data.frame (e.g. HapMap).}
 
-\item{geno_file}{= NULL,}
+\item{geno_file}{Path to a single genotype file.}
 
-\item{geno_path}{= NULL,}
+\item{geno_path}{Directory containing multiple genotype files.}
 
-\item{nrows}{= Inf,}
+\item{nrows}{Maximum rows to read from HapMap text (Inf = all).}
 
-\item{na_string}{= "NA",}
+\item{na_string}{String representing missing values in HapMap text.}
 
-\item{prefix}{= NULL,}
+\item{prefix}{File-name prefix filter for geno_path.}
 
-\item{maf_cutoff}{= NULL,}
+\item{maf_cutoff}{Drop markers with minor-allele frequency below this.}
 
-\item{SNP_effect}{= 'Add',}
+\item{SNP_effect}{Genetic model: "Add", "Dom", "Left", "Right".}
 
-\item{SNP_impute}{= 'Middle',}
+\item{SNP_impute}{Imputation: "Middle", "Minor", "Major", "None".}
 
-\item{verbose}{= verbose}
+\item{verbose}{Print progress messages.}
 
-\item{chr_prefix}{= "chrm"}
+\item{chr_prefix}{Chromosome prefix string (accepted for backward
+compatibility; VCF chromosome handling is managed by SNPRelate).}
 }
 \value{
-A numeric HapMap
+list(geno_obj, input_format, out_name, temp).
 }
 \description{
-Generate a numeric (dosage) HapMap file
+Reads HapMap / VCF / GDS / PLINK BED-PED / FinalReport input and returns it
+as a numeric-format data frame (\verb{snp, allele, chr, pos, cm} + one column per
+sample). Numericalization is delegated to \code{\link[=as_numeric]{as_numeric()}} /
+\code{\link[=format_conversion]{format_conversion()}}, the single coding implementation in the package, so
+create_phenotypes() and the modern grammar code genotypes identically.
 }
 \author{
-Samuel Fernandes and Alexander Lipka. Last update: Apr 20, 2020
+Samuel Fernandes and Alexander Lipka.
 }
 \keyword{internal}

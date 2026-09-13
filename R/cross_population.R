@@ -192,6 +192,98 @@ dosages <- function(x) {
   g
 }
 
+#' Additive genetic value on a fixed, cross-generational scale
+#'
+#' Scores each individual by \eqn{\sum_j \mathrm{dosage}_{ij}\,\mathrm{effect}_j}
+#' over a **given, frozen architecture** (loci `qtn` and their `effect`s), using the
+#' -1/0/1 dosages directly with **no per-population centring or rescaling**.
+#'
+#' This is the accessor to use when comparing populations *across generations* --
+#' e.g. to show a selection response as the mean additive value climbs. It differs
+#' from [genetic_values()], which re-centres and re-scales every layer to its target
+#' `prop` on whatever population is being scored: that makes `genetic_values()` read
+#' roughly mean 0 / variance `prop` at *every* generation, so it cannot express a
+#' cross-generational trend. Here the loci and effects are fixed by the caller, so
+#' the scale is stable and the numbers are comparable from one generation to the
+#' next. Effects are on the same -1/0/1 dosage scale as an `additive()` layer's
+#' `effect` (and as [qtn_table()]'s `effect` column).
+#'
+#' @param x a `Population`, a Population-backed `phenotype_sim`, or a marker x
+#'   individual dosage matrix coded -1/0/1 (marker names as row names when `qtn` is
+#'   given by name; individual ids as column names).
+#' @param qtn the causal loci, as marker names (matched against the map) or integer
+#'   marker (row) indices.
+#' @param effect a finite numeric vector of per-locus additive effects, one per
+#'   entry of `qtn` and in the same order.
+#' @return a named numeric vector of additive values, one per individual.
+#' @seealso [genetic_values()], [dosages()], [qtn_table()], [select_ind()].
+#' @export
+#' @examples
+#' data("SNP55K_maize282_maf04")
+#' pop <- as_population(SNP55K_maize282_maf04, individuals = 1:20)
+#' # Score on a fixed 3-locus architecture; the scale does not depend on the set.
+#' av  <- additive_value(pop, qtn = c(1, 5, 9), effect = c(0.5, -1, 2))
+#' head(av)
+additive_value <- function(x, qtn, effect) {
+  d <- if (inherits(x, "Population")) {
+    dosages(x)
+  } else if (inherits(x, "phenotype_sim")) {
+    if (!inherits(x$geno, "Population")) {
+      stop("additive_value(): this phenotype_sim is not built on a Population; ",
+           "pass a Population or a marker x individual dosage matrix.",
+           call. = FALSE)
+    }
+    dosages(x$geno)
+  } else if (is.matrix(x)) {
+    if (is.null(colnames(x))) {
+      stop("additive_value(): a dosage matrix needs individual ids as column ",
+           "names.", call. = FALSE)
+    }
+    x
+  } else {
+    stop("additive_value(): `x` must be a Population, a Population-backed ",
+         "phenotype_sim, or a marker x individual dosage matrix.", call. = FALSE)
+  }
+  if (anyNA(d)) {
+    stop("additive_value(): the genotypes contain missing values; impute or ",
+         "remove them first (a missing dosage makes the additive value NA).",
+         call. = FALSE)
+  }
+  n_marker <- nrow(d)
+  idx <- if (is.character(qtn)) {
+    if (is.null(rownames(d))) {
+      stop("additive_value(): `qtn` is given by name but the genotypes have no ",
+           "marker (row) names to match against.", call. = FALSE)
+    }
+    m <- match(qtn, rownames(d))
+    if (anyNA(m)) {
+      stop("additive_value(): marker(s) not found in the genotypes: ",
+           paste(utils::head(qtn[is.na(m)], 5), collapse = ", "),
+           if (sum(is.na(m)) > 5) ", ..." else "", ".", call. = FALSE)
+    }
+    m
+  } else if (is.numeric(qtn)) {
+    if (!length(qtn) || any(!is.finite(qtn)) || any(qtn != floor(qtn)) ||
+        any(qtn < 1L | qtn > n_marker)) {
+      stop("additive_value(): numeric `qtn` must be whole-number marker indices ",
+           "in 1..", n_marker, ".", call. = FALSE)
+    }
+    as.integer(qtn)
+  } else {
+    stop("additive_value(): `qtn` must be marker names or integer marker indices.",
+         call. = FALSE)
+  }
+  if (!is.numeric(effect) || length(effect) != length(idx) ||
+      any(!is.finite(effect))) {
+    stop("additive_value(): `effect` must be a finite numeric vector with one ",
+         "value per locus in `qtn` (", length(idx), ").", call. = FALSE)
+  }
+  # Fixed-scale additive value: sum_j dosage_ij * effect_j, no per-population
+  # centring/rescaling (that is what makes it comparable across generations).
+  av <- colSums(d[idx, , drop = FALSE] * effect)
+  stats::setNames(as.numeric(av), colnames(d))
+}
+
 #' @export
 print.Population <- function(x, ...) {
   if (length(list(...))) {

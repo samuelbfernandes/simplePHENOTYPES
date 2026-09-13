@@ -71,9 +71,16 @@ THEORY: PASS | FAIL (n)
   weights ≥ 0; family term → 0 as h²→1.
 - **S4** QGSI quadratic index **Î = w′y + y′Wy** implemented as documented; W symmetric;
   reduces to the linear index when quad weights = 0.
-- **S5** Exactly one of `n`/`prop`/`intensity`; family methods require `family`; the
-  `on` hook (`"pheno"`/`"gv"`/vector/function) is the GS/PS extension point and does not
-  smuggle in true BV.
+- **S5** Exactly one of `n`/`prop`/`intensity`; family methods require `family`. The
+  `on` criterion is `"pheno"`, `"gv"`, `"bv"`, a numeric vector, or a function. The
+  named `"gv"` and `"bv"` are *idealized true* simulated criteria (total genetic value
+  and the transmissible average-effect breeding value, DECISION-019) — legitimate in a
+  simulation where the truth is known by design and explicitly labeled as true; `"bv"`
+  is the one-generation random-mating transmitting ability α = a + d(q−p), refused
+  under epistasis/complex architectures. The vector/function form is the GS/PS
+  extension point for *estimated/predicted* values and must not be presented as a true
+  breeding value. `method = "combined"` requires `on = "pheno"`; the multi-trait index
+  methods score on true breeding values and ignore `on`.
 
 ### O. Relationship & optimum contribution (`ocs.R`, `g_matrix`, DECISION-016)
 - **O1** G = **ZZ′ / (2 Σ pⱼ(1−pⱼ))** (VanRaden 2008 method 1); monomorphic markers
