@@ -86,8 +86,12 @@ simulate_phenotype(SNP55K_maize282_maf04, seed = 3) |>
   additive(prop = 0.3, n_qtn = 4) |>
   epistasis(prop = 0.2, n_pairs = 2, interaction = 3)
 
-# Additive-by-dominance and dominance-by-dominance interactions.
-simulate_phenotype(SNP55K_maize282_maf04, seed = 4) |>
+# Additive-by-dominance and dominance-by-dominance interactions depend on
+# heterozygotes, so run them on a segregating F2 (the maize282 panel is
+# inbred and has none).
+pop <- as_population(SNP55K_maize282_maf04, individuals = 1:20)
+f2 <- selfcross(cross(pop[1], pop[2], n = 1, seed = 1), n = 40, seed = 2)
+simulate_phenotype(f2, seed = 4) |>
   additive(prop = 0.3, n_qtn = 4) |>
   epistasis(prop = 0.1, n_pairs = 2, interaction_type = c("a", "d")) |>
   epistasis(prop = 0.1, n_pairs = 2, interaction_type = c("d", "d"))
