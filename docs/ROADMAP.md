@@ -386,7 +386,11 @@ against it. These are open questions to resolve, not settled decisions.
       `.freeze_loci()` loci/effects and `dosages()` (removing the reimplementation
       the review flagged, constitution #6 / ADR-0004). Accepts a `Population`, a
       Population-backed `phenotype_sim`, or a dosage matrix; `qtn` by name or index.
-- [ ] **Fixed-scale PHENOTYPE accessor (for cross-generation selection).** The
+- [x] **Fixed-scale PHENOTYPE accessor (for cross-generation selection).** Shipped
+      as `phenotype_value(x, qtn, effect, h2 = NULL, var_e = NULL, ref, seed)`
+      (DECISION-021): fixed additive value + independent residual on a frozen
+      variance; the parametric h² = Var(g)/(Var(g)+var_e) declines as variance is
+      exhausted. The
       counterpart to `additive_value()` for *phenotypic* selection: a phenotype
       whose genetic component is a FIXED function of genotype (frozen loci/effects)
       plus a residual on a fixed variance, WITHOUT the per-population rescaling that
@@ -401,9 +405,10 @@ against it. These are open questions to resolve, not settled decisions.
       `phenotype_value(x, qtn, effect, h2, ...)` (fixed genetic scale + residual
       draw) — or an option on the existing scorer to skip the per-population
       rescale — would let the designer drive faithful phenotypic selection.
-- [ ] **Bump the package version when `additive_value()` (and the fixed-scale
-      phenotype accessor) ship.** The accessor was added without a version bump
-      (still `1.4.0.9001`), so a downstream package cannot pin
+- [x] **Bump the package version when `additive_value()` (and the fixed-scale
+      phenotype accessor) ship.** Done: bumped to `1.4.0-9002` when
+      `phenotype_value()` shipped (DECISION-021). The accessor was added without a
+      version bump (was `1.4.0-9001`), so a downstream package could not pin
       `Imports: simplePHENOTYPES (>= <ver>)` to require it — the breeding designer
       therefore keeps a runtime fallback that re-derives the additive value
       (`breedingDesigner:::.bv_index`), the very reimplementation the review flags

@@ -284,6 +284,130 @@ additive_value <- function(x, qtn, effect) {
   stats::setNames(as.numeric(av), colnames(d))
 }
 
+#' Phenotype on a fixed, cross-generational scale
+#'
+#' The phenotypic counterpart of [additive_value()]: each individual's phenotype is
+#' its **fixed** additive genetic value (frozen loci `qtn` and their `effect`s, on
+#' the -1/0/1 dosage scale, with no per-population rescaling) plus an independent
+#' residual `e ~ N(0, var_e)` on a **fixed** residual-variance parameter `var_e`.
+#' Because neither the genetic scale nor `var_e` is re-fit to the scored population,
+#' the **parametric (population) heritability** `Var(g) / (Var(g) + var_e)` *declines*
+#' as selection exhausts genetic variance -- which is exactly what a faithful
+#' cross-generation `on = "pheno"` selection driver needs, and what
+#' [genetic_values()] / [simulate_phenotype()] cannot express (they re-scale the
+#' genetic layer to its target `prop` on every population, so the genetic share, and
+#' thus selection accuracy, never decays). (`var_e` is the residual *variance
+#' parameter*, not a sample-standardized value: `e` is a genuine normal draw, so its
+#' realized sample variance scatters around `var_e` and `Cov(g, e) ~ 0` in
+#' expectation. The package's sample statistic `Var(g)/Var(y)` therefore tracks the
+#' parametric heritability up to finite-sample scatter, and is not forced to it.)
+#'
+#' Supply **exactly one** of `h2` or `var_e` to set that fixed residual variance:
+#' \itemize{
+#'   \item `var_e` -- the residual variance directly. This is the robust choice for
+#'     multi-generation use: compute it once at the base generation and pass the
+#'     same value every cycle so it is truly frozen.
+#'   \item `h2` -- a target heritability, converted to a residual variance
+#'     `var_e = Var(g_ref) (1 - h2) / h2` from a reference population's genetic
+#'     variance. `ref` names that reference (default: `x` itself). For
+#'     cross-generation use pass the **base** population as `ref` (or precompute
+#'     `var_e`); `h2` with the default `ref = x` re-derives `var_e` from each scored
+#'     population and so does *not* freeze it across generations.
+#' }
+#'
+#' @inheritParams additive_value
+#' @param h2 target narrow-sense heritability in `(0, 1]`, used with `ref` to set a
+#'   fixed residual variance. Give exactly one of `h2` or `var_e`.
+#' @param var_e fixed residual variance (a single non-negative number), on the same
+#'   scale as `Var(additive_value(x, qtn, effect))`. Give exactly one of `h2` or
+#'   `var_e`.
+#' @param ref optional reference population/genotypes (same forms as `x`) whose
+#'   genetic variance converts `h2` to `var_e`; defaults to `x`. Ignored when
+#'   `var_e` is given.
+#' @param seed optional seed for the residual draw -- `NULL` or one non-negative
+#'   whole number (the RNG state is restored afterwards), for reproducible
+#'   phenotypes.
+#' @return a named numeric vector of phenotypes, one per individual, with
+#'   attributes `var_e` (the fixed residual variance used) and `genetic_value` (the
+#'   fixed additive values).
+#' @seealso [additive_value()], [genetic_values()], [select_ind()],
+#'   [simulate_phenotype()].
+#' @references
+#'   Falconer DS, Mackay TFC (1996) \emph{Introduction to Quantitative Genetics},
+#'   4th ed. Longman, Harlow (heritability \eqn{h^2 = V_A / (V_A + V_E)}); Lynch M,
+#'   Walsh B (1998) \emph{Genetics and Analysis of Quantitative Traits}. Sinauer,
+#'   Sunderland, MA.
+#' @export
+#' @examples
+#' data("SNP55K_maize282_maf04")
+#' pop <- as_population(SNP55K_maize282_maf04, individuals = 1:20)
+#' # Freeze the residual variance from the base population at h2 = 0.5, then reuse
+#' # it so later generations' heritability can decline as variance is exhausted.
+#' y0 <- phenotype_value(pop, qtn = c(1, 5, 9), effect = c(0.5, -1, 2),
+#'                       h2 = 0.5, seed = 1)
+#' ve <- attr(y0, "var_e")
+#' # a descendant population would then be scored with the same frozen var_e:
+#' # phenotype_value(descendants, qtn = c(1, 5, 9), effect = c(0.5, -1, 2),
+#' #                 var_e = ve, seed = 2)
+#' head(y0)
+phenotype_value <- function(x, qtn, effect, h2 = NULL, var_e = NULL,
+                            ref = NULL, seed = NULL) {
+  has_h2 <- !is.null(h2)
+  has_ve <- !is.null(var_e)
+  if (has_h2 == has_ve) {
+    stop("phenotype_value(): supply exactly one of `h2` or `var_e` (h2 sets the ",
+         "residual variance from a reference heritability; var_e sets it ",
+         "directly).", call. = FALSE)
+  }
+  seed <- .validate_seed(seed)
+  # Fixed-scale genetic value (this also validates x, qtn, and effect).
+  g <- additive_value(x, qtn, effect)
+  if (has_ve) {
+    if (!is.numeric(var_e) || length(var_e) != 1L || !is.finite(var_e) ||
+        var_e < 0) {
+      stop("phenotype_value(): `var_e` must be a single finite, non-negative ",
+           "number.", call. = FALSE)
+    }
+    ve <- var_e
+  } else {
+    if (!is.numeric(h2) || length(h2) != 1L || !is.finite(h2) || h2 <= 0 ||
+        h2 > 1) {
+      stop("phenotype_value(): `h2` must be a single number in (0, 1].",
+           call. = FALSE)
+    }
+    ref_g <- if (is.null(ref)) g else additive_value(ref, qtn, effect)
+    vg_ref <- stats::var(ref_g)
+    if (!is.finite(vg_ref) || vg_ref <= 0) {
+      stop("phenotype_value(): the reference genetic values have zero variance, ",
+           "so `h2` cannot set the residual variance. Pass `var_e` directly, or a ",
+           "polymorphic `ref`/`x`.", call. = FALSE)
+    }
+    ve <- vg_ref * (1 - h2) / h2
+    if (!is.finite(ve)) {
+      stop("phenotype_value(): `h2` = ", h2, " makes the residual variance ",
+           "non-finite (h2 too close to 0). Use a moderate `h2` or set `var_e` ",
+           "directly.", call. = FALSE)
+    }
+  }
+  # Independent residual e ~ N(0, ve): var_e is the fixed variance *parameter*, so
+  # e is drawn (not sample-rescaled) -- it is genuinely normal, works for n = 1,
+  # and is uncorrelated with g in expectation. The seed draw restores the RNG.
+  n <- length(g)
+  draw <- function() stats::rnorm(n, mean = 0, sd = sqrt(ve))
+  e <- if (is.null(seed)) {
+    draw()
+  } else {
+    old <- .Random.seed_safe()
+    set.seed(seed)
+    on.exit(.restore_seed(old))
+    draw()
+  }
+  y <- stats::setNames(as.numeric(g + e), names(g))
+  attr(y, "var_e") <- ve
+  attr(y, "genetic_value") <- g
+  y
+}
+
 #' @export
 print.Population <- function(x, ...) {
   if (length(list(...))) {

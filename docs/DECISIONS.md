@@ -693,6 +693,40 @@ DECISION-006 (deterministic, in R).
 
 ---
 
+## DECISION-021: fixed-scale phenotype accessor `phenotype_value()`
+
+**Context:** cross-generation `on = "pheno"` selection needs a phenotype whose
+genetic scale and residual variance are *frozen*, so the parametric heritability
+`Var(g)/(Var(g)+var_e)` declines as selection exhausts genetic variance. `simulate_phenotype()` / `genetic_values()`
+re-scale the genetic layer to `prop` on every population, holding the genetic share
+constant — correct for `on = "gv"` (rescaling is monotone, ranking unchanged) but
+optimistic for `on = "pheno"` (accuracy never decays). `additive_value()`
+(DECISION-020 companion) already froze the genetic value; the residual was missing.
+
+**Decision:** add `phenotype_value(x, qtn, effect, h2 = NULL, var_e = NULL,
+ref = NULL, seed = NULL)`. Phenotype = the fixed additive value
+(`additive_value()`, −1/0/1 dosage × effect, no per-population rescale) + a normal
+residual on a **fixed** variance. Exactly one of `h2` or `var_e` sets that variance:
+`var_e` directly (the robust cross-generation choice — compute once, reuse), or `h2`
+converted via `var_e = Var(g_ref)(1 − h2)/h2` from a reference population's genetic
+variance (`ref`, default `x`). The residual is an **independent** draw
+`e ~ N(0, var_e)` (a genuine normal, *not* sample-standardized to exactly `var_e` —
+so it stays normal, works at `n = 1`, and has `Cov(g, e) ≈ 0` in expectation),
+seed-restoring via `.Random.seed_safe()`/`.restore_seed()`; `seed` is checked with
+`.validate_seed()` and an overflowing `var_e` (extreme `h2`) errors. Returns a named
+phenotype vector with `var_e` and `genetic_value` attributes. Bumps the dev version
+(1.4.0-9002) so downstream (breedingDesigner) can pin the minimum and drop its
+`.bv_index` fallback.
+
+**Scope / limits:** RNG stays in R (DECISION-006). `h2` with the default `ref = x`
+re-derives `var_e` per population and so is *not* frozen across generations — the
+docs flag this; cross-generation callers pass `var_e` or `ref = <base>`.
+
+**Reaffirms:** DECISION-020 (`additive_value()` fixed scale); DECISION-006/019.
+**Date:** 2026-09-14
+
+---
+
 ## Decision Log Summary
 
 | ID | Decision | Status |
@@ -717,3 +751,4 @@ DECISION-006 (deterministic, in R).
 | 018 | Designer split into a separate product `breedingDesigner` (Imports simplePHENOTYPES); selection engine stays here; webR in-browser execution + plumber back end; engine adapter (AlphaSimR etc.); move after new pkg green | locked (2026-09-11) |
 | 019 | Breeding value (`on = "bv"`, OCS default, index merit) = classical average-effect A = Σαⱼ(xⱼ−2pⱼ), αⱼ = aⱼ+dⱼ(qⱼ−pⱼ) reconstructed analytically from known QTN effects (LD- and HWE-robust); epistasis-induced marginals omitted; index methods ignore `on` | locked (2026-09-13) |
 | 020 | orthogonal genotypic model as `additive(orthogonal = TRUE, a =, d =)` (orthogonal in expectation under random mating → per-locus HWE, e.g. F2; LD is fine, but nonrandom multilocus association breaks it; A is the transmitting average effect, Falconer 1985): per-locus a/d, whole value scaled to `prop`; budget reports realized Var(A)/Var(g), Var(D)/Var(g) + an `add_dom_cov` row 2Cov(A,D)/Var(g) (=0 in expectation under random mating; nonzero for structured / finite samples) closing to `prop`; degree of dominance d/abs(a) meaningful; d!=0 requires a het per locus (checked per-locus); `qtn_table()` gains a `d` column; new args appended to the signature (positional compat kept); incompatible with vary_qtn / dominance() / pleiotropy(multi) / ld | locked (2026-09-13) |
+| 021 | `phenotype_value(x, qtn, effect, h2/var_e, ref, seed)` = fixed additive value (`additive_value()`) + independent residual on a **frozen** variance (no per-population rescale), so the parametric h²=Var(g)/(Var(g)+var_e) declines as variance is exhausted (faithful cross-gen `on="pheno"`); exactly one of h2/var_e (h2 → var_e=Var(g_ref)(1−h2)/h2); RNG in R; version bump 1.4.0-9002 so downstream can pin | locked (2026-09-14) |

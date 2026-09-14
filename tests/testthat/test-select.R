@@ -270,6 +270,83 @@ test_that("additive_value scores on a fixed cross-generational scale", {
                "marker indices")
 })
 
+test_that("phenotype_value = fixed genetic value + residual on a fixed variance", {
+  f2  <- .f2(60)
+  qtn <- c(1L, 5L, 9L)
+  eff <- c(0.5, -1, 2)
+  g   <- additive_value(f2, qtn, effect = eff)
+
+  # h2 path: var_e = Var(g)(1 - h2)/h2 on the reference (= x by default), so the
+  # definitional heritability Var(g)/(Var(g)+var_e) is exactly h2.
+  y   <- phenotype_value(f2, qtn, effect = eff, h2 = 0.5, seed = 1)
+  ve  <- attr(y, "var_e")
+  expect_equal(ve, stats::var(g) * (1 - 0.5) / 0.5, tolerance = 1e-10)
+  expect_equal(stats::var(g) / (stats::var(g) + ve), 0.5, tolerance = 1e-8)
+  # genetic-value attribute is the fixed additive value; phenotype = g + residual
+  expect_equal(attr(y, "genetic_value"), g, tolerance = 1e-12)
+  expect_named(y, f2$ids)
+  # reproducible under a seed; RNG state is restored (no change to .Random.seed)
+  expect_equal(phenotype_value(f2, qtn, effect = eff, h2 = 0.5, seed = 1), y,
+               tolerance = 1e-12)
+
+  # Fixed var_e: the parametric heritability Var(g)/(Var(g)+var_e) declines as
+  # genetic variance shrinks -- the whole point (a per-population rescale would hold
+  # it constant). This is the parametric ratio, not the sample Var(g)/Var(y).
+  mk <- function(a, b) {
+    m <- rbind(m1 = a, m2 = b)
+    colnames(m) <- paste0("i", seq_len(ncol(m)))
+    m
+  }
+  hi <- mk(c(-1, -1, 1, 1), c(-1, 1, -1, 1))   # large Var(g)
+  lo <- mk(c(0, 0, 0, 1),  c(0, 0, 0, 0))      # tiny Var(g)
+  yh <- phenotype_value(hi, qtn = c("m1", "m2"), effect = c(1, 1), var_e = 1)
+  yl <- phenotype_value(lo, qtn = c("m1", "m2"), effect = c(1, 1), var_e = 1)
+  h2_hi <- {gh <- attr(yh, "genetic_value"); stats::var(gh) / (stats::var(gh) + 1)}
+  h2_lo <- {gl <- attr(yl, "genetic_value"); stats::var(gl) / (stats::var(gl) + 1)}
+  expect_gt(h2_hi, h2_lo)
+  expect_identical(attr(yh, "var_e"), 1)       # var_e frozen, not re-fit
+
+  # validation
+  expect_error(phenotype_value(f2, qtn, effect = eff), "exactly one")
+  expect_error(phenotype_value(f2, qtn, effect = eff, h2 = 0.5, var_e = 1),
+               "exactly one")
+  expect_error(phenotype_value(f2, qtn, effect = eff, h2 = 1.5), "in \\(0, 1\\]")
+  expect_error(phenotype_value(f2, qtn, effect = eff, var_e = -1),
+               "non-negative")
+  # h2 with a zero-variance reference cannot set the residual variance
+  mono <- mk(c(1, 1, 1, 1), c(0, 0, 0, 0))
+  expect_error(
+    phenotype_value(mono, qtn = c("m1", "m2"), effect = c(0, 0), h2 = 0.5),
+    "zero variance")
+})
+
+test_that("phenotype_value draws a genuine normal residual and guards small n / bad args", {
+  f2  <- .f2(60)
+  qtn <- c(1L, 5L, 9L)
+  eff <- c(0.5, -1, 2)
+  y   <- phenotype_value(f2, qtn, effect = eff, var_e = 1, seed = 1)
+  e   <- as.numeric(y) - attr(y, "genetic_value")
+  # independent draw, NOT sample-standardized: realized var(e) != exactly var_e,
+  # and e is not perfectly (anti)correlated with g (the old rescaling degeneracy)
+  expect_false(isTRUE(all.equal(stats::var(e), 1)))
+  expect_lt(abs(stats::cor(attr(y, "genetic_value"), e)), 0.5)
+
+  # one individual is valid and returns one phenotype (no sd() blow-up at n = 1)
+  m1 <- matrix(0, 1, 1, dimnames = list("m1", "i1"))
+  y1 <- phenotype_value(m1, "m1", effect = 1, var_e = 1, seed = 1)
+  expect_length(y1, 1L)
+  expect_true(is.finite(as.numeric(y1)))
+
+  # seed must be a single non-negative whole number
+  expect_error(phenotype_value(f2, qtn, effect = eff, var_e = 1, seed = c(1, 9)),
+               "seed")
+  expect_error(phenotype_value(f2, qtn, effect = eff, var_e = 1, seed = 1.5),
+               "seed")
+  # an h2 so small it overflows the residual variance errors, not silent NaN
+  expect_error(phenotype_value(f2, qtn, effect = eff, h2 = 5e-324),
+               "non-finite|residual variance")
+})
+
 test_that("c.Population pools populations and rejects mismatched maps", {
   f2 <- .f2(20)
   a <- f2[1:5]
