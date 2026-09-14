@@ -139,6 +139,15 @@ cross_usefulness <- function(sim, pairs = NULL,
       e   <- ly$effect[[trait]]
     }
     if (is.null(idx) || length(idx) == 0L) next
+    # An orthogonal layer carries a dominance-induced additive effect, so score
+    # progeny on the average effect of substitution alpha = a + d(1 - 2p) -- the
+    # same quantity the breeding value uses (.breeding_value_matrix) -- not the
+    # bare a, which would silently drop dominance from the cross prediction.
+    if (isTRUE(ly$orthogonal)) {
+      xg <- .geno_cols(sim, idx) + 1                     # gene content 0/1/2
+      pj <- colMeans(xg) / 2
+      e  <- .avg_effect(as.numeric(e), ly$d_effect[[trait]], pj)
+    }
     # Scale raw effects to the template's REALIZED additive scale -- the same
     # transform .genetic_matrix() applies: comp / sd(comp) * sqrt(prop), with sd
     # taken over the template individuals. Concatenating raw effects would weight

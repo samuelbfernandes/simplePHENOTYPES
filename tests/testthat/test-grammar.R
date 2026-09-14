@@ -287,7 +287,7 @@ test_that("qtn_table() names the loci and effects, expanding epistatic sets", {
     epistasis(prop = 0.2, n_pairs = 2, interaction = 2)
   tab <- qtn_table(ph)
   expect_named(tab, c("trait", "layer", "set", "snp", "chr", "pos", "maf",
-                      "effect", "var_explained", "QTN_t1", "QTN_t2", "ld_r2"))
+                      "effect", "d", "var_explained", "QTN_t1", "QTN_t2", "ld_r2"))
   # 3 additive rows + 2 pairs x 2 members
   expect_identical(nrow(tab), 7L)
   expect_identical(sum(tab$layer == "epistasis"), 4L)
@@ -304,5 +304,5 @@ test_that("qtn_table() is empty but well-formed with no layers", {
   tab <- qtn_table(simulate_phenotype(G, seed = 5))
   expect_identical(nrow(tab), 0L)
   expect_named(tab, c("trait", "layer", "set", "snp", "chr", "pos", "maf",
-                      "effect", "var_explained", "QTN_t1", "QTN_t2", "ld_r2"))
+                      "effect", "d", "var_explained", "QTN_t1", "QTN_t2", "ld_r2"))
 })

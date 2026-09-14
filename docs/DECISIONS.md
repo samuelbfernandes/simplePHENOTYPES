@@ -360,8 +360,8 @@ Lynch & Walsh).
     **function** `on(sim)`. The vector/function is the deliberate extension point
     for **genomic selection, phenomic selection, and other predictive criteria**
     computed externally. True breeding value (`on = "bv"`, the additive average
-    effect α) is deferred to the Fisher-orthogonal average-effects feature
-    (ROADMAP §3).
+    effect α) is deferred to the orthogonal genotypic-model / average-effects
+    feature (ROADMAP §3).
   - **Methods:** `mass` (individual truncation), `within_family`, `among_family`,
     `combined` (Lush combined index), `index` (Smith–Hazel multi-trait economic
     index, `b = P⁻¹ G a`), `random` (drift control). Family methods require a
@@ -640,6 +640,59 @@ DECISION-006 (deterministic, in R).
 
 ---
 
+## DECISION-020: orthogonal genotypic model via `additive(orthogonal = TRUE)`
+
+**Question:** the variance-partition grammar codes additive as -1/0/1 dosage and
+dominance as a heterozygote indicator, each scaled independently to a chosen
+`prop`. That is not Fisher's orthogonal decomposition: at non-0.5 allele
+frequencies the additive and dominance components are correlated, realized H2 only
+approximates the sum of props, and a "degree of dominance" scalar is washed out by
+per-component scaling. How to offer the theoretically correct additive/dominance
+partition?
+
+**Decision:** add an orthogonal genotypic model as a mode of the additive layer,
+`additive(orthogonal = TRUE, a =, d =)` (API chosen over a separate
+`genotypic_model()` builder). Each locus's genotypic value is built from a
+per-locus additive effect `a` and dominance deviation `d` (`-a`/`+d`/`+a` for gene
+content 0/1/2), and the **whole** genotypic value is scaled to `prop` of the
+phenotypic variance. The additive (breeding-value) component uses the average
+effect \(\alpha_j = a_j + d_j(1 - 2 p_j)\) and the dominance deviation is the
+realized residual \(D = g - A\). The additive and dominance components are
+orthogonal (\(Cov(A, D) = 0\)) in expectation under **random mating**, which puts
+each locus in Hardy–Weinberg proportions. This does *not* require linkage
+equilibrium — between-locus LD is compatible with orthogonality in this
+no-epistasis model — but per-locus HWE alone is not sufficient under arbitrary
+nonrandom multilocus genotype association (selection, structure), which can
+correlate one locus's gene content with another's heterozygosity. \(\alpha\) is
+the one-generation transmitting-ability average effect (Falconer 1985). The name
+"orthogonal" reflects that random-mating regime; it is not a claim of
+orthogonality in every population. A finite or structured sample carries a
+(usually small) non-zero \(Cov(A, D)\) that breeders customarily ignore — this
+implementation does not, and normalizing it away would misreport the shares. The additive/dominance variances **emerge** from (a, d, p) and are
+reported as the *realized* fractions of \(Var(g)\): an `additive` row
+\(Var(A)/Var(g)\), a `dominance` row \(Var(D)/Var(g)\), and an `add_dom_cov` row
+\(2\,Cov(A, D)/Var(g)\) so the three close to the layer `prop` (the covariance row
+is \(\approx 0\) for a large random-mating / F2 sample and non-zero otherwise) —
+rather than being set by separate layer props.
+Because the whole value is scaled together (not per component), the **degree of
+dominance** `d/abs(a)` is meaningful (magnitude 1 = complete, > 1 = overdominance;
+`abs` because `a` may be negative; it drives the emergent Va:Vd ratio). The breeding
+value (DECISION-019) picks up the dominance-induced average effect automatically.
+
+**Scope / limits:** total genetic fraction (H2) is still the layer's `prop` (the
+grammar's budget contract is kept); what emerges is the additive-vs-dominance
+split within it. The mode fixes per-locus effects, so it is incompatible with
+`vary_qtn`, with a separate `dominance()` layer (it already carries dominance), and
+— like `qtn =` — with the correlation-controlling `"pleiotropy"` (multi-trait) and
+`"ld"` architectures. A dominance deviation needs heterozygotes (errors on hetless
+loci, as `dominance()` does).
+
+**Reaffirms:** DECISION-019 (transmissible average-effect breeding value);
+DECISION-006 (deterministic, in R).
+**Date:** 2026-09-13
+
+---
+
 ## Decision Log Summary
 
 | ID | Decision | Status |
@@ -663,3 +716,4 @@ DECISION-006 (deterministic, in R).
 | 017 | Designer = DAG-JSON contract + headless `run_design()`/`validate_design()`/`design_breeding_program()` + `design_script()` (R runs today, Python mirror); React Flow canvas ships as a companion app, not in the tarball; `jsonlite` to Suggests | superseded by 018 (home moves) |
 | 018 | Designer split into a separate product `breedingDesigner` (Imports simplePHENOTYPES); selection engine stays here; webR in-browser execution + plumber back end; engine adapter (AlphaSimR etc.); move after new pkg green | locked (2026-09-11) |
 | 019 | Breeding value (`on = "bv"`, OCS default, index merit) = classical average-effect A = Σαⱼ(xⱼ−2pⱼ), αⱼ = aⱼ+dⱼ(qⱼ−pⱼ) reconstructed analytically from known QTN effects (LD- and HWE-robust); epistasis-induced marginals omitted; index methods ignore `on` | locked (2026-09-13) |
+| 020 | orthogonal genotypic model as `additive(orthogonal = TRUE, a =, d =)` (orthogonal in expectation under random mating → per-locus HWE, e.g. F2; LD is fine, but nonrandom multilocus association breaks it; A is the transmitting average effect, Falconer 1985): per-locus a/d, whole value scaled to `prop`; budget reports realized Var(A)/Var(g), Var(D)/Var(g) + an `add_dom_cov` row 2Cov(A,D)/Var(g) (=0 in expectation under random mating; nonzero for structured / finite samples) closing to `prop`; degree of dominance d/abs(a) meaningful; d!=0 requires a het per locus (checked per-locus); `qtn_table()` gains a `d` column; new args appended to the signature (positional compat kept); incompatible with vary_qtn / dominance() / pleiotropy(multi) / ld | locked (2026-09-13) |

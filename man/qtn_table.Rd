@@ -14,8 +14,10 @@ matters when the simulation used \code{vary_qtn = TRUE}.}
 }
 \value{
 A data frame with columns \code{trait}, \code{layer}, \code{set}, \code{snp}, \code{chr},
-\code{pos}, \code{maf}, \code{effect}, \code{var_explained}, \code{QTN_t1}, \code{QTN_t2} and \code{ld_r2}, or
-a zero-row frame when no layers have been added.
+\code{pos}, \code{maf}, \code{effect}, \code{d}, \code{var_explained}, \code{QTN_t1}, \code{QTN_t2} and
+\code{ld_r2}, or a zero-row frame when no layers have been added. \code{effect} is the
+additive effect (\code{a} for an orthogonal layer); \code{d} is the per-locus
+dominance deviation of an orthogonal layer and \code{NA} for every other layer.
 }
 \description{
 One row per QTN per trait per layer, naming the marker and the effect it was

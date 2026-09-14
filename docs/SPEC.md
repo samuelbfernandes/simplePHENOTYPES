@@ -33,7 +33,10 @@
 2. **Variance-partition layers** — `additive()`, `dominance()`, and `epistasis()`
    add mean-effect genetic components; `vqtl()` adds genotype-dependent residual
    heterogeneity. Each `prop` is a requested marginal proportion of phenotypic
-   variance. Layers never change the architecture.
+   variance. Layers never change the architecture. (Exception: `additive(orthogonal
+   = TRUE, a =, d =)` switches that layer to the orthogonal genotypic model —
+   per-locus `a`/`d`, with the additive/dominance split emerging from the effects
+   and allele frequencies; see the Modeling convention below and DECISION-020.)
 3. **Combination (optional)** — `complex_phenotypes()` merges complete single-
    architecture models under a common heritability.
 
@@ -62,6 +65,25 @@ proportions closely but not to machine precision,
 and the per-component "variances" are the simulation's, not the classical
 orthogonal Va/Vd. For an additive-only model the additive proportion is the
 narrow-sense h² under Hardy-Weinberg.
+
+**Orthogonal genotypic model (exception).** `additive(orthogonal = TRUE, a =, d =)`
+opts a single additive layer out of the variance-partition convention above. It
+builds each locus's genotypic value from a per-locus additive effect `a` and
+dominance deviation `d` (values `-a`/`+d`/`+a` for gene content 0/1/2), scales the
+**whole** genotypic value to the layer `prop`, and decomposes it into the
+average-effect breeding value `A = Σ αⱼ(xⱼ − 2pⱼ)`, `αⱼ = aⱼ + dⱼ(1 − 2pⱼ)`
+(Falconer 1985; the transmitting-ability form, consistent with the `on = "bv"`
+breeding value, DECISION-019) and the realized dominance deviation `D = g − A`.
+`A` and `D` are orthogonal (`Cov(A, D) = 0`) in expectation under random mating,
+which puts each locus in Hardy-Weinberg proportions (e.g. an F2). This does *not*
+require linkage equilibrium — between-locus LD is compatible with orthogonality in
+this no-epistasis model — but per-locus HWE alone does not suffice under arbitrary
+nonrandom multilocus genotype association (selection, structure). Whatever
+covariance remains is reported, not normalized away, as an `add_dom_cov`
+variance-budget row so `additive + dominance + add_dom_cov = prop` (≈0 for a large
+random-mating / F2 sample). This mode is incompatible with
+`vary_qtn`, a separate `dominance()` layer, and the `"pleiotropy"` (multi-trait) /
+`"ld"` architectures. See DECISION-020.
 
 ---
 
@@ -191,7 +213,8 @@ All take `prop` (proportion of V_P) and return an updated `phenotype_sim`.
 
 ```
 additive(sim,  prop, n_qtn = NULL, qtn = NULL, effect = NULL,
-         phase = c("coupling","repulsion"), dist = "geometric")
+         phase = c("coupling","repulsion"), dist = "geometric",
+         orthogonal = FALSE, a = NULL, d = NULL)
 dominance(sim, prop, same_as_add = TRUE, n_qtn = NULL, qtn = NULL, dist = "geometric")
 epistasis(sim, prop, n_pairs = NULL, interaction = 2, interaction_type = "a", qtn = NULL, effect = NULL, dist = "geometric")
 vqtl(sim,      prop, same_as_add = TRUE, n_qtn = NULL, qtn = NULL, dist = "geometric")
@@ -200,6 +223,12 @@ vqtl(sim,      prop, same_as_add = TRUE, n_qtn = NULL, qtn = NULL, dist = "geome
 - `prop`: scalar or length-`n_traits` vector.
 - `dist`: within-layer effect distribution; default geometric. `effect` overrides with
   an explicit series (v1 `sim_method = "custom"`).
+- `additive(orthogonal = TRUE, a =, d =)`: the orthogonal genotypic model
+  (Modeling convention, §2; DECISION-020). `a`/`d` are per-locus additive effects
+  and dominance deviations (scalar or length-`n_qtn`); `effect` is rejected in this
+  mode and `a`/`d` require `orthogonal = TRUE`. Unlike `dominance()` below, the
+  degree of dominance `d/abs(a)` is meaningful here because the whole genotypic
+  value is scaled together. Every `d != 0` locus must have a heterozygote.
 - `dominance()`: variance set by `prop`; `same_as_add` per §3. No separate
   degree-of-dominance argument (it would be washed out by variance scaling; the
   dominance/additive variance ratio is `prop_dom/prop_add`).

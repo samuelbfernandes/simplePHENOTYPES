@@ -124,21 +124,26 @@ non-0.5 allele frequencies. Improvements, roughly in order of effort:
       interacting position (`c("a","a")` default, `c("a","d")`, `c("d","d")`),
       each term centered. Note `"d"` terms are near-degenerate on a fully inbred
       panel (documented). The full-orthogonality caveat below still applies.
-- [ ] **Fisher-orthogonal average effects (breeding value / dominance
-      deviation).** The theoretically correct additive/dominance partition:
-      derive the average effect alpha_j = a_j + d_j(1 - 2 p_j) per locus, build
-      the additive (breeding-value) component from alpha and the dominance
-      deviation as the orthogonal residual, so Cov(additive, dominance) = 0 and
-      realized H2 = sum of components exactly at linkage equilibrium. This is a
-      **re-parameterization, not a drop-in**: Vd becomes *derived* from
-      (a, d, p) rather than a freely chosen `prop`, so it needs a new mode
-      (e.g. a `genotypic_model()` builder, or `additive(orthogonal = TRUE)`
-      taking per-locus a and d/degree, with Va/Vd/H2 emerging). This is also
-      where a genuine **degree of dominance** would live -- the reason `degree`
-      was removed from the current variance-partition grammar is that a scalar
-      is washed out by per-component scaling; under the orthogonal genotypic
-      model it becomes meaningful (d/a per locus). Roughly a day plus tests and
-      docs; a real feature, but well understood.
+- [x] **Orthogonal genotypic model / average effects (breeding value /
+      dominance deviation).** Shipped as `additive(orthogonal = TRUE, a =, d =)`
+      (DECISION-020). The layer builds each locus's genotypic value from a
+      per-locus additive effect `a` and dominance deviation `d`
+      (`-a`/`+d`/`+a` for gene content 0/1/2) and scales the whole value to
+      `prop`; the additive (breeding-value) component uses the average effect
+      alpha_j = a_j + d_j(1 - 2 p_j) and the dominance deviation is the realized
+      residual g - A (Cov(A, D) = 0 in expectation under random mating → per-locus
+      HWE; LD is fine, nonrandom multilocus association is not; nonzero for
+      structured / finite samples), and the
+      additive/dominance variance shares **emerge** from (a, d, p) rather than a
+      freely chosen `prop` — reported as the realized fractions Var(A)/Var(g) and
+      Var(D)/Var(g) on separate variance-budget rows, plus an `add_dom_cov` row
+      2Cov(A,D)/Var(g) so the three close to `prop`. The **degree of dominance**
+      `d/abs(a)` (magnitude 1 = complete, > 1 = overdominance; `abs` because `a`
+      may be negative) is now meaningful because the whole genotypic value is
+      scaled together (not per-component). The breeding value ([select_ind()] `on = "bv"`, the OCS
+      default, and the index methods) picks up the dominance-induced average
+      effect automatically. Incompatible with `vary_qtn`, a separate `dominance()`
+      layer, and the correlation-controlling `"pleiotropy"`/`"ld"` architectures.
 
 ---
 
@@ -381,6 +386,29 @@ against it. These are open questions to resolve, not settled decisions.
       `.freeze_loci()` loci/effects and `dosages()` (removing the reimplementation
       the review flagged, constitution #6 / ADR-0004). Accepts a `Population`, a
       Population-backed `phenotype_sim`, or a dosage matrix; `qtn` by name or index.
+- [ ] **Fixed-scale PHENOTYPE accessor (for cross-generation selection).** The
+      counterpart to `additive_value()` for *phenotypic* selection: a phenotype
+      whose genetic component is a FIXED function of genotype (frozen loci/effects)
+      plus a residual on a fixed variance, WITHOUT the per-population rescaling that
+      `simulate_phenotype()` applies (it holds the genetic layer at `prop` on the
+      scored population). Needed so a downstream recurrent driver can run
+      `on = "pheno"` selection on a trait whose heritability actually declines as
+      variance is exhausted. Symptom in the breeding designer (`program_metrics()`
+      recurrent DAG execution, review O1): genomic `on = "gv"` selection is correct
+      (rescaling is monotone within a population, so the ranking is unchanged), but
+      `on = "pheno"` selection keeps its genetic share at `prop` every cycle, so
+      selection accuracy does not decay and late-cycle response is optimistic. A
+      `phenotype_value(x, qtn, effect, h2, ...)` (fixed genetic scale + residual
+      draw) — or an option on the existing scorer to skip the per-population
+      rescale — would let the designer drive faithful phenotypic selection.
+- [ ] **Bump the package version when `additive_value()` (and the fixed-scale
+      phenotype accessor) ship.** The accessor was added without a version bump
+      (still `1.4.0.9001`), so a downstream package cannot pin
+      `Imports: simplePHENOTYPES (>= <ver>)` to require it — the breeding designer
+      therefore keeps a runtime fallback that re-derives the additive value
+      (`breedingDesigner:::.bv_index`), the very reimplementation the review flags
+      (O4). Bump the dev/release version on the next tag so downstream can pin the
+      minimum and delete the fallback.
 - **Open risk vs. the chosen sequence:**
   - Shipping the designer *inside* the CRAN tarball conflicts with §5 ("Shiny
     app inside the package") and the 5 MB budget (vendored Rust is already

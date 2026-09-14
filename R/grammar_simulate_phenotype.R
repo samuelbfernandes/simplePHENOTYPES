@@ -575,6 +575,22 @@ print.phenotype_sim <- function(x, ...) {
     cat("    (no genetic layers)\n")
   } else {
     for (ly in x$layers) {
+      if (isTRUE(ly$orthogonal) && identical(ly$type, "additive")) {
+        # The layer's prop splits into emergent additive/dominance/covariance
+        # shares; print those (from the same helper the var budget uses), not a
+        # single "additive" row equal to the whole layer.
+        nt <- x$n_traits
+        pr <- .expand_prop(ly$prop, nt)
+        sp <- vapply(seq_len(nt),
+                     function(t) .orthogonal_var_split(x, ly, t), numeric(3))
+        cat(sprintf("    %-11s %s   (orthogonal a/d model: %d QTNs)\n",
+                    "additive", fmt(pr * sp["add", ]), ly$n_qtn))
+        cat(sprintf("    %-11s %s   (emergent)\n",
+                    "dominance", fmt(pr * sp["dom", ])))
+        cat(sprintf("    %-11s %s   (emergent covariance)\n",
+                    "add_dom_cov", fmt(pr * sp["cov", ])))
+        next
+      }
       info <- switch(
         ly$type,
         additive  = sprintf("%d QTNs, %s", ly$n_qtn, ly$dist),
@@ -585,10 +601,10 @@ print.phenotype_sim <- function(x, ...) {
                     else sprintf("%d QTNs", ly$n_qtn),
         ""
       )
-      cat(sprintf("    %-10s %s   (%s)\n", ly$type, fmt(ly$prop), info))
+      cat(sprintf("    %-11s %s   (%s)\n", ly$type, fmt(ly$prop), info))
     }
   }
-  cat(sprintf("    %-10s %s\n", "residual", fmt(1 - .total_variance_prop(x))))
+  cat(sprintf("    %-11s %s\n", "residual", fmt(1 - .total_variance_prop(x))))
   cat(sprintf("  Requested genetic share = %s   realized H\u00b2 = %s\n",
               fmt(.total_genetic_prop(x)), fmt(.realized_h2(x))))
   if (!is.null(x$h2)) {

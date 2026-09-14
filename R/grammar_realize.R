@@ -225,6 +225,14 @@
     # as .genetic_matrix() scales it, so the effects are on the Gtot scale.
     a <- .layer_scaled_effects(add_layers, sim, t, rep)
     d <- .layer_scaled_effects(dom_layers, sim, t, rep)
+    # An orthogonal additive layer carries the dominance deviation itself (d), on
+    # the same loci and scaled by the same factor as its additive part; fold it
+    # into the dominance accumulator so the average effect picks it up.
+    ortho <- Filter(function(l) isTRUE(l$orthogonal), add_layers)
+    d_o <- .layer_scaled_effects(ortho, sim, t, rep, field = "d_effect")
+    for (k in names(d_o)) {
+      d[k] <- (if (k %in% names(d)) d[[k]] else 0) + d_o[[k]]
+    }
     loci <- union(names(a), names(d))
     if (length(loci) == 0L) {
       next
@@ -257,7 +265,7 @@
 #' nothing.
 #' @keywords internal
 #' @noRd
-.layer_scaled_effects <- function(layers, sim, t, rep) {
+.layer_scaled_effects <- function(layers, sim, t, rep, field = "effect") {
   nt  <- sim$n_traits
   acc <- numeric(0)
   for (ly in layers) {
@@ -267,8 +275,11 @@
     }
     qe  <- .layer_qtn_effect(ly, t, rep)
     idx <- qe$qtn
-    eff <- qe$effect
-    if (is.null(idx) || length(idx) == 0L) {
+    # `field = "effect"` is the layer's own effect (additive a, or dominance d for
+    # a dominance layer); "d_effect" is the dominance deviation an orthogonal
+    # additive layer carries alongside its additive effect.
+    eff <- if (identical(field, "effect")) qe$effect else ly[[field]][[t]]
+    if (is.null(idx) || length(idx) == 0L || is.null(eff)) {
       next
     }
     s <- stats::sd(.component_raw(ly, sim, t, rep))
@@ -305,7 +316,18 @@
   }
   g <- switch(
     ly$type,
-    additive  = as.numeric(.geno_cols(sim, idx) %*% eff),
+    additive  = {
+      dsg <- .geno_cols(sim, idx)                 # n x n_qtn, -1/0/1
+      val <- as.numeric(dsg %*% eff)              # additive part a * dosage
+      if (isTRUE(ly$orthogonal)) {
+        # Orthogonal genotypic model: add the dominance deviation d at the
+        # heterozygotes, so the locus value is -a / +d / +a for gene content
+        # 0 / 1 / 2. The additive/dominance variance split emerges from a, d and
+        # the allele frequency (see .breeding_value_matrix()).
+        val <- val + as.numeric(((dsg == 0) * 1) %*% ly$d_effect[[t]])
+      }
+      val
+    },
     dominance = as.numeric((.geno_cols(sim, idx) == 0) %*% eff),
     epistasis = {
       # idx is an n_pairs x interaction matrix of marker indices. Each position
@@ -413,6 +435,23 @@
   for (ly in sim$layers) {
     p <- .expand_prop(ly$prop, nt)
     for (t in seq_len(nt)) {
+      if (isTRUE(ly$orthogonal) && identical(ly$type, "additive")) {
+        # The layer occupies prop of Vp; its additive/dominance split emerges from
+        # the per-locus a, d and allele frequencies. Report the realized shares
+        # Var(A)/Var(g) and Var(D)/Var(g), plus the additive-by-dominance
+        # covariance row 2Cov(A,D)/Var(g) (= 0 under HWE) so the three sum to prop.
+        sp <- .orthogonal_var_split(sim, ly, t)
+        rows[[length(rows) + 1L]] <- data.frame(
+          trait = paste0("Trait_", t), component = "additive",
+          prop = p[t] * sp[["add"]], stringsAsFactors = FALSE)
+        rows[[length(rows) + 1L]] <- data.frame(
+          trait = paste0("Trait_", t), component = "dominance",
+          prop = p[t] * sp[["dom"]], stringsAsFactors = FALSE)
+        rows[[length(rows) + 1L]] <- data.frame(
+          trait = paste0("Trait_", t), component = "add_dom_cov",
+          prop = p[t] * sp[["cov"]], stringsAsFactors = FALSE)
+        next
+      }
       rows[[length(rows) + 1L]] <- data.frame(
         trait = paste0("Trait_", t),
         component = ly$type,
@@ -431,6 +470,39 @@
     )
   }
   do.call(rbind, rows)
+}
+
+#' Emergent additive/dominance variance split of an orthogonal layer
+#'
+#' The additive/dominance partition of an orthogonal additive layer's genotypic
+#' value into additive (breeding-value) and dominance components, returned as the
+#' fractions of the layer's variance they occupy. Both shares are the **realized**
+#' variances as fractions of \eqn{Var(g)}: \eqn{Var(A)/Var(g)} for the additive
+#' (breeding-value) part and \eqn{Var(D)/Var(g)} for the realized dominance
+#' deviation \eqn{D = g - A} -- neither is forced as the other's complement. The
+#' identity is \eqn{Var(g) = Var(A) + Var(D) + 2\,Cov(A, D)}: under Hardy-Weinberg
+#' genotype proportions \eqn{Cov(A, D) = 0} and the two shares sum to 1, but a
+#' finite, multilocus sample generally carries a covariance, returned as a third
+#' `cov` share (\eqn{2\,Cov(A, D)/Var(g)}) so the three still sum to 1. Ratios are
+#' scale-invariant, so the raw (unscaled) component is used.
+#' @keywords internal
+#' @noRd
+.orthogonal_var_split <- function(sim, ly, t, rep = 1L) {
+  g   <- .component_raw(ly, sim, t, rep)          # full genotypic value, centred
+  idx <- .layer_qtn_effect(ly, t, rep)$qtn
+  a_eff <- .layer_qtn_effect(ly, t, rep)$effect
+  d_eff <- ly$d_effect[[t]]
+  vg <- stats::var(g)
+  if (!is.finite(vg) || vg <= 0) {
+    return(c(add = 1, dom = 0, cov = 0))
+  }
+  xg    <- .geno_cols(sim, idx) + 1               # gene content 0/1/2
+  p     <- colMeans(xg) / 2
+  alpha <- .avg_effect(a_eff, d_eff, p)           # a + d(1 - 2p) per locus
+  A     <- as.numeric(sweep(xg, 2L, 2 * p, "-") %*% alpha)  # additive (breeding) value
+  add   <- stats::var(A) / vg                      # Var(A) / Var(g)
+  dom   <- stats::var(g - A) / vg                  # realized Var(D) / Var(g)
+  c(add = add, dom = dom, cov = 1 - add - dom)     # cov = 2 Cov(A, D) / Var(g)
 }
 
 #' Draw a residual under a fixed sub-seed, restoring the prior RNG state

@@ -58,6 +58,15 @@ THEORY: PASS | FAIL (n)
 - **V3** Coding convention is the simulation one (−1/0/1 additive dosage; het-deviation
   indicator for dominance; centered a×a / a×d / d×d for epistasis), **not** Fisher's
   orthogonal average-effects decomposition — and the docs say so where it matters.
+  *Exception:* `additive(orthogonal = TRUE, a =, d =)` is the orthogonal genotypic
+  model (DECISION-020) — per-locus a/d, whole value scaled to `prop`, additive
+  part = transmitting average effect `α = a + d(1−2p)` (as `on = "bv"`, DECISION-019),
+  budget = realized `Var(A)/Var(g)`, `Var(D)/Var(g)` + an `add_dom_cov` row
+  `2Cov(A,D)/Var(g)` (=0 in expectation under random mating → per-locus HWE; LD
+  does **not** break it in this no-epistasis model, but arbitrary nonrandom
+  multilocus genotype association does, and finite samples leave a residual).
+  For this layer, check the a/d partition and its random-mating-conditional
+  orthogonality, not the −1/0/1 variance-partition convention.
 - **V4** `d`-type epistasis / dominance degenerate on hetless (inbred) loci is handled
   (errors or warns), not silently NaN.
 
