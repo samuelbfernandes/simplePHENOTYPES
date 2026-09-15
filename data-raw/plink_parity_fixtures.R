@@ -68,13 +68,31 @@ configs <- list(
 golden <- lapply(configs, function(cfg) run_plink(cfg$plink))
 names(golden) <- vapply(configs, `[[`, "", "key")
 
+# --blocks writes a .blocks file (one block per line, "* id id ..."); store the
+# block membership sets for a couple of max-span settings.
+run_plink_blocks <- function(max_kb) {
+  out <- file.path(work, "res")
+  status <- system2(plink_bin,
+    c("--tfile", prefix, "--chr-set", "10", "--blocks", "no-pheno-req",
+      "--blocks-max-kb", as.character(max_kb), "--out", out),
+    stdout = FALSE, stderr = FALSE)
+  if (status != 0L) stop("PLINK --blocks failed")
+  lapply(strsplit(sub("^\\* ", "", readLines(paste0(out, ".blocks"))), " "),
+         identity)
+}
+blocks_golden <- list(
+  blocks_200kb = run_plink_blocks(200),
+  blocks_500kb = run_plink_blocks(500)
+)
+
 fixture <- list(
   plink_version = system2(plink_bin, "--version", stdout = TRUE)[1],
   dataset = "SNP55K_maize282_maf04",
   generated = as.character(Sys.Date()),
   commands = setNames(lapply(configs, `[[`, "plink"),
                       vapply(configs, `[[`, "", "key")),
-  kept = golden
+  kept = golden,
+  blocks = blocks_golden
 )
 
 dir.create("inst/extdata/plink_parity", recursive = TRUE, showWarnings = FALSE)

@@ -90,9 +90,14 @@ the kept and removed marker sets match PLINK 1.9 marker-for-marker (verified
 against PLINK v1.9.0-b.8 -- the whole bundled panel genome-wide, plus
 randomized differential testing; see
 \code{tests/testthat/test-filter-geno-plink-parity.R}). This holds for variant
-windows (all three) and kb windows (\code{indep_pairwise}). All loci are treated as
-autosomal diploid: simplePHENOTYPES has no sex chromosome, so PLINK's haploid
-chromosome-X weighting is neither modelled nor matched.
+windows (all three) and kb windows (\code{indep_pairwise}); \code{blocks = TRUE} likewise
+reproduces the block definitions of PLINK's \verb{--blocks no-pheno-req} at a
+matching \code{--blocks-max-kb} (simplePHENOTYPES imposes no phenotype requirement,
+and its \code{block_max_kb} defaults to 500, versus PLINK's 200-kb default -- so a
+bare PLINK \code{--blocks} will differ unless run with \code{no-pheno-req} and the same
+span). All loci are treated as autosomal diploid: simplePHENOTYPES has no sex
+chromosome, so PLINK's haploid chromosome-X weighting is neither modelled nor
+matched.
 
 Beyond that envelope the match is best-effort, not guaranteed, in a few
 pathological corners that do not arise in normal genotype panels:
@@ -128,10 +133,15 @@ composite genotype r^2, e.g. \code{c(50, 5, 0.2)}.}
 by variance inflation factor -- within each window the largest-VIF marker
 (VIF = the diagonal of the inverse marker correlation matrix) is dropped
 while any VIF exceeds \code{vif}, e.g. \code{c(50, 5, 2)} (Purcell et al. 2007).}
-\item{\code{blocks = TRUE}}{define haplotype blocks by the method of Gabriel et
-al. (2002) -- markers are grouped where the D' confidence intervals show
-strong LD and few recombination-consistent pairs -- and keep one tag
-marker (highest MAF) per block. \code{block_max_kb} bounds the block span.}
+\item{\code{blocks = TRUE}}{PLINK \code{--blocks}: define haplotype blocks by the
+method of Gabriel et al. (2002) -- markers are grouped where the D'
+confidence intervals show strong LD and few recombination-consistent pairs
+-- then keep one tag marker (highest MAF) per block. The block definitions
+reproduce PLINK 1.9's \verb{--blocks no-pheno-req} (Haploview algorithm)
+block-for-block on the MAF >= 0.05 markers Haploview considers, at a
+matching span; \code{block_max_kb} (default 500) is PLINK's \code{--blocks-max-kb}
+(default 200). The tag-per-block collapse is a simplePHENOTYPES convenience
+on top of PLINK's block definitions.}
 }
 The VIF pruner emits a one-per-session citation for PLINK (Purcell et al.
 2007), and the block method one for Gabriel et al. (2002); the two pairwise

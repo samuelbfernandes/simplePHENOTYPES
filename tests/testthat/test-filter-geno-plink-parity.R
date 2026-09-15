@@ -104,6 +104,73 @@ test_that("a marker skipped by step > window is not pruned as monomorphic", {
   expect_identical(sort(keep), c("m1", "m2", "m3", "m4"))
 })
 
+test_that("Gabriel --blocks definitions match PLINK 1.9 block-for-block", {
+  skip_if_not(nzchar(fixture_path) && file.exists(fixture_path),
+              "PLINK parity fixture not installed")
+  fixture <- readRDS(fixture_path)
+  data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+  d <- SNP55K_maize282_maf04
+  dose <- as.matrix(d[, -(1:5)]) + 1L
+  p <- rowSums(dose) / (2 * ncol(dose))
+  eps <- 0.00000000000005684341886080801486968994140625   # SMALL_EPSILON
+  maf_ok <- pmin(p, 1 - p) >= 0.05 * (1 - eps)             # Haploview floor
+
+  block_sets <- function(max_kb) {
+    out <- character(0)
+    for (k in unique(d$chr)) {
+      idx <- which(maf_ok & d$chr == k)
+      idx <- idx[order(d$pos[idx])]
+      if (length(idx) < 2L) next
+      bl <- simplePHENOTYPES:::.plink_blocks_chrom(
+        dose[idx, , drop = FALSE], d$pos[idx], as.integer(max_kb * 1000))
+      for (b in bl) out <- c(out, paste(sort(d$snp[idx][b[1]:b[2]]),
+                                        collapse = "|"))
+    }
+    sort(out)
+  }
+  golden_sets <- function(bl) sort(vapply(bl, function(x) paste(sort(x),
+                                                               collapse = "|"), ""))
+  expect_identical(block_sets(200), golden_sets(fixture$blocks$blocks_200kb))
+  expect_identical(block_sets(500), golden_sets(fixture$blocks$blocks_500kb))
+})
+
+test_that("block_max_kb -> bp uses PLINK's epsilon-nudged truncation", {
+  # Two identical markers 1001 bp apart. PLINK converts 1.001 kb to 1001 bp
+  # ((int)(1000 * 1.001 * (1 + SMALL_EPSILON))), so they form one block; a plain
+  # 1000.999... -> 1000 truncation would miss it and keep both.
+  cnt <- rbind(c(rep(0, 100), rep(2, 100)), c(rep(0, 100), rep(2, 100)))
+  d <- data.frame(snp = c("m1", "m2"), allele = "A/G", chr = 1L,
+                  pos = c(1L, 1002L), cm = 0,
+                  stats::setNames(as.data.frame(cnt - 1L), paste0("i", 1:200)),
+                  check.names = FALSE)
+  kept <- filter_geno(d, blocks = TRUE, block_max_kb = 1.001,
+                      remove_monomorphic = FALSE, verbose = FALSE)$snp
+  expect_length(kept, 1L)                          # block found -> collapsed to a tag
+  # A huge span must cap (PLINK's 2^31 - 2), not overflow the integer cast to NA.
+  k2 <- suppressMessages(
+    filter_geno(d, blocks = TRUE, block_max_kb = 2147484,
+                remove_monomorphic = FALSE, verbose = FALSE)$snp)
+  expect_length(k2, 1L)
+})
+
+test_that("block_max_kb must be a single positive number", {
+  data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+  d <- SNP55K_maize282_maf04[SNP55K_maize282_maf04$chr == 1L, ][1:20, ]
+  for (bad in list(numeric(0), c(0, 1.001), -1, 0, NA_real_, "x")) {
+    expect_error(
+      filter_geno(d, blocks = TRUE, block_max_kb = bad, verbose = FALSE),
+      "single positive number")
+  }
+})
+
+test_that("filter_geno(blocks = TRUE) keeps one tag per block", {
+  data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+  d <- SNP55K_maize282_maf04[SNP55K_maize282_maf04$chr == 1L, ][1:200, ]
+  kept <- filter_geno(d, blocks = TRUE, block_max_kb = 200, verbose = FALSE)
+  expect_lt(nrow(kept), nrow(d))                  # blocks collapsed to tags
+  expect_true(all(kept$snp %in% d$snp))
+})
+
 test_that("pairphase runs on missing calls without error", {
   # NA is handled per complete pair (not PLINK's missing-data path, but must not
   # crash). Regression for a mono-computation NA that errored.

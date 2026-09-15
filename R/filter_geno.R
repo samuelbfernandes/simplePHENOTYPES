@@ -22,9 +22,14 @@
 #' against PLINK v1.9.0-b.8 -- the whole bundled panel genome-wide, plus
 #' randomized differential testing; see
 #' `tests/testthat/test-filter-geno-plink-parity.R`). This holds for variant
-#' windows (all three) and kb windows (`indep_pairwise`). All loci are treated as
-#' autosomal diploid: simplePHENOTYPES has no sex chromosome, so PLINK's haploid
-#' chromosome-X weighting is neither modelled nor matched.
+#' windows (all three) and kb windows (`indep_pairwise`); `blocks = TRUE` likewise
+#' reproduces the block definitions of PLINK's `--blocks no-pheno-req` at a
+#' matching `--blocks-max-kb` (simplePHENOTYPES imposes no phenotype requirement,
+#' and its `block_max_kb` defaults to 500, versus PLINK's 200-kb default -- so a
+#' bare PLINK `--blocks` will differ unless run with `no-pheno-req` and the same
+#' span). All loci are treated as autosomal diploid: simplePHENOTYPES has no sex
+#' chromosome, so PLINK's haploid chromosome-X weighting is neither modelled nor
+#' matched.
 #'
 #' Beyond that envelope the match is best-effort, not guaranteed, in a few
 #' pathological corners that do not arise in normal genotype panels:
@@ -60,10 +65,15 @@
 #'     by variance inflation factor -- within each window the largest-VIF marker
 #'     (VIF = the diagonal of the inverse marker correlation matrix) is dropped
 #'     while any VIF exceeds `vif`, e.g. `c(50, 5, 2)` (Purcell et al. 2007).}
-#'   \item{`blocks = TRUE`}{define haplotype blocks by the method of Gabriel et
-#'     al. (2002) -- markers are grouped where the D' confidence intervals show
-#'     strong LD and few recombination-consistent pairs -- and keep one tag
-#'     marker (highest MAF) per block. `block_max_kb` bounds the block span.}
+#'   \item{`blocks = TRUE`}{PLINK `--blocks`: define haplotype blocks by the
+#'     method of Gabriel et al. (2002) -- markers are grouped where the D'
+#'     confidence intervals show strong LD and few recombination-consistent pairs
+#'     -- then keep one tag marker (highest MAF) per block. The block definitions
+#'     reproduce PLINK 1.9's `--blocks no-pheno-req` (Haploview algorithm)
+#'     block-for-block on the MAF >= 0.05 markers Haploview considers, at a
+#'     matching span; `block_max_kb` (default 500) is PLINK's `--blocks-max-kb`
+#'     (default 200). The tag-per-block collapse is a simplePHENOTYPES convenience
+#'     on top of PLINK's block definitions.}
 #' }
 #' The VIF pruner emits a one-per-session citation for PLINK (Purcell et al.
 #' 2007), and the block method one for Gabriel et al. (2002); the two pairwise
@@ -134,6 +144,12 @@ filter_geno <- function(geno,
   hets <- match.arg(hets)
   window_unit <- match.arg(window_unit)
   code_as <- match.arg(code_as)
+  if (isTRUE(blocks)) {
+    if (length(block_max_kb) != 1L || !is.numeric(block_max_kb) ||
+        !is.finite(block_max_kb) || block_max_kb <= 0) {
+      stop("`block_max_kb` must be a single positive number.", call. = FALSE)
+    }
+  }
 
   is_df <- is.data.frame(geno)
   if (is_df) {
@@ -754,6 +770,243 @@ filter_geno <- function(geno,
     s[2] <- -dxx - adiv3
   }
   list(sol = s, n = 2L)
+}
+
+#' Log-likelihood of a two-locus table at a D' quantile (`calc_lnlike_quantile`)
+#'
+#' `quantile` indexes D' from 0 to 100 (0.01 steps); `denom` and the marginals
+#' come from the classifier. A faithful port of plink_ld.c's
+#' `calc_lnlike_quantile()`.
+#' @keywords internal
+#' @noRd
+.plink_calc_lnlike_quantile <- function(k11, k12, k21, k22, udh, fx1, f1x, f2x,
+                                        fe, denom, quantile) {
+  t11 <- quantile * denom + fe
+  t12 <- f1x - t11
+  t21 <- fx1 - t11
+  t22 <- f2x - t21
+  if (quantile == 100L) {
+    if (t11 < 1e-10) t11 <- 1e-10
+    if (t12 < 1e-10) t12 <- 1e-10
+    if (t21 < 1e-10) t21 <- 1e-10
+    if (t22 < 1e-10) t22 <- 1e-10
+  }
+  k11 * log(t11) + k12 * log(t12) + k21 * log(t21) + k22 * log(t22) +
+    udh * log(t11 * t22 + t12 * t21)
+}
+
+#' Classify a marker pair's D' confidence interval (`haploview_blocks_classify`)
+#'
+#' Returns PLINK's Haploview CI type 0-6 (6/5 = "strong LD", 0 = "strong
+#' recombination", 1 = null/monomorphic) from the two-locus 3x3 count table
+#' `counts9` (length 9, genotype-a * 3 + genotype-b). `lowci_max`/`lowci_min`
+#' bound the low-CI percentiles the block scan needs. Uses the exact ML haplotype
+#' frequencies (`.plink_em_hethet()`) and PLINK's full-surface CI evaluation
+#' (which returns the same code as its early-exit path). Autosomal only.
+#' @keywords internal
+#' @noRd
+.plink_blocks_classify <- function(counts9, lowci_max, lowci_min) {
+  recomb_highci <- 89L; strong_highci <- 97L
+  strong_lowci <- 72L; strong_lowci_outer <- 71L
+  k11 <- 2 * counts9[1] + counts9[2] + counts9[4]
+  k12 <- 2 * counts9[3] + counts9[2] + counts9[6]
+  k21 <- 2 * counts9[7] + counts9[4] + counts9[8]
+  k22 <- 2 * counts9[9] + counts9[6] + counts9[8]
+  em <- .plink_em_hethet(k11, k12, k21, k22, counts9[5])
+  if (em$mono) {
+    return(1L)
+  }
+  fe <- em$fx1 * em$f1x
+  dxx <- em$f11 - fe
+  f1x <- em$f1x; f2x <- em$f2x
+  if (dxx < 0) {                                 # flip so D' >= 0
+    tmp <- k11; k11 <- k12; k12 <- tmp
+    tmp <- k21; k21 <- k22; k22 <- tmp
+    fe <- em$fx2 * em$f1x
+    fx1 <- em$fx2; fx2 <- em$fx1
+    dxx <- -dxx
+  } else {
+    fx1 <- em$fx1; fx2 <- em$fx2
+  }
+  dyy <- min(fx1 * f2x, fx2 * f1x)
+  denom <- 0.01 * dyy
+  udh <- counts9[5]
+  center <- as.integer((dxx / dyy) * 100 + 0.5)
+  clq <- function(q) {
+    .plink_calc_lnlike_quantile(k11, k12, k21, k22, udh, fx1, f1x, f2x, fe,
+                                denom, q)
+  }
+  lnlike1 <- clq(center)
+  right_sum <- numeric(101L)                      # indexed by quantile + 1
+  total <- 0
+  lnsurf_highstrong_thresh <- 0
+  for (q in 100:recomb_highci) {
+    total <- total + exp(clq(q) - lnlike1)
+    if (q == strong_highci) lnsurf_highstrong_thresh <- total * 20
+  }
+  if (total < 1 / 19) {
+    return(0L)
+  }
+  lnsurf_highindiff_thresh <- total * 20
+  q <- recomb_highci - 1L
+  repeat {
+    total <- total + exp(clq(q) - lnlike1)
+    if (total >= lnsurf_highindiff_thresh) {
+      return(0L)
+    }
+    if (q <= lowci_max) {
+      if (q >= lowci_min) {
+        right_sum[q + 1L] <- total
+      } else if (q == 0L) {
+        break
+      }
+    }
+    q <- q - 1L
+  }
+  if (total >= lnsurf_highstrong_thresh) {
+    return(1L)
+  }
+  total <- total * 0.95
+  if (total < right_sum[strong_lowci + 1L]) {
+    if (lowci_max > strong_lowci && total >= right_sum[lowci_max + 1L]) {
+      return(5L)
+    }
+    return(6L)
+  }
+  if (total >= right_sum[strong_lowci_outer + 1L]) {
+    if (lowci_min < strong_lowci_outer && total >= right_sum[lowci_min + 1L]) {
+      return(2L)
+    }
+    return(3L)
+  }
+  4L
+}
+
+#' Gabriel haplotype blocks for one chromosome (`haploview_blocks`)
+#'
+#' A faithful port of PLINK 1.9's Haploview `--blocks`: scans each marker as a
+#' block end, classifies backward pairs within `max_window_bp`, saves candidate
+#' blocks whose ends are in strong LD and whose informative pairs are `frac`
+#' strong (Gabriel's rule, with PLINK's small-block special cases), then greedily
+#' keeps the largest-span non-overlapping blocks. `dose_chr` is markers-by-
+#' individuals `0/1/2` in position order; `pos_chr` the bp positions. Returns a
+#' list of `c(start, end)` 1-based marker indices, ordered by position.
+#' @keywords internal
+#' @noRd
+.plink_blocks_chrom <- function(dose_chr, pos_chr, max_window_bp) {
+  m_ct <- nrow(dose_chr)
+  pos_chr <- as.double(pos_chr)                   # avoid integer overflow with a huge span
+  max_window_bp <- as.double(max_window_bp)
+  ish <- 0.00000000002910383045673370361328125    # SMALLISH_EPSILON
+  inform_frac <- 0.95 + ish
+  inform_thresh_two <- 1L + as.integer(3 * inform_frac)
+  inform_thresh_three <- as.integer(6 * inform_frac)
+  max_window_bp1 <- 20000L
+  max_window_bp2 <- 30000L
+  counts_of <- function(di, dj) tabulate(di * 3L + dj + 1L, 9L)
+  # fwd[j] = markers from j forward within pos[j] + max_window_bp (PLINK's
+  # forward_block_sizes); the futility bound uses the max over the window.
+  fwd <- integer(m_ct)
+  fe_j <- 1L
+  for (j in seq_len(m_ct)) {
+    if (fe_j < j) fe_j <- j
+    lim <- pos_chr[j] + max_window_bp
+    while (fe_j < m_ct && pos_chr[fe_j + 1L] <= lim) fe_j <- fe_j + 1L
+    fwd[j] <- fe_j - j + 1L
+  }
+  cand <- vector("list", 0L)
+  strong_rec <- matrix(0L, m_ct, 2L)              # per start: numStrong, numRec
+  last_block_size <- 0L
+  recent <- integer(5L)
+  for (m in seq_len(m_ct)) {
+    thresh <- pos_chr[m] - max_window_bp
+    j0 <- m
+    while (j0 > 1L && pos_chr[j0 - 1L] >= thresh) j0 <- j0 - 1L
+    cur_block_size <- m - j0
+    if (cur_block_size > last_block_size + 1L) cur_block_size <- last_block_size + 1L
+    recent[5] <- recent[3]; recent[3] <- recent[1]; recent[4] <- recent[2]
+    # max potential block size over the window, for the recombination futility bound
+    ulii <- max(fwd[(m - cur_block_size):m])
+    futility_rec <- 1 + (ulii * (ulii - 1L) / 2) * (1 - inform_frac)
+    cur_strong <- 0L; cur_rec <- 0L
+    lowci_max <- 82L; lowci_min <- 52L
+    di <- dose_chr[m, ]
+    prev_strong <- 0L; prev_rec <- 0L
+    delta <- 1L
+    while (delta <= cur_block_size) {
+      bstart <- m - delta
+      if (delta >= 4L) {
+        prev_rec <- strong_rec[bstart, 2]
+        if (cur_rec + prev_rec >= futility_rec) {
+          cur_block_size <- delta - 1L
+          break
+        }
+        prev_strong <- strong_rec[bstart, 1]
+      }
+      ci <- .plink_blocks_classify(counts_of(di, dose_chr[bstart, ]),
+                                   lowci_max, lowci_min)
+      if (ci > 4L) cur_strong <- cur_strong + 1L else if (ci == 0L) cur_rec <- cur_rec + 1L
+      saved <- FALSE
+      if (delta < 4L) {
+        if (delta == 1L) {
+          lowci_max <- 72L                        # strong_lowci
+          recent[1] <- ci
+          if (ci == 6L && (pos_chr[m] - pos_chr[bstart] <= max_window_bp1)) saved <- TRUE
+        } else if (delta == 2L) {
+          recent[2] <- ci
+          if (ci >= 4L && (pos_chr[m] - pos_chr[bstart] <= max_window_bp2)) {
+            u <- 1L
+            if (recent[1] >= 3L) u <- u + 1L
+            if (recent[3] >= 3L) u <- u + 1L
+            if (u >= inform_thresh_two) saved <- TRUE
+          }
+        } else {                                  # delta == 3
+          lowci_min <- 71L                        # strong_lowci_outer
+          ps <- 0L; u <- 0L; pr <- 0L
+          if (ci > 4L) ps <- ps + 1L else if (ci == 0L) pr <- pr + 1L
+          for (jj in 1:5) {
+            if (recent[jj] >= 3L) {
+              u <- u + 1L
+              if (recent[jj] > 4L) ps <- ps + 1L
+            } else if (recent[jj] == 0L) {
+              pr <- pr + 1L
+            }
+          }
+          strong_rec[bstart, 1] <- ps; strong_rec[bstart, 2] <- pr
+          if (ci >= 4L && u >= inform_thresh_three) saved <- TRUE
+        }
+      } else {
+        prev_strong <- prev_strong + cur_strong
+        prev_rec <- prev_rec + cur_rec
+        strong_rec[bstart, 1] <- prev_strong; strong_rec[bstart, 2] <- prev_rec
+        ulii <- prev_strong + prev_rec
+        if (ci >= 4L && ulii >= 6L && ulii * inform_frac < prev_strong) saved <- TRUE
+      }
+      if (saved) {
+        cand[[length(cand) + 1L]] <- c(pos_chr[m] - pos_chr[bstart], bstart, m)
+      }
+      delta <- delta + 1L
+    }
+    last_block_size <- cur_block_size
+  }
+  if (!length(cand)) {
+    return(list())
+  }
+  cmat <- do.call(rbind, cand)
+  # sort by span desc, then start desc, then end desc (PLINK intcmp3_decr)
+  cmat <- cmat[order(-cmat[, 1], -cmat[, 2], -cmat[, 3]), , drop = FALSE]
+  used <- logical(m_ct)
+  blocks <- vector("list", 0L)
+  for (i in seq_len(nrow(cmat))) {
+    s <- cmat[i, 2]; e <- cmat[i, 3]
+    if (used[s] || used[e]) {
+      next
+    }
+    blocks[[length(blocks) + 1L]] <- c(s, e)
+    used[s:e] <- TRUE
+  }
+  starts <- vapply(blocks, `[`, numeric(1), 1L)
+  blocks[order(starts)]
 }
 
 #' Citation notice for a specific LD method, once per session
