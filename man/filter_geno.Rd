@@ -81,22 +81,44 @@ be kept.
 \section{LD pruning and haplotype blocks}{
 
 The three sliding-window pruners take the same three-number specification used
-by common tools (\code{c(window, step, threshold)}); \code{window_unit} sets whether
-\code{window} counts markers (default) or kilobases (\code{"kb"}, using the \code{pos}
-column).
+by PLINK (\code{c(window, step, threshold)}); \code{window_unit} sets whether \code{window}
+counts markers (default) or kilobases (\code{"kb"}, using the \code{pos} column).
+\code{indep_pairwise} and \code{indep} reproduce PLINK 1.9's \code{--indep-pairwise} and
+\code{--indep} \strong{byte-for-byte for ordinary use}: on complete-call genotypes, with
+\code{step <= window}, the kept and removed marker sets match PLINK 1.9
+marker-for-marker (verified against PLINK v1.9.0-b.8 -- the whole bundled panel
+genome-wide, plus randomized differential testing; see
+\code{tests/testthat/test-filter-geno-plink-parity.R}). This holds for variant
+windows (both methods) and kb windows (\code{indep_pairwise}).
+
+Beyond that envelope the match is best-effort, not guaranteed, in a few
+pathological corners that do not arise in normal genotype panels:
+non-overlapping windows (\code{step > window}) combined with markers pruned
+mid-window; \code{indep} (VIF) when markers outnumber individuals, so the marker
+correlation matrix is rank-deficient and pruning turns on PLINK's exact
+matrix-inversion tie handling; \code{indep} when a pair is near-perfectly
+\emph{negatively} correlated in PLINK's minor-allele coding (the VIF collinearity
+scan compares \verb{|r|}, which matches every real panel tested but not that
+hand-built sign case); and kb + \code{indep}. PLINK computes LD from
+\emph{founders only}; simplePHENOTYPES has no pedigree, so every individual is
+treated as a founder (which is how the parity is verified) -- pass a
+founder-only genotype set to reproduce a PLINK run that had non-founders.
+Missing calls (\code{NA}) fall back to a \code{pairwise.complete.obs} correlation that is
+\strong{not} claimed identical to PLINK's missing-data path; drop or impute missing
+genotypes first for PLINK parity.
 \describe{
-\item{\code{indep_pairwise = c(window, step, r2)}}{drop one marker of every pair
-whose squared correlation of the \code{-1/0/1} dosage (the composite LD r^2)
-exceeds \code{r2}, keeping the earlier one. This is generic pairwise r^2
-pruning, e.g. \code{c(50, 5, 0.2)}.}
-\item{\code{indep_pairphase = c(window, step, r2)}}{the same, but r^2 is the
-\emph{haplotypic} r^2 estimated per pair by a two-locus EM that resolves the
-double-heterozygote phase, rather than the composite genotype r^2.}
-\item{\code{indep = c(window, step, vif)}}{multi-marker pruning by variance
-inflation factor: within each window the largest-VIF marker
-(VIF = 1 / (1 - R^2) from regressing it on the others) is dropped while any
-VIF exceeds \code{vif}, e.g. \code{c(50, 5, 2)}. This is PLINK's \code{--indep} procedure
-(Purcell et al. 2007).}
+\item{\code{indep_pairwise = c(window, step, r2)}}{PLINK \code{--indep-pairwise}: drop
+one marker of every pair whose composite genotype r^2 (squared correlation
+of the \code{-1/0/1} dosage) exceeds \code{r2}, removing the \strong{lower-MAF} marker of
+the pair (ties keep the earlier one), e.g. \code{c(50, 5, 0.2)}.}
+\item{\code{indep_pairphase = c(window, step, r2)}}{like \code{indep_pairwise}, but r^2
+is the \emph{haplotypic} r^2 estimated per pair by a two-locus EM that resolves
+the double-heterozygote phase, rather than the composite genotype r^2. (A
+greedy pruner; not yet PLINK byte-exact.)}
+\item{\code{indep = c(window, step, vif)}}{PLINK \code{--indep}: multi-marker pruning
+by variance inflation factor -- within each window the largest-VIF marker
+(VIF = the diagonal of the inverse marker correlation matrix) is dropped
+while any VIF exceeds \code{vif}, e.g. \code{c(50, 5, 2)} (Purcell et al. 2007).}
 \item{\code{blocks = TRUE}}{define haplotype blocks by the method of Gabriel et
 al. (2002) -- markers are grouped where the D' confidence intervals show
 strong LD and few recombination-consistent pairs -- and keep one tag
@@ -104,7 +126,7 @@ marker (highest MAF) per block. \code{block_max_kb} bounds the block span.}
 }
 The VIF pruner emits a one-per-session citation for PLINK (Purcell et al.
 2007), and the block method one for Gabriel et al. (2002); the two pairwise
-pruners are generic r^2 operations and need no citation.
+pruners need no separate citation.
 }
 
 \examples{
