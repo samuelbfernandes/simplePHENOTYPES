@@ -31,6 +31,15 @@ run_config <- list(
                 remove_monomorphic = FALSE, verbose = FALSE),
   pairwise_kb_250_5_0.2 = function(g)
     filter_geno(g, indep_pairwise = c(250, 5, 0.2), window_unit = "kb",
+                remove_monomorphic = FALSE, verbose = FALSE),
+  pairphase_50_5_0.2 = function(g)
+    filter_geno(g, indep_pairphase = c(50, 5, 0.2),
+                remove_monomorphic = FALSE, verbose = FALSE),
+  pairphase_100_10_0.1 = function(g)
+    filter_geno(g, indep_pairphase = c(100, 10, 0.1),
+                remove_monomorphic = FALSE, verbose = FALSE),
+  pairphase_20_2_0.5 = function(g)
+    filter_geno(g, indep_pairphase = c(20, 2, 0.5),
                 remove_monomorphic = FALSE, verbose = FALSE)
 )
 
@@ -93,6 +102,20 @@ test_that("a marker skipped by step > window is not pruned as monomorphic", {
   keep <- filter_geno(d, indep_pairwise = c(2, 3, 0.9),
                       remove_monomorphic = FALSE, verbose = FALSE)$snp
   expect_identical(sort(keep), c("m1", "m2", "m3", "m4"))
+})
+
+test_that("pairphase runs on missing calls without error", {
+  # NA is handled per complete pair (not PLINK's missing-data path, but must not
+  # crash). Regression for a mono-computation NA that errored.
+  d <- data.frame(snp = c("m1", "m2"), allele = "A/G", chr = 1L,
+                  pos = c(1000L, 2000L), cm = 0,
+                  i1 = c(-1, -1), i2 = c(0, 0), i3 = c(1, 1),
+                  i4 = c(NA, 0), i5 = c(-1, NA), i6 = c(1, 1),
+                  check.names = FALSE)
+  expect_silent(
+    keep <- filter_geno(d, indep_pairphase = c(2, 1, 0.2),
+                        remove_monomorphic = FALSE, verbose = FALSE)$snp)
+  expect_true(all(keep %in% c("m1", "m2")))
 })
 
 test_that("pruning respects a prior MAF filter (still valid pruning on subset)", {

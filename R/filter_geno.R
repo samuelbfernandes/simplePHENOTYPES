@@ -15,13 +15,16 @@
 #' The three sliding-window pruners take the same three-number specification used
 #' by PLINK (`c(window, step, threshold)`); `window_unit` sets whether `window`
 #' counts markers (default) or kilobases (`"kb"`, using the `pos` column).
-#' `indep_pairwise` and `indep` reproduce PLINK 1.9's `--indep-pairwise` and
-#' `--indep` **byte-for-byte for ordinary use**: on complete-call genotypes, with
-#' `step <= window`, the kept and removed marker sets match PLINK 1.9
-#' marker-for-marker (verified against PLINK v1.9.0-b.8 -- the whole bundled panel
-#' genome-wide, plus randomized differential testing; see
+#' `indep_pairwise`, `indep` and `indep_pairphase` reproduce PLINK 1.9's
+#' `--indep-pairwise`, `--indep` and `--indep-pairphase` **byte-for-byte for
+#' ordinary use**: on complete-call **autosomal** genotypes, with `step <= window`,
+#' the kept and removed marker sets match PLINK 1.9 marker-for-marker (verified
+#' against PLINK v1.9.0-b.8 -- the whole bundled panel genome-wide, plus
+#' randomized differential testing; see
 #' `tests/testthat/test-filter-geno-plink-parity.R`). This holds for variant
-#' windows (both methods) and kb windows (`indep_pairwise`).
+#' windows (all three) and kb windows (`indep_pairwise`). All loci are treated as
+#' autosomal diploid: simplePHENOTYPES has no sex chromosome, so PLINK's haploid
+#' chromosome-X weighting is neither modelled nor matched.
 #'
 #' Beyond that envelope the match is best-effort, not guaranteed, in a few
 #' pathological corners that do not arise in normal genotype panels:
@@ -31,22 +34,28 @@
 #' matrix-inversion tie handling; `indep` when a pair is near-perfectly
 #' *negatively* correlated in PLINK's minor-allele coding (the VIF collinearity
 #' scan compares `|r|`, which matches every real panel tested but not that
-#' hand-built sign case); and kb + `indep`. PLINK computes LD from
+#' hand-built sign case); `indep_pairphase` at a threshold within floating-point
+#' tolerance of a realised haplotypic r^2 (that r^2 comes from a transcendental
+#' cubic solver -- `acos`/`cos`/`log` -- so, unlike the integer-exact composite
+#' r^2, it can differ from PLINK's in the last bit); and kb + `indep`. PLINK
+#' computes LD from
 #' *founders only*; simplePHENOTYPES has no pedigree, so every individual is
 #' treated as a founder (which is how the parity is verified) -- pass a
 #' founder-only genotype set to reproduce a PLINK run that had non-founders.
-#' Missing calls (`NA`) fall back to a `pairwise.complete.obs` correlation that is
-#' **not** claimed identical to PLINK's missing-data path; drop or impute missing
-#' genotypes first for PLINK parity.
+#' Missing calls (`NA`) are handled per pair on the complete observations (a
+#' `pairwise.complete.obs` correlation for `indep_pairwise`/`indep`, complete
+#' pairs only for `indep_pairphase`) and are **not** claimed identical to PLINK's
+#' missing-data path; drop or impute missing genotypes first for PLINK parity.
 #' \describe{
 #'   \item{`indep_pairwise = c(window, step, r2)`}{PLINK `--indep-pairwise`: drop
 #'     one marker of every pair whose composite genotype r^2 (squared correlation
 #'     of the `-1/0/1` dosage) exceeds `r2`, removing the **lower-MAF** marker of
 #'     the pair (ties keep the earlier one), e.g. `c(50, 5, 0.2)`.}
-#'   \item{`indep_pairphase = c(window, step, r2)`}{like `indep_pairwise`, but r^2
-#'     is the *haplotypic* r^2 estimated per pair by a two-locus EM that resolves
-#'     the double-heterozygote phase, rather than the composite genotype r^2. (A
-#'     greedy pruner; not yet PLINK byte-exact.)}
+#'   \item{`indep_pairphase = c(window, step, r2)`}{PLINK `--indep-pairphase`:
+#'     like `indep_pairwise`, but r^2 is the *haplotypic* (phased) r^2 of Hill &
+#'     Robertson (1968), with the double-heterozygote phase resolved per pair by
+#'     PLINK's exact two-locus maximum-likelihood solver, rather than the
+#'     composite genotype r^2, e.g. `c(50, 5, 0.2)`.}
 #'   \item{`indep = c(window, step, vif)`}{PLINK `--indep`: multi-marker pruning
 #'     by variance inflation factor -- within each window the largest-VIF marker
 #'     (VIF = the diagonal of the inverse marker correlation matrix) is dropped
@@ -95,7 +104,10 @@
 #' 81, 559--575. \doi{10.1086/519795} (the VIF pruner).\cr
 #' Gabriel, S.B. \emph{et al.} (2002). The structure of haplotype blocks in the
 #' human genome. \emph{Science} 296, 2225--2229. \doi{10.1126/science.1069424}
-#' (the haplotype-block definition).
+#' (the haplotype-block definition).\cr
+#' Hill, W.G. and Robertson, A. (1968). Linkage disequilibrium in finite
+#' populations. \emph{Theor. Appl. Genet.} 38, 226--231.
+#' \doi{10.1007/BF01245622} (the phased r^2 used by `indep_pairphase`).
 #' @seealso [as_numeric()], [simulate_phenotype()], [dominance()].
 #' @export
 #' @examples
@@ -283,10 +295,12 @@ filter_geno <- function(geno,
 #' bit-identical rather than drifting in the last bit the way `stats::cor()`
 #' does. That bit-identity is what makes the match hold even for a threshold
 #' placed within floating-point epsilon of a realised r^2. Verified against
-#' PLINK v1.9.0-b.8 for variant windows (both methods) and kb windows
+#' PLINK v1.9.0-b.8 for variant windows (all three methods) and kb windows
 #' (pairwise); kb + VIF has a small residual and is not yet claimed byte-exact.
-#' `method = "pairphase"` uses the haplotypic (EM-phased) r^2 and keeps the
-#' earlier greedy pruner (its own PLINK path is a separate port).
+#' `method = "pairphase"` shares the same window machine but replaces the r^2 with
+#' PLINK's haplotypic r^2 -- the two-locus haplotype frequencies from its exact
+#' cubic ML solver (`.plink_hap_rsq()`), and its own monomorphic-at-load rule (no
+#' heterozygotes and only one homozygote present).
 #'
 #' Operates only on the markers still flagged in `keep`, per chromosome, in
 #' position order -- matching PLINK, which prunes the post-filter dataset.
@@ -302,26 +316,23 @@ filter_geno <- function(geno,
     if (length(on_chr) < 2L) {
       next
     }
-    if (method == "pairphase") {
-      keep <- .ld_prune_pairphase(dose, on_chr, pos, keep, window, step,
-                                  thresh, unit)
-    } else {
-      pruned <- .ld_sweep(dose[on_chr, , drop = FALSE], maf[on_chr],
-                          pos[on_chr], method, window, step, thresh, unit)
-      keep[on_chr[pruned]] <- FALSE
-    }
+    pruned <- .ld_sweep(dose[on_chr, , drop = FALSE], maf[on_chr],
+                        pos[on_chr], method, window, step, thresh, unit)
+    keep[on_chr[pruned]] <- FALSE
   }
   keep
 }
 
-#' PLINK 1.9 `ld_prune()` port: one chromosome, `method` "pairwise" or "vif"
+#' PLINK 1.9 `ld_prune()` / `indep_pairphase()` port: one chromosome
 #'
-#' A faithful translation of PLINK 1.9's `ld_prune()` (plink_ld.c). `dose_chr`
-#' is markers-by-individuals `0/1/2` in position order; `maf_chr` the per-marker
-#' minor-allele frequency; `pos_chr` the bp positions. Window positions carry
-#' PLINK's 0-based indexing, so vector slots are read at `pos + 1`; `live` and
-#' `start_arr` store 0-based marker indices. Returns a logical `pruned` the
-#' length of the chromosome's markers. See `.ld_prune()` for the parity claim.
+#' A faithful translation of PLINK 1.9's `ld_prune()` (plink_ld.c) for
+#' `method` "pairwise"/"vif", and of `indep_pairphase()` (which reuses the same
+#' window machine) for "pairphase". `dose_chr` is markers-by-individuals `0/1/2`
+#' in position order; `maf_chr` the per-marker minor-allele frequency; `pos_chr`
+#' the bp positions. Window positions carry PLINK's 0-based indexing, so vector
+#' slots are read at `pos + 1`; `live` and `start_arr` store 0-based marker
+#' indices. Returns a logical `pruned` the length of the chromosome's markers.
+#' See `.ld_prune()` for the parity claim.
 #' @keywords internal
 #' @noRd
 .ld_sweep <- function(dose_chr, maf_chr, pos_chr, method, window, step, param,
@@ -331,38 +342,50 @@ filter_geno <- function(geno,
   n <- nrow(dose_chr)
   chrom_end <- n
   vif <- (method == "vif")
+  pp <- (method == "pairphase")
   scan_thresh <- if (vif) 0.999999 else param * (1 + eps)
   is_kb <- (unit == "kb")
   kb_span <- window * 1000
   pruned <- rep(FALSE, n)
-  # Correlations from PLINK's exact integer sufficient statistics, in PLINK's
-  # operation order, so r / r^2 are bit-identical to PLINK's (no-missing case):
-  #   cov = n * sum(x*y) - sum(x) * sum(y);  vr_k = 1 / (n * sum(x^2) - sum(x)^2)
-  #   r^2 = (cov * cov) * (vr_i * vr_j);     r = cov * sqrt(vr_i * vr_j)
-  # All the sums are integers exactly representable in a double, so this removes
-  # the last-bit drift a floating-point stats::cor() introduces at a threshold
-  # placed within epsilon of a realised r^2. Missing calls fall back to cor().
   nind <- ncol(dose_chr)
   mono <- rep(FALSE, n)
-  if (!anyNA(dose_chr)) {
-    gmat <- dose_chr %*% t(dose_chr)                # n x n integer sum(x_i x_j)
-    sumk <- rowSums(dose_chr)                        # sum(x_k)
-    ssqk <- diag(gmat)                               # sum(x_k^2)
-    llii <- ssqk * nind - sumk * sumk                # n*sum(x^2) - sum(x)^2
-    mono <- (llii == 0)                              # zero-variance markers
-    vr <- ifelse(mono, 0, 1 / llii)
-    covm <- gmat * nind - outer(sumk, sumk)          # cov, exact integer
-    vrm <- outer(vr, vr)                             # vr_i * vr_j
-    r2m <- (covm * covm) * vrm
-    cmat <- covm * sqrt(vrm)                         # signed r (for VIF matrix)
+  if (pp) {
+    # Pairphase computes a haplotypic r^2 per pair on demand (.plink_hap_rsq),
+    # so it needs no correlation matrix. PLINK's indep_pairphase() drops a marker
+    # at load when it has no heterozygotes and only one homozygote present.
+    r2m <- NULL; cmat <- NULL; abs_r <- NULL
+    nhet <- rowSums(dose_chr == 1L, na.rm = TRUE)
+    mono <- (nhet == 0L) &
+      (rowSums(dose_chr == 0L, na.rm = TRUE) == 0L |
+         rowSums(dose_chr == 2L, na.rm = TRUE) == 0L)
   } else {
-    cmat <- suppressWarnings(stats::cor(t(dose_chr), use = "pairwise.complete.obs"))
+    # Correlations from PLINK's exact integer sufficient statistics, in PLINK's
+    # operation order, so r / r^2 are bit-identical to PLINK's (no-missing case):
+    #   cov = n * sum(x*y) - sum(x)*sum(y);  vr_k = 1 / (n*sum(x^2) - sum(x)^2)
+    #   r^2 = (cov * cov) * (vr_i * vr_j);   r = cov * sqrt(vr_i * vr_j)
+    # All the sums are integers exactly representable in a double, so this removes
+    # the last-bit drift a floating-point stats::cor() introduces at a threshold
+    # placed within epsilon of a realised r^2. Missing calls fall back to cor().
+    if (!anyNA(dose_chr)) {
+      gmat <- dose_chr %*% t(dose_chr)              # n x n integer sum(x_i x_j)
+      sumk <- rowSums(dose_chr)                      # sum(x_k)
+      ssqk <- diag(gmat)                             # sum(x_k^2)
+      llii <- ssqk * nind - sumk * sumk              # n*sum(x^2) - sum(x)^2
+      mono <- (llii == 0)                            # zero-variance markers
+      vr <- ifelse(mono, 0, 1 / llii)
+      covm <- gmat * nind - outer(sumk, sumk)        # cov, exact integer
+      vrm <- outer(vr, vr)                           # vr_i * vr_j
+      r2m <- (covm * covm) * vrm
+      cmat <- covm * sqrt(vrm)                       # signed r (for VIF matrix)
+    } else {
+      cmat <- suppressWarnings(stats::cor(t(dose_chr), use = "pairwise.complete.obs"))
+      cmat[!is.finite(cmat)] <- 0
+      r2m <- cmat * cmat
+    }
+    r2m[!is.finite(r2m)] <- 0
     cmat[!is.finite(cmat)] <- 0
-    r2m <- cmat * cmat
+    abs_r <- abs(cmat)
   }
-  r2m[!is.finite(r2m)] <- 0
-  cmat[!is.finite(cmat)] <- 0
-  abs_r <- abs(cmat)
   cap <- n + step + 8L
   live <- integer(cap)
   strt <- integer(cap)
@@ -447,8 +470,10 @@ filter_geno <- function(geno,
               ujj <- ujj + 1L
               next
             }
-            val <- if (vif) abs_r[lg(uii) + 1L, lg(ujj) + 1L] else
-              r2m[lg(uii) + 1L, lg(ujj) + 1L]
+            val <- if (pp)
+              .plink_hap_rsq(dose_chr[lg(uii) + 1L, ], dose_chr[lg(ujj) + 1L, ])
+            else if (vif) abs_r[lg(uii) + 1L, lg(ujj) + 1L]
+            else r2m[lg(uii) + 1L, lg(ujj) + 1L]
             if (val > scan_thresh) {
               did <- TRUE
               if (maf_of(lg(uii)) < (1 - eps) * maf_of(lg(ujj))) {
@@ -500,10 +525,10 @@ filter_geno <- function(geno,
                 bmin <- 1L
               }
             }
-            pp <- idx[bmin + 1L]
-            set_pruned(lg(pp))
+            drop_pos <- idx[bmin + 1L]
+            set_pruned(lg(drop_pos))
             window_rem <- window_rem - 1L
-            if (pp < ows) old_window_rem <- old_window_rem - 1L
+            if (drop_pos < ows) old_window_rem <- old_window_rem - 1L
             idx <- idx[-(bmin + 1L)]
             mfull <- cor_sub(idx[seq_len(window_rem)])
             inv <- if (is_singular(mfull)) structure("s", class = "try-error") else
@@ -512,10 +537,10 @@ filter_geno <- function(geno,
           dd <- diag(inv)
           w <- which.max(dd)
           if (dd[w] > param) {
-            pp <- idx[w]
-            set_pruned(lg(pp))
+            drop_pos <- idx[w]
+            set_pruned(lg(drop_pos))
             window_rem <- window_rem - 1L
-            if (pp < ows) old_window_rem <- old_window_rem - 1L
+            if (drop_pos < ows) old_window_rem <- old_window_rem - 1L
             idx <- idx[-w]
           } else {
             window_rem <- 1L
@@ -571,50 +596,164 @@ filter_geno <- function(geno,
   pruned
 }
 
-#' Greedy pairphase pruning over one chromosome's kept markers (variant/kb)
+#' PLINK's haplotypic r^2 for a marker pair (used by pairphase)
 #'
-#' The pre-parity haplotypic-r^2 pruner: sliding windows over the `on_chr` kept
-#' markers, dropping later markers that exceed the EM-phased r^2 threshold with
-#' an earlier kept marker. Updates and returns `keep`.
+#' Reproduces PLINK 1.9's `--indep-pairphase` r^2: build the two-locus genotype
+#' contingency table, resolve the double-heterozygote phase with the exact
+#' maximum-likelihood haplotype frequencies (`.plink_em_hethet()`), then
+#' `r^2 = (freq11 - freqx1*freq1x)^2 / (freq11_expected * freq2x * freqx2)`.
+#' This is the haplotypic (phased) r^2 of Hill & Robertson (1968).
+#' `di`, `dj` are the two markers' `0/1/2` dosages. A pair with a monomorphic
+#' locus returns 0 (PLINK skips it rather than pruning).
 #' @keywords internal
 #' @noRd
-.ld_prune_pairphase <- function(dose, on_chr, pos, keep, window, step, thresh,
-                                unit) {
-  starts <- seq(1L, length(on_chr), by = step)
-  for (s in starts) {
-    if (unit == "kb") {
-      in_win <- on_chr[pos[on_chr] >= pos[on_chr[s]] &
-                         pos[on_chr] < pos[on_chr[s]] + window * 1000]
-    } else {
-      in_win <- on_chr[seq(s, min(s + window - 1L, length(on_chr)))]
-    }
-    win <- in_win[keep[in_win]]
-    if (length(win) < 2L) {
-      next
-    }
-    keep[.prune_pairphase(dose, win, thresh)] <- FALSE
+.plink_hap_rsq <- function(di, dj) {
+  cr <- tabulate(di * 3L + dj + 1L, 9L)          # 3x3 genotype table, 0-based
+  known11 <- 2 * cr[1] + cr[2] + cr[4]
+  known12 <- 2 * cr[3] + cr[2] + cr[6]
+  known21 <- 2 * cr[7] + cr[4] + cr[8]
+  known22 <- 2 * cr[9] + cr[6] + cr[8]
+  em <- .plink_em_hethet(known11, known12, known21, known22, cr[5])
+  if (em$mono) {
+    return(0)
   }
-  keep
+  fe <- em$fx1 * em$f1x
+  d <- em$f11 - fe
+  d * d / (fe * em$f2x * em$fx2)
 }
 
-#' Greedy pairwise pruning by haplotypic (EM-phased) r^2; returns indices to drop
+#' PLINK's exact two-locus ML haplotype solver (`em_phase_hethet`), autosomal
+#'
+#' Given the four unambiguous haplotype counts and the double-heterozygote count,
+#' returns the maximum-likelihood haplotype-11 frequency and the marginals. This
+#' is not an iterative EM despite PLINK's function name -- it solves the cubic
+#' likelihood equation **exactly** (`.plink_cubic_roots()`) and picks the real
+#' root in `[0, half_hethet_share]` with the highest log-likelihood, so it finds
+#' the true ML solution rather than a local one. `mono = TRUE` flags a
+#' monomorphic locus. A faithful port of plink_ld.c's `em_phase_hethet()`.
 #' @keywords internal
 #' @noRd
-.prune_pairphase <- function(Dm, win, r2) {
-  G <- Dm[win, , drop = FALSE]                     # markers x individuals, 0/1/2
-  kept <- integer(0)
-  drop <- integer(0)
-  for (j in seq_along(win)) {
-    over <- FALSE
-    for (k in kept) {
-      if (.hap_r2(G[k, ], G[j, ]) > r2) {
-        over <- TRUE
-        break
+.plink_em_hethet <- function(known11, known12, known21, known22, center_ct) {
+  eps_ish <- 0.00000000002910383045673370361328125     # SMALLISH_EPSILON
+  ccd <- center_ct
+  twice_tot <- known11 + known12 + known21 + known22 + 2 * ccd
+  if (twice_tot == 0) {
+    return(list(mono = TRUE))
+  }
+  ttr <- 1 / twice_tot
+  f11 <- known11 * ttr; f12 <- known12 * ttr
+  f21 <- known21 * ttr; f22 <- known22 * ttr
+  p1122 <- f11 * f22; p1221 <- f12 * f21
+  hhs <- ccd * ttr
+  f1x <- f11 + f12 + hhs; f2x <- 1 - f1x
+  fx1 <- f11 + f21 + hhs; fx2 <- 1 - fx1
+  if (center_ct > 0) {
+    ss <- 0L; se <- 1L; sol <- numeric(3)
+    if (p1122 != 0 || p1221 != 0) {
+      cr <- .plink_cubic_roots(
+        0.5 * (f11 + f22 - f12 - f21 - 3 * hhs),
+        0.5 * (p1122 + p1221 + hhs * (f12 + f21 - f11 - f22 + hhs)),
+        -0.5 * hhs * p1122)
+      sol <- cr$sol; se <- cr$n; ss <- 0L
+      while (se > 0 && sol[se] > hhs + eps_ish) se <- se - 1L
+      while (ss < se && sol[ss + 1L] < -eps_ish) ss <- ss + 1L
+      if (ss == se) {
+        ss <- 0L; se <- 2L; sol[1] <- 0; sol[2] <- hhs
+      } else {
+        if (sol[ss + 1L] < 0) sol[ss + 1L] <- 0
+        if (sol[se] > hhs) sol[se] <- hhs
+      }
+    } else {
+      sol[1] <- 0
+      nfxx <- f11 + f22; nfxy <- f12 + f21
+      if (nfxx + eps_ish < hhs + nfxy && nfxy + eps_ish < hhs + nfxx) {
+        se <- 3L; sol[2] <- (hhs + nfxy - nfxx) * 0.5; sol[3] <- hhs
+      } else {
+        se <- 2L; sol[2] <- hhs
       }
     }
-    if (over) drop <- c(drop, win[j]) else kept <- c(kept, j)
+    best <- sol[ss + 1L]
+    if (se > ss + 1L) {
+      bll <- .plink_calc_lnlike(known11, known12, known21, known22, ccd,
+                                f11, f12, f21, f22, hhs, best)
+      for (ci in (ss + 1L):(se - 1L)) {
+        incr <- sol[ci + 1L]
+        cll <- .plink_calc_lnlike(known11, known12, known21, known22, ccd,
+                                  f11, f12, f21, f22, hhs, incr)
+        if (cll > bll) {
+          bll <- cll; best <- incr
+        }
+      }
+    }
+    f11 <- f11 + best
+  } else if (p1122 == 0 && p1221 == 0) {
+    return(list(mono = TRUE))
   }
-  drop
+  list(mono = FALSE, f1x = f1x, f2x = f2x, fx1 = fx1, fx2 = fx2, f11 = f11)
+}
+
+#' Log-likelihood of a two-locus haplotype split (`calc_lnlike`)
+#' @keywords internal
+#' @noRd
+.plink_calc_lnlike <- function(k11, k12, k21, k22, cc, f11, f12, f21, f22,
+                               hhs, incr) {
+  f11 <- f11 + incr; f22 <- f22 + incr
+  f12 <- f12 + hhs - incr; f21 <- f21 + hhs - incr
+  ll <- cc * log(f11 * f22 + f12 * f21)
+  if (k11 != 0) ll <- ll + k11 * log(f11)
+  if (k12 != 0) ll <- ll + k12 * log(f12)
+  if (k21 != 0) ll <- ll + k21 * log(f21)
+  if (k22 != 0) ll <- ll + k22 * log(f22)
+  ll
+}
+
+#' Real roots of x^3 + a x^2 + b x + c (`cubic_real_roots`), sorted ascending
+#'
+#' Cardano's method with PLINK's within-`EPSILON` de-duplication; returns the
+#' (up to three) roots and their count. A faithful port of plink_common.c.
+#' @keywords internal
+#' @noRd
+.plink_cubic_roots <- function(a, b, c) {
+  eps <- 0.000000000931322574615478515625               # EPSILON
+  pic <- 3.1415926535897932
+  a2 <- a * a
+  qq <- (a2 - 3 * b) * (1 / 9)
+  rr <- (2 * a2 * a - 9 * a * b + 27 * c) * (1 / 54)
+  r2 <- rr * rr
+  q3 <- qq * qq * qq
+  adiv3 <- a * (1 / 3)
+  s <- numeric(3)
+  if (r2 < q3) {
+    sq <- sqrt(qq)
+    dxx <- acos(rr / (qq * sq)) * (1 / 3)
+    sq <- sq * -2
+    s[1] <- sq * cos(dxx) - adiv3
+    s[2] <- sq * cos(dxx + (2 * pic / 3)) - adiv3
+    s[3] <- sq * cos(dxx - (2 * pic / 3)) - adiv3
+    s <- sort(s)
+    if (s[2] - s[1] < eps) {
+      s[2] <- s[3]
+      return(list(sol = s, n = if (s[2] - s[1] < eps) 1L else 2L))
+    }
+    return(list(sol = s, n = if (s[3] - s[2] < eps) 2L else 3L))
+  }
+  dxx <- -(abs(rr) + sqrt(r2 - q3))^(1 / 3)
+  if (dxx == 0) {
+    s[1] <- -adiv3
+    return(list(sol = s, n = 1L))
+  }
+  if (rr < 0) dxx <- -dxx
+  sq <- qq / dxx
+  s[1] <- dxx + sq - adiv3
+  if (abs(dxx - sq) >= eps * 8) {
+    return(list(sol = s, n = 1L))
+  }
+  if (dxx >= 0) {
+    s[2] <- s[1]; s[1] <- -dxx - adiv3
+  } else {
+    s[2] <- -dxx - adiv3
+  }
+  list(sol = s, n = 2L)
 }
 
 #' Citation notice for a specific LD method, once per session

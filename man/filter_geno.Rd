@@ -83,13 +83,16 @@ be kept.
 The three sliding-window pruners take the same three-number specification used
 by PLINK (\code{c(window, step, threshold)}); \code{window_unit} sets whether \code{window}
 counts markers (default) or kilobases (\code{"kb"}, using the \code{pos} column).
-\code{indep_pairwise} and \code{indep} reproduce PLINK 1.9's \code{--indep-pairwise} and
-\code{--indep} \strong{byte-for-byte for ordinary use}: on complete-call genotypes, with
-\code{step <= window}, the kept and removed marker sets match PLINK 1.9
-marker-for-marker (verified against PLINK v1.9.0-b.8 -- the whole bundled panel
-genome-wide, plus randomized differential testing; see
+\code{indep_pairwise}, \code{indep} and \code{indep_pairphase} reproduce PLINK 1.9's
+\code{--indep-pairwise}, \code{--indep} and \code{--indep-pairphase} \strong{byte-for-byte for
+ordinary use}: on complete-call \strong{autosomal} genotypes, with \code{step <= window},
+the kept and removed marker sets match PLINK 1.9 marker-for-marker (verified
+against PLINK v1.9.0-b.8 -- the whole bundled panel genome-wide, plus
+randomized differential testing; see
 \code{tests/testthat/test-filter-geno-plink-parity.R}). This holds for variant
-windows (both methods) and kb windows (\code{indep_pairwise}).
+windows (all three) and kb windows (\code{indep_pairwise}). All loci are treated as
+autosomal diploid: simplePHENOTYPES has no sex chromosome, so PLINK's haploid
+chromosome-X weighting is neither modelled nor matched.
 
 Beyond that envelope the match is best-effort, not guaranteed, in a few
 pathological corners that do not arise in normal genotype panels:
@@ -99,22 +102,28 @@ correlation matrix is rank-deficient and pruning turns on PLINK's exact
 matrix-inversion tie handling; \code{indep} when a pair is near-perfectly
 \emph{negatively} correlated in PLINK's minor-allele coding (the VIF collinearity
 scan compares \verb{|r|}, which matches every real panel tested but not that
-hand-built sign case); and kb + \code{indep}. PLINK computes LD from
+hand-built sign case); \code{indep_pairphase} at a threshold within floating-point
+tolerance of a realised haplotypic r^2 (that r^2 comes from a transcendental
+cubic solver -- \code{acos}/\code{cos}/\code{log} -- so, unlike the integer-exact composite
+r^2, it can differ from PLINK's in the last bit); and kb + \code{indep}. PLINK
+computes LD from
 \emph{founders only}; simplePHENOTYPES has no pedigree, so every individual is
 treated as a founder (which is how the parity is verified) -- pass a
 founder-only genotype set to reproduce a PLINK run that had non-founders.
-Missing calls (\code{NA}) fall back to a \code{pairwise.complete.obs} correlation that is
-\strong{not} claimed identical to PLINK's missing-data path; drop or impute missing
-genotypes first for PLINK parity.
+Missing calls (\code{NA}) are handled per pair on the complete observations (a
+\code{pairwise.complete.obs} correlation for \code{indep_pairwise}/\code{indep}, complete
+pairs only for \code{indep_pairphase}) and are \strong{not} claimed identical to PLINK's
+missing-data path; drop or impute missing genotypes first for PLINK parity.
 \describe{
 \item{\code{indep_pairwise = c(window, step, r2)}}{PLINK \code{--indep-pairwise}: drop
 one marker of every pair whose composite genotype r^2 (squared correlation
 of the \code{-1/0/1} dosage) exceeds \code{r2}, removing the \strong{lower-MAF} marker of
 the pair (ties keep the earlier one), e.g. \code{c(50, 5, 0.2)}.}
-\item{\code{indep_pairphase = c(window, step, r2)}}{like \code{indep_pairwise}, but r^2
-is the \emph{haplotypic} r^2 estimated per pair by a two-locus EM that resolves
-the double-heterozygote phase, rather than the composite genotype r^2. (A
-greedy pruner; not yet PLINK byte-exact.)}
+\item{\code{indep_pairphase = c(window, step, r2)}}{PLINK \code{--indep-pairphase}:
+like \code{indep_pairwise}, but r^2 is the \emph{haplotypic} (phased) r^2 of Hill &
+Robertson (1968), with the double-heterozygote phase resolved per pair by
+PLINK's exact two-locus maximum-likelihood solver, rather than the
+composite genotype r^2, e.g. \code{c(50, 5, 0.2)}.}
 \item{\code{indep = c(window, step, vif)}}{PLINK \code{--indep}: multi-marker pruning
 by variance inflation factor -- within each window the largest-VIF marker
 (VIF = the diagonal of the inverse marker correlation matrix) is dropped
@@ -144,7 +153,10 @@ association and population-based linkage analyses. \emph{Am. J. Hum. Genet.}
 81, 559--575. \doi{10.1086/519795} (the VIF pruner).\cr
 Gabriel, S.B. \emph{et al.} (2002). The structure of haplotype blocks in the
 human genome. \emph{Science} 296, 2225--2229. \doi{10.1126/science.1069424}
-(the haplotype-block definition).
+(the haplotype-block definition).\cr
+Hill, W.G. and Robertson, A. (1968). Linkage disequilibrium in finite
+populations. \emph{Theor. Appl. Genet.} 38, 226--231.
+\doi{10.1007/BF01245622} (the phased r^2 used by \code{indep_pairphase}).
 }
 \seealso{
 \code{\link[=as_numeric]{as_numeric()}}, \code{\link[=simulate_phenotype]{simulate_phenotype()}}, \code{\link[=dominance]{dominance()}}.

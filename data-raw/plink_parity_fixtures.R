@@ -56,7 +56,13 @@ configs <- list(
   list(key = "vif_100_10_5",
        plink = c("--indep", "100", "10", "5")),
   list(key = "pairwise_kb_250_5_0.2",
-       plink = c("--indep-pairwise", "250", "kb", "5", "0.2"))
+       plink = c("--indep-pairwise", "250", "kb", "5", "0.2")),
+  list(key = "pairphase_50_5_0.2",
+       plink = c("--indep-pairphase", "50", "5", "0.2")),
+  list(key = "pairphase_100_10_0.1",
+       plink = c("--indep-pairphase", "100", "10", "0.1")),
+  list(key = "pairphase_20_2_0.5",
+       plink = c("--indep-pairphase", "20", "2", "0.5"))
 )
 
 golden <- lapply(configs, function(cfg) run_plink(cfg$plink))
