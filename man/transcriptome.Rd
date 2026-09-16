@@ -54,9 +54,11 @@ genetic / environmental / covariance shares of V_P.
 not asserted, so the whole component is treated as an environmental
 predictor and \strong{excluded} from the genetic value and from H2.
 }
-Still-planned follow-ups: \code{qtn_table()} gene rows, cross-population
-fixed-reference standardization, and a genotype-free (\verb{expression=} only)
-foundation.
+A genotype-free basis (\code{simulate_phenotype(expression = ...)} with no \code{geno}),
+\code{qtn_table()} gene rows, and cross-population reuse of an architecture
+(\code{\link[=predict.transcriptome_sim]{predict.transcriptome_sim()}}) are all supported. Still-planned follow-ups:
+\code{mimic} calibration from a user expression matrix, and an RNA-seq count
+observation layer.
 }
 \examples{
 data("SNP55K_maize282_maf04")

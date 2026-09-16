@@ -7,8 +7,11 @@
 > layer for the genome-present modes (see the "v1 layer status" note in §3), and
 > the **derived mediation split with covariance reporting** (`mediation_split()`;
 > the genetic-mediated part of derived expression now counts toward realized `H²`)
-> are implemented and tested; the genotype-free mode-2, `mimic` mode (§5), and the
-> counts layer (§7) are designed here but **not yet built**. Converged
+> are implemented and tested, as are the **genotype-free mode 2**
+> (`simulate_phenotype(expression = ...)` with no `geno`), `qtn_table()` gene rows,
+> and **cross-population reuse** of a fixed architecture
+> (`predict.transcriptome_sim()`); only `mimic` mode (§5) and the counts layer
+> (§7) are designed here but **not yet built**. Converged
 > Claude + Codex design (see `project_transcriptome_simulation_design` memory and
 > `DECISION-022-transcriptome-DRAFT.md`).
 
@@ -156,9 +159,10 @@ simulate_phenotype(geno, expression = E) |>
 > genetic / env / covariance (`2·Cov(Tx_g,Tx_e)/V_P`) shares, which sum to the
 > realized expression-mediated share (machine-precision closure, Codex-verified).
 > A *real* `expression=` source asserts no genetic content, so `Tx_g = 0` and the
-> whole component stays out of `H²`. **Remaining follow-ups:** `qtn_table()` gene
-> rows; cross-population fixed-reference standardization; and the genotype-free
-> `simulate_phenotype(expression=)` mode 2 (no `geno`). v1 reports **marginal**
+> whole component stays out of `H²`. `qtn_table()` gene rows, the genotype-free
+> `simulate_phenotype(expression=)` mode 2, and cross-population reuse
+> (`predict.transcriptome_sim()`) are **implemented**; **remaining follow-ups** are
+> `mimic` calibration and the counts layer. v1 reports **marginal**
 > variance shares per layer; when a transcriptome predictor is strongly
 > (anti-)correlated with a marker layer (e.g. an expression gene equal to a causal
 > marker's dosage -- a pathological input), their finite-sample marker-to-`Tx_g`

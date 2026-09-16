@@ -25,7 +25,8 @@
 #' hub effects, loadings, module assignment) are computed on the supplied
 #' (reference) individuals and returned, fixing the genetic scale in the spirit of
 #' `additive_value()` / `phenotype_value()`; re-scoring the frozen architecture on
-#' *new* individuals is a planned follow-up. Defaults come from a named calibration
+#' *new* individuals (descendants, a cross, a selected subset) is supported by
+#' [predict.transcriptome_sim()]. Defaults come from a named calibration
 #' `profile`, a transparent benchmarking compromise, **not** biological constants.
 #'
 #' The genetic component `G` (scaled to `Var(G) = h2`) and the residual `R`

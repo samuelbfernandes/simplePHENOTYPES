@@ -84,7 +84,8 @@ Per-marker reference means (for centering) and the drawn architecture (cis and
 hub effects, loadings, module assignment) are computed on the supplied
 (reference) individuals and returned, fixing the genetic scale in the spirit of
 \code{additive_value()} / \code{phenotype_value()}; re-scoring the frozen architecture on
-\emph{new} individuals is a planned follow-up. Defaults come from a named calibration
+\emph{new} individuals (descendants, a cross, a selected subset) is supported by
+\code{\link[=predict.transcriptome_sim]{predict.transcriptome_sim()}}. Defaults come from a named calibration
 \code{profile}, a transparent benchmarking compromise, \strong{not} biological constants.
 
 The genetic component \code{G} (scaled to \code{Var(G) = h2}) and the residual \code{R}

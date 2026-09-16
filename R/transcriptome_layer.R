@@ -127,9 +127,11 @@
 #'     not asserted, so the whole component is treated as an environmental
 #'     predictor and **excluded** from the genetic value and from H2.
 #' }
-#' Still-planned follow-ups: `qtn_table()` gene rows, cross-population
-#' fixed-reference standardization, and a genotype-free (`expression=` only)
-#' foundation.
+#' A genotype-free basis (`simulate_phenotype(expression = ...)` with no `geno`),
+#' `qtn_table()` gene rows, and cross-population reuse of an architecture
+#' ([predict.transcriptome_sim()]) are all supported. Still-planned follow-ups:
+#' `mimic` calibration from a user expression matrix, and an RNA-seq count
+#' observation layer.
 #'
 #' @param sim a `phenotype_sim` carrying an expression source (see
 #'   [simulate_phenotype()]'s `expression` / `transcriptome` arguments).
