@@ -40,13 +40,23 @@ exactly like \code{\link[=additive]{additive()}} (so only the relative slopes ma
 }
 \details{
 The expression-mediated component is a \strong{distinct variance category}, reported
-on its own budget row and \strong{not} folded into the marker-based heritability
-(which stays marker-based) -- because observed/derived expression is not purely
-additive-genetic. For a genome-derived transcriptome the further split of this
-component into a genetically-mediated part and a non-genetic (environmentally
-mediated) part -- and the reported mediated/direct covariance -- is a planned
-follow-up, as are \code{qtn_table()} gene rows, cross-population fixed-reference
-standardization, and a genotype-free (\verb{expression=} only) foundation.
+on its own budget row and scaled by \code{prop} outside the marker \code{h2} budget --
+because observed/derived expression is not purely additive-genetic. How much of
+it counts as heritable depends on the source:
+\itemize{
+\item \strong{Derived} (\verb{transcriptome =}): the component splits into a
+genetically-mediated part \code{Tx_g} (the share of expression traced to the
+genome) and an environmentally-mediated part \code{Tx_e = Tx - Tx_g}. \code{Tx_g}
+\strong{is} genetic, so it is added to \code{\link[=genetic_values]{genetic_values()}} and counts toward
+realized H2; \code{\link[=mediation_split]{mediation_split()}} reports the realized
+genetic / environmental / covariance shares of V_P.
+\item \strong{Real} (\verb{expression =}): the genetic content of an observed matrix is
+not asserted, so the whole component is treated as an environmental
+predictor and \strong{excluded} from the genetic value and from H2.
+}
+Still-planned follow-ups: \code{qtn_table()} gene rows, cross-population
+fixed-reference standardization, and a genotype-free (\verb{expression=} only)
+foundation.
 }
 \examples{
 data("SNP55K_maize282_maf04")
@@ -60,5 +70,6 @@ ph <- simulate_phenotype(g, h2 = 0.5, seed = 2, transcriptome = tx) |>
 ph
 }
 \seealso{
-\code{\link[=simulate_phenotype]{simulate_phenotype()}}, \code{\link[=additive]{additive()}}, \code{simulate_transcriptome()}.
+\code{\link[=simulate_phenotype]{simulate_phenotype()}}, \code{\link[=additive]{additive()}}, \code{\link[=mediation_split]{mediation_split()}},
+\code{simulate_transcriptome()}.
 }

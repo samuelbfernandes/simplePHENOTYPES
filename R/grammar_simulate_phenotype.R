@@ -609,8 +609,8 @@ print.phenotype_sim <- function(x, ...) {
   if (!is.null(x$mediation)) {
     md <- x$mediation
     cat(sprintf(
-      "  Expression-mediated (derived): genetic %s + environmental %s of V_P\n",
-      fmt(md$genetic_mediated), fmt(md$env_mediated)))
+      "  Expression-mediated (derived): genetic %s + environmental %s + cov %s of V_P\n",
+      fmt(md$genetic_mediated), fmt(md$env_mediated), fmt(md$covariance)))
     cat("  (the genetic-mediated share is included in realized H\u00b2 above)\n")
   }
   if (any(vapply(x$layers, function(l) identical(l$type, "vqtl"), TRUE))) {

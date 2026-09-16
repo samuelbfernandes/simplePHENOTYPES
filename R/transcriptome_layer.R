@@ -113,13 +113,23 @@
 #' exactly like [additive()] (so only the relative slopes matter).
 #'
 #' The expression-mediated component is a **distinct variance category**, reported
-#' on its own budget row and **not** folded into the marker-based heritability
-#' (which stays marker-based) -- because observed/derived expression is not purely
-#' additive-genetic. For a genome-derived transcriptome the further split of this
-#' component into a genetically-mediated part and a non-genetic (environmentally
-#' mediated) part -- and the reported mediated/direct covariance -- is a planned
-#' follow-up, as are `qtn_table()` gene rows, cross-population fixed-reference
-#' standardization, and a genotype-free (`expression=` only) foundation.
+#' on its own budget row and scaled by `prop` outside the marker `h2` budget --
+#' because observed/derived expression is not purely additive-genetic. How much of
+#' it counts as heritable depends on the source:
+#' \itemize{
+#'   \item **Derived** (`transcriptome =`): the component splits into a
+#'     genetically-mediated part `Tx_g` (the share of expression traced to the
+#'     genome) and an environmentally-mediated part `Tx_e = Tx - Tx_g`. `Tx_g`
+#'     **is** genetic, so it is added to [genetic_values()] and counts toward
+#'     realized H2; [mediation_split()] reports the realized
+#'     genetic / environmental / covariance shares of V_P.
+#'   \item **Real** (`expression =`): the genetic content of an observed matrix is
+#'     not asserted, so the whole component is treated as an environmental
+#'     predictor and **excluded** from the genetic value and from H2.
+#' }
+#' Still-planned follow-ups: `qtn_table()` gene rows, cross-population
+#' fixed-reference standardization, and a genotype-free (`expression=` only)
+#' foundation.
 #'
 #' @param sim a `phenotype_sim` carrying an expression source (see
 #'   [simulate_phenotype()]'s `expression` / `transcriptome` arguments).
@@ -135,7 +145,8 @@
 #'   irrelevant -- the component is scaled to `prop`).
 #' @return the `phenotype_sim` with the transcriptome layer added and the
 #'   phenotype re-realized.
-#' @seealso [simulate_phenotype()], [additive()], `simulate_transcriptome()`.
+#' @seealso [simulate_phenotype()], [additive()], [mediation_split()],
+#'   `simulate_transcriptome()`.
 #' @export
 #' @examples
 #' data("SNP55K_maize282_maf04")
