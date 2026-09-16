@@ -10,7 +10,12 @@
 \item{object}{a \code{transcriptome_sim} from \code{\link[=simulate_transcriptome]{simulate_transcriptome()}}.}
 
 \item{geno}{new genotypes carrying (at least) every marker named in the
-architecture's eQTL tables, in the same coding as the reference.}
+architecture's eQTL tables, in the \strong{same coding and effect-allele
+orientation} as the reference. Only marker names and the -1/0/1 dosage
+coding are checked; the architecture does not store allele labels, so a
+marker whose reference/alternate alleles are swapped (same name, flipped
+dosage) would pass the check yet produce different genetic values. When
+combining datasets, harmonize effect-allele orientation first.}
 
 \item{seed}{optional seed for the fresh residual draws.}
 

@@ -414,7 +414,12 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
 #'
 #' @param object a `transcriptome_sim` from [simulate_transcriptome()].
 #' @param geno new genotypes carrying (at least) every marker named in the
-#'   architecture's eQTL tables, in the same coding as the reference.
+#'   architecture's eQTL tables, in the **same coding and effect-allele
+#'   orientation** as the reference. Only marker names and the -1/0/1 dosage
+#'   coding are checked; the architecture does not store allele labels, so a
+#'   marker whose reference/alternate alleles are swapped (same name, flipped
+#'   dosage) would pass the check yet produce different genetic values. When
+#'   combining datasets, harmonize effect-allele orientation first.
 #' @param seed optional seed for the fresh residual draws.
 #' @param residual add a freshly drawn non-genetic residual (default `TRUE`);
 #'   `FALSE` returns noiseless genetic expression.
