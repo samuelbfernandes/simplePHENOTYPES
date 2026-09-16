@@ -23,13 +23,14 @@
   nr  <- sim$n_reps
 
   mean_layers <- Filter(function(l) l$type %in% c("additive", "dominance",
-                                                  "epistasis"), sim$layers)
+                                                  "epistasis", "transcriptome"), sim$layers)
   vqtl_layers <- Filter(function(l) l$type == "vqtl", sim$layers)
 
   long <- vector("list", nt * nr)
   k <- 0L
   for (rep in seq_len(nr)) {
     Gen <- .genetic_matrix(sim, rep)
+    Tx  <- .transcriptome_matrix(sim, rep)
 
     for (t in seq_len(nt)) {
       total_prop <- sum(vapply(mean_layers,
@@ -42,7 +43,7 @@
       resid <- .seeded_residual(seed_r, n, resid_var)
       resid <- .apply_vqtl(resid, vqtl_layers, sim, t, rep, vqtl_prop)
 
-      value <- Gen[, t] + resid + .trait_mean(sim, t)
+      value <- Gen[, t] + Tx[, t] + resid + .trait_mean(sim, t)
       k <- k + 1L
       long[[k]] <- data.frame(
         id    = ids,
@@ -75,6 +76,9 @@
   if (identical(sim$architecture, "complex")) {
     return(sim$complex_genetic[, , rep, drop = FALSE][, , 1L])
   }
+  # Marker-based genetic value: marker-based layers only. The transcriptome layer
+  # is an expression-mediated component, reported separately (.transcriptome_matrix)
+  # and NOT counted as additive genetic value / heritability.
   mean_layers <- Filter(function(l) l$type %in% c("additive", "dominance",
                                                   "epistasis"), sim$layers)
   Gen <- matrix(0, n, nt)
@@ -100,6 +104,40 @@
     Gen[, t] <- genetic
   }
   Gen
+}
+
+#' Expression-mediated value matrix (individuals x traits)
+#'
+#' The transcriptome layers' contribution, each scored on standardized expression
+#' and scaled to its target `prop` -- a distinct variance category, not part of the
+#' marker-based genetic value.
+#' @keywords internal
+#' @noRd
+.transcriptome_matrix <- function(sim, rep = 1L) {
+  n <- sim$n_ind; nt <- sim$n_traits
+  tx_layers <- Filter(function(l) l$type == "transcriptome", sim$layers)
+  Tx <- matrix(0, n, nt)
+  if (length(tx_layers) == 0) return(Tx)
+  for (t in seq_len(nt)) {
+    v <- rep(0, n)
+    for (ly in tx_layers) {
+      prop_t <- .expand_prop(ly$prop, nt)[t]
+      comp <- .component_raw(ly, sim, t, rep)
+      s <- stats::sd(comp)
+      if (is.finite(s) && s > 0 && prop_t > 0) {
+        comp <- comp / s * sqrt(prop_t)
+      } else if (prop_t > 0) {
+        stop("The transcriptome layer for trait ", t, " has zero usable variation ",
+             "in replication ", rep, "; its genes/slopes cannot realize prop = ",
+             prop_t, ".", call. = FALSE)
+      } else {
+        comp <- rep(0, n)
+      }
+      v <- v + comp
+    }
+    Tx[, t] <- v
+  }
+  Tx
 }
 
 #' Raw (centered, unscaled) genetic value of one layer for one trait
@@ -143,6 +181,24 @@
         out <- out + apply(design, 1, prod) * eff[p]
       }
       out
+    },
+    transcriptome = {
+      # idx = causal gene rows of sim$expression; eff = per-gene slopes. Score
+      # sum_g slope_g * standardized_expression_g (each gene z-scored on the
+      # scored individuals so slopes are comparable; a constant gene contributes
+      # 0). The prop-scaling in .genetic_matrix() fixes the variance share, so
+      # only the relative slopes matter -- exactly as for an additive layer.
+      E <- sim$expression[idx, , drop = FALSE]         # genes x individuals
+      z <- t(apply(E, 1L, function(r) {
+        s <- stats::sd(r)
+        if (is.finite(s) && s > 0) (r - mean(r)) / s else rep(0, length(r))
+      }))                                              # genes x individuals
+      # Only the RELATIVE slopes matter (the component is rescaled to prop), so
+      # normalize the slope vector first -- this avoids under/overflow for extreme
+      # but finite slopes and makes the realized component scale-invariant.
+      w <- eff; sc <- max(abs(w))
+      if (is.finite(sc) && sc > 0) w <- w / sc
+      as.numeric(w %*% z)
     },
     rep(0, n)
   )
@@ -241,7 +297,7 @@
     rows[[length(rows) + 1L]] <- data.frame(
       trait = paste0("Trait_", t),
       component = "residual",
-      prop = 1 - used[t],
+      prop = max(0, 1 - used[t]),          # never report a negative residual
       stringsAsFactors = FALSE
     )
   }

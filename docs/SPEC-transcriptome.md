@@ -3,9 +3,11 @@
 > **DRAFT for review.** Companion to `SPEC.md`; extends the v2 grammar with (a) a
 > generator of genetically controlled gene expression, and (b) phenotype
 > simulation from a transcriptome. **Implementation status:** the parametric
-> generator `simulate_transcriptome()` (§3, marked *(v1)*) is implemented and
-> tested; the phenotype bases / `transcriptome()` layer (§3–4), `mimic` mode (§5),
-> and the counts layer (§7) are designed here but **not yet built**. Converged
+> generator `simulate_transcriptome()` (§3) and the `transcriptome()` phenotype
+> layer for the genome-present modes (see the "v1 layer status" note in §3) are
+> implemented and tested; the genotype-free mode-2, the derived mediation split /
+> covariance reporting, `mimic` mode (§5), and the counts layer (§7) are designed
+> here but **not yet built**. Converged
 > Claude + Codex design (see `project_transcriptome_simulation_design` memory and
 > `DECISION-022-transcriptome-DRAFT.md`).
 
@@ -139,6 +141,23 @@ simulate_phenotype(geno, expression = E) |>
 ```
 
 ### The `transcriptome()` layer
+> **v1 layer status (implemented):** the `transcriptome()` layer scores an
+> attached expression source (`expression=` real, or `transcriptome=` derived) as
+> a sparse linear function of z-scored expression, scaled to `prop`, on a
+> genome-present `simulate_phenotype()` (modes with `geno`). It is reported as a
+> **distinct expression-mediated variance category, not folded into the marker-based (broad-sense)
+> heritability** (which stays marker-based). **Planned follow-ups:** the derived
+> case's genetic-mediated/env-mediated split and **all cross-component covariance
+> reporting** (marker-layer to expression component, and mediated/direct);
+> `qtn_table()` gene rows; cross-population fixed-reference standardization; and the
+> genotype-free `simulate_phenotype(expression=)` mode 2 (no `geno`). The equations
+> below specify the full design. v1 reports **marginal** variance shares per layer;
+> when a transcriptome predictor is strongly (anti-)correlated with a marker layer
+> (e.g. an expression gene equal to a causal marker's dosage -- a pathological
+> input), their finite-sample covariance is not in the marginal budget and the
+> reported realized H² can fall outside `[0,1]`, pending the covariance-reporting
+> follow-up.
+
 > **Orientation convention.** In every phenotype equation below, `E`, `R`, and `Z`
 > are written in the standard **individuals × features** design-matrix orientation,
 > so `E s`, `R s`, `Z δ` are matrix–vector products giving one value per individual.
@@ -159,7 +178,7 @@ expression** (not dosages), held to the same guarantees as `additive()`:
   effect carries a genetically-mediated part (`Bs`) and an env-mediated part (`Rs`),
   and `additive()` supplies the **direct** genome effect (`δ`). `prop` sets the total
   expression-mediated variance share (marginal `Var(E s)`); its genetic-mediated vs
-  env-mediated split, and hence the **overall narrow-sense `H²` is emergent and
+  env-mediated split, and hence the **overall `H²` is emergent and
   reported**, not separately forced (you cannot both pin `Var(E s) = prop` and pin
   the genetic-h² contribution `Var(Z(δ+Bs))` independently — they share `s`). To
   target overall `H²` instead, scale the total genetic score `Z(δ+Bs)` to it and let

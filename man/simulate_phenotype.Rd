@@ -16,6 +16,8 @@ simulate_phenotype(
   mean = NULL,
   individuals = NULL,
   model = "A",
+  expression = NULL,
+  transcriptome = NULL,
   ...
 )
 }
@@ -61,6 +63,16 @@ and the genotypes are never copied -- only the selected rows are read.}
 
 \item{model}{one-call model string: "A" (additive, default), "AD"
 (additive + dominance), "AE" (additive + epistasis).}
+
+\item{expression}{optional real/observed expression as a genes-by-individuals
+numeric matrix (columns named by individual id, or in the individual order),
+used by a \code{\link[=transcriptome]{transcriptome()}} layer. Give at most one of \code{expression} /
+\code{transcriptome}.}
+
+\item{transcriptome}{optional \strong{genome-derived} expression source for a
+\code{\link[=transcriptome]{transcriptome()}} layer: a \code{transcriptome_sim} from \code{simulate_transcriptome()},
+or \code{TRUE} to derive one from \code{geno} with default settings. Give at most one of
+\code{expression} / \code{transcriptome}.}
 
 \item{...}{architecture-specific arguments (validated -- an unknown name is
 an error, and an argument for a different architecture warns). For

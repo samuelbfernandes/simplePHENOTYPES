@@ -55,6 +55,14 @@
 #'   and the genotypes are never copied -- only the selected rows are read.
 #' @param model one-call model string: "A" (additive, default), "AD"
 #'   (additive + dominance), "AE" (additive + epistasis).
+#' @param expression optional real/observed expression as a genes-by-individuals
+#'   numeric matrix (columns named by individual id, or in the individual order),
+#'   used by a [transcriptome()] layer. Give at most one of `expression` /
+#'   `transcriptome`.
+#' @param transcriptome optional **genome-derived** expression source for a
+#'   [transcriptome()] layer: a `transcriptome_sim` from `simulate_transcriptome()`,
+#'   or `TRUE` to derive one from `geno` with default settings. Give at most one of
+#'   `expression` / `transcriptome`.
 #' @param ... architecture-specific arguments (validated -- an unknown name is
 #'   an error, and an argument for a different architecture warns). For
 #'   `"pleiotropy"`: `cor`, `pi` (or the two-trait `pi_target` /
@@ -92,6 +100,8 @@ simulate_phenotype <- function(geno,
                                mean = NULL,
                                individuals = NULL,
                                model = "A",
+                               expression = NULL,
+                               transcriptome = NULL,
                                ...) {
   architecture <- match.arg(architecture)
   n_traits <- .validate_count(n_traits, "n_traits", minimum = 1L)
@@ -153,6 +163,14 @@ simulate_phenotype <- function(geno,
     ),
     class = "phenotype_sim"
   )
+
+  # Optional expression source for the transcriptome() layer: a real matrix
+  # (`expression=`) or a genome-derived transcriptome (`transcriptome=`).
+  sim$expression <- NULL
+  sim$expression_source <- NULL
+  if (!is.null(expression) || !is.null(transcriptome)) {
+    sim <- .attach_expression(sim, geno, expression, transcriptome, seed)
+  }
 
   if (architecture == "pleiotropy") {
     .pleio_cor_matrix(sim)
@@ -537,7 +555,9 @@ simulate_phenotype <- function(geno,
     return(NULL)
   }
   base <- sum(utf8ToInt(layer_type))
-  as.integer((seed * 1009L + base * 7919L + occurrence * 104729L) %%
+  # Double arithmetic before the modulus so a large (but valid, <= integer.max)
+  # seed does not overflow 32-bit integer multiplication.
+  as.integer((as.double(seed) * 1009 + base * 7919 + occurrence * 104729) %%
                .Machine$integer.max)
 }
 
@@ -562,7 +582,7 @@ print.phenotype_sim <- function(x, ...) {
     gen <- x$var_budget$prop[x$var_budget$component == "genetic"]
     cat(sprintf("    %-10s %s\n", "genetic", fmt(gen)))
     cat(sprintf("    %-10s %s\n", "residual", fmt(1 - gen)))
-    cat(sprintf("  Requested genetic share = %s   realized H\u00b2 = %s\n",
+    cat(sprintf("  Requested genetic share = %s   realized marker-based H\u00b2 = %s\n",
                 fmt(gen), fmt(.realized_h2(x))))
     return(invisible(x))
   }
@@ -584,7 +604,7 @@ print.phenotype_sim <- function(x, ...) {
     }
   }
   cat(sprintf("    %-10s %s\n", "residual", fmt(1 - .total_variance_prop(x))))
-  cat(sprintf("  Requested genetic share = %s   realized H\u00b2 = %s\n",
+  cat(sprintf("  Requested genetic share = %s   realized marker-based H\u00b2 = %s\n",
               fmt(.total_genetic_prop(x)), fmt(.realized_h2(x))))
   if (any(vapply(x$layers, function(l) identical(l$type, "vqtl"), TRUE))) {
     cat("  (vqtl is a residual-heterogeneity component and is not counted in\n",
