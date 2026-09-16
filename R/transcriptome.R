@@ -399,6 +399,162 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
     class = "transcriptome_sim")
 }
 
+#' Apply a fixed transcriptome architecture to a new population
+#'
+#' Reuse the reference-calibrated architecture of a `transcriptome_sim` to
+#' generate expression for a **different** set of genotypes -- descendants, a
+#' cross, or a selected subset -- without re-estimating any centering or scaling
+#' constant. The genetic component is reconstructed from the stored effect tables
+#' applied to dosages centered on the **reference** allele frequencies
+#' (`object$reference$marker_mean`), so a given genotype maps to the same genetic
+#' expression regardless of the population it sits in; realized heritability in
+#' the new population is emergent, not re-forced (the fixed-scale principle of
+#' `additive_value()`). The non-genetic residual is not a function of genotype,
+#' so it is drawn afresh; set `residual = FALSE` for noiseless genetic expression.
+#'
+#' @param object a `transcriptome_sim` from [simulate_transcriptome()].
+#' @param geno new genotypes carrying (at least) every marker named in the
+#'   architecture's eQTL tables, in the same coding as the reference.
+#' @param seed optional seed for the fresh residual draws.
+#' @param residual add a freshly drawn non-genetic residual (default `TRUE`);
+#'   `FALSE` returns noiseless genetic expression.
+#' @param ... unused.
+#' @return a new `transcriptome_sim` for the new individuals, carrying the same
+#'   architecture (effect tables, per-gene targets, reference constants) with
+#'   `expression` / `genetic_expression` and a variance budget realized on the
+#'   new population.
+#' @export
+predict.transcriptome_sim <- function(object, geno, seed = NULL,
+                                      residual = TRUE, ...) {
+  if (length(list(...))) {
+    stop("predict.transcriptome_sim() does not accept additional arguments.",
+         call. = FALSE)
+  }
+  if (is.null(geno)) {
+    stop("predict(): `geno` (the new genotypes) is required.", call. = FALSE)
+  }
+  sim <- .normalize_geno(geno, "geno")
+  n_new <- sim$n_ind
+  ids <- sim$ids
+  mm <- object$reference$marker_mean
+  ce <- object$cis_eqtl
+  fe_all <- object$factor_eqtl
+
+  # reference-centered dosages for the causal markers only (fixed marker_mean).
+  used <- unique(c(ce$snp, fe_all$snp))
+  used <- used[!is.na(used)]
+  Zc <- matrix(0, n_new, 0)
+  if (length(used) > 0L) {
+    mi <- match(used, sim$map$snp)
+    if (anyNA(mi)) {
+      stop("predict(): the new genotypes are missing eQTL marker(s): ",
+           paste(utils::head(used[is.na(mi)], 5), collapse = ", "), ".",
+           call. = FALSE)
+    }
+    if (is.null(names(mm)) || anyNA(match(used, names(mm)))) {
+      stop("predict(): the architecture's reference marker means do not name ",
+           "every eQTL marker; cannot apply fixed-reference centering.",
+           call. = FALSE)
+    }
+    dose <- .geno_cols(sim, mi)
+    Zc <- sweep(dose, 2L, mm[used], "-")
+    colnames(Zc) <- used
+  }
+
+  Tg <- object$n_genes
+  genes <- object$genes
+  h2_t <- genes$h2_target
+  modules <- genes$module
+  trans_scale <- genes$trans_scale
+
+  genetic <- matrix(0, Tg, n_new, dimnames = list(genes$gene_id, ids))
+  cis_part <- matrix(0, Tg, n_new)
+  trans_part <- matrix(0, Tg, n_new)
+  for (g in seq_len(Tg)) {
+    gid <- genes$gene_id[g]
+    if (!is.null(ce)) {
+      cr <- ce[ce$gene_id == gid, , drop = FALSE]
+      if (nrow(cr) > 0L) {
+        cis_part[g, ] <- as.numeric(Zc[, cr$snp, drop = FALSE] %*% cr$effect)
+      }
+    }
+    if (!is.null(fe_all) && is.finite(trans_scale[g]) && trans_scale[g] != 0) {
+      fe <- fe_all[fe_all$factor == modules[g], , drop = FALSE]
+      if (nrow(fe) > 0L) {
+        trans_part[g, ] <- trans_scale[g] *
+          as.numeric(Zc[, fe$snp, drop = FALSE] %*% fe$hub_effect)
+      }
+    }
+    genetic[g, ] <- cis_part[g, ] + trans_part[g, ]
+  }
+
+  # fresh non-genetic residual: module-shared factor + gene noise, scaled to
+  # sqrt(1 - h2_target), mirroring the generator's residual construction.
+  Q <- object$reference$n_factors
+  kappa <- object$reference$kappa
+  draw_resid <- function() {
+    z1 <- function(v) {
+      s <- stats::sd(v); if (!is.finite(s) || s < 1e-9) NULL else (v - mean(v)) / s
+    }
+    U <- matrix(stats::rnorm(n_new * Q), n_new, Q)
+    R <- matrix(0, Tg, n_new)
+    for (g in seq_len(Tg)) {
+      if (h2_t[g] >= 1) next
+      mg <- z1(U[, modules[g]]); eps <- z1(stats::rnorm(n_new))
+      kg <- kappa
+      m_std <- if (is.null(mg)) { kg <- 0; rep(0, n_new) } else mg
+      e_std <- if (is.null(eps)) rep(0, n_new) else eps
+      R0 <- sqrt(kg) * m_std + sqrt(1 - kg) * e_std
+      sR0 <- stats::sd(R0)
+      if (is.finite(sR0) && sR0 > 1e-9) R[g, ] <- sqrt(1 - h2_t[g]) * R0 / sR0
+    }
+    R
+  }
+  R <- if (!isTRUE(residual)) {
+    matrix(0, Tg, n_new)
+  } else if (is.null(seed)) {
+    draw_resid()
+  } else {
+    old <- .Random.seed_safe(); set.seed(seed); on.exit(.restore_seed(old))
+    draw_resid()
+  }
+
+  expression <- genetic + R
+  dimnames(expression) <- list(genes$gene_id, ids)
+
+  # variance budget realized on the NEW population (targets/effect tables fixed).
+  v_cis <- apply(cis_part, 1L, stats::var)
+  v_trans <- apply(trans_part, 1L, stats::var)
+  v_cov <- vapply(seq_len(Tg),
+                  function(g) 2 * stats::cov(cis_part[g, ], trans_part[g, ]), 0)
+  gr_cov <- vapply(seq_len(Tg),
+                   function(g) 2 * stats::cov(genetic[g, ], R[g, ]), 0)
+  vE <- apply(expression, 1L, stats::var)
+  h2_real <- ifelse(vE > 1e-12, apply(genetic, 1L, stats::var) / vE, 0)
+  om_real <- ifelse(v_cis + v_trans > 0, v_cis / (v_cis + v_trans), 0)
+
+  new_genes <- genes
+  new_genes$h2_realized <- h2_real
+  new_genes$cis_fraction_realized <- om_real
+
+  structure(
+    list(
+      expression = expression,
+      genetic_expression = genetic,
+      genes = new_genes,
+      cis_eqtl = object$cis_eqtl,
+      factor_eqtl = object$factor_eqtl,
+      loadings = object$loadings,
+      reference = object$reference,          # UNCHANGED fixed-reference constants
+      var_budget = data.frame(
+        gene_id = genes$gene_id, v_cis = v_cis, v_trans = v_trans,
+        cis_trans_cov = v_cov, gr_cov = gr_cov, stringsAsFactors = FALSE),
+      profile = object$profile, seed = seed,
+      n_genes = Tg, n_ind = n_new
+    ),
+    class = "transcriptome_sim")
+}
+
 #' Per-gene parameter vector from a "beta"/scalar/vector spec
 #' @keywords internal
 #' @noRd

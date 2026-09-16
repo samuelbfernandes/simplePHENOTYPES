@@ -298,3 +298,34 @@ test_that("simulate_transcriptome validates its inputs", {
   # v1: geno = NULL (purely non-genetic) is not yet supported
   expect_error(simulate_transcriptome(NULL), "geno")
 })
+
+test_that("predict() applies the fixed-reference architecture to a new population", {
+  txp <- simulate_transcriptome(G, n_genes = 60, seed = 1)      # G has 280 individuals
+  # anchor: reapplying to the reference genotypes with no residual reproduces the
+  # stored genetic expression exactly (the reference constants are fixed)
+  p0 <- predict(txp, G, residual = FALSE)
+  expect_equal(p0$genetic_expression, txp$genetic_expression, tolerance = 1e-12)
+  expect_equal(p0$expression, p0$genetic_expression)             # residual = FALSE
+  # a new population (first 100 individuals): each genotype maps to the SAME
+  # genetic value it has in the reference (fixed-reference comparability)
+  Gnew <- G[, c(1:5, 6:105)]
+  p1 <- predict(txp, Gnew, seed = 7)
+  expect_equal(ncol(p1$expression), 100L)
+  expect_equal(unname(p1$genetic_expression),
+               unname(txp$genetic_expression[, 1:100]), tolerance = 1e-12)
+  # reference constants are untouched; realized h2 is emergent, not re-forced
+  expect_identical(p1$reference, txp$reference)
+  expect_false(isTRUE(all.equal(p1$genes$h2_realized, txp$genes$h2_realized)))
+  # the fresh residual is reproducible under a seed
+  expect_equal(predict(txp, Gnew, seed = 7)$expression,
+               predict(txp, Gnew, seed = 7)$expression)
+})
+
+test_that("predict() requires the architecture's eQTL markers in the new genotypes", {
+  txp <- simulate_transcriptome(G, n_genes = 40, seed = 2)
+  Gnew <- G[, c(1:5, 6:105)]
+  hit <- Gnew$snp %in% c(txp$cis_eqtl$snp, txp$factor_eqtl$snp)
+  Gbad <- Gnew
+  Gbad$snp[hit] <- paste0("x_", which(hit))
+  expect_error(predict(txp, Gbad), "missing eQTL marker")
+})

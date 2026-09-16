@@ -2,6 +2,7 @@
 
 S3method("[",Population)
 S3method(plot,phenotype_sim)
+S3method(predict,transcriptome_sim)
 S3method(print,Population)
 S3method(print,phenotype_sim)
 S3method(print,transcriptome_sim)
