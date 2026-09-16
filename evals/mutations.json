@@ -30,8 +30,8 @@
     "id": "S2-smith-hazel-swap",
     "file": "R/select.R",
     "rubric": "S2",
-    "find": "solve(Pcov, Gcov %*% weights)",
-    "replace": "solve(Gcov, Pcov %*% weights)",
+    "find": ".index_weights(Pcov, Gcov %*% weights)",
+    "replace": ".index_weights(Gcov, Pcov %*% weights)",
     "bug": "Swaps P and G in Smith-Hazel b = P^-1 G a, computing G^-1 P a instead; index weights are wrong.",
     "expect": "BLOCK"
   },
