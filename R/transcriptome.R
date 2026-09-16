@@ -403,10 +403,12 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       epi_prodmean <- numeric(0); sd_e <- 0
       if (h2_g[g] > 0 && epi_g[g] > 0 && length(eligible) >= 2L) {
         npair <- 1L + stats::rbinom(1L, 1L, 0.5)          # 1 or 2 interacting pairs
-        pj <- eligible[sample.int(length(eligible), npair, replace = TRUE)]
-        pk <- eligible[sample.int(length(eligible), npair, replace = TRUE)]
-        keep <- pj != pk                                   # a locus cannot interact with itself
-        pj <- pj[keep]; pk <- pk[keep]
+        # each pair is two DISTINCT eligible markers (>= 2 eligible is guaranteed
+        # by the outer guard), so a requested epistatic gene always gets its pairs.
+        prs <- vapply(seq_len(npair),
+                      function(.) eligible[sample.int(length(eligible), 2L)],
+                      integer(2))
+        pj <- prs[1, ]; pk <- prs[2, ]
         if (length(pj) > 0L) {
           epi_beta <- stats::rnorm(length(pj))
           prod <- Z[, pj, drop = FALSE] * Z[, pk, drop = FALSE]  # ind x npair
@@ -437,13 +439,16 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       have_ct <- is.finite(sG0ct) && sG0ct > 1e-9
 
       # Blend the additive and epistatic scores. `epf` is the realized epistatic
-      # fraction of the genetic variance: 0 with no epistasis (then G0 = the
-      # standardized additive score, exactly as before), and 1 when only the
+      # fraction of the genetic variance: 0 with no epistasis, and 1 when only the
       # epistatic score carries variance.
       epf <- if (have_e) epi_g[g] else 0
       if (!have_ct) epf <- if (have_e) 1 else 0
-      ct_std <- if (have_ct) G0ct / sG0ct else rep(0, n_ind)
-      G0 <- sqrt(1 - epf) * ct_std + sqrt(epf) * epi_std
+      G0 <- if (epf == 0) {
+        G0ct                                            # additive-only: parent path
+      } else {
+        ct_std <- if (have_ct) G0ct / sG0ct else rep(0, n_ind)
+        sqrt(1 - epf) * ct_std + sqrt(epf) * epi_std
+      }
       sGf <- stats::sd(G0)
       Gg <- if (h2_g[g] > 0 && is.finite(sGf) && sGf > 1e-9) {
         sqrt(h2_g[g]) * G0 / sGf
@@ -490,15 +495,23 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       gr_cov[g] <- 2 * stats::cov(Gg, Rg)               # finite-sample G-R cov
 
       # cis/trans/epistatic variance decomposition of the realized genetic
-      # component. Two normalizations: sG0ct standardizes the additive score,
-      # sGf standardizes the additive+epistatic blend. The effective coefficient
-      # on centered dosage Z_j is s_c * beta_j / sd(cg).
-      norm <- sG0ct * sGf
-      okg <- h2_g[g] > 0 && is.finite(norm) && norm > 1e-18 &&
-        is.finite(sGf) && sGf > 1e-9
-      s_c <- if (okg && om > 0) sqrt(h2_g[g] * (1 - epf) * om) / norm else 0
-      s_t <- if (okg && om < 1) sqrt(h2_g[g] * (1 - epf) * (1 - om)) / norm else 0
-      s_e <- if (okg && epf > 0) sqrt(h2_g[g] * epf) / sGf else 0
+      # component. The effective coefficient on centered dosage Z_j is
+      # s_c * beta_j / sd(cg). With epf == 0 this is exactly the additive-only
+      # generator (sGf = sd(G0ct)); with epf > 0 the additive coefficients pick up
+      # the sG0ct * sGf normalization and the epistatic coefficient s_e depends
+      # only on sGf (so an all-epistatic gene, sG0ct = 0, is still represented).
+      okg <- h2_g[g] > 0 && is.finite(sGf) && sGf > 1e-9
+      if (epf == 0) {
+        s_c <- if (okg && om > 0) sqrt(h2_g[g] * om) / sGf else 0
+        s_t <- if (okg && om < 1) sqrt(h2_g[g] * (1 - om)) / sGf else 0
+        s_e <- 0
+      } else {
+        s_c <- if (okg && have_ct && om > 0)
+          sqrt(h2_g[g] * (1 - epf) * om) / (sG0ct * sGf) else 0
+        s_t <- if (okg && have_ct && om < 1)
+          sqrt(h2_g[g] * (1 - epf) * (1 - om)) / (sG0ct * sGf) else 0
+        s_e <- if (okg) sqrt(h2_g[g] * epf) / sGf else 0
+      }
       # budget is on the final (affine-scaled) genetic; s_c/s_t/s_e stay UNIT-scale
       # so the cis_eqtl/trans_scale/epi_eqtl truth tables reconstruct the unit
       # genetic map and predict() applies the stored realized scale (scl_used).

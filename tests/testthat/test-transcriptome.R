@@ -493,3 +493,26 @@ test_that("epistasis = 0 is unchanged and predict() reconstructs epistatic genes
   p0 <- predict(tx, G, residual = FALSE)
   expect_equal(p0$genetic_expression, tx$genetic_expression, tolerance = 1e-10)
 })
+
+test_that("an all-epistatic gene is fully represented in the truth table", {
+  # no additive score (cis_fraction = 0 blocks cis; epistasis = 1) -> the genetic
+  # value is entirely epistatic and must still close the budget and reconstruct.
+  tx <- simulate_transcriptome(G, n_genes = 40, cis_fraction = 0,
+                               epistasis = 1, h2 = 0.6, seed = 2)
+  expect_false(is.null(tx$epi_eqtl))
+  expect_true(all(tx$genes$n_epi[tx$genes$h2_realized > 1e-8] > 0))
+  vg <- apply(tx$genetic_expression, 1L, stats::var)
+  vb <- with(tx$var_budget,
+             v_cis + v_trans + v_epi + cis_trans_cov + cis_epi_cov + trans_epi_cov)
+  expect_equal(vb, unname(vg), tolerance = 1e-9)         # all variance is epistatic
+  expect_equal(predict(tx, G, residual = FALSE)$genetic_expression,
+               tx$genetic_expression, tolerance = 1e-10)
+})
+
+test_that("epistasis produces its pairs even on a tiny two-marker panel", {
+  m <- matrix(c(-1L, -1L, 0L, 0L, 1L, 1L, 1L, 1L, 0L, 0L, -1L, -1L), nrow = 6,
+              dimnames = list(paste0("i", 1:6), c("mA", "mB")))
+  tx <- simulate_transcriptome(m, n_genes = 5, cis_fraction = 1,
+                               epistasis = 0.4, h2 = 0.6, seed = 3)
+  expect_true(all(tx$genes$n_epi > 0))                   # not silently zero
+})
