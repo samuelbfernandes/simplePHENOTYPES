@@ -9,11 +9,13 @@
 > the genetic-mediated part of derived expression now counts toward realized `H²`)
 > are implemented and tested, as are the **genotype-free mode 2**
 > (`simulate_phenotype(expression = ...)` with no `geno`), `qtn_table()` gene rows,
-> and **cross-population reuse** of a fixed architecture
-> (`predict.transcriptome_sim()`). Still designed here but **not yet built**:
-> `mimic` mode (§5), the counts layer (§7), and a genotype-free **generator**
-> (`simulate_transcriptome(geno = NULL)`, a purely non-genetic transcriptome --
-> distinct from the phenotype-side mode 2 above, which is done). Converged
+> **cross-population reuse** of a fixed architecture (`predict.transcriptome_sim()`),
+> **mimic** calibration (§5, `simulate_transcriptome(mimic = ...)`, GREML per-gene
+> heritability), the **count observation layer** (§7, `observe_counts()`), and the
+> genotype-free **generator** (§7c, `simulate_transcriptome(geno = NULL)`, a purely
+> non-genetic transcriptome). The whole feature set of this SPEC is now built; only
+> the explicit non-scope items (directed regulatory networks, tissue specificity,
+> epistatic expression) remain. Converged
 > Claude + Codex design (see `project_transcriptome_simulation_design` memory and
 > `DECISION-022-transcriptome-DRAFT.md`).
 
@@ -69,11 +71,10 @@ eQTL / TWAS / mediation methods.
 
 ## 3. Function reference
 
-> **Implementation status.** This section specifies the full design. **v1
-> implements the parametric generator only** — the signature and behaviour marked
-> *(v1)* below. The arguments marked *(planned)* — `mimic`, `counts`, and
-> `geno = NULL` (purely non-genetic expression) — are designed here but **not yet
-> in the function**; v1 requires `geno` and needs at least 3 individuals.
+> **Implementation status.** This section specifies the full design, all of which
+> is now implemented: the parametric generator, `mimic` calibration (§5),
+> `geno = NULL` (purely non-genetic, with `n_ind`), and the separate
+> `observe_counts()` layer (§7). The generator needs at least 3 individuals.
 
 ### `simulate_transcriptome()`
 ```r
@@ -88,9 +89,12 @@ simulate_transcriptome(
   n_factors      = NULL,          # (v1) Q; default max(1, min(50, max(5, ceil(T/100)), n-2))
   residual_module_fraction = 0.15,# (v1) kappa
   profile        = "generic_bulk",# (v1)
-  seed           = NULL           # (v1)
+  seed           = NULL,          # (v1)
+  mimic          = NULL,          # calibrate to a user expression matrix (§5)
+  n_ind          = NULL           # required only when geno = NULL (§7c)
 ) -> transcriptome_sim
-# planned additions: mimic = NULL (§5), counts = FALSE (§7), geno = NULL (non-genetic)
+# mimic/n_ind are appended after seed so existing positional calls are unchanged.
+# observe_counts(tx, ...) is a separate function (§7)
 ```
 - **Parametric (default, v1):** parameters drawn from `profile`; synthetic gene
   coords when `annotation` is `NULL`; cis defined on **physical bp** (never cM).
@@ -107,9 +111,9 @@ simulate_transcriptome(
   co-express through `kappa`); realized `h2 = Var(G)/Var(E)` tracks the target up to
   a reported finite-sample `Cov(G, R)` (`var_budget$gr_cov`). Needs ≥ 3
   individuals.
-- **`geno = NULL` (planned):** expression with no genetic component — only shared
-  non-genetic modules + noise.
-- **`mimic = E` (planned):** calibrate to `E` (§5), then generate.
+- **`geno = NULL` (implemented, §7c):** expression with no genetic component — only
+  shared non-genetic modules + noise (all `h2 = 0`); `n_ind` sets the sample size.
+- **`mimic = E` (implemented, §5):** calibrate to `E`, then generate.
 
 ### Phenotype bases (extend `simulate_phenotype()`)
 Two new inputs set the expression source; the basis follows from which inputs are
@@ -273,9 +277,15 @@ Seed-threading extends the grammar's `(seed, layer_index, layer_type)` rule to t
   is an observation layer, not a re-parameterization of the genetic model. `phi = 0`
   gives the Poisson limit; the log-mean is checked for overflow.
 
+## 7c. Genotype-free generator (implemented)
+- `simulate_transcriptome(geno = NULL, n_ind = ...)` builds a purely non-genetic
+  transcriptome: co-expression modules + gene noise, every gene `h2 = 0`, no eQTL
+  tables. Individuals come from `n_ind`; `h2`/`cis_fraction`/`mimic` do not apply.
+  Co-expression still persists at `h2 = 0` (within-module correlation exceeds
+  between-module), so this is a genome-free co-expression simulator for testing
+  network/mediation false-positive control.
+
 ## 7b. Still deferred (explicit non-scope, revisit when the core is stable)
-- A genotype-free **generator** `simulate_transcriptome(geno = NULL)` (purely
-  non-genetic expression: co-expression modules + noise, all `h2 = 0`).
 - Directed regulatory networks; tissue specificity; epistatic expression.
 
 ## 8. Testing requirements (mirror SPEC §8)
@@ -302,7 +312,7 @@ Seed-threading extends the grammar's `(seed, layer_index, layer_type)` rule to t
    (transcriptome alone when no `geno`; genome + real transcriptome when both);
    `transcriptome =` (`TRUE` or a `transcriptome_sim`) derives expression from the
    genome (G→E→Y, with simulated mediation). `simulate_transcriptome(geno = NULL)`
-   (purely non-genetic expression) is planned, not in v1. See the §3 mode table.
+   (purely non-genetic expression) is implemented (§7c). See the §3 mode table.
 4. **Mimic heritability estimator** — GREML-style (REML on a GRM, per gene) to
    calibrate the `h2_g` distribution.
 5. **Example data** — ship an example dataset (a synthetic gene annotation, and an

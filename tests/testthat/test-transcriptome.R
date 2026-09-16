@@ -295,8 +295,8 @@ test_that("simulate_transcriptome validates its inputs", {
   expect_error(simulate_transcriptome(G, h2 = 2), "h2")
   expect_error(simulate_transcriptome(G, cis_fraction = -0.1), "cis_fraction")
   expect_error(simulate_transcriptome(G, n_factors = 0), "n_factors")
-  # v1: geno = NULL (purely non-genetic) is not yet supported
-  expect_error(simulate_transcriptome(NULL), "geno")
+  # geno = NULL is a genotype-free transcriptome; it needs an explicit n_ind
+  expect_error(simulate_transcriptome(NULL), "n_ind")
 })
 
 test_that("predict() applies the fixed-reference architecture to a new population", {
@@ -404,4 +404,48 @@ test_that("a user n_factors override keeps kappa consistent with that Q", {
   }))
   expect_equal(m$reference$kappa, simplePHENOTYPES:::.tx_estimate_kappa(Es, 1L))
   expect_equal(m$calibration$kappa, m$reference$kappa)   # calibration reports the pair used
+})
+
+test_that("a genotype-free transcriptome is non-genetic but still co-expresses", {
+  tx <- simulate_transcriptome(geno = NULL, n_genes = 80, n_ind = 100, seed = 1)
+  expect_s3_class(tx, "transcriptome_sim")
+  expect_equal(tx$n_ind, 100L)
+  expect_true(all(tx$genes$h2_target == 0))
+  expect_lt(max(abs(tx$genes$h2_realized)), 1e-8)          # no genetic variance
+  expect_null(tx$cis_eqtl)
+  expect_null(tx$factor_eqtl)
+  expect_identical(unique(tx$genes$coordinate_source), "none")
+  # co-expression persists at h2 = 0: within-module correlation exceeds between
+  cc <- stats::cor(t(tx$expression)); mods <- tx$genes$module
+  wm <- mean(cc[outer(mods, mods, "==") & upper.tri(cc)])
+  bm <- mean(cc[outer(mods, mods, "!=") & upper.tri(cc)])
+  expect_gt(wm, bm)
+  # reproducible under a seed
+  expect_equal(simulate_transcriptome(NULL, n_genes = 80, n_ind = 100, seed = 1)$expression,
+               tx$expression)
+})
+
+test_that("the genotype-free generator validates its inputs", {
+  expect_error(simulate_transcriptome(NULL, n_genes = 10), "n_ind")
+  expect_error(simulate_transcriptome(NULL, n_genes = 10, n_ind = 2),
+               "n_ind")                                    # needs >= 3
+  E <- simulate_transcriptome(NULL, n_genes = 10, n_ind = 50, seed = 1)$expression
+  expect_error(simulate_transcriptome(NULL, n_ind = 50, mimic = E), "needs `geno`")
+})
+
+test_that("the genotype-free generator honors a supplied annotation's genes", {
+  ann <- data.frame(gene_id = c("A", "B"), chr = c(1, 2), tss = c(10, 20),
+                    stringsAsFactors = FALSE)
+  tx <- simulate_transcriptome(NULL, annotation = ann, n_ind = 20, seed = 1)
+  expect_identical(tx$genes$gene_id, c("A", "B"))          # not n_genes defaults
+  expect_equal(tx$n_genes, 2L)
+  expect_identical(unique(tx$genes$coordinate_source), "none")
+})
+
+test_that("appending mimic/n_ind keeps existing positional calls valid", {
+  # positional through seed still binds profile and seed correctly
+  a <- simulate_transcriptome(G, 40, NULL, 1e6, "beta", 0.25, NULL, 0.15,
+                              "generic_bulk", 5)
+  b <- simulate_transcriptome(G, n_genes = 40, seed = 5)
+  expect_identical(a$expression, b$expression)
 })

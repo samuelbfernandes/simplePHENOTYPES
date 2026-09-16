@@ -13,15 +13,19 @@ simulate_transcriptome(
   cis_fraction = 0.25,
   n_factors = NULL,
   residual_module_fraction = 0.15,
-  mimic = NULL,
   profile = "generic_bulk",
-  seed = NULL
+  seed = NULL,
+  mimic = NULL,
+  n_ind = NULL
 )
 }
 \arguments{
 \item{geno}{a \code{Population}, a Population-backed \code{phenotype_sim}, a
 numeric-format genotype data frame, or an individuals-by-markers dosage matrix
-coded -1/0/1. Required in this version.}
+coded -1/0/1. May be \code{NULL} for a \strong{purely non-genetic} transcriptome
+(co-expression modules and gene noise only, every gene \code{h2 = 0}, no eQTL
+tables); then \code{n_ind} sets the number of individuals and \code{h2}/\code{cis_fraction}/
+\code{mimic} do not apply.}
 
 \item{n_genes}{number of genes to simulate (ignored when \code{annotation} is given).}
 
@@ -49,6 +53,11 @@ carried by the shared module factor before normalization. As with \code{h2} and 
 cis fraction, the realized fraction scatters around it in finite samples (the
 scatter is large only at very small \code{n}).}
 
+\item{profile}{a named calibration profile (currently \code{"generic_bulk"}).}
+
+\item{seed}{optional seed (\code{NULL} or one non-negative whole number); the RNG
+state is restored afterwards.}
+
 \item{mimic}{optional \strong{user expression matrix} (genes x individuals, columns
 named/ordered to the genotypes) to calibrate the generator to. When supplied,
 the generator's \emph{targets} are set from it: exact per-gene mean and variance;
@@ -60,10 +69,8 @@ novo -- mimic calibrates the \emph{distribution} of expression, it does not fit
 individual effects. The estimates are returned in \verb{$calibration}. \code{kappa} is
 a documented strength proxy, not an identifiable residual-module estimate.}
 
-\item{profile}{a named calibration profile (currently \code{"generic_bulk"}).}
-
-\item{seed}{optional seed (\code{NULL} or one non-negative whole number); the RNG
-state is restored afterwards.}
+\item{n_ind}{number of individuals, \strong{required only when \code{geno = NULL}}
+(otherwise taken from \code{geno}).}
 }
 \value{
 a \code{transcriptome_sim}: \code{expression} and \code{genetic_expression}

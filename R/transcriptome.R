@@ -43,7 +43,12 @@
 #'
 #' @param geno a `Population`, a Population-backed `phenotype_sim`, a
 #'   numeric-format genotype data frame, or an individuals-by-markers dosage matrix
-#'   coded -1/0/1. Required in this version.
+#'   coded -1/0/1. May be `NULL` for a **purely non-genetic** transcriptome
+#'   (co-expression modules and gene noise only, every gene `h2 = 0`, no eQTL
+#'   tables); then `n_ind` sets the number of individuals and `h2`/`cis_fraction`/
+#'   `mimic` do not apply.
+#' @param n_ind number of individuals, **required only when `geno = NULL`**
+#'   (otherwise taken from `geno`).
 #' @param n_genes number of genes to simulate (ignored when `annotation` is given).
 #' @param annotation optional gene annotation, a data frame with columns
 #'   `gene_id`, `chr`, `tss` (transcription start site, in the same physical units
@@ -117,8 +122,8 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
                                     h2 = "beta", cis_fraction = 0.25,
                                     n_factors = NULL,
                                     residual_module_fraction = 0.15,
-                                    mimic = NULL,
-                                    profile = "generic_bulk", seed = NULL) {
+                                    profile = "generic_bulk", seed = NULL,
+                                    mimic = NULL, n_ind = NULL) {
   if (!identical(profile, "generic_bulk")) {
     stop("simulate_transcriptome(): unknown `profile` '", profile,
          "'. The only profile in this version is \"generic_bulk\".",
@@ -139,11 +144,24 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
 
   # --- genotype reference (markers, positions, allele frequencies) --------------
   if (is.null(geno)) {
-    stop("simulate_transcriptome(): `geno` is required in this version (a purely ",
-         "non-genetic transcriptome is not yet supported); supply a Population, a ",
-         "Population-backed phenotype_sim, a numeric-format genotype data frame, ",
-         "or an individuals-by-markers -1/0/1 matrix.", call. = FALSE)
-  }
+    # Genotype-free: a purely NON-GENETIC transcriptome (co-expression modules +
+    # gene noise, every gene h2 = 0). Individuals come from `n_ind`.
+    if (!is.null(mimic)) {
+      stop("simulate_transcriptome(): `mimic` needs `geno` (it calibrates a per-",
+           "gene heritability on the genomic relationship matrix). Omit `mimic` ",
+           "for a genotype-free transcriptome.", call. = FALSE)
+    }
+    n_ind <- .validate_count(n_ind, "n_ind", minimum = 3L)
+    has_geno <- FALSE
+    ids <- paste0("ind_", seq_len(n_ind))
+    map <- data.frame(snp = character(0), chr = character(0), pos = integer(0),
+                      stringsAsFactors = FALSE)
+    maf <- numeric(0)
+    sim <- NULL
+    dose <- NULL; marker_mean <- numeric(0); Z <- NULL
+    mim <- NULL
+    h2 <- 0                                           # force non-genetic
+  } else {
   if (inherits(geno, "phenotype_sim")) {
     if (!inherits(geno$geno, "Population")) {
       stop("simulate_transcriptome(): this phenotype_sim is not built on a ",
@@ -186,9 +204,29 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
     if (is.null(n_factors)) n_factors <- mim$Q  # factor count (unless user-fixed)
     # kappa is recomputed below against the FINAL Q (respecting a user override).
   }
+  }
 
   # gene count + coordinate source (deterministic; coords drawn under seed) ------
-  if (is.null(annotation)) {
+  if (!has_geno) {
+    # non-genetic: coordinates are irrelevant (no cis window). Honor a supplied
+    # annotation's gene ids/count; otherwise use trivial synthetic gene ids.
+    if (!is.null(annotation)) {
+      coords0 <- .tx_check_annotation(annotation)
+      coords0$chr <- NA_character_; coords0$tss <- NA_real_   # no genome to be cis to
+      T_genes <- nrow(coords0)
+    } else {
+      if (!is.numeric(n_genes) || length(n_genes) != 1L || !is.finite(n_genes) ||
+          n_genes < 1 || n_genes != floor(n_genes)) {
+        stop("simulate_transcriptome(): `n_genes` must be a single positive whole ",
+             "number.", call. = FALSE)
+      }
+      T_genes <- as.integer(n_genes)
+      coords0 <- data.frame(gene_id = paste0("gene", seq_len(T_genes)),
+                            chr = NA_character_, tss = NA_real_,
+                            stringsAsFactors = FALSE)
+    }
+    coordinate_source <- "none"
+  } else if (is.null(annotation)) {
     if (anyNA(map$chr) || anyNA(map$pos)) {
       stop("simulate_transcriptome(): synthetic gene coordinates need marker ",
            "chromosome and physical positions; supply an `annotation` or ",
