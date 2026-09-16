@@ -66,6 +66,7 @@
 additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
                      phase = c("coupling", "repulsion"), dist = "geometric") {
   .check_sim(sim)
+  .require_markers(sim, "additive")
   phase <- match.arg(phase)
   prop <- .resolve_prop(sim, prop, "additive")
   user_qtn <- .resolve_qtn_arg(sim, qtn, "additive")
@@ -146,6 +147,7 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
 dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
                       qtn = NULL, dist = "geometric") {
   .check_sim(sim)
+  .require_markers(sim, "dominance")
   .validate_flag(same_as_add, "same_as_add")
   prop <- .resolve_prop(sim, prop, "dominance")
   occ <- .type_occurrence(sim, "dominance")
@@ -255,6 +257,7 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
                       interaction_type = "a", qtn = NULL, effect = NULL,
                       dist = "geometric") {
   .check_sim(sim)
+  .require_markers(sim, "epistasis")
   interaction <- .validate_count(interaction, "interaction", minimum = 2L)
   prop <- .resolve_prop(sim, prop, "epistasis")
   user_pairs <- .resolve_epi_qtn(sim, qtn, interaction)
@@ -331,6 +334,7 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
 vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
                  qtn = NULL, dist = "geometric") {
   .check_sim(sim)
+  .require_markers(sim, "vqtl")
   .validate_flag(same_as_add, "same_as_add")
   .cite_vqtl()
   prop <- .resolve_prop(sim, prop, "vqtl")
@@ -717,4 +721,19 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
     signs <- rep(c(1, -1), length.out = length(e))
     e * signs
   })
+}
+
+#' Error if a marker-based layer is added to a genotype-free phenotype
+#'
+#' A phenotype built from expression alone (`simulate_phenotype(expression = ...)`
+#' with no `geno`) has no markers, so additive/dominance/epistasis/vqtl layers
+#' cannot be scored. Only `transcriptome()` layers are valid there.
+#' @keywords internal
+#' @noRd
+.require_markers <- function(sim, fn) {
+  if (is.null(sim$n_markers) || sim$n_markers < 1L) {
+    stop(fn, "() needs genotypes, but this phenotype was built from expression ",
+         "alone (no `geno`). Use transcriptome() layers, or rebuild with `geno`.",
+         call. = FALSE)
+  }
 }

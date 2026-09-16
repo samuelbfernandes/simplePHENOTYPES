@@ -5,7 +5,7 @@
 \title{Start a phenotype simulation (v2 grammar foundation)}
 \usage{
 simulate_phenotype(
-  geno,
+  geno = NULL,
   architecture = c("independent", "pleiotropy", "ld"),
   n_traits = 1,
   n_qtn = 0,
@@ -26,7 +26,12 @@ simulate_phenotype(
 (first five columns \code{c("snp", "allele", "chr", "pos", "cm")}, e.g.
 \link{SNP55K_maize282_maf04}), an individuals-by-markers numeric matrix coded
 -1/0/1, or a \link[=as_population]{Population} from \code{\link[=cross]{cross()}}, \code{\link[=selfcross]{selfcross()}} or
-\code{\link[=double_haploid]{double_haploid()}}.}
+\code{\link[=double_haploid]{double_haploid()}}. \strong{Optional} when an expression basis is given: with
+\code{geno = NULL} and an \code{expression} matrix (or a \code{transcriptome_sim} in
+\code{transcriptome}), the phenotype is built from expression alone -- individuals
+come from the expression source's columns, there are no markers, and only
+\code{transcriptome()} layers are valid (\code{h2}, \code{n_qtn}, and the marker layers all
+need \code{geno}).}
 
 \item{architecture}{one of "independent" (each trait its own QTNs),
 "pleiotropy" (shared QTNs with a controlled genetic correlation), or "ld"

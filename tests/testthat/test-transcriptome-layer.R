@@ -52,6 +52,40 @@ test_that("a purely non-genetic (h2 = 0) derived transcriptome does not inflate 
   expect_equal(ms0$env_mediated, 0.5, tolerance = 0.06)
 })
 
+test_that("genotype-free mode: a phenotype from a real expression matrix alone", {
+  ph <- simulate_phenotype(expression = tx$expression, seed = 3) |>
+    transcriptome(prop = 0.5, n_genes = 20)
+  expect_s3_class(ph, "phenotype_sim")
+  expect_identical(ph$n_markers, 0L)
+  expect_identical(ph$expression_source, "real")
+  expect_equal(ncol(ph$expression), ph$n_ind)
+  # a real source asserts no genetics: H2 = 0, no mediation split
+  expect_lt(stats::var(genetic_values(ph)[, 1]) / stats::var(ph$pheno$value), 1e-6)
+  expect_null(mediation_split(ph))
+  expect_equal(stats::var(tx_comp(ph)) / stats::var(ph$pheno$value), 0.5,
+               tolerance = 0.06)
+})
+
+test_that("genotype-free mode: a derived transcriptome contributes heritability", {
+  ph <- simulate_phenotype(transcriptome = tx, seed = 4) |>
+    transcriptome(prop = 0.5, n_genes = 20)
+  expect_identical(ph$n_markers, 0L)
+  expect_identical(ph$expression_source, "derived")
+  expect_gt(stats::var(genetic_values(ph)[, 1]) / stats::var(ph$pheno$value), 0)
+  expect_equal(nrow(mediation_split(ph)), 1L)      # genetic/env split reported
+})
+
+test_that("genotype-free mode rejects marker-based layers and arguments", {
+  expect_error(
+    simulate_phenotype(expression = tx$expression) |>
+      additive(prop = 0.3, n_qtn = 5),
+    "needs genotypes")
+  expect_error(simulate_phenotype(expression = tx$expression, h2 = 0.5),
+               "marker-based")
+  expect_error(simulate_phenotype(transcriptome = TRUE), "derives expression from")
+  expect_error(simulate_phenotype(), "basis")
+})
+
 test_that("qtn_table() reports a transcriptome layer as gene rows", {
   gid <- rownames(tx$expression)[c(3, 7, 11)]
   ph <- simulate_phenotype(G, h2 = 0.5, seed = 5, transcriptome = tx) |>
