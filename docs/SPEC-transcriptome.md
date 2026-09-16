@@ -3,11 +3,12 @@
 > **DRAFT for review.** Companion to `SPEC.md`; extends the v2 grammar with (a) a
 > generator of genetically controlled gene expression, and (b) phenotype
 > simulation from a transcriptome. **Implementation status:** the parametric
-> generator `simulate_transcriptome()` (§3) and the `transcriptome()` phenotype
-> layer for the genome-present modes (see the "v1 layer status" note in §3) are
-> implemented and tested; the genotype-free mode-2, the derived mediation split /
-> covariance reporting, `mimic` mode (§5), and the counts layer (§7) are designed
-> here but **not yet built**. Converged
+> generator `simulate_transcriptome()` (§3), the `transcriptome()` phenotype
+> layer for the genome-present modes (see the "v1 layer status" note in §3), and
+> the **derived mediation split with covariance reporting** (`mediation_split()`;
+> the genetic-mediated part of derived expression now counts toward realized `H²`)
+> are implemented and tested; the genotype-free mode-2, `mimic` mode (§5), and the
+> counts layer (§7) are designed here but **not yet built**. Converged
 > Claude + Codex design (see `project_transcriptome_simulation_design` memory and
 > `DECISION-022-transcriptome-DRAFT.md`).
 
@@ -145,18 +146,25 @@ simulate_phenotype(geno, expression = E) |>
 > attached expression source (`expression=` real, or `transcriptome=` derived) as
 > a sparse linear function of z-scored expression, scaled to `prop`, on a
 > genome-present `simulate_phenotype()` (modes with `geno`). It is reported as a
-> **distinct expression-mediated variance category, not folded into the marker-based (broad-sense)
-> heritability** (which stays marker-based). **Planned follow-ups:** the derived
-> case's genetic-mediated/env-mediated split and **all cross-component covariance
-> reporting** (marker-layer to expression component, and mediated/direct);
-> `qtn_table()` gene rows; cross-population fixed-reference standardization; and the
-> genotype-free `simulate_phenotype(expression=)` mode 2 (no `geno`). The equations
-> below specify the full design. v1 reports **marginal** variance shares per layer;
-> when a transcriptome predictor is strongly (anti-)correlated with a marker layer
-> (e.g. an expression gene equal to a causal marker's dosage -- a pathological
-> input), their finite-sample covariance is not in the marginal budget and the
-> reported realized H² can fall outside `[0,1]`, pending the covariance-reporting
-> follow-up.
+> **distinct expression-mediated variance category, scaled by `prop` outside the
+> marker `h2` budget**. **Mediation split (implemented):** for a *derived*
+> transcriptome the component now decomposes into a genetic-mediated part `Tx_g`
+> (traced to the genome through expression, using the identity
+> `z_total = z_genetic + z_env` from `E = G + R` standardized by the same `sd(E)`)
+> and an env-mediated part `Tx_e = Tx - Tx_g`. `Tx_g` **is** genetic and enters
+> `genetic_values()` and realized `H²`; `mediation_split()` reports the realized
+> genetic / env / covariance (`2·Cov(Tx_g,Tx_e)/V_P`) shares, which sum to the
+> realized expression-mediated share (machine-precision closure, Codex-verified).
+> A *real* `expression=` source asserts no genetic content, so `Tx_g = 0` and the
+> whole component stays out of `H²`. **Remaining follow-ups:** `qtn_table()` gene
+> rows; cross-population fixed-reference standardization; and the genotype-free
+> `simulate_phenotype(expression=)` mode 2 (no `geno`). v1 reports **marginal**
+> variance shares per layer; when a transcriptome predictor is strongly
+> (anti-)correlated with a marker layer (e.g. an expression gene equal to a causal
+> marker's dosage -- a pathological input), their finite-sample marker-to-`Tx_g`
+> covariance is included in the realized `H²` numerator (`Var(Zδ + Tx_g)`) but not
+> attributed to any single marginal budget row, so a reported realized `H²` can
+> still fall slightly outside `[0,1]` under such pathological inputs.
 
 > **Orientation convention.** In every phenotype equation below, `E`, `R`, and `Z`
 > are written in the standard **individuals × features** design-matrix orientation,
