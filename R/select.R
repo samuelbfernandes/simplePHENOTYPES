@@ -26,7 +26,7 @@
 #'   \item{`"bv"`}{the true *breeding* value -- the classical transmissible merit,
 #'     \eqn{A_i = \sum_j \alpha_j (x_{ij} - 2p_j)}, summing each causal locus's
 #'     average effect of substitution \eqn{\alpha_j = a_j + d_j(q_j - p_j)}
-#'     ([.breeding_value_matrix()]). The per-locus effects are reconstructed from
+#'     (`.breeding_value_matrix()`). The per-locus effects are reconstructed from
 #'     the simulation's own additive/dominance QTN effects (it is a simulation, so
 #'     they are known exactly), making this the genetic value transmitted to
 #'     random-mated progeny -- robust to both linkage disequilibrium (exact for an
@@ -37,7 +37,7 @@
 #'     when the model has an epistasis layer or `architecture = "complex"`: an
 #'     epistatic term has no per-locus \eqn{a}/\eqn{d}, so its induced additive
 #'     average effects cannot be reconstructed and the breeding value would be
-#'     incomplete (see [.breeding_value_matrix()]); both cases error rather than
+#'     incomplete (see `.breeding_value_matrix()`); both cases error rather than
 #'     return a partial value. Supply your own predicted values via a
 #'     numeric/function criterion there.}
 #'   \item{a numeric vector}{one score per individual (named by id or in
@@ -342,12 +342,12 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
 #' The published QGSI is a *genomic* index: it scores on estimated breeding
 #' values (GEBVs), not phenotypes. This package does not fit a genomic-prediction
 #' model, so the merit input here is the simulation's *true* breeding value -- the
-#' classical transmissible average-effect breeding value ([.breeding_value_matrix()]):
+#' classical transmissible average-effect breeding value (`.breeding_value_matrix()`):
 #' \eqn{A_i = \sum_j \alpha_j (x_{ij} - 2p_j)} with per-locus average effects
 #' \eqn{\alpha_j = a_j + d_j(q_j - p_j)}. It captures the additive average effects
 #' that dominance loci induce (a dominance locus has \eqn{\alpha \ne 0} at
 #' \eqn{p \ne 0.5}), and reduces to the additive value for a purely additive model;
-#' models with an epistasis layer are refused (see [.breeding_value_matrix()]).
+#' models with an epistasis layer are refused (see `.breeding_value_matrix()`).
 #' With `W = 0` the score reduces to the linear genomic index \eqn{w'\hat\gamma}.
 #'
 #' This is therefore a simulation of the QGSI's *behaviour* on known-truth merit,

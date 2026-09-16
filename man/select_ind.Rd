@@ -90,7 +90,7 @@ non-additive part is not transmitted to progeny.}
 \item{\code{"bv"}}{the true \emph{breeding} value -- the classical transmissible merit,
 \eqn{A_i = \sum_j \alpha_j (x_{ij} - 2p_j)}, summing each causal locus's
 average effect of substitution \eqn{\alpha_j = a_j + d_j(q_j - p_j)}
-(\code{\link[=.breeding_value_matrix]{.breeding_value_matrix()}}). The per-locus effects are reconstructed from
+(\code{.breeding_value_matrix()}). The per-locus effects are reconstructed from
 the simulation's own additive/dominance QTN effects (it is a simulation, so
 they are known exactly), making this the genetic value transmitted to
 random-mated progeny -- robust to both linkage disequilibrium (exact for an
@@ -101,7 +101,7 @@ that governs response to selection in the next generation. Not available
 when the model has an epistasis layer or \code{architecture = "complex"}: an
 epistatic term has no per-locus \eqn{a}/\eqn{d}, so its induced additive
 average effects cannot be reconstructed and the breeding value would be
-incomplete (see \code{\link[=.breeding_value_matrix]{.breeding_value_matrix()}}); both cases error rather than
+incomplete (see \code{.breeding_value_matrix()}); both cases error rather than
 return a partial value. Supply your own predicted values via a
 numeric/function criterion there.}
 \item{a numeric vector}{one score per individual (named by id or in
