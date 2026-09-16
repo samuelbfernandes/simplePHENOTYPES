@@ -10,8 +10,10 @@
 > are implemented and tested, as are the **genotype-free mode 2**
 > (`simulate_phenotype(expression = ...)` with no `geno`), `qtn_table()` gene rows,
 > and **cross-population reuse** of a fixed architecture
-> (`predict.transcriptome_sim()`); only `mimic` mode (§5) and the counts layer
-> (§7) are designed here but **not yet built**. Converged
+> (`predict.transcriptome_sim()`). Still designed here but **not yet built**:
+> `mimic` mode (§5), the counts layer (§7), and a genotype-free **generator**
+> (`simulate_transcriptome(geno = NULL)`, a purely non-genetic transcriptome --
+> distinct from the phenotype-side mode 2 above, which is done). Converged
 > Claude + Codex design (see `project_transcriptome_simulation_design` memory and
 > `DECISION-022-transcriptome-DRAFT.md`).
 
@@ -147,8 +149,11 @@ simulate_phenotype(geno, expression = E) |>
 ### The `transcriptome()` layer
 > **v1 layer status (implemented):** the `transcriptome()` layer scores an
 > attached expression source (`expression=` real, or `transcriptome=` derived) as
-> a sparse linear function of z-scored expression, scaled to `prop`, on a
-> genome-present `simulate_phenotype()` (modes with `geno`). It is reported as a
+> a sparse linear function of z-scored expression, scaled to `prop`. It works both
+> with a genome (`simulate_phenotype(geno, ...)`) and **without one** -- the
+> genotype-free mode 2, `simulate_phenotype(expression = ...)` with no `geno`,
+> where individuals come from the expression columns and only `transcriptome()`
+> layers are valid. It is reported as a
 > **distinct expression-mediated variance category, scaled by `prop` outside the
 > marker `h2` budget**. **Mediation split (implemented):** for a *derived*
 > transcriptome the component now decomposes into a genetic-mediated part `Tx_g`
@@ -162,7 +167,8 @@ simulate_phenotype(geno, expression = E) |>
 > whole component stays out of `H²`. `qtn_table()` gene rows, the genotype-free
 > `simulate_phenotype(expression=)` mode 2, and cross-population reuse
 > (`predict.transcriptome_sim()`) are **implemented**; **remaining follow-ups** are
-> `mimic` calibration and the counts layer. v1 reports **marginal**
+> `mimic` calibration, the counts layer, and the genotype-free *generator*
+> `simulate_transcriptome(geno = NULL)` (§3). v1 reports **marginal**
 > variance shares per layer; when a transcriptome predictor is strongly
 > (anti-)correlated with a marker layer (e.g. an expression gene equal to a causal
 > marker's dosage -- a pathological input), their finite-sample marker-to-`Tx_g`
