@@ -270,6 +270,85 @@ test_that("additive_value scores on a fixed cross-generational scale", {
                "marker indices")
 })
 
+test_that("genotypic_value = additive + dominance-at-heterozygotes, fixed scale", {
+  f2  <- .f2(40)
+  qtn <- c(1L, 5L, 9L)
+  a   <- c(0.5, -1, 2)
+  d   <- c(0.3, 1, -0.4)
+  gv  <- genotypic_value(f2, qtn = qtn, a = a, d = d)
+  expect_length(gv, n_individuals(f2))
+  expect_named(gv, f2$ids)
+  # exactly sum_j [ a_j * dosage_ij + d_j * (dosage_ij == 0) ]
+  z <- dosages(f2)[qtn, , drop = FALSE]
+  expect_equal(unname(gv), unname(colSums(z * a + (z == 0) * d)),
+               tolerance = 1e-12)
+  # per-locus term is -a / +d / +a for gene content 0 / 1 / 2 (dosage -1/0/1)
+  one <- rbind(m = c(-1, 0, 1)); colnames(one) <- c("aa", "Aa", "AA")
+  expect_equal(unname(genotypic_value(one, qtn = 1L, a = 2, d = 0.5)),
+               c(-2, 0.5, 2), tolerance = 1e-12)
+  # d = 0 reduces exactly to additive_value()
+  expect_equal(genotypic_value(f2, qtn, a = a, d = c(0, 0, 0)),
+               additive_value(f2, qtn, effect = a), tolerance = 1e-12)
+  # fixed scale: scoring a subset does not change the values
+  sub <- f2[1:10]
+  expect_equal(genotypic_value(sub, qtn, a, d), gv[sub$ids], tolerance = 1e-12)
+  # loci by name resolve identically
+  expect_equal(genotypic_value(f2, qtn = f2$map$snp[qtn], a = a, d = d), gv,
+               tolerance = 1e-12)
+  # validation: a and d each need one finite value per locus
+  expect_error(genotypic_value(f2, qtn, a = c(1, 2), d = d),
+               "one value per locus")
+  expect_error(genotypic_value(f2, qtn, a = a, d = c(1, 2)),
+               "one value per locus")
+  expect_error(genotypic_value(f2, qtn, a = a, d = c(1, 2, NA)),
+               "one value per locus")
+  expect_error(genotypic_value(f2, qtn = c(1, 999999L), a = c(1, 2), d = c(0, 0)),
+               "marker indices")
+  # dosages at the scored loci must be coded -1/0/1 (a 2 or Inf must not slip
+  # through and silently corrupt the score)
+  bad2 <- rbind(m = c(-1, 0, 2)); colnames(bad2) <- c("i1", "i2", "i3")
+  expect_error(genotypic_value(bad2, qtn = 1L, a = 1, d = 0.5), "coded -1/0/1")
+  badI <- rbind(m = c(-1, 0, Inf)); colnames(badI) <- c("i1", "i2", "i3")
+  expect_error(genotypic_value(badI, qtn = 1L, a = 1, d = 0.5), "coded -1/0/1")
+  # an empty qtn is rejected, not silently scored as all-zero
+  expect_error(genotypic_value(one, qtn = character(0), a = numeric(0),
+                               d = numeric(0)), "at least one locus")
+})
+
+test_that("genotypic_value on a subset phenotype_sim scores only its individuals", {
+  # a subset sim (simulate_phenotype(individuals = )) must score its own
+  # individuals, not the whole backing population.
+  pop <- as_population(SNP55K_maize282_maf04, individuals = 1:20)
+  sim <- suppressMessages(
+    simulate_phenotype(pop, individuals = 1:8, h2 = 0.5, seed = 1) |>
+      additive(n_qtn = 5))
+  qtn <- c(1L, 5L, 9L); a <- c(0.5, -1, 2); d <- c(0.2, 0.3, -0.1)
+  gv  <- genotypic_value(sim, qtn = qtn, a = a, d = d)
+  expect_length(gv, 8L)                       # the sim's 8, not all 20
+  expect_identical(names(gv), sim$ids)
+  # identical to scoring the matching population subset directly
+  expect_equal(gv, genotypic_value(pop[1:8], qtn, a, d), tolerance = 1e-12)
+})
+
+test_that("genotypic_value tracks an orthogonal additive layer's genotypic value", {
+  # additive(orthogonal = TRUE, a =, d =) builds the same -a/+d/+a per-locus value,
+  # then centres/scales it to `prop`. That is an affine transform, so the realized
+  # genetic value and the fixed-scale genotypic_value() are perfectly correlated.
+  f2   <- .f2(60)
+  # the orthogonal layer needs loci that actually segregate (carry heterozygotes)
+  # so its dominance deviation can be realized; pick three such loci.
+  het  <- rowSums(dosages(f2) == 0)
+  qtn  <- f2$map$snp[utils::head(which(het > 0), 3L)]
+  a    <- c(1.5, -0.8, 0.6)
+  d    <- c(0.5, 0.9, -0.3)
+  og   <- simulate_phenotype(f2, h2 = 0.6, seed = 3) |>
+    additive(qtn = qtn, orthogonal = TRUE, a = a, d = d)
+  realized <- genetic_values(og)[, 1]                 # named by individual id
+  fixed    <- genotypic_value(f2, qtn = qtn, a = a, d = d)
+  expect_equal(unname(stats::cor(realized, fixed[names(realized)])), 1,
+               tolerance = 1e-6)
+})
+
 test_that("phenotype_value = fixed genetic value + residual on a fixed variance", {
   f2  <- .f2(60)
   qtn <- c(1L, 5L, 9L)

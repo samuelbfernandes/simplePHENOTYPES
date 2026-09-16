@@ -192,6 +192,81 @@ dosages <- function(x) {
   g
 }
 
+#' Resolve `x` to a -1/0/1 dosage matrix and `qtn` to row indices
+#'
+#' Shared by [additive_value()] and [genotypic_value()] so the input handling and
+#' validation live in one place. `.fn` names the caller for error messages.
+#' @return a list with `dose` (the marker x individual dosage matrix) and `idx`
+#'   (integer row indices of `qtn`).
+#' @keywords internal
+#' @noRd
+.resolve_geno_qtn <- function(x, qtn, .fn) {
+  dose <- if (inherits(x, "Population")) {
+    dosages(x)
+  } else if (inherits(x, "phenotype_sim")) {
+    if (!inherits(x$geno, "Population")) {
+      stop(.fn, "(): this phenotype_sim is not built on a Population; pass a ",
+           "Population or a marker x individual dosage matrix.", call. = FALSE)
+    }
+    # Score the individuals the sim actually holds, not the full backing
+    # population: a subset sim (simulate_phenotype(individuals = )) keeps only
+    # `ind_idx` of the genotype's columns, with ids `x$ids = full_ids[ind_idx]`.
+    dg <- dosages(x$geno)
+    if (is.null(x$ind_idx)) dg else dg[, x$ind_idx, drop = FALSE]
+  } else if (is.matrix(x)) {
+    if (is.null(colnames(x))) {
+      stop(.fn, "(): a dosage matrix needs individual ids as column names.",
+           call. = FALSE)
+    }
+    x
+  } else {
+    stop(.fn, "(): `x` must be a Population, a Population-backed phenotype_sim, ",
+         "or a marker x individual dosage matrix.", call. = FALSE)
+  }
+  if (!is.numeric(dose)) {
+    stop(.fn, "(): the genotypes must be numeric dosages coded -1/0/1.",
+         call. = FALSE)
+  }
+  if (length(qtn) == 0L) {
+    stop(.fn, "(): `qtn` must name at least one locus.", call. = FALSE)
+  }
+  n_marker <- nrow(dose)
+  idx <- if (is.character(qtn)) {
+    if (is.null(rownames(dose))) {
+      stop(.fn, "(): `qtn` is given by name but the genotypes have no marker ",
+           "(row) names to match against.", call. = FALSE)
+    }
+    m <- match(qtn, rownames(dose))
+    if (anyNA(m)) {
+      stop(.fn, "(): marker(s) not found in the genotypes: ",
+           paste(utils::head(qtn[is.na(m)], 5), collapse = ", "),
+           if (sum(is.na(m)) > 5) ", ..." else "", ".", call. = FALSE)
+    }
+    m
+  } else if (is.numeric(qtn)) {
+    if (any(!is.finite(qtn)) || any(qtn != floor(qtn)) ||
+        any(qtn < 1L | qtn > n_marker)) {
+      stop(.fn, "(): numeric `qtn` must be whole-number marker indices in 1..",
+           n_marker, ".", call. = FALSE)
+    }
+    as.integer(qtn)
+  } else {
+    stop(.fn, "(): `qtn` must be marker names or integer marker indices.",
+         call. = FALSE)
+  }
+  # Validate the dosages that actually enter the score (the causal rows): they
+  # must be coded -1/0/1. This catches missing (NA), non-finite (Inf), and
+  # out-of-range values that would otherwise silently corrupt the result.
+  # Restricting to `idx` also avoids scanning the whole genome-wide matrix.
+  used <- dose[idx, , drop = FALSE]
+  if (!all(used %in% c(-1L, 0L, 1L))) {
+    stop(.fn, "(): genotypes at the requested loci must be dosages coded -1/0/1 ",
+         "(found missing, non-finite, or out-of-range values -- impute or ",
+         "recode first).", call. = FALSE)
+  }
+  list(dose = dose, idx = idx)
+}
+
 #' Additive genetic value on a fixed, cross-generational scale
 #'
 #' Scores each individual by \eqn{\sum_j \mathrm{dosage}_{ij}\,\mathrm{effect}_j}
@@ -225,54 +300,9 @@ dosages <- function(x) {
 #' av  <- additive_value(pop, qtn = c(1, 5, 9), effect = c(0.5, -1, 2))
 #' head(av)
 additive_value <- function(x, qtn, effect) {
-  d <- if (inherits(x, "Population")) {
-    dosages(x)
-  } else if (inherits(x, "phenotype_sim")) {
-    if (!inherits(x$geno, "Population")) {
-      stop("additive_value(): this phenotype_sim is not built on a Population; ",
-           "pass a Population or a marker x individual dosage matrix.",
-           call. = FALSE)
-    }
-    dosages(x$geno)
-  } else if (is.matrix(x)) {
-    if (is.null(colnames(x))) {
-      stop("additive_value(): a dosage matrix needs individual ids as column ",
-           "names.", call. = FALSE)
-    }
-    x
-  } else {
-    stop("additive_value(): `x` must be a Population, a Population-backed ",
-         "phenotype_sim, or a marker x individual dosage matrix.", call. = FALSE)
-  }
-  if (anyNA(d)) {
-    stop("additive_value(): the genotypes contain missing values; impute or ",
-         "remove them first (a missing dosage makes the additive value NA).",
-         call. = FALSE)
-  }
-  n_marker <- nrow(d)
-  idx <- if (is.character(qtn)) {
-    if (is.null(rownames(d))) {
-      stop("additive_value(): `qtn` is given by name but the genotypes have no ",
-           "marker (row) names to match against.", call. = FALSE)
-    }
-    m <- match(qtn, rownames(d))
-    if (anyNA(m)) {
-      stop("additive_value(): marker(s) not found in the genotypes: ",
-           paste(utils::head(qtn[is.na(m)], 5), collapse = ", "),
-           if (sum(is.na(m)) > 5) ", ..." else "", ".", call. = FALSE)
-    }
-    m
-  } else if (is.numeric(qtn)) {
-    if (!length(qtn) || any(!is.finite(qtn)) || any(qtn != floor(qtn)) ||
-        any(qtn < 1L | qtn > n_marker)) {
-      stop("additive_value(): numeric `qtn` must be whole-number marker indices ",
-           "in 1..", n_marker, ".", call. = FALSE)
-    }
-    as.integer(qtn)
-  } else {
-    stop("additive_value(): `qtn` must be marker names or integer marker indices.",
-         call. = FALSE)
-  }
+  r <- .resolve_geno_qtn(x, qtn, "additive_value")
+  dose <- r$dose
+  idx <- r$idx
   if (!is.numeric(effect) || length(effect) != length(idx) ||
       any(!is.finite(effect))) {
     stop("additive_value(): `effect` must be a finite numeric vector with one ",
@@ -280,8 +310,83 @@ additive_value <- function(x, qtn, effect) {
   }
   # Fixed-scale additive value: sum_j dosage_ij * effect_j, no per-population
   # centring/rescaling (that is what makes it comparable across generations).
-  av <- colSums(d[idx, , drop = FALSE] * effect)
-  stats::setNames(as.numeric(av), colnames(d))
+  av <- colSums(dose[idx, , drop = FALSE] * effect)
+  stats::setNames(as.numeric(av), colnames(dose))
+}
+
+#' Total genotypic value on a fixed, cross-generational scale
+#'
+#' The additive-plus-dominance counterpart of [additive_value()]. Scores each
+#' individual by its **total genotypic value**
+#' \deqn{G_i = \sum_j \left[ a_j\,\mathrm{dosage}_{ij}
+#'   + d_j\,\mathbf{1}(\mathrm{dosage}_{ij} = 0) \right]}
+#' over a **given, frozen architecture**: a per-locus additive effect `a` and
+#' dominance deviation `d`, on the -1/0/1 dosage scale (so the heterozygote is
+#' dosage 0), with **no per-population centring or rescaling**. The per-locus term
+#' is `-a / +d / +a` for gene content 0 / 1 / 2 -- exactly the raw genotypic value
+#' an `additive(orthogonal = TRUE, a =, d =)` layer and a `dominance()` layer
+#' build -- but held fixed so it is comparable across generations, like
+#' [additive_value()].
+#'
+#' This scores each individual's own **per se** total genotypic value
+#' \eqn{G = A + D}. It is **not** a parental combining ability: a per se genotypic
+#' value is not a parent's testcross merit -- at a pure-dominance locus (`a = 0`,
+#' `d > 0`) a heterozygous `Aa` parent scores above a homozygous `AA` parent, yet
+#' crossed to an `aa` tester it is the `AA` parent whose progeny mean is higher, so
+#' per se scores can reverse testcross ranking. A reciprocal-recurrent or hybrid
+#' program therefore uses this by scoring the **realized testcross / hybrid
+#' progeny** (score the progeny population and dominance drives its mean), not the
+#' parents per se.
+#'
+#' It is also **not** the transmissible breeding value. For selection on breeding
+#' value use [select_ind()] with `on = "bv"`, which scores the average-effect
+#' breeding value \eqn{A_i = \sum_j \alpha_j (x_{ij} - 2 p_j)} with
+#' \eqn{\alpha_j = a_j + d_j(1 - 2 p_j)}. Passing those \eqn{\alpha} to
+#' [additive_value()] yields only a **ranking-equivalent** score
+#' (\eqn{\alpha_j\,\mathrm{dosage}_{ij}}, which differs from \eqn{A_i} by an
+#' additive constant), not the population-centred breeding value.
+#'
+#' @inheritParams additive_value
+#' @param a a finite numeric vector of per-locus additive effects (departure of
+#'   the homozygote from the midpoint), one per entry of `qtn` and in the same
+#'   order (as in [additive_value()]'s `effect`).
+#' @param d a finite numeric vector of per-locus dominance deviations -- the value
+#'   of the heterozygote above the homozygous midpoint -- one per entry of `qtn`
+#'   and in the same order. Use `0` at a purely additive locus.
+#' @return a named numeric vector of total genotypic values, one per individual.
+#' @seealso [additive_value()], [phenotype_value()], [genetic_values()],
+#'   [select_ind()].
+#' @references
+#'   Falconer DS, Mackay TFC (1996) \emph{Introduction to Quantitative Genetics},
+#'   4th ed. Longman, Harlow -- the genotypic-value parameters \eqn{a} (departure
+#'   of the homozygote from the midpoint) and \eqn{d} (dominance deviation of the
+#'   heterozygote), and the average effect \eqn{\alpha = a + d(q - p)}.
+#' @export
+#' @examples
+#' data("SNP55K_maize282_maf04")
+#' pop <- as_population(SNP55K_maize282_maf04, individuals = 1:20)
+#' # a = additive effects, d = dominance deviations (complete dominance at locus 5).
+#' gv <- genotypic_value(pop, qtn = c(1, 5, 9),
+#'                       a = c(0.5, -1, 2), d = c(0, 1, 0))
+#' head(gv)
+genotypic_value <- function(x, qtn, a, d) {
+  r <- .resolve_geno_qtn(x, qtn, "genotypic_value")
+  dose <- r$dose
+  idx <- r$idx
+  if (!is.numeric(a) || length(a) != length(idx) || any(!is.finite(a))) {
+    stop("genotypic_value(): `a` must be a finite numeric vector with one value ",
+         "per locus in `qtn` (", length(idx), ").", call. = FALSE)
+  }
+  if (!is.numeric(d) || length(d) != length(idx) || any(!is.finite(d))) {
+    stop("genotypic_value(): `d` must be a finite numeric vector with one value ",
+         "per locus in `qtn` (", length(idx), ").", call. = FALSE)
+  }
+  # Fixed-scale total genotypic value G = A + D: the additive term a_j * dosage
+  # plus the dominance deviation d_j at heterozygotes (dosage 0). No per-population
+  # rescaling, so it is comparable across generations.
+  z <- dose[idx, , drop = FALSE]
+  gv <- colSums(z * a + (z == 0) * d)
+  stats::setNames(as.numeric(gv), colnames(dose))
 }
 
 #' Phenotype on a fixed, cross-generational scale

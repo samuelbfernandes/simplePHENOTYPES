@@ -18,7 +18,7 @@ backend_contract <- c(
   # Modern methods
   "g_matrix", "optimum_contribution", "sample_parents", "cross_usefulness",
   # Fixed-scale accessors
-  "additive_value", "phenotype_value",
+  "additive_value", "genotypic_value", "phenotype_value",
   # Genotype ingestion / QC
   "as_numeric", "filter_geno"
 )

@@ -60,9 +60,15 @@ consumer.
 OCS), `cross_usefulness`, and `print.ocs`.
 
 ### Fixed-scale cross-generation accessors
-`additive_value`, `phenotype_value` — the fixed-scale scorers a downstream
-recurrent driver needs so a selection response is visible across generations
-(DECISION-020 / DECISION-021).
+`additive_value`, `genotypic_value`, `phenotype_value` — the fixed-scale scorers
+a downstream recurrent driver needs so a selection response is visible across
+generations (DECISION-020 / DECISION-021). `genotypic_value()` is each
+individual's own **per se** additive-plus-dominance total genotypic value
+`G = A + D` (`a_j * dosage + d_j * (dosage == 0)`). A reciprocal-recurrent /
+hybrid program uses it by scoring the **realized testcross / hybrid progeny** (so
+dominance drives the progeny mean); it is a per se genotypic value, not a
+parental SCA/GCA estimate, and not the transmissible breeding value
+(use `select_ind(on = "bv")` for that).
 
 ### Genotype ingestion / QC
 `as_numeric`, `filter_geno`.
