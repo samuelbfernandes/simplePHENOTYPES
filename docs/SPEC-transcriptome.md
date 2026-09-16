@@ -263,9 +263,19 @@ All stochastic draws in R (DECISION-006); one `seed` reproduces every basis.
 Seed-threading extends the grammar's `(seed, layer_index, layer_type)` rule to the
 `expression()` layer, and `simulate_transcriptome()` takes its own `seed`.
 
-## 7. Deferred (explicit non-scope, revisit when the core is stable)
-- Counts observation layer `observe_counts(tx, ...)`: `Y_gi ~ NB(mu, phi)`,
-  `log mu = log L_i + alpha_g + sigma_g E_gi` (count-h² != latent-h²).
+## 7. Count observation layer (implemented)
+- `observe_counts(tx, ...)`: `Y_gi ~ NB(mu, phi)`,
+  `log mu = log L_i + alpha_g + sigma_g z_gi`, where **`z_gi` is the per-gene
+  standardized latent expression** (not raw `E_gi`). Standardizing makes `sigma_g`
+  a per-standard-deviation log-fold change that is comparable across genes and
+  invariant to any `mimic` rescaling of `E`; `alpha_g` is then the log mean count
+  at `z = 0`. Count-scale h² != latent h² (nonlinear, mean-dependent link), so this
+  is an observation layer, not a re-parameterization of the genetic model. `phi = 0`
+  gives the Poisson limit; the log-mean is checked for overflow.
+
+## 7b. Still deferred (explicit non-scope, revisit when the core is stable)
+- A genotype-free **generator** `simulate_transcriptome(geno = NULL)` (purely
+  non-genetic expression: co-expression modules + noise, all `h2 = 0`).
 - Directed regulatory networks; tissue specificity; epistatic expression.
 
 ## 8. Testing requirements (mirror SPEC §8)
