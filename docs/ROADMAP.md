@@ -73,22 +73,18 @@ embarrass the release.
 
 Design work is understood; each is contained.
 
-- [ ] **Validate `filter_geno()` LD pruning against PLINK 1.9 — next, and load-bearing.**
-      `filter_geno()` now implements pairwise composite-r^2 pruning, phased
-      (EM-haplotype) r^2 pruning, VIF pruning (PLINK `--indep`) and Gabriel-block
-      tag selection. Because it will be used constantly, it must be **verified
-      against PLINK 1.9 on the same dataset** so the kept/removed marker sets (and
-      the block boundaries) match, not just look plausible — build a fixture that
-      runs PLINK `--indep-pairwise` / `--indep` / `--blocks` on
-      `SNP55K_maize282_maf04` and diffs the marker lists. Pressure-test edge cases
-      (windows in variants vs kb, monomorphic/low-MAF loci, chromosome ends, the
-      double-het EM at extreme allele frequencies). **If the R implementation is
-      too slow** at whole-genome scale (the pairphase EM and the O(m^2)-within-window
-      Gabriel classification are the suspects), port the deterministic inner loops
-      to Rust — this fits the Rust boundary (DECISION-006): the r^2 / D' / EM
-      computation and the block scan are pure and deterministic, so they may move
-      to Rust while nothing about QTN sampling does. Keep the R version as the
-      parity reference for the Rust port, mirroring the isqg approach.
+- [x] **Validate `filter_geno()` LD pruning against PLINK 1.9 — DONE, byte-exact.**
+      All four methods reproduce PLINK 1.9 (v1.9.0-b.8) marker-for-marker /
+      block-for-block on `SNP55K_maize282_maf04`: pairwise composite-r^2
+      (`indep_pairwise`), VIF (`indep`), phased cubic-ML r^2 (`indep_pairphase`),
+      and Gabriel `--blocks`. Integer sufficient statistics give bit-identical
+      r^2; golden PLINK outputs are committed to
+      `inst/extdata/plink_parity/plink19_prune.rds` so the parity tests run with
+      no PLINK binary (`data-raw/plink_parity_fixtures.R` regenerates them). Each
+      method passed an independent Codex `THEORY: PASS` review. Parity is scoped
+      to complete-call autosomal data (documented in `filter_geno()`'s
+      `@section LD pruning`). The Rust-port fallback was not needed — the R
+      implementation is fast enough at genome scale.
 
 - [x] **`mean` per trait in the grammar.** `simulate_phenotype(mean=)`, applied
       at the phenotype level; genetic values stay centered.
@@ -263,6 +259,17 @@ Recorded so the plan is not lost, together with the engineering risks flagged
 against it. These are open questions to resolve, not settled decisions.
 
 ### 8a. Drag-and-drop pipeline designer
+
+> **Superseded by DECISION-018 (2026-09-11): the designer is now a separate
+> product — the `breedingDesigner` package (repo `fernandes-lab/breeding_designer`,
+> working copy `collaboration/Software/breeding_designer`), which
+> `Imports: simplePHENOTYPES (>= 2.0)`.** simplePHENOTYPES keeps only the exported
+> engine (the **backend contract**, `docs/BACKEND_CONTRACT.md`); the DAG executor,
+> code generator, web canvas, and webR/plumber back ends live in breedingDesigner
+> and call the engine through exported functions only — no genetics is
+> reimplemented there. The `R/designer.R` / `inst/designer/` narrative below is
+> **pre-DECISION-018 history**, kept for context; no designer code ships in
+> simplePHENOTYPES.
 
 - **Entry point:** a package function **`design_breeding_program()`** (exported
   from simplePHENOTYPES) launches the designer. The function lives in the
