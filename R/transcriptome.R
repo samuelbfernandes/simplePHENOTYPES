@@ -61,6 +61,14 @@
 #' @param cis_fraction per-gene cis fraction of the marginal genetic variance
 #'   `omega`: `"beta"` (draw `Beta(2, 6)`, mean 0.25), a single number in `[0, 1]`,
 #'   or a length-`n_genes` vector.
+#' @param epistasis per-gene **epistatic** fraction of the genetic variance
+#'   `epsilon`: `0` (default, purely additive cis/trans), a single number in
+#'   `[0, 1]`, `"beta"` (draw `Beta(1.5, 6)`, mean 0.20), or a length-`n_genes`
+#'   vector. When positive, each gene gains 1--2 marker pairs whose centered dosage
+#'   **product** (an additive-by-additive interaction) contributes to its expression; the
+#'   additive share is then `(1 - epsilon)` split by `cis_fraction`. Reported as an
+#'   `epi_eqtl` truth table and `v_epi` / `cis_epi_cov` / `trans_epi_cov` budget
+#'   rows; reconstructable and reusable by [predict.transcriptome_sim()].
 #' @param n_factors number of latent regulatory factors `Q`; default
 #'   `min(50, max(5, ceiling(n_genes / 100)), n_ind - 2)`.
 #' @param residual_module_fraction the residual module fraction `kappa`, a single
@@ -84,19 +92,23 @@
 #' @return a `transcriptome_sim`: `expression` and `genetic_expression`
 #'   (genes x individuals), `genes` (per-gene table: target and realized `h2`,
 #'   target and realized cis fraction, module, coordinates, and `trans_scale`),
-#'   `cis_eqtl` (effective coefficient on centered dosage) and `factor_eqtl` (raw
-#'   hub effects) truth tables, `loadings`, the reference constants (marker means),
-#'   the `profile`, `seed`, and a per-gene variance budget (`v_cis + v_trans +
-#'   cis_trans_cov = Var(G)`, plus `gr_cov`, the finite-sample genetic-residual
-#'   covariance `2 Cov(G, R)`). The genetic component is
-#'   reconstructable from centered dosage `Z`: the cis part uses `cis_eqtl$effect`
-#'   directly; the trans part of gene `g` is `trans_scale[g]` times its module's
-#'   `factor_eqtl$hub_effect` (loading 1). The truth tables are on the **unit
-#'   scale**; when `mimic` is used the returned `genetic_expression` is affine-
-#'   scaled to the mimicked moments, so this reconstruction must be multiplied by
-#'   `reference$gene_scale[g]` (which is 1 without `mimic`) to match it. `mimic`
-#'   also adds a `$calibration` element (the GREML `h2`, `mean`, `var` per gene,
-#'   plus the calibrated `n_factors` and `kappa`).
+#'   `cis_eqtl` (effective coefficient on centered dosage), `factor_eqtl` (raw
+#'   hub effects), and -- when `epistasis > 0` -- `epi_eqtl` (interacting marker
+#'   pairs: `snp1`, `snp2`, `effect`, `prod_mean`) truth tables, `loadings`, the
+#'   reference constants (marker means), the `profile`, `seed`, and a per-gene
+#'   variance budget. The budget closes as `v_cis + v_trans + v_epi +
+#'   cis_trans_cov + cis_epi_cov + trans_epi_cov = Var(G)` (the epistatic terms
+#'   are zero without epistasis), plus `gr_cov`, the finite-sample
+#'   genetic-residual covariance `2 Cov(G, R)`. The genetic component is
+#'   reconstructable from centered dosage: the cis part uses `cis_eqtl$effect`
+#'   directly; the trans part of a gene is `trans_scale` times its module's
+#'   `factor_eqtl$hub_effect` (loading 1); the epistatic part sums `epi_eqtl$effect`
+#'   times each pair's centered dosage product (`Z_snp1 * Z_snp2 - prod_mean`).
+#'   The truth tables are on the **unit scale**; when `mimic` is used the returned
+#'   `genetic_expression` is affine-scaled to the mimicked moments, so this
+#'   reconstruction must be multiplied by the per-gene `reference$gene_scale`
+#'   (which is 1 without `mimic`) to match it. `mimic` also adds a `$calibration`
+#'   element (the GREML `h2`, `mean`, `var` per gene, plus `n_factors` and `kappa`).
 #' @seealso [simulate_phenotype()], `additive_value()`.
 #' @references
 #'   Falconer DS, Mackay TFC (1996) \emph{Introduction to Quantitative Genetics},
@@ -123,7 +135,7 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
                                     n_factors = NULL,
                                     residual_module_fraction = 0.15,
                                     profile = "generic_bulk", seed = NULL,
-                                    mimic = NULL, n_ind = NULL) {
+                                    mimic = NULL, n_ind = NULL, epistasis = 0) {
   if (!identical(profile, "generic_bulk")) {
     stop("simulate_transcriptome(): unknown `profile` '", profile,
          "'. The only profile in this version is \"generic_bulk\".",
@@ -292,6 +304,10 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
                         lo = 0, hi = 1, beta = c(1.5, 6))
     omega_g <- .tx_pergene(cis_fraction, T_genes, "cis_fraction",
                            lo = 0, hi = 1, beta = c(2, 6))
+    # epsilon_g: per-gene epistatic fraction of the genetic variance (0 = additive
+    # cis/trans only, the default). "beta" draws Beta(1.5, 6) (mean 0.20).
+    epi_g <- .tx_pergene(epistasis, T_genes, "epistasis",
+                         lo = 0, hi = 1, beta = c(1.5, 6))
 
     # `dose`, `marker_mean`, and reference-centered `Z` are computed once above
     # (deterministic) and shared here via the enclosing scope.
@@ -346,8 +362,11 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
     trans_scale <- numeric(T_genes)
     gr_cov <- numeric(T_genes)
     v_cis <- v_trans <- v_cov <- numeric(T_genes)
+    v_epi <- cis_epi_cov <- trans_epi_cov <- numeric(T_genes)
     n_cis <- integer(T_genes)
+    n_epi <- integer(T_genes)
     cis_rows <- vector("list", T_genes)
+    epi_rows <- vector("list", T_genes)
     scl_used <- scl                                     # realized per-gene scale
 
     z1 <- function(v) {                                 # reference standardize
@@ -377,21 +396,57 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       if (!is.null(cst)) sd_c <- cst$sd
       sd_t <- if (is.null(tst)) 0 else tst$sd
 
-      # Effective cis fraction: use only components that carry variance, and fall
+      # epistatic score: 1-2 pairs of eligible markers, each contributing a centered
+      # dosage product (an a x a interaction). Drawn only when this gene has a
+      # positive epistatic fraction and a genetic component.
+      eg_raw <- rep(0, n_ind); epi_idx <- NULL; epi_beta <- numeric(0)
+      epi_prodmean <- numeric(0); sd_e <- 0
+      if (h2_g[g] > 0 && epi_g[g] > 0 && length(eligible) >= 2L) {
+        npair <- 1L + stats::rbinom(1L, 1L, 0.5)          # 1 or 2 interacting pairs
+        pj <- eligible[sample.int(length(eligible), npair, replace = TRUE)]
+        pk <- eligible[sample.int(length(eligible), npair, replace = TRUE)]
+        keep <- pj != pk                                   # a locus cannot interact with itself
+        pj <- pj[keep]; pk <- pk[keep]
+        if (length(pj) > 0L) {
+          epi_beta <- stats::rnorm(length(pj))
+          prod <- Z[, pj, drop = FALSE] * Z[, pk, drop = FALSE]  # ind x npair
+          epi_prodmean <- colMeans(prod)                   # reference product means
+          d <- sweep(prod, 2L, epi_prodmean, "-")          # center each product
+          eg_raw <- as.numeric(d %*% epi_beta)
+          epi_idx <- cbind(pj, pk)
+        }
+      }
+      est <- z1(eg_raw)
+      epi_std <- if (is.null(est)) NULL else est$std
+      if (!is.null(est)) sd_e <- est$sd
+
+      # Additive (cis+trans) score: use only components that carry variance, and fall
       # back to the surviving component if cis and trans exactly cancel (their
       # standardized scores are collinear), so a requested positive h2 is realized.
       om <- omega_g[g]
-      have_c <- !is.null(c_std); have_t <- !is.null(t_std)
+      have_c <- !is.null(c_std); have_t <- !is.null(t_std); have_e <- !is.null(epi_std)
       if (!have_c) { om <- 0; c_std <- rep(0, n_ind) }
       if (!have_t) { om <- 1; t_std <- rep(0, n_ind) }
-      G0 <- sqrt(om) * c_std + sqrt(1 - om) * t_std
-      sG0 <- stats::sd(G0)
-      if (h2_g[g] > 0 && (!is.finite(sG0) || sG0 < 1e-9)) {   # exact cancellation
-        if (have_t) { om <- 0; G0 <- t_std } else if (have_c) { om <- 1; G0 <- c_std }
-        sG0 <- stats::sd(G0)
+      if (!have_e) epi_std <- rep(0, n_ind)
+      G0ct <- sqrt(om) * c_std + sqrt(1 - om) * t_std
+      sG0ct <- stats::sd(G0ct)
+      if (h2_g[g] > 0 && (!is.finite(sG0ct) || sG0ct < 1e-9)) {   # exact cancellation
+        if (have_t) { om <- 0; G0ct <- t_std } else if (have_c) { om <- 1; G0ct <- c_std }
+        sG0ct <- stats::sd(G0ct)
       }
-      Gg <- if (h2_g[g] > 0 && is.finite(sG0) && sG0 > 1e-9) {
-        sqrt(h2_g[g]) * G0 / sG0
+      have_ct <- is.finite(sG0ct) && sG0ct > 1e-9
+
+      # Blend the additive and epistatic scores. `epf` is the realized epistatic
+      # fraction of the genetic variance: 0 with no epistasis (then G0 = the
+      # standardized additive score, exactly as before), and 1 when only the
+      # epistatic score carries variance.
+      epf <- if (have_e) epi_g[g] else 0
+      if (!have_ct) epf <- if (have_e) 1 else 0
+      ct_std <- if (have_ct) G0ct / sG0ct else rep(0, n_ind)
+      G0 <- sqrt(1 - epf) * ct_std + sqrt(epf) * epi_std
+      sGf <- stats::sd(G0)
+      Gg <- if (h2_g[g] > 0 && is.finite(sGf) && sGf > 1e-9) {
+        sqrt(h2_g[g]) * G0 / sGf
       } else {
         rep(0, n_ind)                                   # no usable genetic variance
       }
@@ -434,17 +489,27 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       h2_real[g] <- if (vE > 1e-12) stats::var(Gg) / vE else 0
       gr_cov[g] <- 2 * stats::cov(Gg, Rg)               # finite-sample G-R cov
 
-      # cis/trans variance decomposition of the realized genetic component. The
-      # effective coefficient on centered dosage Z_j is s_c * beta_j / sd(cg).
-      s_c <- if (sG0 > 1e-9 && h2_g[g] > 0 && om > 0) sqrt(h2_g[g] * om) / sG0 else 0
-      s_t <- if (sG0 > 1e-9 && h2_g[g] > 0 && om < 1) sqrt(h2_g[g] * (1 - om)) / sG0 else 0
-      # budget is on the final (affine-scaled) genetic; s_c/s_t stay UNIT-scale so
-      # the cis_eqtl/trans_scale truth tables reconstruct the unit genetic map and
-      # predict() applies the stored realized scale (scl_used).
+      # cis/trans/epistatic variance decomposition of the realized genetic
+      # component. Two normalizations: sG0ct standardizes the additive score,
+      # sGf standardizes the additive+epistatic blend. The effective coefficient
+      # on centered dosage Z_j is s_c * beta_j / sd(cg).
+      norm <- sG0ct * sGf
+      okg <- h2_g[g] > 0 && is.finite(norm) && norm > 1e-18 &&
+        is.finite(sGf) && sGf > 1e-9
+      s_c <- if (okg && om > 0) sqrt(h2_g[g] * (1 - epf) * om) / norm else 0
+      s_t <- if (okg && om < 1) sqrt(h2_g[g] * (1 - epf) * (1 - om)) / norm else 0
+      s_e <- if (okg && epf > 0) sqrt(h2_g[g] * epf) / sGf else 0
+      # budget is on the final (affine-scaled) genetic; s_c/s_t/s_e stay UNIT-scale
+      # so the cis_eqtl/trans_scale/epi_eqtl truth tables reconstruct the unit
+      # genetic map and predict() applies the stored realized scale (scl_used).
       cis_part <- esc * s_c * c_std; trans_part <- esc * s_t * t_std
+      epi_part <- esc * s_e * epi_std
       v_cis[g] <- stats::var(cis_part)
       v_trans[g] <- stats::var(trans_part)
+      v_epi[g] <- stats::var(epi_part)
       v_cov[g] <- 2 * stats::cov(cis_part, trans_part)
+      cis_epi_cov[g] <- 2 * stats::cov(cis_part, epi_part)
+      trans_epi_cov[g] <- 2 * stats::cov(trans_part, epi_part)
       om_real[g] <- if (v_cis[g] + v_trans[g] > 0) {
         v_cis[g] / (v_cis[g] + v_trans[g])
       } else 0
@@ -461,16 +526,29 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
           effect = s_c * beta / sd_c,          # effective coefficient on centered Z
           stringsAsFactors = FALSE)
       }
+      # record epistatic pairs: effective coefficient on the centered dosage
+      # PRODUCT (Z_j Z_k - prod_mean); the pair truth reconstructs from these.
+      if (!is.null(epi_idx) && s_e > 0 && sd_e > 0) {
+        n_epi[g] <- nrow(epi_idx)
+        epi_rows[[g]] <- data.frame(
+          gene_id = coords$gene_id[g],
+          snp1 = map$snp[epi_idx[, 1]], snp2 = map$snp[epi_idx[, 2]],
+          chr1 = map$chr[epi_idx[, 1]], chr2 = map$chr[epi_idx[, 2]],
+          effect = s_e * epi_beta / sd_e, prod_mean = epi_prodmean,
+          stringsAsFactors = FALSE)
+      }
     }
 
     list(expression = expression, genetic = genetic, h2_real = h2_real,
-         module = module, n_cis = n_cis, om_real = om_real,
+         module = module, n_cis = n_cis, n_epi = n_epi, om_real = om_real,
          trans_scale = trans_scale, gr_cov = gr_cov,
          cis_eqtl = do.call(rbind, cis_rows),
          factor_eqtl = do.call(rbind, factor_eqtl),
+         epi_eqtl = do.call(rbind, epi_rows),
          v_cis = v_cis, v_trans = v_trans, v_cov = v_cov,
+         v_epi = v_epi, cis_epi_cov = cis_epi_cov, trans_epi_cov = trans_epi_cov,
          marker_mean = marker_mean, scl_used = scl_used,
-         coords = coords, h2_g = h2_g, omega_g = omega_g)
+         coords = coords, h2_g = h2_g, omega_g = omega_g, epi_g = epi_g)
   }
 
   out <- if (is.null(seed)) run() else {
@@ -484,7 +562,8 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
     module = out$module, coordinate_source = coordinate_source,
     h2_target = out$h2_g, h2_realized = out$h2_real,
     cis_fraction_target = out$omega_g, cis_fraction_realized = out$om_real,
-    n_cis = out$n_cis, trans_scale = out$trans_scale, stringsAsFactors = FALSE)
+    n_cis = out$n_cis, n_epi = out$n_epi, epistasis_target = out$epi_g,
+    trans_scale = out$trans_scale, stringsAsFactors = FALSE)
 
   structure(
     list(
@@ -493,6 +572,7 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       genes = genes,
       cis_eqtl = out$cis_eqtl,
       factor_eqtl = out$factor_eqtl,
+      epi_eqtl = out$epi_eqtl,
       loadings = data.frame(gene_id = coords$gene_id, factor = out$module,
                             loading = 1, stringsAsFactors = FALSE),
       reference = list(marker_mean = out$marker_mean, ids = ids,
@@ -500,7 +580,9 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
                        gene_location = loc, gene_scale = out$scl_used),
       var_budget = data.frame(
         gene_id = coords$gene_id, v_cis = out$v_cis, v_trans = out$v_trans,
-        cis_trans_cov = out$v_cov, gr_cov = out$gr_cov, stringsAsFactors = FALSE),
+        v_epi = out$v_epi, cis_trans_cov = out$v_cov,
+        cis_epi_cov = out$cis_epi_cov, trans_epi_cov = out$trans_epi_cov,
+        gr_cov = out$gr_cov, stringsAsFactors = FALSE),
       calibration = if (is.null(mim)) NULL else list(
         source = "mimic", n_factors = Q, kappa = kappa,
         h2 = data.frame(gene_id = coords$gene_id, h2_greml = mim$h2,
@@ -556,9 +638,10 @@ predict.transcriptome_sim <- function(object, geno, seed = NULL,
   mm <- object$reference$marker_mean
   ce <- object$cis_eqtl
   fe_all <- object$factor_eqtl
+  ee <- object$epi_eqtl
 
   # reference-centered dosages for the causal markers only (fixed marker_mean).
-  used <- unique(c(ce$snp, fe_all$snp))
+  used <- unique(c(ce$snp, fe_all$snp, ee$snp1, ee$snp2))
   used <- used[!is.na(used)]
   Zc <- matrix(0, n_new, 0)
   if (length(used) > 0L) {
@@ -587,6 +670,7 @@ predict.transcriptome_sim <- function(object, geno, seed = NULL,
   genetic <- matrix(0, Tg, n_new, dimnames = list(genes$gene_id, ids))
   cis_part <- matrix(0, Tg, n_new)
   trans_part <- matrix(0, Tg, n_new)
+  epi_part <- matrix(0, Tg, n_new)
   for (g in seq_len(Tg)) {
     gid <- genes$gene_id[g]
     if (!is.null(ce)) {
@@ -602,7 +686,17 @@ predict.transcriptome_sim <- function(object, geno, seed = NULL,
           as.numeric(Zc[, fe$snp, drop = FALSE] %*% fe$hub_effect)
       }
     }
-    genetic[g, ] <- cis_part[g, ] + trans_part[g, ]
+    if (!is.null(ee)) {
+      er <- ee[ee$gene_id == gid, , drop = FALSE]
+      if (nrow(er) > 0L) {
+        # epistatic pair p contributes effect_p * (Z_j Z_k - prod_mean_p), the
+        # centered dosage product on the reference-centered new dosages.
+        d <- Zc[, er$snp1, drop = FALSE] * Zc[, er$snp2, drop = FALSE]
+        d <- sweep(d, 2L, er$prod_mean, "-")
+        epi_part[g, ] <- as.numeric(d %*% er$effect)
+      }
+    }
+    genetic[g, ] <- cis_part[g, ] + trans_part[g, ] + epi_part[g, ]
   }
 
   # fresh non-genetic residual: module-shared factor + gene noise, scaled to
@@ -643,6 +737,7 @@ predict.transcriptome_sim <- function(object, geno, seed = NULL,
   genetic    <- genetic * scl
   cis_part   <- cis_part * scl
   trans_part <- trans_part * scl
+  epi_part   <- epi_part * scl
   R          <- R * scl
 
   expression <- loc + genetic + R
@@ -652,8 +747,13 @@ predict.transcriptome_sim <- function(object, geno, seed = NULL,
   # variance budget realized on the NEW population (targets/effect tables fixed).
   v_cis <- apply(cis_part, 1L, stats::var)
   v_trans <- apply(trans_part, 1L, stats::var)
+  v_epi <- apply(epi_part, 1L, stats::var)
   v_cov <- vapply(seq_len(Tg),
                   function(g) 2 * stats::cov(cis_part[g, ], trans_part[g, ]), 0)
+  cis_epi_cov <- vapply(seq_len(Tg),
+                        function(g) 2 * stats::cov(cis_part[g, ], epi_part[g, ]), 0)
+  trans_epi_cov <- vapply(seq_len(Tg),
+                          function(g) 2 * stats::cov(trans_part[g, ], epi_part[g, ]), 0)
   gr_cov <- vapply(seq_len(Tg),
                    function(g) 2 * stats::cov(genetic[g, ], R[g, ]), 0)
   vE <- apply(expression, 1L, stats::var)
@@ -671,11 +771,13 @@ predict.transcriptome_sim <- function(object, geno, seed = NULL,
       genes = new_genes,
       cis_eqtl = object$cis_eqtl,
       factor_eqtl = object$factor_eqtl,
+      epi_eqtl = object$epi_eqtl,
       loadings = object$loadings,
       reference = object$reference,          # UNCHANGED fixed-reference constants
       var_budget = data.frame(
-        gene_id = genes$gene_id, v_cis = v_cis, v_trans = v_trans,
-        cis_trans_cov = v_cov, gr_cov = gr_cov, stringsAsFactors = FALSE),
+        gene_id = genes$gene_id, v_cis = v_cis, v_trans = v_trans, v_epi = v_epi,
+        cis_trans_cov = v_cov, cis_epi_cov = cis_epi_cov,
+        trans_epi_cov = trans_epi_cov, gr_cov = gr_cov, stringsAsFactors = FALSE),
       profile = object$profile, seed = seed,
       n_genes = Tg, n_ind = n_new
     ),

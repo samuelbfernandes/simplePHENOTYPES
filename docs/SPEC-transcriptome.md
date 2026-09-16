@@ -38,8 +38,11 @@
 - Mechanistic / directed gene-regulatory networks (knockouts, feedback, time
   courses). The trans structure is a phenomenological latent-factor model.
 - Tissue specificity, alternative splicing, isoform-level expression.
-- Epistasis in the expression model.
-- RNA-seq **count** realism is an *optional* later observation layer, not the core.
+- ~~Epistasis in the expression model.~~ **Implemented** (§3): `epistasis`
+  adds per-gene additive-by-additive eQTL interactions (marker-pair centered
+  dosage products), blended into the genetic score with a per-gene epistatic
+  fraction, reported as an `epi_eqtl` truth table and extra budget rows.
+- RNA-seq **count** realism is now the optional `observe_counts()` layer (§7).
 
 ## 2. Core object
 

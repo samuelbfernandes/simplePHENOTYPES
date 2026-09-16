@@ -16,7 +16,8 @@ simulate_transcriptome(
   profile = "generic_bulk",
   seed = NULL,
   mimic = NULL,
-  n_ind = NULL
+  n_ind = NULL,
+  epistasis = 0
 )
 }
 \arguments{
@@ -71,23 +72,36 @@ a documented strength proxy, not an identifiable residual-module estimate.}
 
 \item{n_ind}{number of individuals, \strong{required only when \code{geno = NULL}}
 (otherwise taken from \code{geno}).}
+
+\item{epistasis}{per-gene \strong{epistatic} fraction of the genetic variance
+\code{epsilon}: \code{0} (default, purely additive cis/trans), a single number in
+\verb{[0, 1]}, \code{"beta"} (draw \code{Beta(1.5, 6)}, mean 0.20), or a length-\code{n_genes}
+vector. When positive, each gene gains 1--2 marker pairs whose centered dosage
+\strong{product} (an additive-by-additive interaction) contributes to its expression; the
+additive share is then \code{(1 - epsilon)} split by \code{cis_fraction}. Reported as an
+\code{epi_eqtl} truth table and \code{v_epi} / \code{cis_epi_cov} / \code{trans_epi_cov} budget
+rows; reconstructable and reusable by \code{\link[=predict.transcriptome_sim]{predict.transcriptome_sim()}}.}
 }
 \value{
 a \code{transcriptome_sim}: \code{expression} and \code{genetic_expression}
 (genes x individuals), \code{genes} (per-gene table: target and realized \code{h2},
 target and realized cis fraction, module, coordinates, and \code{trans_scale}),
-\code{cis_eqtl} (effective coefficient on centered dosage) and \code{factor_eqtl} (raw
-hub effects) truth tables, \code{loadings}, the reference constants (marker means),
-the \code{profile}, \code{seed}, and a per-gene variance budget (\code{v_cis + v_trans + cis_trans_cov = Var(G)}, plus \code{gr_cov}, the finite-sample genetic-residual
-covariance \verb{2 Cov(G, R)}). The genetic component is
-reconstructable from centered dosage \code{Z}: the cis part uses \code{cis_eqtl$effect}
-directly; the trans part of gene \code{g} is \code{trans_scale[g]} times its module's
-\code{factor_eqtl$hub_effect} (loading 1). The truth tables are on the \strong{unit
-scale}; when \code{mimic} is used the returned \code{genetic_expression} is affine-
-scaled to the mimicked moments, so this reconstruction must be multiplied by
-\code{reference$gene_scale[g]} (which is 1 without \code{mimic}) to match it. \code{mimic}
-also adds a \verb{$calibration} element (the GREML \code{h2}, \code{mean}, \code{var} per gene,
-plus the calibrated \code{n_factors} and \code{kappa}).
+\code{cis_eqtl} (effective coefficient on centered dosage), \code{factor_eqtl} (raw
+hub effects), and -- when \code{epistasis > 0} -- \code{epi_eqtl} (interacting marker
+pairs: \code{snp1}, \code{snp2}, \code{effect}, \code{prod_mean}) truth tables, \code{loadings}, the
+reference constants (marker means), the \code{profile}, \code{seed}, and a per-gene
+variance budget. The budget closes as \code{v_cis + v_trans + v_epi + cis_trans_cov + cis_epi_cov + trans_epi_cov = Var(G)} (the epistatic terms
+are zero without epistasis), plus \code{gr_cov}, the finite-sample
+genetic-residual covariance \verb{2 Cov(G, R)}. The genetic component is
+reconstructable from centered dosage: the cis part uses \code{cis_eqtl$effect}
+directly; the trans part of a gene is \code{trans_scale} times its module's
+\code{factor_eqtl$hub_effect} (loading 1); the epistatic part sums \code{epi_eqtl$effect}
+times each pair's centered dosage product (\code{Z_snp1 * Z_snp2 - prod_mean}).
+The truth tables are on the \strong{unit scale}; when \code{mimic} is used the returned
+\code{genetic_expression} is affine-scaled to the mimicked moments, so this
+reconstruction must be multiplied by the per-gene \code{reference$gene_scale}
+(which is 1 without \code{mimic}) to match it. \code{mimic} also adds a \verb{$calibration}
+element (the GREML \code{h2}, \code{mean}, \code{var} per gene, plus \code{n_factors} and \code{kappa}).
 }
 \description{
 Generates a genes-by-individuals expression matrix as a hybrid latent-factor

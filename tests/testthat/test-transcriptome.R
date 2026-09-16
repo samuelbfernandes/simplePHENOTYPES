@@ -449,3 +449,47 @@ test_that("appending mimic/n_ind keeps existing positional calls valid", {
   b <- simulate_transcriptome(G, n_genes = 40, seed = 5)
   expect_identical(a$expression, b$expression)
 })
+
+test_that("epistatic eQTL close the variance budget and reconstruct exactly", {
+  tx <- simulate_transcriptome(G, n_genes = 120, epistasis = 0.4, seed = 1)
+  expect_false(is.null(tx$epi_eqtl))
+  expect_true(all(c("snp1", "snp2", "effect", "prod_mean") %in% names(tx$epi_eqtl)))
+  expect_true(all(c("v_epi", "cis_epi_cov", "trans_epi_cov") %in% names(tx$var_budget)))
+  # Var(G) = v_cis + v_trans + v_epi + all pairwise 2*Cov terms
+  vg <- apply(tx$genetic_expression, 1L, stats::var)
+  vb <- with(tx$var_budget,
+             v_cis + v_trans + v_epi + cis_trans_cov + cis_epi_cov + trans_epi_cov)
+  expect_equal(vb, unname(vg), tolerance = 1e-9)
+  # realized epistatic share tracks the target across genetic genes
+  gg <- vg > 1e-8
+  expect_equal(mean((tx$var_budget$v_epi / vg)[gg]), 0.4, tolerance = 0.06)
+  # the genetic component reconstructs from cis + trans + epistatic truth tables
+  dose <- t(as.matrix(G[, -(1:5)]))
+  Zc <- sweep(dose, 2, tx$reference$marker_mean, "-"); colnames(Zc) <- G$snp
+  g <- tx$genes$gene_id[which(tx$genes$n_epi > 0 & tx$genes$n_cis > 0)[1]]
+  cr <- tx$cis_eqtl[tx$cis_eqtl$gene_id == g, ]
+  cis_pred <- as.numeric(Zc[, cr$snp, drop = FALSE] %*% cr$effect)
+  mod <- tx$genes$module[match(g, tx$genes$gene_id)]
+  fe <- tx$factor_eqtl[tx$factor_eqtl$factor == mod, ]
+  ts <- tx$genes$trans_scale[match(g, tx$genes$gene_id)]
+  trans_pred <- ts * as.numeric(Zc[, fe$snp, drop = FALSE] %*% fe$hub_effect)
+  er <- tx$epi_eqtl[tx$epi_eqtl$gene_id == g, ]
+  d <- Zc[, er$snp1, drop = FALSE] * Zc[, er$snp2, drop = FALSE]
+  d <- sweep(d, 2, er$prod_mean, "-")
+  epi_pred <- as.numeric(d %*% er$effect)
+  expect_equal(cis_pred + trans_pred + epi_pred,
+               unname(tx$genetic_expression[g, ]), tolerance = 1e-8)
+})
+
+test_that("epistasis = 0 is unchanged and predict() reconstructs epistatic genes", {
+  # default (no epistasis) leaves the generated expression identical
+  a <- simulate_transcriptome(G, n_genes = 100, seed = 5)
+  b <- simulate_transcriptome(G, n_genes = 100, epistasis = 0, seed = 5)
+  expect_identical(a$expression, b$expression)
+  expect_null(a$epi_eqtl)
+  # cross-population predict() reproduces the (epistatic) genetic map on the
+  # reference genotypes to machine precision
+  tx <- simulate_transcriptome(G, n_genes = 80, epistasis = 0.5, seed = 2)
+  p0 <- predict(tx, G, residual = FALSE)
+  expect_equal(p0$genetic_expression, tx$genetic_expression, tolerance = 1e-10)
+})
