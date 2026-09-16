@@ -96,6 +96,13 @@ write_phenotypes <- function(sim, file, format = c("long", "wide"),
 #' scaled additive, dominance and epistatic layers, before the residual is
 #' added. This is the quantity the v1 engine wrote to `Genetic_values.txt`.
 #'
+#' When a phenotype includes a genome-**derived** `transcriptome()` layer, the
+#' genetic-mediated part of that expression component (the share tracing to the
+#' genome through gene expression) is also included, so it counts toward
+#' heritability. A **real** expression source contributes nothing here: its
+#' genetic content is not asserted, so it is treated as an environmental
+#' predictor and excluded from the genetic value.
+#'
 #' Variance QTL are deliberately excluded: a `vqtl()` layer modulates the
 #' spread of the residual rather than contributing a genetic value, so it has
 #' no place in this matrix. By default this returns replication 1. When the
@@ -127,9 +134,43 @@ write_phenotypes <- function(sim, file, format = c("long", "wide"),
 genetic_values <- function(sim, rep = 1L) {
   .check_sim(sim)
   rep <- .validate_rep(sim, rep)
-  out <- .genetic_matrix(sim, rep)
+  out <- .genetic_value_matrix(sim, rep)
   dimnames(out) <- list(sim$ids, paste0("Trait_", seq_len(sim$n_traits)))
   out
+}
+
+#' Genetic-mediated vs environmental split of a derived transcriptome component
+#'
+#' For a phenotype built with a genome-**derived** `transcriptome()` layer
+#' (`simulate_phenotype(transcriptome = ...)`), the expression-mediated component
+#' splits into a genetic-mediated part (the share of expression that traces to
+#' the genome, which counts toward heritability and appears in
+#' [genetic_values()]) and an environmental part. This returns that realized
+#' split, per trait, as proportions of phenotypic variance:
+#' `genetic_mediated`, `env_mediated`, and their `covariance` term
+#' `2*Cov(Tx_g, Tx_e)/V_P` (finite-sample, ~0 because the generator draws the
+#' genetic and non-genetic parts of expression independently). The three columns
+#' sum to the realized expression-mediated share of variance.
+#'
+#' Returns `NULL` when the phenotype has no derived transcriptome layer: a
+#' **real** expression source (`simulate_phenotype(expression = ...)`) has no
+#' asserted genetic/environmental decomposition, so no split is reported.
+#'
+#' @param sim a `phenotype_sim`.
+#' @return A data frame (`trait`, `genetic_mediated`, `env_mediated`,
+#'   `covariance`), or `NULL`.
+#' @seealso [genetic_values()], [transcriptome()].
+#' @export
+#' @examples
+#' data("SNP55K_maize282_maf04")
+#' tx <- simulate_transcriptome(SNP55K_maize282_maf04, n_genes = 100, seed = 1)
+#' ph <- simulate_phenotype(SNP55K_maize282_maf04, h2 = 0.3, seed = 2,
+#'                          transcriptome = tx) |>
+#'   transcriptome(prop = 0.4, n_genes = 20)
+#' mediation_split(ph)
+mediation_split <- function(sim) {
+  .check_sim(sim)
+  sim$mediation
 }
 
 #' Per-QTN proportion of phenotypic variance for a mean-effect layer

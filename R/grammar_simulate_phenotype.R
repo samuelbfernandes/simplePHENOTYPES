@@ -582,7 +582,7 @@ print.phenotype_sim <- function(x, ...) {
     gen <- x$var_budget$prop[x$var_budget$component == "genetic"]
     cat(sprintf("    %-10s %s\n", "genetic", fmt(gen)))
     cat(sprintf("    %-10s %s\n", "residual", fmt(1 - gen)))
-    cat(sprintf("  Requested genetic share = %s   realized marker-based H\u00b2 = %s\n",
+    cat(sprintf("  Requested genetic share = %s   realized H\u00b2 = %s\n",
                 fmt(gen), fmt(.realized_h2(x))))
     return(invisible(x))
   }
@@ -604,8 +604,15 @@ print.phenotype_sim <- function(x, ...) {
     }
   }
   cat(sprintf("    %-10s %s\n", "residual", fmt(1 - .total_variance_prop(x))))
-  cat(sprintf("  Requested genetic share = %s   realized marker-based H\u00b2 = %s\n",
+  cat(sprintf("  Requested genetic share = %s   realized H\u00b2 = %s\n",
               fmt(.total_genetic_prop(x)), fmt(.realized_h2(x))))
+  if (!is.null(x$mediation)) {
+    md <- x$mediation
+    cat(sprintf(
+      "  Expression-mediated (derived): genetic %s + environmental %s of V_P\n",
+      fmt(md$genetic_mediated), fmt(md$env_mediated)))
+    cat("  (the genetic-mediated share is included in realized H\u00b2 above)\n")
+  }
   if (any(vapply(x$layers, function(l) identical(l$type, "vqtl"), TRUE))) {
     cat("  (vqtl is a residual-heterogeneity component and is not counted in\n",
         "   broad-sense heritability)\n",

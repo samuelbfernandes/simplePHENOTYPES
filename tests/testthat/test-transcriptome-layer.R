@@ -20,19 +20,48 @@ test_that("the transcriptome component realizes its target variance share", {
                tolerance = 0.06)
 })
 
-test_that("the transcriptome layer is a separate category, not marker-based H2", {
-  # additive (0.2) is marker-based genetic; transcriptome (0.4) is not
+test_that("a derived transcriptome's genetic-mediated part counts toward H2", {
+  # additive is marker-based genetic; the derived transcriptome (0.4 of V_P) is
+  # expression-mediated, but its genome-traced part IS heritable.
   ph <- simulate_phenotype(G, h2 = 0.6, seed = 2, transcriptome = tx) |>
     transcriptome(prop = 0.4, n_genes = 20) |>
     additive(prop = 0.2, n_qtn = 10)
-  expect_equal(h2_narrow(ph), 0.2, tolerance = 0.06)          # marker-based only
-  expect_equal(stats::var(tx_comp(ph)) / stats::var(ph$pheno$value), 0.4,
-               tolerance = 0.06)
-  # a purely non-genetic (h2 = 0) derived transcriptome must NOT inflate H2
+  vp <- stats::var(ph$pheno$value)
+  # marker-based genetic value alone still realizes ~0.2
+  marker_h2 <- stats::var(simplePHENOTYPES:::.genetic_matrix(ph, 1L)[, 1]) / vp
+  expect_equal(marker_h2, 0.2, tolerance = 0.06)
+  # the expression component still realizes its full prop = 0.4 phenotypic share
+  expect_equal(stats::var(tx_comp(ph)) / vp, 0.4, tolerance = 0.06)
+  # H2 = markers + genetic-mediated expression, so it exceeds the marker-only value
+  ms <- mediation_split(ph)
+  expect_equal(nrow(ms), 1L)
+  expect_gt(ms$genetic_mediated, 0)                    # some expression var is genetic
+  expect_equal(h2_narrow(ph), marker_h2 + ms$genetic_mediated, tolerance = 0.02)
+  # the split sums to the realized expression-mediated share of V_P
+  expect_equal(ms$genetic_mediated + ms$env_mediated + ms$covariance,
+               stats::var(tx_comp(ph)) / vp, tolerance = 1e-8)
+})
+
+test_that("a purely non-genetic (h2 = 0) derived transcriptome does not inflate H2", {
   tx0 <- simulate_transcriptome(G, n_genes = 40, h2 = 0, seed = 8)
   ph0 <- simulate_phenotype(G, seed = 9, transcriptome = tx0) |>
     transcriptome(prop = 0.5, n_genes = 20)
-  expect_lt(h2_narrow(ph0), 1e-6)                             # no genetic value
+  expect_lt(h2_narrow(ph0), 1e-6)                      # no genetic value at all
+  ms0 <- mediation_split(ph0)
+  expect_lt(ms0$genetic_mediated, 1e-6)                # genetic-mediated share ~0
+  expect_equal(ms0$env_mediated, 0.5, tolerance = 0.06)
+})
+
+test_that("mediation_split() is reported only for a derived expression source", {
+  # real source: genetic/environmental split is not asserted
+  ph_real <- simulate_phenotype(G, h2 = 0.5, seed = 3,
+                                expression = tx$expression) |>
+    transcriptome(prop = 0.3, n_genes = 15)
+  expect_null(mediation_split(ph_real))
+  # pure-marker phenotype: no expression at all
+  ph_marker <- simulate_phenotype(G, h2 = 0.5, seed = 3) |>
+    additive(prop = 0.5, n_qtn = 10)
+  expect_null(mediation_split(ph_marker))
 })
 
 test_that("a real expression matrix works as a predictor alongside markers", {
@@ -93,12 +122,14 @@ test_that("the transcriptome layer validates its inputs", {
 })
 
 test_that("transcriptome prop is a phenotypic share, not part of the h2 budget", {
-  # h2 = 0 (no marker genetics) still allows a transcriptome component
+  # h2 = 0 sets no *marker* genetics, yet a transcriptome component is allowed
   ph <- simulate_phenotype(G, h2 = 0, seed = 10, transcriptome = tx) |>
     transcriptome(prop = 0.3, n_genes = 15)
-  expect_lt(h2_narrow(ph), 1e-6)
-  expect_equal(stats::var(tx_comp(ph)) / stats::var(ph$pheno$value), 0.3,
-               tolerance = 0.06)
+  vp <- stats::var(ph$pheno$value)
+  # no marker-based genetic value (h2 = 0, no additive layer)
+  expect_lt(stats::var(simplePHENOTYPES:::.genetic_matrix(ph, 1L)[, 1]) / vp, 1e-6)
+  # the transcriptome still realizes its full phenotypic share, not debited from h2
+  expect_equal(stats::var(tx_comp(ph)) / vp, 0.3, tolerance = 0.06)
   # prop is required (not drawn from the remaining h2)
   expect_error(
     simulate_phenotype(G, transcriptome = tx) |> transcriptome(n_genes = 5),

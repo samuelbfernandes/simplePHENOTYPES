@@ -16,17 +16,22 @@
   }
   if (!is.null(transcriptome)) {
     src <- "derived"
-    E <- if (inherits(transcriptome, "transcriptome_sim")) {
-      transcriptome$expression
+    tx <- if (inherits(transcriptome, "transcriptome_sim")) {
+      transcriptome
     } else if (isTRUE(transcriptome)) {
-      simulate_transcriptome(geno, seed = seed)$expression
+      simulate_transcriptome(geno, seed = seed)
     } else {
       stop("simulate_phenotype(): `transcriptome` must be a transcriptome_sim ",
            "(from simulate_transcriptome()) or TRUE to derive one.", call. = FALSE)
     }
+    E <- tx$expression
+    # the genetic (genome-mediated) part of expression, used to split the
+    # transcriptome phenotype component into genetic-mediated vs environmental.
+    Gexpr <- tx$genetic_expression
   } else {
     src <- "real"
     E <- expression
+    Gexpr <- NULL                     # a real source's G/E split is not asserted
     if (!is.matrix(E) || !is.numeric(E)) {
       stop("simulate_phenotype(): `expression` must be a numeric genes-by-",
            "individuals matrix.", call. = FALSE)
@@ -71,6 +76,28 @@
   }
   sim$expression <- E
   sim$expression_source <- src
+  if (!is.null(Gexpr)) {
+    # align the genetic-expression matrix to the same genes (rows) and
+    # individuals (columns) as E, matching by name so the mediation split is
+    # computed on identical indexing.
+    if (is.null(rownames(Gexpr)) || is.null(colnames(Gexpr))) {
+      stop("simulate_phenotype(): the derived transcriptome's genetic_expression ",
+           "must carry gene (row) and individual (column) names.", call. = FALSE)
+    }
+    mg <- match(sim$ids, colnames(Gexpr))
+    rg <- match(rownames(E), rownames(Gexpr))
+    if (anyNA(mg) || anyNA(rg)) {
+      stop("simulate_phenotype(): the derived transcriptome's genetic_expression ",
+           "does not cover the same genes and individuals as its expression.",
+           call. = FALSE)
+    }
+    Gexpr <- Gexpr[rg, mg, drop = FALSE]
+    if (any(!is.finite(Gexpr))) {
+      stop("simulate_phenotype(): the derived transcriptome's genetic_expression ",
+           "has non-finite values.", call. = FALSE)
+    }
+  }
+  sim$genetic_expression <- Gexpr     # NULL for a real expression source
   sim
 }
 

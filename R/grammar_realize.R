@@ -58,6 +58,7 @@
 
   sim$pheno <- do.call(rbind, long)
   sim$var_budget <- .variance_budget(sim)
+  sim$mediation <- .mediation_budget(sim)   # NULL unless a derived transcriptome
   sim
 }
 
@@ -106,14 +107,32 @@
   Gen
 }
 
+#' Total genetic-value matrix (individuals x traits)
+#'
+#' The heritable value: the marker-based genetic value plus the genetic-mediated
+#' part of any *derived* transcriptome layer. For a real expression source (whose
+#' genetic content is not asserted) the transcriptome term is zero, so this equals
+#' the marker-based value. This is the numerator of broad-sense heritability and
+#' the quantity returned by [genetic_values()].
+#' @keywords internal
+#' @noRd
+.genetic_value_matrix <- function(sim, rep = 1L) {
+  .genetic_matrix(sim, rep) + .transcriptome_matrix(sim, rep, component = "genetic")
+}
+
 #' Expression-mediated value matrix (individuals x traits)
 #'
 #' The transcriptome layers' contribution, each scored on standardized expression
 #' and scaled to its target `prop` -- a distinct variance category, not part of the
-#' marker-based genetic value.
+#' marker-based genetic value. `component` selects which part of the expression
+#' drives the score: `"total"` uses the observed/derived expression (the phenotype
+#' signal); `"genetic"` uses only the genome-mediated part of a *derived* source,
+#' scaled by the SAME constant, so it isolates the genetic-mediated share that
+#' counts toward heritability. A real source has no asserted genetic part, so its
+#' `"genetic"` contribution is zero.
 #' @keywords internal
 #' @noRd
-.transcriptome_matrix <- function(sim, rep = 1L) {
+.transcriptome_matrix <- function(sim, rep = 1L, component = "total") {
   n <- sim$n_ind; nt <- sim$n_traits
   tx_layers <- Filter(function(l) l$type == "transcriptome", sim$layers)
   Tx <- matrix(0, n, nt)
@@ -122,22 +141,63 @@
     v <- rep(0, n)
     for (ly in tx_layers) {
       prop_t <- .expand_prop(ly$prop, nt)[t]
-      comp <- .component_raw(ly, sim, t, rep)
-      s <- stats::sd(comp)
+      comp_total <- .tx_raw(ly, sim, t, rep, "total")
+      s <- stats::sd(comp_total)
       if (is.finite(s) && s > 0 && prop_t > 0) {
-        comp <- comp / s * sqrt(prop_t)
+        scale <- sqrt(prop_t) / s
       } else if (prop_t > 0) {
         stop("The transcriptome layer for trait ", t, " has zero usable variation ",
              "in replication ", rep, "; its genes/slopes cannot realize prop = ",
              prop_t, ".", call. = FALSE)
       } else {
-        comp <- rep(0, n)
+        scale <- 0
       }
-      v <- v + comp
+      comp <- if (identical(component, "genetic")) {
+        .tx_raw(ly, sim, t, rep, "genetic")
+      } else {
+        comp_total
+      }
+      v <- v + scale * comp
     }
     Tx[, t] <- v
   }
   Tx
+}
+
+#' Raw (centered, unscaled) transcriptome score for one layer and trait
+#'
+#' Scores `sum_g w_g * z_g` where `z_g` is a per-gene standardized expression.
+#' `which = "total"` standardizes and centers on the observed expression `E_g`;
+#' `which = "genetic"` uses the genome-mediated part `G_g` in the numerator while
+#' keeping the SAME denominator `sd(E_g)`. Because `E_g = G_g + R_g` (up to the
+#' constant mean), `z_g^{total} = z_g^{genetic} + z_g^{env}` exactly, so the total
+#' component decomposes additively into a genetic-mediated and an environmental
+#' part (their finite-sample covariance is reported, not assumed zero). The slope
+#' vector is normalized by its max magnitude so only relative slopes matter.
+#' @keywords internal
+#' @noRd
+.tx_raw <- function(ly, sim, t, rep = 1L, which = "total") {
+  qe <- .layer_qtn_effect(ly, t, rep)
+  idx <- qe$qtn; eff <- qe$effect
+  n <- sim$n_ind
+  if (is.null(idx) || length(idx) == 0) return(rep(0, n))
+  E <- sim$expression[idx, , drop = FALSE]            # genes x individuals
+  sdE <- apply(E, 1L, stats::sd)
+  if (identical(which, "genetic")) {
+    if (is.null(sim$genetic_expression)) return(rep(0, n))  # real source: no split
+    num <- sim$genetic_expression[idx, , drop = FALSE]
+    num <- num - rowMeans(num)
+  } else {
+    num <- E - rowMeans(E)
+  }
+  bad <- !is.finite(sdE) | sdE <= 0                   # constant gene contributes 0
+  sdE[bad] <- 1
+  z <- num / sdE                                      # standardize each gene by sd(E_g)
+  if (any(bad)) z[bad, ] <- 0
+  w <- eff; sc <- max(abs(w))
+  if (is.finite(sc) && sc > 0) w <- w / sc
+  out <- as.numeric(w %*% z)
+  out - mean(out)
 }
 
 #' Raw (centered, unscaled) genetic value of one layer for one trait
@@ -182,24 +242,10 @@
       }
       out
     },
-    transcriptome = {
-      # idx = causal gene rows of sim$expression; eff = per-gene slopes. Score
-      # sum_g slope_g * standardized_expression_g (each gene z-scored on the
-      # scored individuals so slopes are comparable; a constant gene contributes
-      # 0). The prop-scaling in .genetic_matrix() fixes the variance share, so
-      # only the relative slopes matter -- exactly as for an additive layer.
-      E <- sim$expression[idx, , drop = FALSE]         # genes x individuals
-      z <- t(apply(E, 1L, function(r) {
-        s <- stats::sd(r)
-        if (is.finite(s) && s > 0) (r - mean(r)) / s else rep(0, length(r))
-      }))                                              # genes x individuals
-      # Only the RELATIVE slopes matter (the component is rescaled to prop), so
-      # normalize the slope vector first -- this avoids under/overflow for extreme
-      # but finite slopes and makes the realized component scale-invariant.
-      w <- eff; sc <- max(abs(w))
-      if (is.finite(sc) && sc > 0) w <- w / sc
-      as.numeric(w %*% z)
-    },
+    # The transcriptome score (total expression) is computed by .tx_raw, which
+    # also handles the genetic-mediated variant for the mediation split. It
+    # already returns a centered vector.
+    transcriptome = return(.tx_raw(ly, sim, t, rep, "total")),
     rep(0, n)
   )
   g - mean(g)
@@ -304,6 +350,53 @@
   do.call(rbind, rows)
 }
 
+#' Realized mediation split for a derived transcriptome phenotype
+#'
+#' For a genome-**derived** `transcriptome()` layer, the expression-mediated
+#' phenotype component decomposes (up to the constant mean) into a
+#' genetic-mediated part `Tx_g` (traced to the genome through expression) and an
+#' environmental part `Tx_e = Tx - Tx_g`. This returns, per trait, the realized
+#' shares of phenotypic variance: `genetic_mediated = Var(Tx_g)/V_P`,
+#' `env_mediated = Var(Tx_e)/V_P`, and `covariance = 2*Cov(Tx_g, Tx_e)/V_P`
+#' (finite-sample; ~0 by construction since the generator draws the genetic and
+#' non-genetic parts of expression independently). The three sum to the realized
+#' expression-mediated share. Averaged across replications. Returns `NULL` when
+#' there is no derived transcriptome layer (a real expression source has no
+#' asserted genetic/environmental split).
+#' @keywords internal
+#' @noRd
+.mediation_budget <- function(sim) {
+  if (is.null(sim$genetic_expression) || is.null(sim$pheno)) return(NULL)
+  if (!any(vapply(sim$layers, function(l) identical(l$type, "transcriptome"), TRUE))) {
+    return(NULL)
+  }
+  nt <- sim$n_traits
+  rows <- vector("list", nt)
+  for (t in seq_len(nt)) {
+    parts <- vapply(seq_len(sim$n_reps), function(r) {
+      Txg <- .transcriptome_matrix(sim, r, "genetic")[, t]
+      Tx  <- .transcriptome_matrix(sim, r, "total")[, t]
+      Txe <- Tx - Txg
+      y <- sim$pheno$value[sim$pheno$trait == paste0("Trait_", t) &
+                           sim$pheno$rep == r]
+      vp <- stats::var(y)
+      if (!is.finite(vp) || vp <= 0) return(c(NA_real_, NA_real_, NA_real_))
+      c(stats::var(Txg) / vp,
+        stats::var(Txe) / vp,
+        2 * stats::cov(Txg, Txe) / vp)
+    }, numeric(3))
+    m <- rowMeans(parts, na.rm = TRUE)
+    rows[[t]] <- data.frame(
+      trait = paste0("Trait_", t),
+      genetic_mediated = m[1],
+      env_mediated = m[2],
+      covariance = m[3],
+      stringsAsFactors = FALSE
+    )
+  }
+  do.call(rbind, rows)
+}
+
 #' Draw a residual under a fixed sub-seed, restoring the prior RNG state
 #' @keywords internal
 #' @noRd
@@ -348,8 +441,11 @@
 #' realized values and averaged across replications. With `vary_qtn = TRUE`,
 #' each replication's own genetic values are used.
 #'
-#' A `vqtl()` layer contributes no genetic value and is therefore excluded from
-#' the numerator, correctly treating it as residual heterogeneity.
+#' The numerator is the total genetic value (\code{.genetic_value_matrix()}): the
+#' marker-based value plus the genetic-mediated part of any derived
+#' `transcriptome()` layer. A `vqtl()` layer contributes no genetic value and a
+#' real expression source's genetic content is not asserted, so both are
+#' excluded from the numerator.
 #' @keywords internal
 #' @noRd
 .realized_h2 <- function(sim) {
@@ -361,7 +457,7 @@
   out <- numeric(nt)
   for (t in seq_len(nt)) {
     ratios <- vapply(seq_len(sim$n_reps), function(r) {
-      gen <- .genetic_matrix(sim, r)
+      gen <- .genetic_value_matrix(sim, r)
       y <- sim$pheno$value[sim$pheno$trait == paste0("Trait_", t) &
                            sim$pheno$rep == r]
       vg <- stats::var(gen[, t])
