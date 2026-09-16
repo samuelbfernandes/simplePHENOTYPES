@@ -52,6 +52,25 @@ test_that("a purely non-genetic (h2 = 0) derived transcriptome does not inflate 
   expect_equal(ms0$env_mediated, 0.5, tolerance = 0.06)
 })
 
+test_that("qtn_table() reports a transcriptome layer as gene rows", {
+  gid <- rownames(tx$expression)[c(3, 7, 11)]
+  ph <- simulate_phenotype(G, h2 = 0.5, seed = 5, transcriptome = tx) |>
+    transcriptome(prop = 0.4, genes = gid, slopes = c(1, -2, 0.5)) |>
+    additive(prop = 0.2, n_qtn = 4)
+  qt <- qtn_table(ph)
+  tr <- subset(qt, layer == "transcriptome")
+  expect_identical(nrow(tr), 3L)
+  expect_identical(tr$snp, gid)                       # gene ids in the feature column
+  expect_true(all(is.na(tr$chr)) && all(is.na(tr$pos)) && all(is.na(tr$maf)))
+  expect_equal(tr$effect, c(1, -2, 0.5))
+  # per-gene shares track squared (max-normalized) slopes: (0.5, -1, 0.25)^2
+  expect_equal(tr$var_explained / tr$var_explained[2], c(0.25, 1, 0.0625),
+               tolerance = 1e-6)
+  expect_equal(sum(tr$var_explained), 0.4, tolerance = 0.06)   # marginal ~ prop
+  # marker layers keep their marker columns
+  expect_true(all(!is.na(subset(qt, layer == "additive")$maf)))
+})
+
 test_that("mediation_split() is reported only for a derived expression source", {
   # real source: genetic/environmental split is not asserted
   ph_real <- simulate_phenotype(G, h2 = 0.5, seed = 3,
