@@ -13,6 +13,7 @@ simulate_transcriptome(
   cis_fraction = 0.25,
   n_factors = NULL,
   residual_module_fraction = 0.15,
+  mimic = NULL,
   profile = "generic_bulk",
   seed = NULL
 )
@@ -48,6 +49,17 @@ carried by the shared module factor before normalization. As with \code{h2} and 
 cis fraction, the realized fraction scatters around it in finite samples (the
 scatter is large only at very small \code{n}).}
 
+\item{mimic}{optional \strong{user expression matrix} (genes x individuals, columns
+named/ordered to the genotypes) to calibrate the generator to. When supplied,
+the generator's \emph{targets} are set from it: exact per-gene mean and variance;
+a per-gene heritability from a GREML estimator (REML on the genotypes' GRM,
+single variance component); the co-expression factor count \code{n_factors}
+(Marchenko-Pastur) and strength \code{kappa}. \code{n_genes} is taken from \code{mimic}. The
+eQTL effects, loadings, and (downstream) phenotype slopes are still drawn de
+novo -- mimic calibrates the \emph{distribution} of expression, it does not fit
+individual effects. The estimates are returned in \verb{$calibration}. \code{kappa} is
+a documented strength proxy, not an identifiable residual-module estimate.}
+
 \item{profile}{a named calibration profile (currently \code{"generic_bulk"}).}
 
 \item{seed}{optional seed (\code{NULL} or one non-negative whole number); the RNG
@@ -63,7 +75,12 @@ the \code{profile}, \code{seed}, and a per-gene variance budget (\code{v_cis + v
 covariance \verb{2 Cov(G, R)}). The genetic component is
 reconstructable from centered dosage \code{Z}: the cis part uses \code{cis_eqtl$effect}
 directly; the trans part of gene \code{g} is \code{trans_scale[g]} times its module's
-\code{factor_eqtl$hub_effect} (loading 1).
+\code{factor_eqtl$hub_effect} (loading 1). The truth tables are on the \strong{unit
+scale}; when \code{mimic} is used the returned \code{genetic_expression} is affine-
+scaled to the mimicked moments, so this reconstruction must be multiplied by
+\code{reference$gene_scale[g]} (which is 1 without \code{mimic}) to match it. \code{mimic}
+also adds a \verb{$calibration} element (the GREML \code{h2}, \code{mean}, \code{var} per gene,
+plus the calibrated \code{n_factors} and \code{kappa}).
 }
 \description{
 Generates a genes-by-individuals expression matrix as a hybrid latent-factor

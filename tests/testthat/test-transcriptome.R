@@ -329,3 +329,79 @@ test_that("predict() requires the architecture's eQTL markers in the new genotyp
   Gbad$snp[hit] <- paste0("x_", which(hit))
   expect_error(predict(txp, Gbad), "missing eQTL marker")
 })
+
+test_that("the GREML estimator recovers a planted heritability from the GRM", {
+  sim <- simplePHENOTYPES:::.normalize_geno(G, "geno")
+  dose <- simplePHENOTYPES:::.geno_cols(sim, seq_len(sim$n_markers))
+  Z <- sweep(dose, 2, colMeans(dose), "-")
+  K <- simplePHENOTYPES:::.tx_grm(Z)
+  expect_equal(mean(diag(K)), 1, tolerance = 1e-8)          # GRM normalized
+  n <- nrow(K); set.seed(7)
+  eig <- eigen(K, symmetric = TRUE)
+  Uh <- eig$vectors %*% diag(sqrt(pmax(eig$values, 0)))
+  plant <- function(h2) as.numeric(Uh %*% rnorm(n)) * sqrt(h2) + rnorm(n) * sqrt(1 - h2)
+  for (h2 in c(0.2, 0.6)) {
+    Y <- t(vapply(1:30, function(i) plant(h2), numeric(n)))
+    est <- simplePHENOTYPES:::.greml_h2(Y, K)
+    expect_equal(mean(est), h2, tolerance = 0.08)            # unbiased within sampling error
+  }
+  # a constant gene has no variance to partition
+  expect_equal(simplePHENOTYPES:::.greml_h2(matrix(3, 1, n), K), 0)
+})
+
+test_that("mimic mode reproduces per-gene moments and calibrates h2 to GREML", {
+  base <- simulate_transcriptome(G, n_genes = 60, seed = 1)
+  set.seed(9)
+  Euser <- base$expression * runif(60, 0.5, 3) + rnorm(60, rnorm(60, 0, 2))
+  mu0 <- rowMeans(Euser); V0 <- apply(Euser, 1L, stats::var)
+  mim <- simulate_transcriptome(G, mimic = Euser, seed = 2)
+  expect_equal(mim$n_genes, 60L)
+  expect_identical(mim$calibration$source, "mimic")
+  # exact per-gene moments
+  expect_equal(unname(rowMeans(mim$expression)), unname(mu0), tolerance = 1e-10)
+  expect_equal(unname(apply(mim$expression, 1L, stats::var)), unname(V0),
+               tolerance = 1e-10)
+  # h2 targets are the per-gene GREML estimates
+  expect_equal(mim$genes$h2_target, mim$calibration$h2$h2_greml)
+  expect_true(mim$reference$n_factors >= 1L)
+  expect_true(mim$reference$kappa >= 0 && mim$reference$kappa <= 1)
+  # reproducible under a seed
+  expect_equal(simulate_transcriptome(G, mimic = Euser, seed = 2)$expression,
+               mim$expression)
+  # a fixed architecture reapplies to new genotypes at the mimicked scale
+  p0 <- predict(mim, G, residual = FALSE)
+  expect_equal(p0$genetic_expression, mim$genetic_expression, tolerance = 1e-10)
+})
+
+test_that("mimic validates its input and leaves the non-mimic path untouched", {
+  base <- simulate_transcriptome(G, n_genes = 20, seed = 1)
+  E <- base$expression
+  Ebad <- E; Ebad[1, 1] <- NA
+  expect_error(simulate_transcriptome(G, mimic = Ebad), "non-finite")
+  expect_error(simulate_transcriptome(G, mimic = E[, 1:10]), "missing individual")
+  # duplicate gene ids would make the truth tables / predict() ambiguous
+  Edup <- E; rownames(Edup)[2] <- rownames(Edup)[1]
+  expect_error(simulate_transcriptome(G, mimic = Edup), "duplicate gene")
+  # but omitting gene names is allowed -- they are auto-assigned
+  Enonames <- E; rownames(Enonames) <- NULL
+  mm <- simulate_transcriptome(G, mimic = Enonames, seed = 1)
+  expect_identical(mm$genes$gene_id, paste0("gene", seq_len(nrow(E))))
+  # non-mimic objects carry the identity affine and no calibration
+  nm <- simulate_transcriptome(G, n_genes = 20, seed = 4)
+  expect_true(all(nm$reference$gene_scale == 1))
+  expect_true(all(nm$reference$gene_location == 0))
+  expect_null(nm$calibration)
+})
+
+test_that("a user n_factors override keeps kappa consistent with that Q", {
+  base <- simulate_transcriptome(G, n_genes = 40, seed = 1)
+  set.seed(11)
+  Euser <- base$expression * runif(40, 0.5, 2) + rnorm(40)
+  m <- simulate_transcriptome(G, mimic = Euser, n_factors = 1, seed = 2)
+  expect_identical(m$reference$n_factors, 1L)
+  Es <- t(apply(Euser, 1L, function(r) {
+    s <- stats::sd(r); if (s > 0) (r - mean(r)) / s else r * 0
+  }))
+  expect_equal(m$reference$kappa, simplePHENOTYPES:::.tx_estimate_kappa(Es, 1L))
+  expect_equal(m$calibration$kappa, m$reference$kappa)   # calibration reports the pair used
+})

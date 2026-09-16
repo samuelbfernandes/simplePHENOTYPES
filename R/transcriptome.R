@@ -63,6 +63,16 @@
 #'   carried by the shared module factor before normalization. As with `h2` and the
 #'   cis fraction, the realized fraction scatters around it in finite samples (the
 #'   scatter is large only at very small `n`).
+#' @param mimic optional **user expression matrix** (genes x individuals, columns
+#'   named/ordered to the genotypes) to calibrate the generator to. When supplied,
+#'   the generator's *targets* are set from it: exact per-gene mean and variance;
+#'   a per-gene heritability from a GREML estimator (REML on the genotypes' GRM,
+#'   single variance component); the co-expression factor count `n_factors`
+#'   (Marchenko-Pastur) and strength `kappa`. `n_genes` is taken from `mimic`. The
+#'   eQTL effects, loadings, and (downstream) phenotype slopes are still drawn de
+#'   novo -- mimic calibrates the *distribution* of expression, it does not fit
+#'   individual effects. The estimates are returned in `$calibration`. `kappa` is
+#'   a documented strength proxy, not an identifiable residual-module estimate.
 #' @param profile a named calibration profile (currently `"generic_bulk"`).
 #' @param seed optional seed (`NULL` or one non-negative whole number); the RNG
 #'   state is restored afterwards.
@@ -76,7 +86,12 @@
 #'   covariance `2 Cov(G, R)`). The genetic component is
 #'   reconstructable from centered dosage `Z`: the cis part uses `cis_eqtl$effect`
 #'   directly; the trans part of gene `g` is `trans_scale[g]` times its module's
-#'   `factor_eqtl$hub_effect` (loading 1).
+#'   `factor_eqtl$hub_effect` (loading 1). The truth tables are on the **unit
+#'   scale**; when `mimic` is used the returned `genetic_expression` is affine-
+#'   scaled to the mimicked moments, so this reconstruction must be multiplied by
+#'   `reference$gene_scale[g]` (which is 1 without `mimic`) to match it. `mimic`
+#'   also adds a `$calibration` element (the GREML `h2`, `mean`, `var` per gene,
+#'   plus the calibrated `n_factors` and `kappa`).
 #' @seealso [simulate_phenotype()], `additive_value()`.
 #' @references
 #'   Falconer DS, Mackay TFC (1996) \emph{Introduction to Quantitative Genetics},
@@ -102,6 +117,7 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
                                     h2 = "beta", cis_fraction = 0.25,
                                     n_factors = NULL,
                                     residual_module_fraction = 0.15,
+                                    mimic = NULL,
                                     profile = "generic_bulk", seed = NULL) {
   if (!identical(profile, "generic_bulk")) {
     stop("simulate_transcriptome(): unknown `profile` '", profile,
@@ -154,6 +170,23 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
   # Compare chromosome labels as character everywhere (robust to factor/integer).
   map$chr <- ifelse(is.na(map$chr), NA_character_, as.character(map$chr))
 
+  # Reference-centered dosages Z (individuals x markers) and stored marker means,
+  # computed once (deterministic, no RNG) so the mimic calibrator and the
+  # seed-scoped generator share them.
+  dose <- .geno_cols(sim, seq_len(sim$n_markers))
+  marker_mean <- colMeans(dose)
+  Z <- sweep(dose, 2L, marker_mean, "-")
+
+  # Mimic mode: calibrate the generator's TARGETS (per-gene moments, GREML h2,
+  # co-expression factor count and strength) to a user expression matrix. eQTL
+  # effects, loadings, and phenotype slopes remain drawn de novo.
+  mim <- if (is.null(mimic)) NULL else .tx_mimic_calibrate(mimic, sim, Z)
+  if (!is.null(mim)) {
+    h2 <- mim$h2                                # per-gene GREML targets override `h2`
+    if (is.null(n_factors)) n_factors <- mim$Q  # factor count (unless user-fixed)
+    # kappa is recomputed below against the FINAL Q (respecting a user override).
+  }
+
   # gene count + coordinate source (deterministic; coords drawn under seed) ------
   if (is.null(annotation)) {
     if (anyNA(map$chr) || anyNA(map$pos)) {
@@ -174,6 +207,14 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
     T_genes <- nrow(coords0)
     coordinate_source <- "supplied"
   }
+  if (!is.null(mim)) {
+    if (!is.null(coords0) && nrow(coords0) != mim$T_genes) {
+      stop("simulate_transcriptome(): `annotation` has ", nrow(coords0),
+           " genes but `mimic` has ", mim$T_genes, "; they must match.",
+           call. = FALSE)
+    }
+    T_genes <- mim$T_genes                        # mimic sets the gene count
+  }
   if (T_genes < 1L) {
     stop("simulate_transcriptome(): no genes to simulate.", call. = FALSE)
   }
@@ -189,6 +230,16 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
     as.integer(n_factors)
   }
 
+  # In mimic mode, the co-expression strength kappa is estimated against the FINAL
+  # factor count Q (so a user-supplied n_factors stays consistent with kappa).
+  if (!is.null(mim)) kappa <- .tx_estimate_kappa(mim$Es, Q)
+
+  # Per-gene location/scale to reproduce a mimicked matrix's moments; identity
+  # (0, 1) otherwise. Applied as a final affine to expression and genetic, and
+  # stored so predict.transcriptome_sim() reproduces the same scale.
+  loc <- if (is.null(mim)) rep(0, T_genes) else mim$mu
+  scl <- if (is.null(mim)) rep(1, T_genes) else sqrt(mim$V)
+
   # --- draw the architecture and assemble expression (seed-scoped) --------------
   run <- function() {
     # Coordinates and per-gene targets are drawn HERE so they are under the seed.
@@ -197,16 +248,15 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
     } else {
       coords0
     }
+    # when mimicking, label output genes with the user matrix's gene names
+    if (!is.null(mim)) coords$gene_id <- mim$gene_ids
     h2_g <- .tx_pergene(if (has_geno) h2 else 0, T_genes, "h2",
                         lo = 0, hi = 1, beta = c(1.5, 6))
     omega_g <- .tx_pergene(cis_fraction, T_genes, "cis_fraction",
                            lo = 0, hi = 1, beta = c(2, 6))
 
-    # Reference-centered dosages Z (individuals x markers), and stored marker
-    # means so the same centering can be reapplied to new genotypes.
-    dose <- .geno_cols(sim, seq_len(sim$n_markers))     # ind x marker, -1/0/1
-    marker_mean <- colMeans(dose)
-    Z <- sweep(dose, 2L, marker_mean, "-")
+    # `dose`, `marker_mean`, and reference-centered `Z` are computed once above
+    # (deterministic) and shared here via the enclosing scope.
 
     # An eQTL needs a defined distance class, so a marker with a missing
     # chromosome or position cannot be cis or trans and is excluded.
@@ -260,6 +310,7 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
     v_cis <- v_trans <- v_cov <- numeric(T_genes)
     n_cis <- integer(T_genes)
     cis_rows <- vector("list", T_genes)
+    scl_used <- scl                                     # realized per-gene scale
 
     z1 <- function(v) {                                 # reference standardize
       s <- stats::sd(v)
@@ -324,7 +375,21 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
         rep(0, n_ind)
       }
 
-      Eg <- Gg + Rg                                     # mu_g = 0 in v1
+      # per-gene affine (identity unless mimicking): scale by the REALIZED sd of
+      # the unit expression so the mimicked variance V_g is hit exactly (the unit
+      # variance is 1 only up to the finite-sample G-R covariance), and shift to
+      # mu_g. Gg is exactly mean-zero (standardized cis/trans), so predict()'s
+      # unit reconstruction times the stored scale reproduces this genetic.
+      esc <- 1
+      if (!is.null(mim)) {
+        u  <- (Gg - mean(Gg)) + (Rg - mean(Rg))
+        vu <- stats::var(u)
+        esc <- if (is.finite(vu) && vu > 1e-12) scl[g] / sqrt(vu) else scl[g]
+        Gg <- esc * (Gg - mean(Gg))
+        Rg <- esc * (Rg - mean(Rg))
+      }
+      scl_used[g] <- esc
+      Eg <- loc[g] + Gg + Rg
       expression[g, ] <- Eg
       genetic[g, ] <- Gg
       vE <- stats::var(Eg)
@@ -335,7 +400,10 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       # effective coefficient on centered dosage Z_j is s_c * beta_j / sd(cg).
       s_c <- if (sG0 > 1e-9 && h2_g[g] > 0 && om > 0) sqrt(h2_g[g] * om) / sG0 else 0
       s_t <- if (sG0 > 1e-9 && h2_g[g] > 0 && om < 1) sqrt(h2_g[g] * (1 - om)) / sG0 else 0
-      cis_part <- s_c * c_std; trans_part <- s_t * t_std
+      # budget is on the final (affine-scaled) genetic; s_c/s_t stay UNIT-scale so
+      # the cis_eqtl/trans_scale truth tables reconstruct the unit genetic map and
+      # predict() applies the stored realized scale (scl_used).
+      cis_part <- esc * s_c * c_std; trans_part <- esc * s_t * t_std
       v_cis[g] <- stats::var(cis_part)
       v_trans[g] <- stats::var(trans_part)
       v_cov[g] <- 2 * stats::cov(cis_part, trans_part)
@@ -363,7 +431,7 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
          cis_eqtl = do.call(rbind, cis_rows),
          factor_eqtl = do.call(rbind, factor_eqtl),
          v_cis = v_cis, v_trans = v_trans, v_cov = v_cov,
-         marker_mean = marker_mean,
+         marker_mean = marker_mean, scl_used = scl_used,
          coords = coords, h2_g = h2_g, omega_g = omega_g)
   }
 
@@ -390,10 +458,15 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       loadings = data.frame(gene_id = coords$gene_id, factor = out$module,
                             loading = 1, stringsAsFactors = FALSE),
       reference = list(marker_mean = out$marker_mean, ids = ids,
-                       n_factors = Q, kappa = kappa, cis_window = cis_window),
+                       n_factors = Q, kappa = kappa, cis_window = cis_window,
+                       gene_location = loc, gene_scale = out$scl_used),
       var_budget = data.frame(
         gene_id = coords$gene_id, v_cis = out$v_cis, v_trans = out$v_trans,
         cis_trans_cov = out$v_cov, gr_cov = out$gr_cov, stringsAsFactors = FALSE),
+      calibration = if (is.null(mim)) NULL else list(
+        source = "mimic", n_factors = Q, kappa = kappa,
+        h2 = data.frame(gene_id = coords$gene_id, h2_greml = mim$h2,
+                        mean = mim$mu, var = mim$V, stringsAsFactors = FALSE)),
       profile = profile, seed = seed,
       n_genes = T_genes, n_ind = n_ind
     ),
@@ -525,8 +598,18 @@ predict.transcriptome_sim <- function(object, geno, seed = NULL,
     draw_resid()
   }
 
-  expression <- genetic + R
+  # apply the stored per-gene affine (mimic moments; identity 0/1 otherwise), so a
+  # mimicked architecture reproduces its expression scale on the new population.
+  loc <- object$reference$gene_location; if (is.null(loc)) loc <- rep(0, Tg)
+  scl <- object$reference$gene_scale;    if (is.null(scl)) scl <- rep(1, Tg)
+  genetic    <- genetic * scl
+  cis_part   <- cis_part * scl
+  trans_part <- trans_part * scl
+  R          <- R * scl
+
+  expression <- loc + genetic + R
   dimnames(expression) <- list(genes$gene_id, ids)
+  dimnames(genetic) <- list(genes$gene_id, ids)
 
   # variance budget realized on the NEW population (targets/effect tables fixed).
   v_cis <- apply(cis_part, 1L, stats::var)
