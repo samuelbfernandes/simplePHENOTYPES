@@ -28,7 +28,12 @@
 #'   (first five columns `c("snp", "allele", "chr", "pos", "cm")`, e.g.
 #'   [SNP55K_maize282_maf04]), an individuals-by-markers numeric matrix coded
 #'   -1/0/1, or a [Population][as_population()] from [cross()], [selfcross()] or
-#'   [double_haploid()].
+#'   [double_haploid()]. **Optional** when an expression basis is given: with
+#'   `geno = NULL` and an `expression` matrix (or a `transcriptome_sim` in
+#'   `transcriptome`), the phenotype is built from expression alone -- individuals
+#'   come from the expression source's columns, there are no markers, and only
+#'   `transcriptome()` layers are valid (`h2`, `n_qtn`, and the marker layers all
+#'   need `geno`).
 #' @param architecture one of "independent" (each trait its own QTNs),
 #'   "pleiotropy" (shared QTNs with a controlled genetic correlation), or "ld"
 #'   (two traits whose *distinct* causal loci are in linkage disequilibrium, so
@@ -55,6 +60,14 @@
 #'   and the genotypes are never copied -- only the selected rows are read.
 #' @param model one-call model string: "A" (additive, default), "AD"
 #'   (additive + dominance), "AE" (additive + epistasis).
+#' @param expression optional real/observed expression as a genes-by-individuals
+#'   numeric matrix (columns named by individual id, or in the individual order),
+#'   used by a [transcriptome()] layer. Give at most one of `expression` /
+#'   `transcriptome`.
+#' @param transcriptome optional **genome-derived** expression source for a
+#'   [transcriptome()] layer: a `transcriptome_sim` from `simulate_transcriptome()`,
+#'   or `TRUE` to derive one from `geno` with default settings. Give at most one of
+#'   `expression` / `transcriptome`.
 #' @param ... architecture-specific arguments (validated -- an unknown name is
 #'   an error, and an argument for a different architecture warns). For
 #'   `"pleiotropy"`: `cor`, `pi` (or the two-trait `pi_target` /
@@ -81,7 +94,7 @@
 #' ph <- additive(ph, prop = 0.5, n_qtn = 3)
 #' # one-call form
 #' ph2 <- simulate_phenotype(SNP55K_maize282_maf04, h2 = 0.5, n_qtn = 3, seed = 1)
-simulate_phenotype <- function(geno,
+simulate_phenotype <- function(geno = NULL,
                                architecture = c("independent", "pleiotropy", "ld"),
                                n_traits = 1,
                                n_qtn = 0,
@@ -92,6 +105,8 @@ simulate_phenotype <- function(geno,
                                mean = NULL,
                                individuals = NULL,
                                model = "A",
+                               expression = NULL,
+                               transcriptome = NULL,
                                ...) {
   architecture <- match.arg(architecture)
   n_traits <- .validate_count(n_traits, "n_traits", minimum = 1L)
@@ -125,7 +140,38 @@ simulate_phenotype <- function(geno,
   }
 
   geno_name <- deparse(substitute(geno))
-  norm <- .normalize_geno(geno, geno_name, individuals = individuals)
+  no_geno <- is.null(geno)
+  if (no_geno) {
+    # Genotype-free (mode 2): the phenotype is built from an expression source
+    # alone. `transcriptome = TRUE` has no genome to derive from; a
+    # transcriptome_sim or a real `expression` matrix carries its own individuals.
+    if (isTRUE(transcriptome)) {
+      stop("simulate_phenotype(): `transcriptome = TRUE` derives expression from ",
+           "`geno`, but no `geno` was given. Pass a transcriptome_sim, a real ",
+           "`expression` matrix, or supply `geno`.", call. = FALSE)
+    }
+    src <- if (!is.null(expression)) expression else
+      if (inherits(transcriptome, "transcriptome_sim")) transcriptome$expression else NULL
+    if (is.null(src)) {
+      stop("simulate_phenotype(): supply `geno`, or (with no genotypes) an ",
+           "`expression` matrix or a transcriptome_sim, so the phenotype has a ",
+           "basis.", call. = FALSE)
+    }
+    if (!is.null(h2) || n_qtn > 0L) {
+      stop("simulate_phenotype(): `h2` and `n_qtn` set a marker-based genetic ",
+           "architecture, which needs `geno`. With no genotypes, build the ",
+           "phenotype from transcriptome() layers only.", call. = FALSE)
+    }
+    if (architecture != "independent") {
+      stop("simulate_phenotype(): architecture = \"", architecture, "\" is ",
+           "marker-based and needs `geno`; the genotype-free basis supports only ",
+           "the default \"independent\" architecture.", call. = FALSE)
+    }
+    norm <- .expression_foundation(colnames(src), individuals)
+    geno_name <- "<expression>"
+  } else {
+    norm <- .normalize_geno(geno, geno_name, individuals = individuals)
+  }
 
   sim <- structure(
     list(
@@ -153,6 +199,14 @@ simulate_phenotype <- function(geno,
     ),
     class = "phenotype_sim"
   )
+
+  # Optional expression source for the transcriptome() layer: a real matrix
+  # (`expression=`) or a genome-derived transcriptome (`transcriptome=`).
+  sim$expression <- NULL
+  sim$expression_source <- NULL
+  if (!is.null(expression) || !is.null(transcriptome)) {
+    sim <- .attach_expression(sim, geno, expression, transcriptome, seed)
+  }
 
   if (architecture == "pleiotropy") {
     .pleio_cor_matrix(sim)
@@ -430,9 +484,20 @@ simulate_phenotype <- function(geno,
          call. = FALSE)
   }
 
-  # Resolve an optional individual subset. Everything downstream reads the full
-  # genotype object through .geno_cols(), which applies `ind_idx`, so subsetting
-  # never copies the genotypes -- it just restricts which rows are returned.
+  out <- .select_individuals(out, individuals)
+  out$maf <- .marker_maf_ref(out)
+  out
+}
+
+#' Resolve an optional individual subset on a normalized foundation
+#'
+#' Everything downstream reads the full genotype object through `.geno_cols()`,
+#' which applies `ind_idx`, so subsetting never copies the genotypes -- it just
+#' restricts which rows are returned. Shared by `.normalize_geno()` (genotype
+#' foundation) and `.expression_foundation()` (genotype-free, expression basis).
+#' @keywords internal
+#' @noRd
+.select_individuals <- function(out, individuals) {
   full_ids <- out$ids
   if (is.null(individuals)) {
     out$ind_idx <- seq_along(full_ids)
@@ -462,7 +527,34 @@ simulate_phenotype <- function(geno,
     stop("At least two individuals must be selected so variances can be ",
          "defined.", call. = FALSE)
   }
-  out$maf <- .marker_maf_ref(out)
+  out
+}
+
+#' Genotype-free (expression-basis) foundation
+#'
+#' Builds the same foundation shape as `.normalize_geno()` for a phenotype driven
+#' by expression alone (`simulate_phenotype(expression = ...)` with no `geno`):
+#' individuals come from the expression source's columns, and there are no
+#' markers, so only `transcriptome()` layers are valid downstream.
+#' @keywords internal
+#' @noRd
+.expression_foundation <- function(ids, individuals = NULL) {
+  if (is.null(ids)) {
+    stop("simulate_phenotype(): the expression source has no individual (column) ",
+         "names; name its columns so individuals can be identified.", call. = FALSE)
+  }
+  if (anyNA(ids) || any(!nzchar(ids)) || anyDuplicated(ids)) {
+    stop("Individual names (expression columns) must be non-missing, non-empty, ",
+         "and unique.", call. = FALSE)
+  }
+  out <- list(
+    geno_name = "<expression>", geno = NULL, kind = "expression",
+    map = data.frame(snp = character(0), chr = integer(0), pos = integer(0),
+                     stringsAsFactors = FALSE),
+    ids = ids, n_ind = length(ids), n_markers = 0L
+  )
+  out <- .select_individuals(out, individuals)
+  out$maf <- numeric(0)
   out
 }
 
@@ -607,7 +699,8 @@ print.phenotype_sim <- function(x, ...) {
   cat(sprintf("    %-11s %s\n", "residual", fmt(1 - .total_variance_prop(x))))
   cat(sprintf("  Requested genetic share = %s   realized H\u00b2 = %s\n",
               fmt(.total_genetic_prop(x)), fmt(.realized_h2(x))))
-  if (!is.null(x$h2)) {
+  has_tx <- any(vapply(x$layers, function(l) identical(l$type, "transcriptome"), TRUE))
+  if (!is.null(x$h2) && !has_tx) {
     spent <- .total_genetic_prop(x)
     h2v <- .expand_prop(x$h2, x$n_traits)
     if (any(spent < h2v - 1e-8)) {
@@ -616,6 +709,13 @@ print.phenotype_sim <- function(x, ...) {
           sprintf("h2 = %s; extracting phenotypes will error until the ", fmt(h2v)),
           "budget is filled (SPEC 4.1).\n", sep = "")
     }
+  }
+  if (!is.null(x$mediation)) {
+    md <- x$mediation
+    cat(sprintf(
+      "  Expression-mediated (derived): genetic %s + environmental %s + cov %s of V_P\n",
+      fmt(md$genetic_mediated), fmt(md$env_mediated), fmt(md$covariance)))
+    cat("  (the genetic-mediated share is included in realized H\u00b2 above)\n")
   }
   if (any(vapply(x$layers, function(l) identical(l$type, "vqtl"), TRUE))) {
     cat("  (vqtl is a residual-heterogeneity component and is not counted in\n",

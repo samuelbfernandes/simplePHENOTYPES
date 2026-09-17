@@ -21,6 +21,13 @@ scaled additive, dominance and epistatic layers, before the residual is
 added. This is the quantity the v1 engine wrote to \code{Genetic_values.txt}.
 }
 \details{
+When a phenotype includes a genome-\strong{derived} \code{transcriptome()} layer, the
+genetic-mediated part of that expression component (the share tracing to the
+genome through gene expression) is also included, so it counts toward
+heritability. A \strong{real} expression source contributes nothing here: its
+genetic content is not asserted, so it is treated as an environmental
+predictor and excluded from the genetic value.
+
 Variance QTL are deliberately excluded: a \code{vqtl()} layer modulates the
 spread of the residual rather than contributing a genetic value, so it has
 no place in this matrix. By default this returns replication 1. When the

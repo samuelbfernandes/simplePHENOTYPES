@@ -18,6 +18,8 @@ A data frame with columns \code{trait}, \code{layer}, \code{set}, \code{snp}, \c
 \code{ld_r2}, or a zero-row frame when no layers have been added. \code{effect} is the
 additive effect (\code{a} for an orthogonal layer); \code{d} is the per-locus
 dominance deviation of an orthogonal layer and \code{NA} for every other layer.
+For transcriptome layers \code{snp} holds the gene name and \code{chr}/\code{pos}/\code{maf} are
+\code{NA}.
 }
 \description{
 One row per QTN per trait per layer, naming the marker and the effect it was
@@ -37,6 +39,12 @@ self-contained), and \code{ld_r2} is the squared correlation between them. All
 three are \code{NA} for the other architectures. (For \code{ld_type = "indirect"} the
 hidden cause-of-LD locus is not shown here -- it is not a QTN -- but is
 available programmatically on the layer.)
+
+A \code{transcriptome()} layer's causal features are \strong{genes}, not markers, so its
+rows carry the gene identifier in the \code{snp} column, the per-gene slope in
+\code{effect}, and the gene's marginal variance share in \code{var_explained}; the
+marker-only columns \code{chr}, \code{pos} and \code{maf} are \code{NA}. Filter with
+\code{subset(qtn_table(ph), layer == "transcriptome")} to isolate them.
 }
 \examples{
 data("SNP55K_maize282_maf04")

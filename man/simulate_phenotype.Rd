@@ -5,7 +5,7 @@
 \title{Start a phenotype simulation (v2 grammar foundation)}
 \usage{
 simulate_phenotype(
-  geno,
+  geno = NULL,
   architecture = c("independent", "pleiotropy", "ld"),
   n_traits = 1,
   n_qtn = 0,
@@ -16,6 +16,8 @@ simulate_phenotype(
   mean = NULL,
   individuals = NULL,
   model = "A",
+  expression = NULL,
+  transcriptome = NULL,
   ...
 )
 }
@@ -24,7 +26,12 @@ simulate_phenotype(
 (first five columns \code{c("snp", "allele", "chr", "pos", "cm")}, e.g.
 \link{SNP55K_maize282_maf04}), an individuals-by-markers numeric matrix coded
 -1/0/1, or a \link[=as_population]{Population} from \code{\link[=cross]{cross()}}, \code{\link[=selfcross]{selfcross()}} or
-\code{\link[=double_haploid]{double_haploid()}}.}
+\code{\link[=double_haploid]{double_haploid()}}. \strong{Optional} when an expression basis is given: with
+\code{geno = NULL} and an \code{expression} matrix (or a \code{transcriptome_sim} in
+\code{transcriptome}), the phenotype is built from expression alone -- individuals
+come from the expression source's columns, there are no markers, and only
+\code{transcriptome()} layers are valid (\code{h2}, \code{n_qtn}, and the marker layers all
+need \code{geno}).}
 
 \item{architecture}{one of "independent" (each trait its own QTNs),
 "pleiotropy" (shared QTNs with a controlled genetic correlation), or "ld"
@@ -61,6 +68,16 @@ and the genotypes are never copied -- only the selected rows are read.}
 
 \item{model}{one-call model string: "A" (additive, default), "AD"
 (additive + dominance), "AE" (additive + epistasis).}
+
+\item{expression}{optional real/observed expression as a genes-by-individuals
+numeric matrix (columns named by individual id, or in the individual order),
+used by a \code{\link[=transcriptome]{transcriptome()}} layer. Give at most one of \code{expression} /
+\code{transcriptome}.}
+
+\item{transcriptome}{optional \strong{genome-derived} expression source for a
+\code{\link[=transcriptome]{transcriptome()}} layer: a \code{transcriptome_sim} from \code{simulate_transcriptome()},
+or \code{TRUE} to derive one from \code{geno} with default settings. Give at most one of
+\code{expression} / \code{transcriptome}.}
 
 \item{...}{architecture-specific arguments (validated -- an unknown name is
 an error, and an argument for a different architecture warns). For
