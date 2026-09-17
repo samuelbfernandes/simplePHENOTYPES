@@ -22,7 +22,7 @@ contexts pass after the fixes below (`devtools::test()` green).
 grammar C3, effects-arch C3, crossing C3, io-formats O5.
 
 **DEFERRED — design decision (Q1 = "extend control to non-additive"), dedicated task:**
-- [ ] **Extend genetic-correlation control (`cor` / pleiotropy / LD architecture) to dominance and epistasis layers** — currently additive-only, so a non-additive pleiotropic layer makes the realized *total* genetic correlation diverge from the target (grammar P1/P4, effects-arch O2). PleioArch-extension effort (theory + code + tests); needs its own SPEC/DECISION. Grammar X1 / effects-arch X1 (docs "exact genetic correlation") resolve once this lands.
+- [ ] **Extend genetic-correlation control (`cor` / pleiotropy / LD architecture) to dominance and epistasis layers** — currently additive-only, so a non-additive pleiotropic layer makes the realized *total* genetic correlation diverge from the target (grammar P1/P4, effects-arch O2). **Scoped in `docs/SPEC-nonadditive-correlation.md`** (per-component PleioArch covariance; total genetic correlation is the controlled quantity; DECISION-023 pending). Grammar X1 / effects-arch X1 (docs "exact genetic correlation") resolve once this lands.
 <!-- AUDIT:END -->
 
 
