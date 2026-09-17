@@ -96,6 +96,13 @@ write_phenotypes <- function(sim, file, format = c("long", "wide"),
 #' scaled additive, dominance and epistatic layers, before the residual is
 #' added. This is the quantity the v1 engine wrote to `Genetic_values.txt`.
 #'
+#' When a phenotype includes a genome-**derived** `transcriptome()` layer, the
+#' genetic-mediated part of that expression component (the share tracing to the
+#' genome through gene expression) is also included, so it counts toward
+#' heritability. A **real** expression source contributes nothing here: its
+#' genetic content is not asserted, so it is treated as an environmental
+#' predictor and excluded from the genetic value.
+#'
 #' Variance QTL are deliberately excluded: a `vqtl()` layer modulates the
 #' spread of the residual rather than contributing a genetic value, so it has
 #' no place in this matrix. By default this returns replication 1. When the
@@ -127,9 +134,43 @@ write_phenotypes <- function(sim, file, format = c("long", "wide"),
 genetic_values <- function(sim, rep = 1L) {
   .check_sim(sim)
   rep <- .validate_rep(sim, rep)
-  out <- .genetic_matrix(sim, rep)
+  out <- .genetic_value_matrix(sim, rep)
   dimnames(out) <- list(sim$ids, paste0("Trait_", seq_len(sim$n_traits)))
   out
+}
+
+#' Genetic-mediated vs environmental split of a derived transcriptome component
+#'
+#' For a phenotype built with a genome-**derived** `transcriptome()` layer
+#' (`simulate_phenotype(transcriptome = ...)`), the expression-mediated component
+#' splits into a genetic-mediated part (the share of expression that traces to
+#' the genome, which counts toward heritability and appears in
+#' [genetic_values()]) and an environmental part. This returns that realized
+#' split, per trait, as proportions of phenotypic variance:
+#' `genetic_mediated`, `env_mediated`, and their `covariance` term
+#' `2*Cov(Tx_g, Tx_e)/V_P` (finite-sample, ~0 because the generator draws the
+#' genetic and non-genetic parts of expression independently). The three columns
+#' sum to the realized expression-mediated share of variance.
+#'
+#' Returns `NULL` when the phenotype has no derived transcriptome layer: a
+#' **real** expression source (`simulate_phenotype(expression = ...)`) has no
+#' asserted genetic/environmental decomposition, so no split is reported.
+#'
+#' @param sim a `phenotype_sim`.
+#' @return A data frame (`trait`, `genetic_mediated`, `env_mediated`,
+#'   `covariance`), or `NULL`.
+#' @seealso [genetic_values()], [transcriptome()].
+#' @export
+#' @examples
+#' data("SNP55K_maize282_maf04")
+#' tx <- simulate_transcriptome(SNP55K_maize282_maf04, n_genes = 100, seed = 1)
+#' ph <- simulate_phenotype(SNP55K_maize282_maf04, h2 = 0.3, seed = 2,
+#'                          transcriptome = tx) |>
+#'   transcriptome(prop = 0.4, n_genes = 20)
+#' mediation_split(ph)
+mediation_split <- function(sim) {
+  .check_sim(sim)
+  sim$mediation
 }
 
 #' Per-QTN proportion of phenotypic variance for a mean-effect layer
@@ -160,6 +201,36 @@ genetic_values <- function(sim, rep = 1L) {
          function(j) k2 * eff[j]^2 * stats::var(design[, j]), numeric(1))
 }
 
+#' Per-gene marginal variance share for a transcriptome layer
+#'
+#' The transcriptome component is `c * sum_g w_g z_g`, with `z_g` the
+#' standardized expression of gene `g` (unit sample variance), `w_g` the
+#' max-normalized slope, and `c = sqrt(prop) / sd(component)` the common scale
+#' that realizes `prop`. Each gene's marginal contribution is therefore
+#' `(c w_g)^2 Var(z_g)`, the continuous-predictor analog of \code{.qtn_var()}. Like
+#' the marker case these are *marginal* shares: with co-expression between causal
+#' genes they do not sum exactly to `prop`, because the cross-gene covariances
+#' are not attributed to any single gene.
+#' @keywords internal
+#' @noRd
+.tx_qtn_var <- function(sim, ly, t, rep = 1L) {
+  qe <- .layer_qtn_effect(ly, t, rep)
+  idx <- qe$qtn; eff <- qe$effect
+  if (is.null(idx) || length(idx) == 0) return(numeric(0))
+  prop_t <- .expand_prop(ly$prop, sim$n_traits)[t]
+  comp <- .tx_raw(ly, sim, t, rep, "total")
+  s <- stats::sd(comp)
+  if (!is.finite(s) || s <= 0 || prop_t <= 0) return(rep(0, length(idx)))
+  k <- sqrt(prop_t) / s
+  w <- eff; sc <- max(abs(w))
+  w <- if (is.finite(sc) && sc > 0) w / sc else rep(0, length(w))
+  E <- sim$expression[idx, , drop = FALSE]
+  vz <- apply(E, 1L, function(r) {                 # 1 for a standardized gene, 0 if constant
+    sg <- stats::sd(r); if (is.finite(sg) && sg > 0) 1 else 0
+  })
+  (k * w)^2 * vz
+}
+
 #' The QTNs behind a simulation, with their effects
 #'
 #' One row per QTN per trait per layer, naming the marker and the effect it was
@@ -179,12 +250,19 @@ genetic_values <- function(sim, rep = 1L) {
 #' hidden cause-of-LD locus is not shown here -- it is not a QTN -- but is
 #' available programmatically on the layer.)
 #'
+#' A `transcriptome()` layer's causal features are **genes**, not markers, so its
+#' rows carry the gene identifier in the `snp` column, the per-gene slope in
+#' `effect`, and the gene's marginal variance share in `var_explained`; the
+#' marker-only columns `chr`, `pos` and `maf` are `NA`. Filter with
+#' `subset(qtn_table(ph), layer == "transcriptome")` to isolate them.
+#'
 #' @param sim a `phenotype_sim`.
 #' @param rep replication whose QTN architecture to report (default 1). This
 #'   matters when the simulation used `vary_qtn = TRUE`.
 #' @return A data frame with columns `trait`, `layer`, `set`, `snp`, `chr`,
 #'   `pos`, `maf`, `effect`, `var_explained`, `QTN_t1`, `QTN_t2` and `ld_r2`, or
-#'   a zero-row frame when no layers have been added.
+#'   a zero-row frame when no layers have been added. For transcriptome layers
+#'   `snp` holds the gene name and `chr`/`pos`/`maf` are `NA`.
 #' @seealso [genetic_values()].
 #' @export
 #' @examples
@@ -231,6 +309,28 @@ qtn_table <- function(sim, rep = 1L) {
     )
   }
 
+  # A transcriptome layer's causal features are genes, not markers: the feature
+  # id (gene name) goes in `snp`, and the marker-only columns are NA (typed to
+  # match the map so rows bind cleanly).
+  gene_block <- function(trait, idx, effect, var_explained) {
+    n <- length(idx)
+    data.frame(
+      trait         = trait,
+      layer         = "transcriptome",
+      set           = NA_integer_,
+      snp           = rownames(sim$expression)[idx],
+      chr           = rep(sim$map$chr[NA_integer_], n),
+      pos           = rep(sim$map$pos[NA_integer_], n),
+      maf           = rep(NA_real_, n),
+      effect        = effect,
+      var_explained = var_explained,
+      QTN_t1        = NA_character_,
+      QTN_t2        = NA_character_,
+      ld_r2         = NA_real_,
+      stringsAsFactors = FALSE
+    )
+  }
+
   rows <- list()
   for (ly in sim$layers) {
     for (t in seq_len(sim$n_traits)) {
@@ -241,7 +341,10 @@ qtn_table <- function(sim, rep = 1L) {
         next
       }
       trait <- paste0("Trait_", t)
-      if (identical(ly$type, "epistasis")) {
+      if (identical(ly$type, "transcriptome")) {
+        rows[[length(rows) + 1L]] <-
+          gene_block(trait, idx, eff, .tx_qtn_var(sim, ly, t, rep))
+      } else if (identical(ly$type, "epistasis")) {
         # idx is an n_pairs x interaction matrix; every member of a set shares
         # the set's effect. Per-locus variance is undefined for an interaction.
         for (p in seq_len(nrow(idx))) {
