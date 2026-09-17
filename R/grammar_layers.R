@@ -353,6 +353,13 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
          "to heterozygous markers with filter_geno(hets = \"include\"), choose ",
          "loci with heterozygotes via qtn =, or use an outbred / F2 population.",
          call. = FALSE)
+  } else if (.dom_partial_hetless(sim, drawn$qtn)) {
+    warning("dominance(): some (but not all) selected loci have no heterozygous ",
+            "individuals, so those loci contribute nothing and the remaining ",
+            "het-bearing loci absorb the layer's `prop` -- the realized ",
+            "dominance rests on fewer loci than requested. Choose het-bearing ",
+            "loci (qtn =) or pre-filter with filter_geno(hets = \"include\") if ",
+            "that is not intended.", call. = FALSE)
   }
   layer <- list(type = "dominance", prop = prop, n_qtn = nq, dist = dist,
                 same_as_add = same_as_add,
@@ -445,6 +452,19 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
 
   drawn <- .draw_layer(sim, "epistasis", occ, build,
                        fixed = !is.null(user_pairs))
+  # A "d" interaction position acts on heterozygotes, so a hetless locus there
+  # makes the pair identically zero and it silently drops out while the rest
+  # absorb `prop`. Warn (as dominance() does for its partial case) rather than
+  # realize fewer effective pairs than requested without notice.
+  if (.epi_hetless_d(sim, drawn$qtn, itype)) {
+    warning("epistasis(): a \"d\" interaction position sits on a locus with no ",
+            "heterozygous individuals, so that interaction term is identically ",
+            "zero and its pair contributes nothing while the remaining pairs ",
+            "absorb `prop` -- the genotype is (near-)inbred at that locus. Choose ",
+            "het-bearing loci (qtn =), pre-filter with filter_geno(hets = ",
+            "\"include\"), or set that position's interaction_type to \"a\" if ",
+            "that is not intended.", call. = FALSE)
+  }
   layer <- list(type = "epistasis", prop = prop, n_pairs = np,
                 interaction = interaction, interaction_type = itype,
                 dist = dist,
@@ -710,11 +730,13 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
   )
 }
 
-#' TRUE when a reused QTN set cannot support a dominance deviation
+#' TRUE when a reused QTN set cannot support any dominance deviation
 #'
-#' A dominance layer is a heterozygote effect, so a trait whose reused loci carry
-#' no heterozygotes would contribute exactly zero variance and fail to realize
-#' `prop`. Returns TRUE if any trait's loci are entirely homozygous.
+#' A dominance layer is a heterozygote effect, so a trait whose loci are *all*
+#' homozygous realizes exactly zero variance and cannot fill `prop` at all --
+#' that is an error. A set with *some* hetless loci can still realize `prop` from
+#' the rest, but the dead loci are silently inert; see [.dom_partial_hetless()],
+#' which warns for that case.
 #' @keywords internal
 #' @noRd
 .dom_hetless <- function(sim, q) {
@@ -723,6 +745,25 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
       return(FALSE)
     }
     sum(.geno_cols(sim, idx) == 0, na.rm = TRUE) == 0
+  }, logical(1)))
+}
+
+#' TRUE when a QTN set has some (but not all) hetless loci
+#'
+#' The layer still realizes `prop` from the het-bearing loci, but the hetless
+#' ones contribute nothing, so the dominance rests on fewer loci than requested.
+#' Checked per locus; the all-hetless case is [.dom_hetless()]'s error, not this.
+#' @keywords internal
+#' @noRd
+.dom_partial_hetless <- function(sim, q) {
+  any(vapply(q, function(idx) {
+    if (is.null(idx) || length(idx) < 2L) {
+      return(FALSE)
+    }
+    hl <- vapply(idx, function(j) {
+      sum(.geno_cols(sim, j) == 0, na.rm = TRUE) == 0
+    }, logical(1))
+    any(hl) && !all(hl)
   }, logical(1)))
 }
 
@@ -746,6 +787,32 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
       return(FALSE)
     }
     any(vapply(idx[nz], function(j) {
+      sum(.geno_cols(sim, j) == 0, na.rm = TRUE) == 0
+    }, logical(1)))
+  }, logical(1)))
+}
+
+#' TRUE when any epistasis pair carries a hetless locus at a `"d"` position
+#'
+#' A `"d"` interaction position contributes a centered heterozygote indicator, so
+#' a locus with no heterozygotes makes that design column identically zero and
+#' silently inerts the whole pair -- the remaining pairs then absorb `prop`. The
+#' check is per locus at every `"d"` position, mirroring [.orthogonal_hetless_d()]
+#' and [.dom_hetless()]. `qtn` is a per-trait list of `n_pairs x interaction`
+#' index matrices; `itype` is the length-`interaction` "a"/"d" vector.
+#' @keywords internal
+#' @noRd
+.epi_hetless_d <- function(sim, qtn, itype) {
+  d_pos <- which(itype == "d")
+  if (length(d_pos) == 0L) {
+    return(FALSE)
+  }
+  any(vapply(qtn, function(mat) {
+    if (is.null(mat) || length(mat) == 0L) {
+      return(FALSE)
+    }
+    loci <- unique(as.integer(mat[, d_pos, drop = FALSE]))
+    any(vapply(loci, function(j) {
       sum(.geno_cols(sim, j) == 0, na.rm = TRUE) == 0
     }, logical(1)))
   }, logical(1)))

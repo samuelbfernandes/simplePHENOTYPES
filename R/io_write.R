@@ -223,21 +223,24 @@ mediation_split <- function(sim) {
 #' The transcriptome component is `c * sum_g w_g z_g`, with `z_g` the
 #' standardized expression of gene `g` (unit sample variance), `w_g` the
 #' max-normalized slope, and `c = sqrt(prop) / sd(component)` the common scale
-#' that realizes `prop`. Each gene's marginal contribution is therefore
-#' `(c w_g)^2 Var(z_g)`, the continuous-predictor analog of \code{.qtn_var()}. Like
-#' the marker case these are *marginal* shares: with co-expression between causal
+#' that realizes `prop`. Each gene's marginal contribution to the component is
+#' `(c w_g)^2 Var(z_g)`; like \code{.qtn_var()} this is then divided by the
+#' realized phenotypic variance `var_p`, so `var_explained` is a fraction of
+#' realized phenotypic variance on the same scale as the marker rows. Like the
+#' marker case these are *marginal* shares: with co-expression between causal
 #' genes they do not sum exactly to `prop`, because the cross-gene covariances
 #' are not attributed to any single gene.
 #' @keywords internal
 #' @noRd
-.tx_qtn_var <- function(sim, ly, t, rep = 1L) {
+.tx_qtn_var <- function(sim, ly, t, rep = 1L, var_p) {
   qe <- .layer_qtn_effect(ly, t, rep)
   idx <- qe$qtn; eff <- qe$effect
   if (is.null(idx) || length(idx) == 0) return(numeric(0))
   prop_t <- .expand_prop(ly$prop, sim$n_traits)[t]
   comp <- .tx_raw(ly, sim, t, rep, "total")
   s <- stats::sd(comp)
-  if (!is.finite(s) || s <= 0 || prop_t <= 0) return(rep(0, length(idx)))
+  if (!is.finite(s) || s <= 0 || prop_t <= 0 ||
+      !is.finite(var_p) || var_p <= 0) return(rep(0, length(idx)))
   k <- sqrt(prop_t) / s
   w <- eff; sc <- max(abs(w))
   w <- if (is.finite(sc) && sc > 0) w / sc else rep(0, length(w))
@@ -245,7 +248,7 @@ mediation_split <- function(sim) {
   vz <- apply(E, 1L, function(r) {                 # 1 for a standardized gene, 0 if constant
     sg <- stats::sd(r); if (is.finite(sg) && sg > 0) 1 else 0
   })
-  (k * w)^2 * vz
+  (k * w)^2 * vz / var_p
 }
 
 #' The QTNs behind a simulation, with their effects
@@ -375,7 +378,7 @@ qtn_table <- function(sim, rep = 1L) {
       trait <- paste0("Trait_", t)
       if (identical(ly$type, "transcriptome")) {
         rows[[length(rows) + 1L]] <-
-          gene_block(trait, idx, eff, .tx_qtn_var(sim, ly, t, rep))
+          gene_block(trait, idx, eff, .tx_qtn_var(sim, ly, t, rep, var_p[t]))
       } else if (identical(ly$type, "epistasis")) {
         # idx is an n_pairs x interaction matrix; every member of a set shares
         # the set's effect. Per-locus variance is undefined for an interaction.

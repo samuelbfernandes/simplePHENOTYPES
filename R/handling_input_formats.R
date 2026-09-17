@@ -375,9 +375,12 @@ handle_vcf <- function(file,
     if (!is.na(fmt_idx)) {
       sample_ids <- names(G)[(fmt_idx + 1L):ncol(G)]
     } else {
-      looks_gt <- vapply(G, function(col)
-        all(grepl("^[.0-9]+[/|][.0-9]+", as.character(col)[
-          !is.na(col) & nzchar(as.character(col))])), logical(1))
+      looks_gt <- vapply(G, function(col) {
+        vals <- as.character(col)[!is.na(col) & nzchar(as.character(col))]
+        # An empty column has no GT values; all(grepl(..., character(0))) is
+        # vacuously TRUE, so require at least one real call before accepting it.
+        length(vals) > 0L && all(grepl("^[.0-9]+[/|][.0-9]+", vals))
+      }, logical(1))
       sample_ids <- names(G)[looks_gt]
     }
     if (!length(sample_ids)) {
@@ -402,6 +405,19 @@ handle_vcf <- function(file,
     raw[is_ref] <- 0L      # REF homozygote anchors raw 0 (allele 1)
     raw[is_het] <- 1L
     raw[is_alt] <- 2L
+
+    # Multiallelic calls (allele index >= 2, e.g. "0/2", "2/2") fall outside the
+    # biallelic 0/1 contract and match none of the REF/het/ALT classes, so they
+    # would silently become missing. Warn rather than corrupt them quietly.
+    recognized <- is_ref | is_het | is_alt |
+      matrix(gt_mat %in% miss, nrow = nrow(gt_mat))
+    dropped <- !recognized & !is.na(gt_mat) & nzchar(gt_mat)
+    if (any(dropped)) {
+      warning(sum(dropped), " VCF genotype call(s) reference alleles beyond the ",
+              "first ALT (multiallelic, e.g. \"0/2\" or \"2/2\"); this parser is ",
+              "biallelic, so those calls were set to missing. Split multiallelic ",
+              "sites (e.g. `bcftools norm -m -`) before import.", call. = FALSE)
+    }
 
     n_snp <- nrow(raw)
     meta <- data.frame(

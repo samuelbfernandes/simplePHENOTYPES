@@ -78,7 +78,7 @@ complex_phenotypes <- function(..., h2) {
   h2v <- .expand_prop(h2v, nt)
   combined <- array(0, dim = c(n, nt, nr))
   for (r in seq_len(nr)) {
-    raw <- Reduce(`+`, lapply(models, .genetic_matrix, rep = r))
+    raw <- Reduce(`+`, lapply(models, .genetic_value_matrix, rep = r))
     for (t in seq_len(nt)) {
       s <- stats::sd(raw[, t])
       if (is.finite(s) && s > 0 && h2v[t] > 0) {

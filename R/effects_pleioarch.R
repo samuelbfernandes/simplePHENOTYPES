@@ -64,13 +64,25 @@
     nt_ <- length(vg)
     for (i in seq_len(nt_ - 1L)) {
       for (j in seq(i + 1L, nt_)) {
-        if (abs(R[i, j]) > 0 && (vg[i] <= 0 || vg[j] <= 0)) {
-          stop("architecture = \"pleiotropy\": a nonzero `cor` (", signif(R[i, j], 3),
-               ") was requested between trait ", i, " and trait ", j,
-               ", but trait ", if (vg[i] <= 0) i else j, " has zero additive ",
-               "variance (prop = 0), so that correlation is undefined and cannot ",
-               "be realized. Give every correlated trait a positive additive ",
-               "`prop`.", call. = FALSE)
+        if (vg[i] <= 0 || vg[j] <= 0) {
+          zero_t <- if (vg[i] <= 0) i else j
+          other  <- if (zero_t == i) j else i
+          if (abs(R[i, j]) > 0) {
+            stop("architecture = \"pleiotropy\": a nonzero `cor` (", signif(R[i, j], 3),
+                 ") was requested between trait ", i, " and trait ", j,
+                 ", but trait ", zero_t, " has zero additive ",
+                 "variance (prop = 0), so that correlation is undefined and cannot ",
+                 "be realized. Give every correlated trait a positive additive ",
+                 "`prop`.", call. = FALSE)
+          } else {
+            # cor = 0 is undefined too when a trait is invariant: the realized
+            # correlation is 0/0 = NA, not 0. Warn rather than report a silent NA.
+            warning("architecture = \"pleiotropy\": trait ", zero_t, " has zero ",
+                    "additive variance (prop = 0), so its genetic correlation with ",
+                    "trait ", other, " is undefined and will be reported as NA (a ",
+                    "requested cor = 0 cannot be realized as 0 here). Give every ",
+                    "correlated trait a positive additive `prop`.", call. = FALSE)
+          }
         }
       }
     }
@@ -87,6 +99,19 @@
   # QTN-count partition: pleiotropic (shared) vs trait-specific.
   pleio_n <- max(0L, round(mean(pi_vec) * n_qtn))
   pleio_n <- min(pleio_n, n_qtn)
+  # A single shared (pleiotropic) QTN makes both traits scalar multiples of the
+  # same dosage vector, so their realized genetic correlation is exactly +/-1
+  # regardless of the requested `cor` -- one locus cannot carry an intermediate
+  # target. Warn rather than silently realize +/-1 for an intermediate `cor`.
+  if (pleio_n == 1L && any(abs(R[upper.tri(R)]) > 0 & abs(R[upper.tri(R)]) < 1)) {
+    warning("architecture = \"pleiotropy\": only one shared (pleiotropic) QTN ",
+            "results from n_qtn = ", n_qtn, ", pi = ",
+            paste(round(pi_vec, 3), collapse = ", "),
+            "; a single shared locus makes the realized genetic correlation ",
+            "exactly +/-1, so an intermediate target `cor` cannot be realized. ",
+            "Increase n_qtn (or pi) so several shared loci carry the covariance.",
+            call. = FALSE)
+  }
   # `pi` defines the shared/trait-specific variance partition whether or not a
   # correlation is requested, so its feasibility is judged against `pi`, not
   # against `cor`. If pi implies a shared class (mean(pi) > 0) but the QTN-count

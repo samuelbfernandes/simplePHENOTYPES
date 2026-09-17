@@ -52,6 +52,13 @@
 #'   For a single mean-effect layer this is the simulated broad-sense
 #'   heritability apart from finite-sample covariance with the residual. With
 #'   multiple non-orthogonal layers, see Details and the reported realized h2.
+#'   `h2` governs the **marker** genetic budget (additive + dominance +
+#'   epistasis `prop` must sum to it). A [transcriptome()] layer's `prop` is a
+#'   separate expression-mediated variance category and is **not** part of this
+#'   budget, so a model may deliberately fill only part of `h2` with markers and
+#'   leave the rest to expression; the marker-completeness check is then skipped
+#'   and only the realized h2 (which includes any genome-mediated expression
+#'   variance) is reported.
 #' @param mean optional per-trait intercept added to the phenotype (scalar or
 #'   length `n_traits`). Genetic values stay centered; only the phenotype is
 #'   shifted.

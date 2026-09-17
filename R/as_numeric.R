@@ -98,7 +98,11 @@
 #' }
 as_numeric <-
   function(x, ...) {
-    if (is.character(x)) {
+    # A file path is a bare character scalar. A character *matrix* is also
+    # `is.character()`, but it is in-memory genotype data (it carries `dim`), so
+    # it must fall through to the in-memory branch rather than be misread as a
+    # path and rejected for not being length one.
+    if (is.character(x) && is.null(dim(x))) {
       if (length(x) != 1L || is.na(x) || !nzchar(x)) {
         stop("A file input must be one non-empty path.", call. = FALSE)
       }

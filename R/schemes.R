@@ -216,7 +216,9 @@ pedigree <- function(x, phenotype, generations = 5L, prop = 0.1,
 #' @param cycles number of selection cycles.
 #' @param n_parents number of parents selected each cycle.
 #' @param n_crosses number of crosses among the selected parents (default:
-#'   `n_parents`, a random-mating chain).
+#'   `n_parents`). Each cross draws an independent random pair of selected
+#'   parents (random mating with replacement across crosses), so with few
+#'   crosses some selected parents may not be sampled.
 #' @param progeny_per_cross progeny produced per cross.
 #' @return a `Population` (the final cycle), carrying attribute `history`.
 #' @references Bernardo R (2020) \emph{Breeding for Quantitative Traits in
@@ -279,7 +281,13 @@ recurrent_selection <- function(x, phenotype, cycles = 3L, n_parents = 10L,
            "advanced. Build the founders with as_population()/cross() first.",
            call. = FALSE)
     }
-    return(x$geno)
+    # Advance only the individuals the sim actually holds: a subset sim
+    # (simulate_phenotype(individuals = )) keeps `ind_idx` of the backing
+    # population, so the scheme must not silently reintroduce the excluded ones.
+    if (is.null(x$ind_idx)) {
+      return(x$geno)
+    }
+    return(x$geno[x$ind_idx])
   }
   stop("Expected a `Population` or a Population-backed `phenotype_sim`.",
        call. = FALSE)
