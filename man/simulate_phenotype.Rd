@@ -56,7 +56,14 @@ rather than the same one with fresh residuals. Layers given an explicit
 \item{h2}{optional requested genetic-variance share for one-call simulation.
 For a single mean-effect layer this is the simulated broad-sense
 heritability apart from finite-sample covariance with the residual. With
-multiple non-orthogonal layers, see Details and the reported realized h2.}
+multiple non-orthogonal layers, see Details and the reported realized h2.
+\code{h2} governs the \strong{marker} genetic budget (additive + dominance +
+epistasis \code{prop} must sum to it). A \code{\link[=transcriptome]{transcriptome()}} layer's \code{prop} is a
+separate expression-mediated variance category and is \strong{not} part of this
+budget, so a model may deliberately fill only part of \code{h2} with markers and
+leave the rest to expression; the marker-completeness check is then skipped
+and only the realized h2 (which includes any genome-mediated expression
+variance) is reported.}
 
 \item{mean}{optional per-trait intercept added to the phenotype (scalar or
 length \code{n_traits}). Genetic values stay centered; only the phenotype is

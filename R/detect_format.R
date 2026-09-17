@@ -28,9 +28,12 @@
   code <- toupper(as.character(code))
   if (length(code) != 1L || is.na(code)) return(character(0))
   if (nchar(code) == 1L) {
-    dec <- .HET_IUPAC[[code]]
-    if (is.null(dec)) return(character(0))
-    strsplit(dec, "")[[1L]]
+    # `.HET_IUPAC` is a named vector, so `[[` on a non-IUPAC letter (e.g. a
+    # homozygote "A") raises "subscript out of bounds" rather than returning
+    # NULL. Guard membership first so non-het single letters resolve to
+    # character(0) (and .call_to_letters can fall back to splitting them).
+    if (!code %in% names(.HET_IUPAC)) return(character(0))
+    strsplit(.HET_IUPAC[[code]], "")[[1L]]
   } else if (nchar(code) == 2L) {
     strsplit(code, "")[[1L]]
   } else {
@@ -218,8 +221,13 @@ parse_hapmap_chars_to_raw <- function(geno_mat, allele1 = NULL,
       # parse still needs the marker's allele letters, so recover them from the
       # heterozygote calls themselves (IUPAC code or digraph). Leaving the allele
       # metadata NA here made a valid het-only marker fail reference coding.
-      raw[i, is_het] <- 1L
       het_letters <- unique(unlist(lapply(row[is_het], .het_to_letters)))
+      if (length(het_letters) > 2L) {
+        # Het-only but multiallelic (e.g. AG/AT/GT -> A/G/T): not biallelic.
+        message("Non-biallelic SNP at row ", i, " set to NA.")
+        next
+      }
+      raw[i, is_het] <- 1L
       if (length(het_letters) == 2L) {
         if (is.null(allele1)) {
           alleles[i, ] <- het_letters
@@ -237,7 +245,12 @@ parse_hapmap_chars_to_raw <- function(geno_mat, allele1 = NULL,
 
     counts <- sort(table(hom_vals), decreasing = TRUE)
 
-    if (length(counts) > 2L) {
+    # Multiallelism can hide in heterozygotes: AA/AG/AT has a single homozygote
+    # ("AA") but three alleles (A/G/T). Count alleles across ALL present calls,
+    # not just distinct homozygote strings, so such a marker is set to NA rather
+    # than silently coerced to a biallelic dosage.
+    present_alleles <- unique(unlist(lapply(row[!is_miss], .call_to_letters)))
+    if (length(counts) > 2L || length(present_alleles) > 2L) {
       # Non-biallelic SNP: set entire row to NA, matching v1 behaviour.
       message("Non-biallelic SNP at row ", i, " set to NA.")
       next

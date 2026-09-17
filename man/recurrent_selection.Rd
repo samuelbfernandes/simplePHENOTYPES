@@ -31,7 +31,9 @@ should act every generation.}
 \item{n_parents}{number of parents selected each cycle.}
 
 \item{n_crosses}{number of crosses among the selected parents (default:
-\code{n_parents}, a random-mating chain).}
+\code{n_parents}). Each cross draws an independent random pair of selected
+parents (random mating with replacement across crosses), so with few
+crosses some selected parents may not be sampled.}
 
 \item{progeny_per_cross}{progeny produced per cross.}
 

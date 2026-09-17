@@ -326,7 +326,12 @@ filter_geno <- function(geno,
                       unit) {
   step <- max(1L, as.integer(round(step)))
   for (k in unique(chr)) {
-    on_chr <- which(chr == k)
+    # `chr == NA` is NA, so `which()` would drop every marker on an unmapped
+    # (all-NA chr) dataset -- e.g. genotypes converted from a generic table --
+    # silently turning variant-window pruning into a no-op. Group the NA-chr
+    # markers explicitly; they order by input position (NA pos -> input order),
+    # which is all a variant window needs.
+    on_chr <- if (is.na(k)) which(is.na(chr)) else which(chr == k)
     on_chr <- on_chr[order(pos[on_chr])]
     on_chr <- on_chr[keep[on_chr]]                # kept markers only
     if (length(on_chr) < 2L) {
