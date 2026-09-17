@@ -181,17 +181,84 @@ handle_table <- function(file,
   }
 
   if (to == "numeric") {
-    G_out <- table_to_numeric(
-      G,
-      code_as    = code_as,
-      ref_allele = ref_allele,
-      hets       = hets,
-      homo       = homo,
-      model      = model,
-      impute     = impute,
-      method     = method,
-      verbose    = verbose
+    # A generic nucleotide table is markers (rows) × samples (columns); it
+    # carries no metadata columns. Route it through the same Rust kernel every
+    # other format uses, so genetic models, reference orientation and the
+    # five-column output schema are consistent.
+    G <- as.data.frame(G, stringsAsFactors = FALSE)
+    sample_ids <- colnames(G)
+    geno_chars <- as.matrix(G)
+    snp_ids <- rownames(G)
+    if (is.null(snp_ids) || all(snp_ids == as.character(seq_len(nrow(G))))) {
+      snp_ids <- paste0("snp", seq_len(nrow(G)))
+    }
+
+    if (identical(method, "reference") &&
+        (length(ref_allele) != nrow(G) || anyNA(ref_allele))) {
+      stop("`ref_allele` must give one reference allele per marker (row) for ",
+           "a nucleotide table under method = \"reference\".", call. = FALSE)
+    }
+
+    raw     <- parse_hapmap_chars_to_raw(geno_chars, hets = hets, homo = homo,
+                                         miss = .MISS)
+    alleles <- attr(raw, "alleles")
+    # The homozygote *code* ("AA") backs an allele *letter* ("A"); reference
+    # orientation compares those letters, so collapse the code to its letter.
+    allele1_letter <- substr(alleles[, 1L], 1L, 1L)
+    if (identical(method, "reference")) {
+      # Validate the reference against the alleles actually observed at each
+      # marker, decoding every non-missing call to its component alleles (so a
+      # heterozygote contributes both -- the "G" in "AG", and, for an IUPAC code,
+      # both alleles of "R" = A/G, not the letter "R"). A raw strsplit() would
+      # observe "R" and reject a valid A/G reference; the homozygote-only check it
+      # replaced missed het-only second alleles entirely.
+      ref_letter <- substr(ref_allele, 1L, 1L)
+      obs_ok <- vapply(seq_len(nrow(geno_chars)), function(i) {
+        calls <- as.character(geno_chars[i, ])
+        calls <- calls[!is.na(calls) & !toupper(calls) %in% toupper(.MISS)]
+        letters_i <- unique(unlist(lapply(calls, .call_to_letters)))
+        length(letters_i) == 0L || ref_letter[[i]] %in% letters_i
+      }, logical(1))
+      if (!all(obs_ok)) {
+        bad <- which(!obs_ok)
+        stop("`ref_allele` is not among the alleles observed at marker(s) ",
+             paste(utils::head(bad, 5), collapse = ", "),
+             if (length(bad) > 5) ", ..." else "",
+             ": each reference allele must be an allele present at its marker.",
+             call. = FALSE)
+      }
+    }
+    meta <- data.frame(
+      snp    = snp_ids,
+      allele = ifelse(is.na(alleles[, 1L]), NA_character_,
+                      paste(alleles[, 1L], alleles[, 2L], sep = "/")),
+      chr    = NA_character_,
+      pos    = NA_integer_,
+      cm     = NA_real_,
+      stringsAsFactors = FALSE
     )
+
+    # compute_flip() compares allele1 (a single allele *letter*) against the
+    # reference, so the reference must be a letter too: a user who writes the
+    # homozygote code "AA" means allele "A". Collapse it, or a two-character
+    # ref_allele would never match allele1 and would flip every marker.
+    ref_letter <- if (identical(method, "reference")) {
+      substr(ref_allele, 1L, 1L)
+    } else {
+      NULL
+    }
+    G_out <- .apply_coding(
+      raw_mat    = raw,
+      meta       = meta,
+      sample_ids = sample_ids,
+      method     = method,
+      ref_allele = ref_letter,
+      allele1    = allele1_letter,
+      code_as    = code_as,
+      model      = model,
+      impute     = impute
+    )
+
     if (to_file) {
       suppressMessages(data.table::fwrite(
         G_out, file_name, row.names = FALSE, sep = "\t",
@@ -284,29 +351,78 @@ handle_vcf <- function(file,
     return(invisible(NULL))
   }
 
-  # In-memory vcfR / VCF data.frame
-  if (from %in% c("vcfr", "vcfr_object") || inherits(file, "vcfR")) {
-    G          <- data.frame(file@gt[, colnames(file@gt) != "FORMAT"],
-                             stringsAsFactors = FALSE)
-    ref_allele <- file@fix[, "REF"]
+  # In-memory vcfR object or a plain VCF-style data.frame.
+  if (inherits(file, "vcfR")) {
+    fix        <- as.data.frame(file@fix, stringsAsFactors = FALSE)
+    gt_cols    <- colnames(file@gt)[colnames(file@gt) != "FORMAT"]
+    geno_raw   <- as.matrix(file@gt[, gt_cols, drop = FALSE])
+    sample_ids <- gt_cols
+    snp_ids    <- fix[["ID"]]
+    chr_vec    <- fix[["CHROM"]]
+    pos_vec    <- fix[["POS"]]
+    ref_vec    <- fix[["REF"]]
+    alt_vec    <- fix[["ALT"]]
   } else {
-    G          <- file[, -1:-which(colnames(file) == "FORMAT")]
-    ref_allele <- file$REF
+    G   <- as.data.frame(file, stringsAsFactors = FALSE)
+    nms <- toupper(names(G))
+    fmt_idx  <- match("FORMAT", nms)
+    grab <- function(col) if (col %in% nms) G[[which(nms == col)[1L]]] else NULL
+    snp_ids <- grab("ID"); chr_vec <- grab("#CHROM")
+    if (is.null(chr_vec)) chr_vec <- grab("CHROM")
+    pos_vec <- grab("POS"); ref_vec <- grab("REF"); alt_vec <- grab("ALT")
+    # Sample columns are those after FORMAT when present, else every column
+    # whose entries look like GT calls ("0/1", "1|1", possibly with :FORMAT).
+    if (!is.na(fmt_idx)) {
+      sample_ids <- names(G)[(fmt_idx + 1L):ncol(G)]
+    } else {
+      looks_gt <- vapply(G, function(col)
+        all(grepl("^[.0-9]+[/|][.0-9]+", as.character(col)[
+          !is.na(col) & nzchar(as.character(col))])), logical(1))
+      sample_ids <- names(G)[looks_gt]
+    }
+    if (!length(sample_ids)) {
+      stop("No VCF genotype (GT) columns were found in the data frame.",
+           call. = FALSE)
+    }
+    geno_raw <- as.matrix(G[, sample_ids, drop = FALSE])
   }
-  if (!all(grepl("[/]|[|]", G[, 1]))) G <- G[, -1]
-  if (!any(class(G) %in% "data.frame")) G <- data.frame(G, stringsAsFactors = TRUE)
 
   if (to == "numeric") {
-    G_out <- table_to_numeric(
-      G,
+    # Keep only the GT field: strip any ":DP:GQ:..." suffix per call.
+    gt_mat <- matrix(sub(":.*", "", as.character(geno_raw)),
+                     nrow = nrow(geno_raw), ncol = ncol(geno_raw))
+    hets <- c("0/1", "0|1", "1/0", "1|0")
+    homo <- c("0/0", "0|0", "1/1", "1|1")
+    miss <- c("./.", ".|.", ".", "", "./", "/.")
+    ref_homo <- c("0/0", "0|0")
+    is_het  <- matrix(gt_mat %in% hets, nrow = nrow(gt_mat))
+    is_ref  <- matrix(gt_mat %in% ref_homo, nrow = nrow(gt_mat))
+    is_alt  <- matrix(gt_mat %in% c("1/1", "1|1"), nrow = nrow(gt_mat))
+    raw <- matrix(NA_integer_, nrow = nrow(gt_mat), ncol = ncol(gt_mat))
+    raw[is_ref] <- 0L      # REF homozygote anchors raw 0 (allele 1)
+    raw[is_het] <- 1L
+    raw[is_alt] <- 2L
+
+    n_snp <- nrow(raw)
+    meta <- data.frame(
+      snp    = if (!is.null(snp_ids)) as.character(snp_ids) else
+        paste0("snp", seq_len(n_snp)),
+      allele = if (!is.null(ref_vec) && !is.null(alt_vec))
+        paste(ref_vec, alt_vec, sep = "/") else NA_character_,
+      chr    = if (!is.null(chr_vec)) as.character(chr_vec) else NA_character_,
+      pos    = if (!is.null(pos_vec)) as.integer(pos_vec) else NA_integer_,
+      cm     = NA_real_,
+      stringsAsFactors = FALSE
+    )
+
+    G_out <- .apply_coding(
+      raw_mat    = raw,
+      meta       = meta,
+      sample_ids = sample_ids,
+      method     = "frequency",
       code_as    = code_as,
-      hets       = c("0/1", "0|1", "1/0", "1|0"),
-      homo       = c("0/0", "0|0", "1/1", "1|1"),
-      ref_allele = ref_allele,
       model      = model,
-      impute     = impute,
-      method     = method,
-      verbose    = verbose
+      impute     = impute
     )
     if (to_file) {
       suppressMessages(data.table::fwrite(
@@ -329,9 +445,15 @@ handle_gds <- function(file, file_name, to_file, to_r, to,
     stop(.gds_needed("GDS"), call. = FALSE)
   }
   if (to == "numeric") {
-    genofile <- SNPRelate::snpgdsOpen(file)
-    parts    <- .read_gds_to_raw(genofile)
-    SNPRelate::snpgdsClose(genofile)
+    # `file` may be a path (open + close it here) or an already-open gds.class
+    # object (use it directly; closing it is the caller's responsibility).
+    if (inherits(file, "gds.class")) {
+      parts <- .read_gds_to_raw(file)
+    } else {
+      genofile <- SNPRelate::snpgdsOpen(file)
+      on.exit(SNPRelate::snpgdsClose(genofile), add = TRUE)
+      parts <- .read_gds_to_raw(genofile)
+    }
 
     G_out <- .apply_coding(
       raw_mat    = parts$raw,
@@ -547,7 +669,11 @@ handle_finalreport <- function(file, file_name, to_file, to_r, to,
     stringsAsFactors = FALSE
   )
 
-  raw   <- parse_hapmap_chars_to_raw(geno_chars)
+  # FinalReport allele conventions include Illumina AB, whose heterozygote is
+  # "AB"/"BA"; add those to the IUPAC/digraph set so AB calls are not mistaken
+  # for a third homozygote and dropped as non-biallelic.
+  raw   <- parse_hapmap_chars_to_raw(geno_chars,
+                                     hets = c(.HETS, "AB", "BA"))
   G_out <- .apply_coding(
     raw_mat    = raw,
     meta       = meta,

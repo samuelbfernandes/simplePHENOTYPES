@@ -16,21 +16,35 @@
 #'   redrawn by `vary_qtn`.
 #' @param effect optional geometric base (scalar) or explicit effect series
 #'   (length `n_qtn`).
-#' @param phase QTN linkage phase, `"coupling"` (default) or `"repulsion"`.
-#'   Under repulsion the effect signs alternate across the layer's QTNs, so the
-#'   increasing allele at one locus is paired with the decreasing allele at the
-#'   next -- the classic repulsion architecture, in which a GWAS sees effects
-#'   that partially cancel and linked causal loci mask one another. The realized
-#'   genetic variance is still `prop` (variance is pinned by the partition, not
-#'   by phase); what changes is the sign structure of the per-QTN effects and
-#'   the covariance among loci. Coupling leaves the drawn signs untouched.
-#'   `phase` is **architecture-independent** -- it acts on whichever QTNs the
-#'   additive layer draws, so it is meaningful under `"independent"`,
-#'   `"pleiotropy"` and `"ld"` alike. Its effect on the cross-locus covariance is
-#'   only material when a trait's additive QTNs are physically linked (on the
-#'   same chromosome); for QTNs that are effectively unlinked, alternating the
-#'   signs just relabels which allele is "increasing" and leaves the covariance
-#'   structure unchanged.
+#' @param orthogonal use the orthogonal genotypic model instead of the
+#'   variance-partition coding (default `FALSE`). When `TRUE`, give per-locus
+#'   additive effects `a` and dominance deviations `d`; the additive and
+#'   dominance components are orthogonal under random mating (see Details).
+#' @param a additive effect per locus for `orthogonal = TRUE`: a scalar geometric
+#'   base or a length-`n_qtn` vector (the counterpart of `effect`). The locus
+#'   value is `-a` / `+d` / `+a` for gene content 0 / 1 / 2.
+#' @param d dominance deviation per locus for `orthogonal = TRUE`: a single value
+#'   (same at every locus) or a length-`n_qtn` vector. `d = 0` (default) is a
+#'   purely additive locus. The heterozygote value is `d`, and the degree of
+#'   dominance is `d / abs(a)` (`abs` because `a` may be negative, directly or
+#'   through `phase = "repulsion"`): magnitude 0 = additive, 1 = complete
+#'   dominance, > 1 = overdominance. Dominance is toward the `+a` homozygote when
+#'   `d` and `a` share a sign and toward the `-a` homozygote when they differ --
+#'   it is the ratio `d/a`, not the sign of `d` alone, that sets the direction.
+#' @param phase QTN effect-sign pattern, `"coupling"` (default) or
+#'   `"repulsion"`. Under `"repulsion"` the effect **signs alternate across the
+#'   layer's QTNs in draw order** (`+, -, +, -, ...`); coupling leaves the drawn
+#'   signs untouched. The realized genetic variance is still `prop` (variance is
+#'   pinned by the partition, not by phase); what changes is the sign structure
+#'   of the per-QTN effects. This is a convenient stand-in for a repulsion
+#'   architecture, **not** a phase derived from the haplotypes: it alternates by
+#'   position in the draw, and does not inspect the sign of LD between the loci.
+#'   It therefore induces genuine repulsion-style cancellation only when
+#'   consecutively drawn QTNs happen to be in positive LD (same chromosome,
+#'   coupling-phase alleles); for effectively unlinked QTNs it merely relabels
+#'   which allele is "increasing" and leaves the cross-locus covariance
+#'   unchanged. `phase` is architecture-independent -- it acts on whichever QTNs
+#'   the additive layer draws.
 #' @param dist within-layer effect distribution (default "geometric").
 #' @return the updated `phenotype_sim`.
 #' @details
@@ -38,6 +52,50 @@
 #' and scaled to `prop` of the phenotypic variance. This is a simulation
 #' convention, not Fisher's average-effect decomposition; for an additive-only
 #' model `prop` equals the narrow-sense h2 under Hardy-Weinberg.
+#'
+#' @section Orthogonal genotypic model (`orthogonal = TRUE`):
+#' Instead of the dosage coding above, the layer builds each locus's genotypic
+#' value from an additive effect `a` and a dominance deviation `d`
+#' (value `-a` / `+d` / `+a` for gene content 0 / 1 / 2), and the whole genotypic
+#' value is scaled to `prop` of the phenotypic variance. Its additive and
+#' dominance **variances then emerge** from `a`, `d` and the allele frequencies
+#' rather than from separate layer proportions: the additive (breeding-value)
+#' component uses the average effect of substitution
+#' \eqn{\alpha_j = a_j + d_j(1 - 2 p_j)}, and the dominance deviation is the
+#' realized residual \eqn{D = g - A}. The additive and dominance components are
+#' orthogonal (\eqn{Cov(A, D) = 0}) in expectation under **random mating**, which
+#' puts each locus in Hardy-Weinberg proportions; \eqn{\alpha} above is the
+#' one-generation transmitting-ability form. This does *not* require linkage
+#' equilibrium -- between-locus LD is compatible with orthogonality in this
+#' no-epistasis model -- but per-locus HWE alone is not sufficient under arbitrary
+#' nonrandom multilocus genotype association (e.g. selection or population
+#' structure), which can correlate one locus's gene content with another's
+#' heterozygosity. A finite or structured sample therefore carries a (usually
+#' small) \eqn{Cov(A, D)} that breeders customarily ignore; this implementation
+#' does not, and the variance budget reports the **realized** shares
+#' \eqn{Var(A)/Var(g)} and \eqn{Var(D)/Var(g)} on separate `additive` and
+#' `dominance` rows, plus an `add_dom_cov` row for \eqn{2\,Cov(A, D)/Var(g)}, so
+#' the three sum to the layer `prop` (the `add_dom_cov` row is \eqn{\approx 0} for
+#' a large random-mating or F2 sample and non-zero otherwise). The realized
+#' narrow-sense heritability follows from the
+#' degree of dominance `d / abs(a)` (magnitude 1 = complete dominance, > 1 =
+#' overdominance; `abs` because `a` may be negative -- which the variance-partition
+#' grammar cannot express, because per-component scaling washes a global degree
+#' out), and the breeding value used by [select_ind()] / [optimum_contribution()]
+#' picks up the dominance-induced average effect automatically. Because the
+#' effects are fixed, this mode does not draw a separate `dominance()` layer, is
+#' incompatible with `vary_qtn`, and (like `qtn =`) cannot be used with the
+#' correlation-controlling `"pleiotropy"` (multi-trait) or `"ld"` architectures.
+#' @references
+#'   Fisher RA (1918) The correlation between relatives on the supposition of
+#'   Mendelian inheritance. \emph{Trans. R. Soc. Edinb.} 52:399-433;
+#'   Falconer DS (1985) A note on Fisher's 'average effect' and 'average excess'.
+#'   \emph{Genet. Res.} 46(3):337-347 (the average effect of substitution
+#'   \eqn{\alpha = a + d(q - p)} and its dependence on random-mating /
+#'   Hardy-Weinberg proportions); Falconer DS, Mackay TFC (1996)
+#'   \emph{Introduction to Quantitative Genetics}, 4th ed. Longman, Harlow;
+#'   Lynch M, Walsh B (1998) \emph{Genetics and Analysis of Quantitative Traits}.
+#'   Sinauer, Sunderland, MA (additive / dominance decomposition).
 #' @seealso [dominance()], [epistasis()], [vqtl()] for the other layers.
 #' @export
 #' @examples
@@ -63,23 +121,83 @@
 #' # Fix the additive QTNs yourself by marker name.
 #' simulate_phenotype(SNP55K_maize282_maf04, seed = 1) |>
 #'   additive(prop = 0.5, qtn = c("ss196442916", "ss196439337", "ss196480535"))
+#'
+#' # Orthogonal genotypic model: give per-locus a and d; the additive and
+#' # dominance variances emerge (see the var_budget). Dominance needs
+#' # heterozygotes, so simulate on a segregating F2.
+#' pop <- as_population(SNP55K_maize282_maf04, individuals = 1:20)
+#' f2  <- selfcross(cross(pop[1], pop[2], n = 1, seed = 1), n = 40, seed = 2)
+#' og  <- simulate_phenotype(f2, h2 = 0.6, seed = 3) |>
+#'   additive(orthogonal = TRUE, a = 0.5, d = 0.5, n_qtn = 8)
+#' og$var_budget
 additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
-                     phase = c("coupling", "repulsion"), dist = "geometric") {
+                     phase = c("coupling", "repulsion"), dist = "geometric",
+                     orthogonal = FALSE, a = NULL, d = NULL) {
   .check_sim(sim)
   .require_markers(sim, "additive")
+  .validate_flag(orthogonal, "orthogonal")
   phase <- match.arg(phase)
+  if (orthogonal) {
+    if (!is.null(effect)) {
+      stop("additive(orthogonal = TRUE): give additive effects via `a` (and ",
+           "dominance deviations via `d`), not `effect`.", call. = FALSE)
+    }
+    if ((sim$architecture == "pleiotropy" && sim$n_traits > 1) ||
+        sim$architecture == "ld") {
+      stop("additive(orthogonal = TRUE) sets per-locus effects, which ",
+           "architecture = \"", sim$architecture, "\" cannot honour (it draws ",
+           "its own effects to control the cross-trait correlation). Use ",
+           "architecture = \"independent\".", call. = FALSE)
+    }
+    if (isTRUE(sim$vary_qtn)) {
+      stop("additive(orthogonal = TRUE) is not supported with vary_qtn: the ",
+           "genotypic model fixes per-locus a and d across replications.",
+           call. = FALSE)
+    }
+    if (!is.null(.last_layer_of_type(sim, "dominance"))) {
+      stop("additive(orthogonal = TRUE) already models dominance through `d`; ",
+           "remove the separate dominance() layer.", call. = FALSE)
+    }
+  } else if (!is.null(a) || !is.null(d)) {
+    stop("additive(): `a` and `d` configure the orthogonal genotypic model; set ",
+         "orthogonal = TRUE to use them (or use `effect` for the standard layer).",
+         call. = FALSE)
+  }
   prop <- .resolve_prop(sim, prop, "additive")
   user_qtn <- .resolve_qtn_arg(sim, qtn, "additive")
+  # Fixing the additive loci is incompatible with the architectures that draw
+  # their own loci to build a controlled cross-trait correlation. Under
+  # "pleiotropy" the shared/specific partition and the multivariate (PleioArch)
+  # effect draw -- with its PSD feasibility check and MAF scaling -- would be
+  # bypassed, giving identical per-trait effects and a realized correlation of
+  # +1 regardless of `cor`; under "ld" the same locus would become causal for
+  # both traits instead of a distinct linked pair. Reject rather than silently
+  # mis-simulate (SPEC 4.1; DECISION-007/013/014).
+  if (!is.null(user_qtn) &&
+      ((sim$architecture == "pleiotropy" && sim$n_traits > 1) ||
+       sim$architecture == "ld")) {
+    stop("additive(qtn=) fixes the causal loci, which architecture = \"",
+         sim$architecture, "\" cannot honour: it draws its own loci (shared + ",
+         "trait-specific for \"pleiotropy\"; distinct linked pairs for \"ld\") ",
+         "and controls the cross-trait correlation through them. Omit `qtn`, or ",
+         "use architecture = \"independent\" to fix loci.", call. = FALSE)
+  }
   nq <- if (!is.null(user_qtn)) length(user_qtn[[1]]) else
     .resolve_n_qtn(sim, n_qtn, "additive")
   occ <- .type_occurrence(sim, "additive")
+
+  # In the orthogonal genotypic model the additive effects come from `a`; the
+  # standard variance-partition layer uses `effect`.
+  eff_arg <- if (orthogonal) a else effect
+  d_series <- if (orthogonal) .orthogonal_d_series(d, nq) else NULL
 
   build <- function(rep_seed, rep = 0L) {
     if (!is.null(user_qtn)) {
       q <- user_qtn
       e <- lapply(seq_len(sim$n_traits),
-                  function(t) .effect_series(nq, dist, effect))
-    } else if (sim$architecture == "pleiotropy" && sim$n_traits > 1) {
+                  function(t) .effect_series(nq, dist, eff_arg))
+    } else if (!orthogonal && sim$architecture == "pleiotropy" &&
+               sim$n_traits > 1) {
       if (!is.null(effect) || !identical(dist, "geometric")) {
         stop("additive(): `effect` and non-default `dist` cannot be used under ",
              "architecture = \"pleiotropy\" because effects come from the ",
@@ -91,7 +209,7 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
     } else {
       q <- .draw_qtn(sim, nq, rep_seed)
       e <- lapply(seq_len(sim$n_traits),
-                  function(t) .effect_series(nq, dist, effect))
+                  function(t) .effect_series(nq, dist, eff_arg))
     }
     list(qtn = q, effect = .apply_phase(e, phase))
   }
@@ -104,7 +222,43 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
     layer$effect_reps <- drawn$effect_reps
   }
   layer$ld <- attr(drawn$qtn, "ld")
+  if (orthogonal) {
+    layer$orthogonal <- TRUE
+    layer$d_effect <- lapply(seq_len(sim$n_traits), function(t) d_series)
+    # A nonzero dominance deviation at a locus with no heterozygotes is silently
+    # inert (its het indicator is all zero), so require a heterozygote at *each*
+    # locus whose d != 0 -- checked per locus, not collectively over the set.
+    if (.orthogonal_hetless_d(sim, layer$qtn, layer$d_effect)) {
+      stop("additive(orthogonal = TRUE): a locus with a non-zero dominance ",
+           "deviation `d` has no heterozygous individuals, so that `d` cannot be ",
+           "simulated -- the genotype is (near-)inbred at the locus. Choose ",
+           "het-bearing loci (qtn =), pre-filter with filter_geno(hets = ",
+           "\"include\"), set that d = 0, or use an outbred / F2 population.",
+           call. = FALSE)
+    }
+  }
   .add_layer(sim, layer)
+}
+
+#' Resolve the orthogonal dominance-deviation series `d` to length n_qtn
+#' @keywords internal
+#' @noRd
+.orthogonal_d_series <- function(d, nq) {
+  if (is.null(d)) {
+    return(rep(0, nq))
+  }
+  if (!is.numeric(d) || any(!is.finite(d))) {
+    stop("additive(orthogonal = TRUE): `d` must be finite numeric.",
+         call. = FALSE)
+  }
+  if (length(d) == 1L) {
+    return(rep(as.numeric(d), nq))
+  }
+  if (length(d) == nq) {
+    return(as.numeric(d))
+  }
+  stop("additive(orthogonal = TRUE): `d` must be a single value or a vector of ",
+       "length n_qtn (", nq, ").", call. = FALSE)
 }
 
 #' Add a dominance variance component
@@ -149,6 +303,12 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
   .check_sim(sim)
   .require_markers(sim, "dominance")
   .validate_flag(same_as_add, "same_as_add")
+  if (any(vapply(sim$layers, function(l) isTRUE(l$orthogonal), logical(1)))) {
+    stop("dominance() cannot be combined with additive(orthogonal = TRUE): the ",
+         "orthogonal genotypic model already carries the dominance deviation ",
+         "(via `d`). Specify all dominance there, or use the standard ",
+         "additive() + dominance() layers instead.", call. = FALSE)
+  }
   prop <- .resolve_prop(sim, prop, "dominance")
   occ <- .type_occurrence(sim, "dominance")
   user_qtn <- .resolve_qtn_arg(sim, qtn, "dominance")
@@ -221,11 +381,15 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
 #' @details
 #' The epistatic value is the product of the interacting markers' design terms
 #' times a per-set effect, then centered and scaled to `prop`. Each design term
-#' is **centered per locus** before multiplying, which subtracts out the
-#' lower-order (additive/dominance main-effect) marginals, so the component is a
-#' cleaner a x a / a x d / d x d interaction. It is still not a full
-#' Fisher-orthogonal variance component (that is a planned genotypic-model mode),
-#' so the "epistatic proportion" remains a simulation quantity.
+#' is centered per locus before multiplying, which removes each locus's mean so
+#' the product is not dominated by a constant offset. This does **not**
+#' orthogonalize the interaction against the additive/dominance main effects:
+#' the centered product can still be correlated with the constituent dosages --
+#' strongly so when the interacting loci are in LD or away from allele frequency
+#' 0.5 (with two perfectly linked loci it can be collinear with each additive
+#' term). It is therefore not a Fisher/NOIA-orthogonal variance component (that
+#' is a planned genotypic-model mode), so the "epistatic proportion" is a
+#' simulation quantity, not an orthogonal share of variance.
 #'
 #' `interaction_type` values of `"d"` depend on heterozygotes and are
 #' near-degenerate on a fully inbred panel (see [dominance()]); use `"a"` (the
@@ -248,8 +412,12 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
 #'   additive(prop = 0.3, n_qtn = 4) |>
 #'   epistasis(prop = 0.2, n_pairs = 2, interaction = 3)
 #'
-#' # Additive-by-dominance and dominance-by-dominance interactions.
-#' simulate_phenotype(SNP55K_maize282_maf04, seed = 4) |>
+#' # Additive-by-dominance and dominance-by-dominance interactions depend on
+#' # heterozygotes, so run them on a segregating F2 (the maize282 panel is
+#' # inbred and has none).
+#' pop <- as_population(SNP55K_maize282_maf04, individuals = 1:20)
+#' f2 <- selfcross(cross(pop[1], pop[2], n = 1, seed = 1), n = 40, seed = 2)
+#' simulate_phenotype(f2, seed = 4) |>
 #'   additive(prop = 0.3, n_qtn = 4) |>
 #'   epistasis(prop = 0.1, n_pairs = 2, interaction_type = c("a", "d")) |>
 #'   epistasis(prop = 0.1, n_pairs = 2, interaction_type = c("d", "d"))
@@ -304,17 +472,28 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
 #' `prop`; finite-sample covariance among components means total realized
 #' phenotypic variance need not be exactly one.
 #'
+#' The log-linear variance link is this package's simulation choice (a
+#' standard double-generalized-linear-model parameterization of the residual
+#' variance); it is **not** a reproduction of the specific phenotype generator or
+#' fitted variance model of any one reference. The references below are for the
+#' vQTL concept and its detection in experimental crosses and plants -- the
+#' setting this layer creates data for -- rather than the source of this exact
+#' equation. In particular, Murphy et al. simulate variance heterogeneity with a
+#' different generator and fit a DGLM to detect it; only the modeling idea is
+#' shared, not the formula used here.
+#'
 #' @inheritParams additive
 #' @param same_as_add reuse the additive layer's QTNs (default `TRUE`).
 #' @return the updated `phenotype_sim`.
 #' @references
 #' Ronnegard, L. and Valdar, W. (2011). Detecting major genetic loci
 #' controlling phenotypic variability in experimental crosses. \emph{Genetics}
-#' 188, 435--447. \doi{10.1534/genetics.111.127068}
+#' 188, 435--447. \doi{10.1534/genetics.111.127068} (vQTL concept / detection.)
 #'
 #' Murphy, M.D., Fernandes, S.B., Morota, G. et al. (2022). Assessment of two
 #' statistical approaches for variance genome-wide association studies in plants.
-#' \emph{Heredity} 129, 93--102. \doi{10.1038/s41437-022-00541-1}
+#' \emph{Heredity} 129, 93--102. \doi{10.1038/s41437-022-00541-1} (plant vGWAS
+#' context; its simulation and DGLM differ from the log link used here.)
 #' @seealso [additive()], [dominance()], [epistasis()].
 #' @rdname vqtl-layer
 #' @export
@@ -547,6 +726,31 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
   }, logical(1)))
 }
 
+#' TRUE when any orthogonal locus carrying a non-zero `d` has no heterozygotes
+#'
+#' Unlike [.dom_hetless()] (which asks whether a whole reused set is homozygous),
+#' the orthogonal model attaches a dominance deviation to specific loci, so the
+#' check is per locus: a `d != 0` locus with no heterozygote would silently
+#' contribute nothing. `qtn` and `d_effect` are per-trait lists in matching order.
+#' @keywords internal
+#' @noRd
+.orthogonal_hetless_d <- function(sim, qtn, d_effect) {
+  any(vapply(seq_along(qtn), function(t) {
+    idx <- qtn[[t]]
+    dv  <- d_effect[[t]]
+    if (is.null(idx) || length(idx) == 0L) {
+      return(FALSE)
+    }
+    nz <- which(dv != 0)
+    if (length(nz) == 0L) {
+      return(FALSE)
+    }
+    any(vapply(idx[nz], function(j) {
+      sum(.geno_cols(sim, j) == 0, na.rm = TRUE) == 0
+    }, logical(1)))
+  }, logical(1)))
+}
+
 #' A prior layer's QTNs for a given replication (per-rep if it varied)
 #' @keywords internal
 #' @noRd
@@ -700,17 +904,22 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
 .cite_vqtl <- function() {
   rlang::inform(
     .cite_main("Murphy et al. (2022), Heredity 129:93-102, ",
-               "doi:10.1038/s41437-022-00541-1, for plant vQTL simulation."),
+               "doi:10.1038/s41437-022-00541-1, for the plant variance-QTL ",
+               "(vGWAS) context (the log-variance link used here is this ",
+               "package's own simulation choice, not Murphy et al.'s ",
+               "generator)."),
     .frequency = "once",
     .frequency_id = "simplePHENOTYPES_vqtl_citation"
   )
 }
 
-#' Impose coupling / repulsion phase on a per-trait effect list
+#' Impose coupling / repulsion effect-sign pattern on a per-trait effect list
 #'
-#' Repulsion alternates the sign of successive QTN effects within each trait, so
-#' the increasing alleles oppose one another and the genetic variance is partly
-#' cancelled. Coupling returns the effects unchanged.
+#' Repulsion alternates the sign of successive QTN effects within each trait, in
+#' draw order (`+, -, +, -, ...`). This is a positional sign pattern, not a phase
+#' derived from the haplotypes; it produces repulsion-style cancellation only
+#' when the alternately-signed loci are actually in positive LD (see the `phase`
+#' argument of additive()). Coupling returns the effects unchanged.
 #' @keywords internal
 #' @noRd
 .apply_phase <- function(eff_list, phase) {

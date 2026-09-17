@@ -11,7 +11,10 @@ additive(
   qtn = NULL,
   effect = NULL,
   phase = c("coupling", "repulsion"),
-  dist = "geometric"
+  dist = "geometric",
+  orthogonal = FALSE,
+  a = NULL,
+  d = NULL
 )
 }
 \arguments{
@@ -36,23 +39,40 @@ redrawn by \code{vary_qtn}.}
 \item{effect}{optional geometric base (scalar) or explicit effect series
 (length \code{n_qtn}).}
 
-\item{phase}{QTN linkage phase, \code{"coupling"} (default) or \code{"repulsion"}.
-Under repulsion the effect signs alternate across the layer's QTNs, so the
-increasing allele at one locus is paired with the decreasing allele at the
-next -- the classic repulsion architecture, in which a GWAS sees effects
-that partially cancel and linked causal loci mask one another. The realized
-genetic variance is still \code{prop} (variance is pinned by the partition, not
-by phase); what changes is the sign structure of the per-QTN effects and
-the covariance among loci. Coupling leaves the drawn signs untouched.
-\code{phase} is \strong{architecture-independent} -- it acts on whichever QTNs the
-additive layer draws, so it is meaningful under \code{"independent"},
-\code{"pleiotropy"} and \code{"ld"} alike. Its effect on the cross-locus covariance is
-only material when a trait's additive QTNs are physically linked (on the
-same chromosome); for QTNs that are effectively unlinked, alternating the
-signs just relabels which allele is "increasing" and leaves the covariance
-structure unchanged.}
+\item{phase}{QTN effect-sign pattern, \code{"coupling"} (default) or
+\code{"repulsion"}. Under \code{"repulsion"} the effect \strong{signs alternate across the
+layer's QTNs in draw order} (\verb{+, -, +, -, ...}); coupling leaves the drawn
+signs untouched. The realized genetic variance is still \code{prop} (variance is
+pinned by the partition, not by phase); what changes is the sign structure
+of the per-QTN effects. This is a convenient stand-in for a repulsion
+architecture, \strong{not} a phase derived from the haplotypes: it alternates by
+position in the draw, and does not inspect the sign of LD between the loci.
+It therefore induces genuine repulsion-style cancellation only when
+consecutively drawn QTNs happen to be in positive LD (same chromosome,
+coupling-phase alleles); for effectively unlinked QTNs it merely relabels
+which allele is "increasing" and leaves the cross-locus covariance
+unchanged. \code{phase} is architecture-independent -- it acts on whichever QTNs
+the additive layer draws.}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
+
+\item{orthogonal}{use the orthogonal genotypic model instead of the
+variance-partition coding (default \code{FALSE}). When \code{TRUE}, give per-locus
+additive effects \code{a} and dominance deviations \code{d}; the additive and
+dominance components are orthogonal under random mating (see Details).}
+
+\item{a}{additive effect per locus for \code{orthogonal = TRUE}: a scalar geometric
+base or a length-\code{n_qtn} vector (the counterpart of \code{effect}). The locus
+value is \code{-a} / \code{+d} / \code{+a} for gene content 0 / 1 / 2.}
+
+\item{d}{dominance deviation per locus for \code{orthogonal = TRUE}: a single value
+(same at every locus) or a length-\code{n_qtn} vector. \code{d = 0} (default) is a
+purely additive locus. The heterozygote value is \code{d}, and the degree of
+dominance is \code{d / abs(a)} (\code{abs} because \code{a} may be negative, directly or
+through \code{phase = "repulsion"}): magnitude 0 = additive, 1 = complete
+dominance, > 1 = overdominance. Dominance is toward the \code{+a} homozygote when
+\code{d} and \code{a} share a sign and toward the \code{-a} homozygote when they differ --
+it is the ratio \code{d/a}, not the sign of \code{d} alone, that sets the direction.}
 }
 \value{
 the updated \code{phenotype_sim}.
@@ -66,6 +86,42 @@ and scaled to \code{prop} of the phenotypic variance. This is a simulation
 convention, not Fisher's average-effect decomposition; for an additive-only
 model \code{prop} equals the narrow-sense h2 under Hardy-Weinberg.
 }
+\section{Orthogonal genotypic model (\code{orthogonal = TRUE})}{
+
+Instead of the dosage coding above, the layer builds each locus's genotypic
+value from an additive effect \code{a} and a dominance deviation \code{d}
+(value \code{-a} / \code{+d} / \code{+a} for gene content 0 / 1 / 2), and the whole genotypic
+value is scaled to \code{prop} of the phenotypic variance. Its additive and
+dominance \strong{variances then emerge} from \code{a}, \code{d} and the allele frequencies
+rather than from separate layer proportions: the additive (breeding-value)
+component uses the average effect of substitution
+\eqn{\alpha_j = a_j + d_j(1 - 2 p_j)}, and the dominance deviation is the
+realized residual \eqn{D = g - A}. The additive and dominance components are
+orthogonal (\eqn{Cov(A, D) = 0}) in expectation under \strong{random mating}, which
+puts each locus in Hardy-Weinberg proportions; \eqn{\alpha} above is the
+one-generation transmitting-ability form. This does \emph{not} require linkage
+equilibrium -- between-locus LD is compatible with orthogonality in this
+no-epistasis model -- but per-locus HWE alone is not sufficient under arbitrary
+nonrandom multilocus genotype association (e.g. selection or population
+structure), which can correlate one locus's gene content with another's
+heterozygosity. A finite or structured sample therefore carries a (usually
+small) \eqn{Cov(A, D)} that breeders customarily ignore; this implementation
+does not, and the variance budget reports the \strong{realized} shares
+\eqn{Var(A)/Var(g)} and \eqn{Var(D)/Var(g)} on separate \code{additive} and
+\code{dominance} rows, plus an \code{add_dom_cov} row for \eqn{2\,Cov(A, D)/Var(g)}, so
+the three sum to the layer \code{prop} (the \code{add_dom_cov} row is \eqn{\approx 0} for
+a large random-mating or F2 sample and non-zero otherwise). The realized
+narrow-sense heritability follows from the
+degree of dominance \code{d / abs(a)} (magnitude 1 = complete dominance, > 1 =
+overdominance; \code{abs} because \code{a} may be negative -- which the variance-partition
+grammar cannot express, because per-component scaling washes a global degree
+out), and the breeding value used by \code{\link[=select_ind]{select_ind()}} / \code{\link[=optimum_contribution]{optimum_contribution()}}
+picks up the dominance-induced average effect automatically. Because the
+effects are fixed, this mode does not draw a separate \code{dominance()} layer, is
+incompatible with \code{vary_qtn}, and (like \verb{qtn =}) cannot be used with the
+correlation-controlling \code{"pleiotropy"} (multi-trait) or \code{"ld"} architectures.
+}
+
 \examples{
 data("SNP55K_maize282_maf04")
 
@@ -89,6 +145,26 @@ simulate_phenotype(SNP55K_maize282_maf04, seed = 1) |>
 # Fix the additive QTNs yourself by marker name.
 simulate_phenotype(SNP55K_maize282_maf04, seed = 1) |>
   additive(prop = 0.5, qtn = c("ss196442916", "ss196439337", "ss196480535"))
+
+# Orthogonal genotypic model: give per-locus a and d; the additive and
+# dominance variances emerge (see the var_budget). Dominance needs
+# heterozygotes, so simulate on a segregating F2.
+pop <- as_population(SNP55K_maize282_maf04, individuals = 1:20)
+f2  <- selfcross(cross(pop[1], pop[2], n = 1, seed = 1), n = 40, seed = 2)
+og  <- simulate_phenotype(f2, h2 = 0.6, seed = 3) |>
+  additive(orthogonal = TRUE, a = 0.5, d = 0.5, n_qtn = 8)
+og$var_budget
+}
+\references{
+Fisher RA (1918) The correlation between relatives on the supposition of
+Mendelian inheritance. \emph{Trans. R. Soc. Edinb.} 52:399-433;
+Falconer DS (1985) A note on Fisher's 'average effect' and 'average excess'.
+\emph{Genet. Res.} 46(3):337-347 (the average effect of substitution
+\eqn{\alpha = a + d(q - p)} and its dependence on random-mating /
+Hardy-Weinberg proportions); Falconer DS, Mackay TFC (1996)
+\emph{Introduction to Quantitative Genetics}, 4th ed. Longman, Harlow;
+Lynch M, Walsh B (1998) \emph{Genetics and Analysis of Quantitative Traits}.
+Sinauer, Sunderland, MA (additive / dominance decomposition).
 }
 \seealso{
 \code{\link[=dominance]{dominance()}}, \code{\link[=epistasis]{epistasis()}}, \code{\link[=vqtl]{vqtl()}} for the other layers.

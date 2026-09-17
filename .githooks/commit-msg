@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# commit-msg — reject any AI/assistant co-author or "generated with" attribution.
+# Non-negotiable project rule (AGENTS.md #1 / docs/constitution): commits read as a
+# human wrote them. An AI co-author trailer once registered the assistant as a GitHub
+# collaborator — this hook makes that impossible to commit, whichever model wrote it.
+#
+# Installed via: git config core.hooksPath .githooks   (see dev/setup.sh)
+set -euo pipefail
+
+msg_file="$1"
+
+# Strip comment lines (git's own '#'-prefixed template) before scanning.
+body="$(grep -v '^#' "$msg_file" || true)"
+
+fail() {
+  echo "✖ commit blocked: $1" >&2
+  echo "  offending line: $2" >&2
+  echo "  Remove the attribution and commit again (AGENTS.md rule #1)." >&2
+  exit 1
+}
+
+# 1. Any Co-Authored-By naming an AI/assistant/bot.
+ai='claude|anthropic|codex|openai|chatgpt|gpt-[0-9]|copilot|gemini|\bllm\b|\bai\b|bot@|noreply@anthropic|users\.noreply\.github\.com'
+while IFS= read -r line; do
+  [ -z "$line" ] && continue
+  if printf '%s' "$line" | grep -qiE '^[[:space:]]*co-authored-by:'; then
+    if printf '%s' "$line" | grep -qiE "$ai"; then
+      fail "AI/assistant Co-Authored-By trailer is not allowed" "$line"
+    fi
+  fi
+done <<< "$body"
+
+# 2. An AI "generated with/by <assistant>" signature line, or the robot-signature emoji.
+#    Requires an AI name on the line so ordinary prose mentioning the phrase is fine.
+gen='generated (with|by)[^[:alnum:]]*(claude|codex|gpt|openai|chatgpt|copilot|gemini|anthropic|assistant|a\.?i\.?)|🤖'
+if printf '%s' "$body" | grep -qiE "$gen"; then
+  bad="$(printf '%s' "$body" | grep -iE "$gen" | head -1)"
+  fail "AI 'generated with <assistant>' / robot attribution is not allowed" "$bad"
+fi
+
+exit 0

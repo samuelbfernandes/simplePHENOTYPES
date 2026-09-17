@@ -1,0 +1,37 @@
+name: attribution-guard
+# Server-side enforcement of AGENTS.md rule #1: no AI/assistant co-author or "generated
+# with <assistant>" attribution. The local .githooks/commit-msg is bypassable
+# (--no-verify); this is not. Fails the build if any commit in the push/PR carries one.
+on:
+  push:
+  pull_request:
+
+jobs:
+  no-ai-attribution:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan commit messages in this change
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            range="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          elif [ -n "${{ github.event.before }}" ] && git cat-file -e "${{ github.event.before }}^{commit}" 2>/dev/null && \
+               [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            range="${{ github.event.before }}..${{ github.sha }}"
+          else
+            range="${{ github.sha }} -1"
+          fi
+          msgs="$(git log --format='%H%n%B%n==='  $range || git log -1 --format='%H%n%B')"
+          ai='claude|anthropic|codex|openai|chatgpt|gpt-[0-9]|copilot|gemini|\bllm\b|bot@|noreply@anthropic'
+          gen='generated (with|by)[^[:alnum:]]*(claude|codex|gpt|openai|chatgpt|copilot|gemini|anthropic|assistant|a\.?i\.?)|🤖'
+          bad=0
+          while IFS= read -r line; do
+            if printf '%s' "$line" | grep -qiE '^[[:space:]]*co-authored-by:' && printf '%s' "$line" | grep -qiE "$ai"; then
+              echo "::error::AI Co-Authored-By trailer: $line"; bad=1; fi
+            if printf '%s' "$line" | grep -qiE "$gen"; then
+              echo "::error::AI 'generated with' attribution: $line"; bad=1; fi
+          done <<< "$msgs"
+          [ "$bad" -eq 0 ] && echo "✓ no AI attribution found" || { echo "commit messages must read as a human wrote them (AGENTS.md #1)"; exit 1; }

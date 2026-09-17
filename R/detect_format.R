@@ -1,6 +1,7 @@
 # Shared format detection and HapMap character parsing utilities.
-# These functions are the single source-of-truth used by both
-# format_conversion() (as_numeric path) and file_loader() (create_phenotypes path).
+# These functions are the single source-of-truth for numericalization, used by
+# format_conversion() / as_numeric() — the one coding path, which
+# create_phenotypes() reaches through genotypes().
 
 .HMP_NAMES <- c("rs#", "alleles", "chrom", "pos", "strand",
                 "assembly#", "center", "protLSID", "assayLSID",
@@ -12,6 +13,46 @@
            "GA","TC","GC","TA","TG","CA")
 .HOMO <- c("A","AA","T","TT","C","CC","G","GG")
 .MISS <- c("N","NN","NA","--","XX","00","+","++"," ","")
+
+# IUPAC single-character ambiguity codes -> their two constituent allele letters.
+.HET_IUPAC <- c(R = "AG", Y = "CT", S = "GC", W = "AT", K = "GT", M = "AC")
+
+#' The two allele letters carried by a heterozygote call.
+#'
+#' Decodes either an IUPAC ambiguity code (`"R"` -> `c("A","G")`) or a digraph
+#' (`"AG"` -> `c("A","G")`). Returns `character(0)` for anything else. Used to
+#' recover the allele labels of a marker that is heterozygous in every sample, so
+#' a het-only marker can still be reference-oriented.
+#' @noRd
+.het_to_letters <- function(code) {
+  code <- toupper(as.character(code))
+  if (length(code) != 1L || is.na(code)) return(character(0))
+  if (nchar(code) == 1L) {
+    dec <- .HET_IUPAC[[code]]
+    if (is.null(dec)) return(character(0))
+    strsplit(dec, "")[[1L]]
+  } else if (nchar(code) == 2L) {
+    strsplit(code, "")[[1L]]
+  } else {
+    character(0)
+  }
+}
+
+#' The allele letter(s) a single genotype call resolves to.
+#'
+#' A heterozygote call (IUPAC ambiguity code `"R"` or digraph `"AG"`) resolves to
+#' its two constituent alleles; a homozygote code (`"A"`, `"AA"`) to its own
+#' letters. Used to build the set of alleles observed at a marker, so an IUPAC
+#' heterozygote contributes both of its alleles rather than the ambiguity letter
+#' itself (a raw `strsplit("R")` would observe `"R"`, not `"A","G"`).
+#' @noRd
+.call_to_letters <- function(code) {
+  code <- toupper(as.character(code))
+  if (length(code) != 1L || is.na(code)) return(character(0))
+  het <- .het_to_letters(code)
+  if (length(het)) return(het)          # het: IUPAC code or digraph
+  strsplit(code, "")[[1L]]              # homozygote: "A" or "AA"
+}
 
 #' Install hint for the optional Bioconductor readers.
 #'
@@ -126,31 +167,71 @@ detect_format <- function(file) {
 # compute_flip() based on allele frequencies in the raw matrix.
 # ---------------------------------------------------------------------------
 
-#' Parse HapMap character genotype matrix to raw 0/1/2 dosage matrix.
+#' Parse a character genotype matrix to a raw 0/1/2 dosage matrix.
 #'
-#' @param geno_mat Character matrix (SNPs × samples) from a HapMap file
-#'   (columns 12: after the 11 metadata columns).
-#' @param allele1 optional allele-1 label from the HapMap `alleles` field. When
-#'   supplied, raw dosage 0 is anchored to that allele rather than to the most
-#'   frequent homozygote. This is required for reference-based orientation.
+#' Generalized from the HapMap parser so it also serves nucleotide tables, VCF
+#' `GT` strings, and Illumina FinalReport `AB` calls: the heterozygote,
+#' homozygote and missing code sets are all overridable.
+#'
+#' @param geno_mat Character matrix (SNPs × samples) of genotype calls.
+#' @param allele1 optional allele-1 label per marker. When supplied, raw dosage
+#'   0 is anchored to that allele rather than to the most frequent homozygote.
+#'   Required for reference-based orientation.
+#' @param hets heterozygote codes (default the IUPAC/digraph set `.HETS`).
+#' @param homo optional explicit homozygote codes. When `NULL` (default) any
+#'   present call that is neither het nor missing is treated as a homozygote
+#'   (HapMap behaviour). When supplied, a call that is neither het, homo, nor
+#'   missing is treated as missing (invalid), which is what a strict table /
+#'   FinalReport parse needs.
+#' @param miss missing-value codes (default `.MISS`).
 #' @return Integer matrix (SNPs × samples): 0 = hom allele-1, 1 = het,
-#'   2 = hom allele-2, NA_integer_ = missing.
+#'   2 = hom allele-2, NA_integer_ = missing. `attr(., "alleles")` is an
+#'   n_snp × 2 character matrix of the (allele1, allele2) labels backing the
+#'   0 / 2 codes, for building the `allele` metadata column.
 #' @noRd
-parse_hapmap_chars_to_raw <- function(geno_mat, allele1 = NULL) {
+parse_hapmap_chars_to_raw <- function(geno_mat, allele1 = NULL,
+                                      hets = .HETS, homo = NULL,
+                                      miss = .MISS) {
   n_snp  <- nrow(geno_mat)
   n_samp <- ncol(geno_mat)
   raw    <- matrix(NA_integer_, nrow = n_snp, ncol = n_samp)
+  alleles <- matrix(NA_character_, nrow = n_snp, ncol = 2L)
 
   for (i in seq_len(n_snp)) {
     row      <- as.character(geno_mat[i, ])
-    is_miss  <- row %in% .MISS | is.na(row)
-    is_het   <- row %in% .HETS
-    is_hom   <- !is_miss & !is_het
+    is_miss  <- row %in% miss | is.na(row)
+    is_het   <- row %in% hets
+    if (is.null(homo)) {
+      is_hom <- !is_miss & !is_het
+    } else {
+      is_hom <- row %in% homo
+      # A present call that is neither het nor a recognised homozygote is not a
+      # valid biallelic genotype: record it as missing rather than a phantom
+      # third homozygote.
+      is_miss <- is_miss | (!is_het & !is_hom)
+    }
 
     hom_vals <- row[is_hom]
     if (length(hom_vals) == 0L) {
-      # Only hets and/or missing — treat all present calls as het
+      # Only hets and/or missing: every present call is het -> raw dosage 1.
+      # There is no homozygote to name the alleles from, but a reference-oriented
+      # parse still needs the marker's allele letters, so recover them from the
+      # heterozygote calls themselves (IUPAC code or digraph). Leaving the allele
+      # metadata NA here made a valid het-only marker fail reference coding.
       raw[i, is_het] <- 1L
+      het_letters <- unique(unlist(lapply(row[is_het], .het_to_letters)))
+      if (length(het_letters) == 2L) {
+        if (is.null(allele1)) {
+          alleles[i, ] <- het_letters
+        } else {
+          a <- substr(as.character(allele1[[i]]), 1L, 1L)
+          alleles[i, ] <- if (a %in% het_letters) {
+            c(a, setdiff(het_letters, a))
+          } else {
+            het_letters
+          }
+        }
+      }
       next
     }
 
@@ -170,12 +251,15 @@ parse_hapmap_chars_to_raw <- function(geno_mat, allele1 = NULL) {
       hit <- candidates[candidates %in% hom_vals]
       if (length(hit)) hit[[1L]] else candidates[[1L]]
     }
+    second <- setdiff(names(counts), first)
+    alleles[i, ] <- c(first, if (length(second)) second[[1L]] else NA_character_)
 
     raw[i, row == first] <- 0L
     raw[i, is_het]         <- 1L
     raw[i, is_hom & row != first] <- 2L
     # missing stays NA_integer_
   }
+  attr(raw, "alleles") <- alleles
   raw
 }
 

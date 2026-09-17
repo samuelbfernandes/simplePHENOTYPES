@@ -1,3 +1,59 @@
+<!-- AUDIT:BEGIN -->
+## Audit findings — 2026-09-12 (RESOLVED + independent Codex review done; not committed)
+
+All 34 audit findings across the five domains were reproduced and fixed, then the
+change was put through **multiple rounds** of independent Codex theory review
+(`dev/dual.sh review --staged`), each of which confirmed the prior fixes and
+surfaced deeper issues that were then fixed (through the breeding-value definition,
+DECISION-019, and selection/OCS hardening). `devtools::test()` = 491/0/0/0;
+`cargo test` = 30/30. The designer was removed from the engine (see the designer
+TODO D4). Nothing is committed.
+
+### Fixed in review rounds (beyond the original 34)
+- **Selection engine (select.R):** QGSI + Smith-Hazel now score on additive
+  breeding values (not total genotypic value or phenotypes); `select_ind()`
+  validates `rep` and rejects non-finite scores; `within_family` returns exactly
+  `n`; negative `intensity` rejected.
+- **OCS (ocs.R):** solver replaced with **away-step Frank-Wolfe** (linear
+  convergence — plain FW left merit ~7% low at moderate lambda); `g_matrix`
+  ridge validated to [0,1]; named merit aligned to G (error on mismatch);
+  non-convergence now warns.
+- **PleioArch (effects_pleioarch.R):** MVN effects drawn by eigendecomposition
+  (exact at the singular feasibility boundary; no silent PSD nudge); 2-trait and
+  n-trait feasibility tolerances tightened to roundoff level; pi-partition
+  feasibility enforced (errors when n_qtn too small); MVN draw no longer nudges.
+- **Coding (numeric.rs):** imputed calls now pass through the Dom/Left/Right
+  model transform; table reference orientation fixed (allele-letter compare).
+
+### Resolved 2026-09-13 (follow-up to the review)
+- **QGSI/Smith-Hazel breeding value (O2/B2):** RESOLVED — both indices now score
+  on the true **Fisher/NOIA average-effect breeding value** computed by
+  `.breeding_value_matrix()` (least-squares additive projection of the total
+  genetic value onto the causal loci's centered gene content). It captures the
+  additive average effects dominance/epistasis loci induce (verified: a
+  dominance locus p=0.8,a=0,d=1 gives BV (-0.24,0.36,0.96) = the classic
+  \eqn{\alpha=d(q-p)} result), and reduces to the additive value for a purely
+  additive model. The additive-layer proxy and its warning were removed.
+- **Frozen-legacy path (O7):** DOCUMENTED — DECISION-008 now carries the
+  loader-unification addendum (the loader numericalizes via `as_numeric()`; the
+  frozen part is the simulation engine; `test-v130-parity.R` green).
+
+### Residual — handed off
+- **Designer (O5/O6, F6/F7/F8):** deferred per your scope choice — separate
+  product (`breedingDesigner`, DECISION-018). Its findings are written into
+  `breeding_designer/TODO.md` (D1-D4: pedigree/recurrent vs. the new
+  `additive(qtn=)` guard, codegen reproducibility, ID-sanitization collisions,
+  and removing the designer exports from this engine's NAMESPACE).
+
+Per AGENTS.md, commit only after you are satisfied with the review.
+
+- [x] **AUDIT grammar** — O1 vqtl citation reworded (log link is ours, not Murphy's generator); O2 h2 identity now enforced at materialization (`.check_h2_complete`); O3/O4/O5/O6 `additive(qtn=)` under pleiotropy/ld now errors instead of silently defeating the correlation machinery; O7 `.layer_seed` overflow fixed (double arithmetic); O8 repulsion/epistasis docs corrected (positional sign pattern, not haplotypic phase; centering is not orthogonalization).
+- [x] **AUDIT effects-arch** — O1 pleiotropic count no longer rounds shared loci to 0 / silently drops the minor share; O2 PSD check now uses a scale-relative tolerance; O3 indirect-LD enforces the r² window on the causal pair; O4 two-locus EM is multi-start (max-likelihood, no LE saddle); O5 PleioArch provenance anchored to the bundled reference implementation (paper genuinely in prep).
+- [x] **AUDIT crossing-schemes** — O1/O3 chromosome marshalling: map + haplotypes sorted together by (chr,cm), run-length grouping ignores unused factor levels; O2 no map rebase (absolute Morgans, L = last position) to match isqg; O4 `c.Population()` compares the whole map; O5 `bulk()` carries `n` forward; O6 synthetic_map Gaussian documented as a heuristic (Bauer 2013 for the phenomenon only); O7 pedigree history doc matches DECISION-015 (n/S/i).
+- [x] **AUDIT rust-core** — O1/O2 fixed in the R wrapper (rebase + marshalling above); O3 table coding routed through the Rust kernel (Dom/Left/Right correct); O4 tri-allelic→NA / all-het handled; O5 legacy `numericalization()` removed (dead); O6 `as_numeric()` now returns the 5 metadata columns for every format. (No `.rs` changes needed — the deterministic core was already correct.)
+- [x] **AUDIT io-formats** — O1 create_phenotypes now numericalizes via `as_numeric()`/`format_conversion()` (single correct coding path; buggy `file_loader`/`numericalization` deleted); O2 numeric 0/1/2 detection scans the whole matrix; O3 table models/orientation correct + metadata columns; O4 in-memory VCF (GT:DP suffix) and opened gds.class objects work; O5 Illumina AB recognized; O6 MAF uses called-genotype denominator and supports 0/1/2; O7 pruning uses complete pairs + multi-start EM; O8 `var_explained` divided by realized V_P.
+<!-- AUDIT:END -->
+
 # TODO.md — simplePHENOTYPES v2 Development Checklist
 
 > Track progress here. Update status as you go.

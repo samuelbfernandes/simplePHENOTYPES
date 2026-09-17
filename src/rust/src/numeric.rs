@@ -61,51 +61,60 @@ pub fn numericalize_core(
         for samp in 0..n_samp {
             let raw = raw_dosage[base + samp];
 
-            out[base + samp] = if raw == R_NA_INT {
-                impute_val.unwrap_or(R_NA_INT)
+            // The Add-model code comes from the observed dosage, or from the
+            // imputation class when the call is missing (Major -> major_val,
+            // Minor -> minor_val, Middle -> het_val); a missing call with
+            // impute = "None" stays NA. The genetic-model transform below is then
+            // applied to imputed calls too, so an imputed major homozygote is
+            // coded exactly like an observed one under Dom/Left/Right. (Returning
+            // the raw impute value here previously skipped the transform, so an
+            // imputed genotype came out with the wrong Dom/Left/Right code.)
+            let add_coded = if raw == R_NA_INT {
+                match impute_val {
+                    Some(v) => v,
+                    None => R_NA_INT,
+                }
             } else {
-                // Map raw dosage → Add-model code
-                let add_coded = match (raw, is_flipped) {
+                match (raw, is_flipped) {
                     (0, false) => major_val,
                     (1, _) => het_val,
                     (2, false) => minor_val,
                     (0, true) => minor_val,
                     (2, true) => major_val,
                     _ => R_NA_INT,
-                };
+                }
+            };
 
-                if add_coded == R_NA_INT {
-                    impute_val.unwrap_or(R_NA_INT)
-                } else {
-                    // Apply genetic-model post-processing on top of Add coding.
-                    // These match the transforms in the original numericalization():
-                    //   Dom:   non-het → minor_val  (x1[x1 != 0] <- -1)
-                    //   Left:  het     → minor_val  (x1[x1 == 0] <- -1)
-                    //   Right: het     → major_val  (x1[x1 == 0] <- 1)
-                    match model {
-                        "Dom" => {
-                            if add_coded != het_val {
-                                minor_val
-                            } else {
-                                het_val
-                            }
+            out[base + samp] = if add_coded == R_NA_INT {
+                R_NA_INT
+            } else {
+                // Apply genetic-model post-processing on top of Add coding.
+                //   Dom:   non-het → minor_val  (x1[x1 != 0] <- -1)
+                //   Left:  het     → minor_val  (x1[x1 == 0] <- -1)
+                //   Right: het     → major_val  (x1[x1 == 0] <- 1)
+                match model {
+                    "Dom" => {
+                        if add_coded != het_val {
+                            minor_val
+                        } else {
+                            het_val
                         }
-                        "Left" => {
-                            if add_coded == het_val {
-                                minor_val
-                            } else {
-                                add_coded
-                            }
-                        }
-                        "Right" => {
-                            if add_coded == het_val {
-                                major_val
-                            } else {
-                                add_coded
-                            }
-                        }
-                        _ => add_coded, // "Add" and unrecognised
                     }
+                    "Left" => {
+                        if add_coded == het_val {
+                            minor_val
+                        } else {
+                            add_coded
+                        }
+                    }
+                    "Right" => {
+                        if add_coded == het_val {
+                            major_val
+                        } else {
+                            add_coded
+                        }
+                    }
+                    _ => add_coded, // "Add" and unrecognised
                 }
             };
         }

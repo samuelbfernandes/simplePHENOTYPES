@@ -629,8 +629,11 @@ simulate_phenotype <- function(geno = NULL,
     return(NULL)
   }
   base <- sum(utf8ToInt(layer_type))
-  # Double arithmetic before the modulus so a large (but valid, <= integer.max)
-  # seed does not overflow 32-bit integer multiplication.
+  # Do the mixing in double precision: a valid seed can be as large as
+  # .Machine$integer.max, and `seed * 1009L` would overflow 32-bit integer
+  # arithmetic to NA. Doubles hold these products exactly (< 2^53), and the
+  # final %% brings the result back into integer range. For ordinary small
+  # seeds the value is identical to the previous integer computation.
   as.integer((as.double(seed) * 1009 + base * 7919 + occurrence * 104729) %%
                .Machine$integer.max)
 }
@@ -664,6 +667,22 @@ print.phenotype_sim <- function(x, ...) {
     cat("    (no genetic layers)\n")
   } else {
     for (ly in x$layers) {
+      if (isTRUE(ly$orthogonal) && identical(ly$type, "additive")) {
+        # The layer's prop splits into emergent additive/dominance/covariance
+        # shares; print those (from the same helper the var budget uses), not a
+        # single "additive" row equal to the whole layer.
+        nt <- x$n_traits
+        pr <- .expand_prop(ly$prop, nt)
+        sp <- vapply(seq_len(nt),
+                     function(t) .orthogonal_var_split(x, ly, t), numeric(3))
+        cat(sprintf("    %-11s %s   (orthogonal a/d model: %d QTNs)\n",
+                    "additive", fmt(pr * sp["add", ]), ly$n_qtn))
+        cat(sprintf("    %-11s %s   (emergent)\n",
+                    "dominance", fmt(pr * sp["dom", ])))
+        cat(sprintf("    %-11s %s   (emergent covariance)\n",
+                    "add_dom_cov", fmt(pr * sp["cov", ])))
+        next
+      }
       info <- switch(
         ly$type,
         additive  = sprintf("%d QTNs, %s", ly$n_qtn, ly$dist),
@@ -674,12 +693,23 @@ print.phenotype_sim <- function(x, ...) {
                     else sprintf("%d QTNs", ly$n_qtn),
         ""
       )
-      cat(sprintf("    %-10s %s   (%s)\n", ly$type, fmt(ly$prop), info))
+      cat(sprintf("    %-11s %s   (%s)\n", ly$type, fmt(ly$prop), info))
     }
   }
-  cat(sprintf("    %-10s %s\n", "residual", fmt(1 - .total_variance_prop(x))))
+  cat(sprintf("    %-11s %s\n", "residual", fmt(1 - .total_variance_prop(x))))
   cat(sprintf("  Requested genetic share = %s   realized H\u00b2 = %s\n",
               fmt(.total_genetic_prop(x)), fmt(.realized_h2(x))))
+  has_tx <- any(vapply(x$layers, function(l) identical(l$type, "transcriptome"), TRUE))
+  if (!is.null(x$h2) && !has_tx) {
+    spent <- .total_genetic_prop(x)
+    h2v <- .expand_prop(x$h2, x$n_traits)
+    if (any(spent < h2v - 1e-8)) {
+      cat(sprintf("  ! Incomplete h2 allocation: genetic layers sum to %s of ",
+                  fmt(spent)),
+          sprintf("h2 = %s; extracting phenotypes will error until the ", fmt(h2v)),
+          "budget is filled (SPEC 4.1).\n", sep = "")
+    }
+  }
   if (!is.null(x$mediation)) {
     md <- x$mediation
     cat(sprintf(

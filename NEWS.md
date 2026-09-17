@@ -1,3 +1,31 @@
+# simplePHENOTYPES 2.0.0
+
+Version 2.0 is the release line that introduces the v2 simulation grammar and
+the multi-generation / selection engine, alongside the frozen v1
+`create_phenotypes()` (unchanged). It is the version `breedingDesigner` depends
+on (`Imports: simplePHENOTYPES (>= 2.0)`); the exported engine surface is the
+backend contract in `docs/BACKEND_CONTRACT.md`.
+
+## Major changes
+* New phenotype grammar: `simulate_phenotype()` with composable `additive()`,
+  `dominance()`, `epistasis()` and `vqtl()` layers, `complex_phenotypes()`, and
+  long/wide exporters. Orthogonal genotypic model via
+  `additive(orthogonal = TRUE, a =, d =)`.
+* Multi-generation genetics (the crossing schemes): `as_population()`,
+  `cross()`, `selfcross()`, `double_haploid()`, `synthetic_map()`, `dosages()`
+  — isqg-parity meiosis on a Rust core.
+* Selection engine: `select_ind()` and the named schemes
+  `single_seed_descent()`, `bulk()`, `pedigree()`, `recurrent_selection()`.
+* Modern methods: `g_matrix()` (VanRaden), `optimum_contribution()` +
+  `sample_parents()` (Meuwissen OCS), `cross_usefulness()`.
+* Fixed-scale cross-generation accessors `additive_value()` and
+  `phenotype_value()`.
+* `filter_geno()` LD pruning (`indep_pairwise`, `indep`, `indep_pairphase`,
+  Gabriel `blocks`) is byte-exact to PLINK 1.9.
+
+## Notes
+* `create_phenotypes()` is retained unchanged as frozen legacy (bugfix-only).
+
 # simplePHENOTYPES 1.4.0
 ## Major changes
 Implemented vQTL simulaiton

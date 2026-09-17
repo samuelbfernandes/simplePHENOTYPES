@@ -44,9 +44,9 @@ test_that("phased pruning and Gabriel blocks reduce markers", {
   expect_lt(nrow(pp), nrow(sub))
   bl <- filter_geno(sub, blocks = TRUE, block_max_kb = 2000, verbose = FALSE)
   expect_lt(nrow(bl), nrow(sub))
-  # two-locus EM r2 is 1 for a marker against itself, in [0, 1] generally
-  g <- as.numeric(sub[1, -(1:5)]) + 1
-  expect_equal(simplePHENOTYPES:::.hap_r2(g, g), 1)
+  # haplotypic r2 is 1 for a marker against itself
+  g <- as.integer(as.numeric(sub[1, -(1:5)]) + 1)
+  expect_equal(simplePHENOTYPES:::.plink_hap_rsq(g, g), 1)
 })
 
 test_that("kb windows and blocks need positions; maf/het still work on a matrix", {

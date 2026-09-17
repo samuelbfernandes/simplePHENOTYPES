@@ -60,23 +60,45 @@ plot.phenotype_sim <- function(x, which = c("variance", "hist", "effects",
   invisible(x)
 }
 
+#' Component x trait matrix of variance-budget proportions
+#'
+#' Rows are the distinct components, columns the traits. A component that appears
+#' on several budget rows (e.g. a standard and an orthogonal additive layer both
+#' emit `"additive"`) is **summed**, so each trait column reproduces that trait's
+#' total budget rather than only its last row.
 #' @keywords internal
 #' @noRd
-.plot_variance <- function(x) {
-  vb <- x$var_budget
+.var_budget_matrix <- function(vb) {
   traits <- unique(vb$trait)
   comps <- unique(vb$component)
   m <- matrix(0, nrow = length(comps), ncol = length(traits),
               dimnames = list(comps, traits))
   for (i in seq_len(nrow(vb))) {
-    m[vb$component[i], vb$trait[i]] <- vb$prop[i]
+    m[vb$component[i], vb$trait[i]] <-
+      m[vb$component[i], vb$trait[i]] + vb$prop[i]
   }
+  m
+}
+
+#' @keywords internal
+#' @noRd
+.plot_variance <- function(x) {
+  m <- .var_budget_matrix(x$var_budget)
+  comps <- rownames(m)
   cols <- grDevices::gray.colors(length(comps))
-  graphics::barplot(m, col = cols, ylim = c(0, 1),
+  # Realized shares can include a signed covariance row (the orthogonal model's
+  # add_dom_cov) that drives a stack below 0 or a component above 1. Size the
+  # axis to the actual positive/negative stack extents so nothing is silently
+  # clipped; for the usual all-in-[0,1] budget this stays ~[0, 1].
+  pos <- apply(m, 2L, function(col) sum(col[col > 0]))
+  neg <- apply(m, 2L, function(col) sum(col[col < 0]))
+  ylim <- grDevices::extendrange(c(0, max(pos), min(neg)))
+  graphics::barplot(m, col = cols, ylim = ylim,
                     ylab = "proportion of V_P", main = "Variance partition",
                     legend.text = comps,
                     args.legend = list(x = "topright", bty = "n",
                                        cex = 0.8))
+  graphics::abline(h = 0, col = "grey40")
 }
 
 #' @keywords internal

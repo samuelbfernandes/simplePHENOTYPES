@@ -56,11 +56,15 @@ Add an epistatic variance component
 \details{
 The epistatic value is the product of the interacting markers' design terms
 times a per-set effect, then centered and scaled to \code{prop}. Each design term
-is \strong{centered per locus} before multiplying, which subtracts out the
-lower-order (additive/dominance main-effect) marginals, so the component is a
-cleaner a x a / a x d / d x d interaction. It is still not a full
-Fisher-orthogonal variance component (that is a planned genotypic-model mode),
-so the "epistatic proportion" remains a simulation quantity.
+is centered per locus before multiplying, which removes each locus's mean so
+the product is not dominated by a constant offset. This does \strong{not}
+orthogonalize the interaction against the additive/dominance main effects:
+the centered product can still be correlated with the constituent dosages --
+strongly so when the interacting loci are in LD or away from allele frequency
+0.5 (with two perfectly linked loci it can be collinear with each additive
+term). It is therefore not a Fisher/NOIA-orthogonal variance component (that
+is a planned genotypic-model mode), so the "epistatic proportion" is a
+simulation quantity, not an orthogonal share of variance.
 
 \code{interaction_type} values of \code{"d"} depend on heterozygotes and are
 near-degenerate on a fully inbred panel (see \code{\link[=dominance]{dominance()}}); use \code{"a"} (the
@@ -82,8 +86,12 @@ simulate_phenotype(SNP55K_maize282_maf04, seed = 3) |>
   additive(prop = 0.3, n_qtn = 4) |>
   epistasis(prop = 0.2, n_pairs = 2, interaction = 3)
 
-# Additive-by-dominance and dominance-by-dominance interactions.
-simulate_phenotype(SNP55K_maize282_maf04, seed = 4) |>
+# Additive-by-dominance and dominance-by-dominance interactions depend on
+# heterozygotes, so run them on a segregating F2 (the maize282 panel is
+# inbred and has none).
+pop <- as_population(SNP55K_maize282_maf04, individuals = 1:20)
+f2 <- selfcross(cross(pop[1], pop[2], n = 1, seed = 1), n = 40, seed = 2)
+simulate_phenotype(f2, seed = 4) |>
   additive(prop = 0.3, n_qtn = 4) |>
   epistasis(prop = 0.1, n_pairs = 2, interaction_type = c("a", "d")) |>
   epistasis(prop = 0.1, n_pairs = 2, interaction_type = c("d", "d"))

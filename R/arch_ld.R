@@ -124,16 +124,31 @@
         up <- w[pos[w$idx] < pos[focal], , drop = FALSE]
         dn <- w[pos[w$idx] > pos[focal], , drop = FALSE]
         if (nrow(up) > 0L && nrow(dn) > 0L) {
-          pu <- which.max(up$r2)
-          pd <- which.max(dn$r2)
-          t1[i] <- up$idx[pu]
-          t2[i] <- dn$idx[pd]
-          r2_1[i] <- up$r2[pu]
-          r2_2[i] <- dn$r2[pd]
-          cause[i] <- focal
-          used <- c(used, focal, up$idx[pu], dn$idx[pd])
-          found <- TRUE
-          break
+          # Each flank is in the r2 window with the hidden cause, but SPEC also
+          # requires the *causal pair* (t1, t2) itself to have r2 in the window
+          # (it is the linkage that drives the trait correlation). Search the
+          # flanks -- strongest-to-cause first -- for a pair that satisfies it.
+          up <- up[order(-up$r2), , drop = FALSE]
+          dn <- dn[order(-dn$r2), , drop = FALSE]
+          picked <- FALSE
+          for (iu in seq_len(nrow(up))) {
+            for (id in seq_len(nrow(dn))) {
+              rp <- r2_pair(up$idx[iu], dn$idx[id])
+              if (is.finite(rp) && rp >= r2_min && rp <= r2_max) {
+                t1[i] <- up$idx[iu]
+                t2[i] <- dn$idx[id]
+                r2_1[i] <- up$r2[iu]
+                r2_2[i] <- dn$r2[id]
+                cause[i] <- focal
+                used <- c(used, focal, up$idx[iu], dn$idx[id])
+                found <- TRUE
+                picked <- TRUE
+                break
+              }
+            }
+            if (picked) break
+          }
+          if (picked) break
         }
       }
     }

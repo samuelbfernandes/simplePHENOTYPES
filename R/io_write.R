@@ -20,6 +20,7 @@
 #' table(long$trait)
 phenotypes_long <- function(sim) {
   .check_sim(sim)
+  .check_h2_complete(sim)
   sim$pheno
 }
 
@@ -43,6 +44,7 @@ phenotypes_long <- function(sim) {
 #' round(cor(wide$Trait_1, wide$Trait_2), 2)
 phenotypes_wide <- function(sim) {
   .check_sim(sim)
+  .check_h2_complete(sim)
   long <- sim$pheno
   wide <- stats::reshape(
     long[, c("id", "rep", "trait", "value")],
@@ -133,6 +135,7 @@ write_phenotypes <- function(sim, file, format = c("long", "wide"),
 #' round(var(g[, 1]) / var(pheno$Trait_1), 3)
 genetic_values <- function(sim, rep = 1L) {
   .check_sim(sim)
+  .check_h2_complete(sim)
   rep <- .validate_rep(sim, rep)
   out <- .genetic_value_matrix(sim, rep)
   dimnames(out) <- list(sim$ids, paste0("Trait_", seq_len(sim$n_traits)))
@@ -173,32 +176,46 @@ mediation_split <- function(sim) {
   sim$mediation
 }
 
-#' Per-QTN proportion of phenotypic variance for a mean-effect layer
+#' Per-QTN proportion of realized phenotypic variance for a mean-effect layer
 #'
 #' The realized additive/dominance layer is scaled by `k = sqrt(prop) / sd(raw)`
-#' so its total variance equals `prop`. Each QTN's marginal contribution is then
-#' `k^2 * effect_j^2 * var(design_j)`, where the design variable is the dosage
-#' (additive) or the heterozygote indicator (dominance). These are marginal
-#' variances: with LD between causal loci they do not sum exactly to `prop`,
-#' because the cross-locus covariances are not attributed to any single QTN.
-#' vqtl layers return NA (they modulate the residual, not a genetic value).
+#' so its target variance equals `prop`. Each QTN's marginal contribution is
+#' `k^2 * var(col_j)`, where `col_j` is the locus's genotypic contribution
+#' (`effect * -1/0/1 dosage` for additive, `effect * heterozygote indicator` for
+#' dominance, and `a * dosage + d * heterozygote` for an orthogonal layer, so its
+#' dominance deviation is counted), and `var_explained` reports it as a
+#' fraction of the *realized* phenotypic variance `var_p`. Dividing by the
+#' realized (not the nominal, =1) V_P matters because finite-sample covariance
+#' among components leaves the realized V_P slightly off 1. These are marginal
+#' proportions: with LD between causal loci they do not sum exactly to `prop`,
+#' because cross-locus covariances are not attributed to any single QTN. vqtl
+#' layers return NA (they modulate the residual, not a genetic value).
 #' @keywords internal
 #' @noRd
-.qtn_var <- function(sim, ly, t, idx, eff) {
+.qtn_var <- function(sim, ly, t, idx, eff, var_p) {
   if (!ly$type %in% c("additive", "dominance")) {
     return(rep(NA_real_, length(idx)))
   }
-  G <- .geno_cols(sim, idx)
-  design <- if (ly$type == "dominance") (G == 0) * 1 else G
-  raw <- as.numeric(design %*% eff)
+  G <- .geno_cols(sim, idx)                          # -1/0/1 dosage
+  if (isTRUE(ly$orthogonal)) {
+    # Orthogonal layer: each locus contributes a * dosage + d * het, so its
+    # marginal variance must include the dominance deviation, not just a.
+    d_eff <- ly$d_effect[[t]]
+    cols  <- sweep(G, 2L, eff, "*") + sweep((G == 0) * 1, 2L, d_eff, "*")
+  } else {
+    design <- if (ly$type == "dominance") (G == 0) * 1 else G
+    cols   <- sweep(design, 2L, eff, "*")
+  }
+  raw <- rowSums(cols)
   s_raw <- stats::sd(raw)
   prop_t <- .expand_prop(ly$prop, sim$n_traits)[t]
-  if (!is.finite(s_raw) || s_raw <= 0 || prop_t <= 0) {
+  if (!is.finite(s_raw) || s_raw <= 0 || prop_t <= 0 ||
+      !is.finite(var_p) || var_p <= 0) {
     return(rep(0, length(idx)))
   }
   k2 <- prop_t / s_raw^2
   vapply(seq_along(idx),
-         function(j) k2 * eff[j]^2 * stats::var(design[, j]), numeric(1))
+         function(j) k2 * stats::var(cols[, j]) / var_p, numeric(1))
 }
 
 #' Per-gene marginal variance share for a transcriptome layer
@@ -260,9 +277,12 @@ mediation_split <- function(sim) {
 #' @param rep replication whose QTN architecture to report (default 1). This
 #'   matters when the simulation used `vary_qtn = TRUE`.
 #' @return A data frame with columns `trait`, `layer`, `set`, `snp`, `chr`,
-#'   `pos`, `maf`, `effect`, `var_explained`, `QTN_t1`, `QTN_t2` and `ld_r2`, or
-#'   a zero-row frame when no layers have been added. For transcriptome layers
-#'   `snp` holds the gene name and `chr`/`pos`/`maf` are `NA`.
+#'   `pos`, `maf`, `effect`, `d`, `var_explained`, `QTN_t1`, `QTN_t2` and
+#'   `ld_r2`, or a zero-row frame when no layers have been added. `effect` is the
+#'   additive effect (`a` for an orthogonal layer); `d` is the per-locus
+#'   dominance deviation of an orthogonal layer and `NA` for every other layer.
+#'   For transcriptome layers `snp` holds the gene name and `chr`/`pos`/`maf` are
+#'   `NA`.
 #' @seealso [genetic_values()].
 #' @export
 #' @examples
@@ -277,11 +297,20 @@ mediation_split <- function(sim) {
 #' subset(qtn_table(ph), layer == "additive")
 qtn_table <- function(sim, rep = 1L) {
   .check_sim(sim)
+  .check_h2_complete(sim)
   rep <- .validate_rep(sim, rep)
+  # Realized phenotypic variance per trait for this replication; var_explained
+  # is reported as a fraction of it (SPEC realized variance-ratio convention).
+  var_p <- vapply(seq_len(sim$n_traits), function(t) {
+    y <- sim$pheno$value[sim$pheno$trait == paste0("Trait_", t) &
+                         sim$pheno$rep == rep]
+    stats::var(y)
+  }, numeric(1))
   empty <- data.frame(
     trait = character(0), layer = character(0), set = integer(0),
     snp = character(0), chr = sim$map$chr[0], pos = sim$map$pos[0],
-    maf = numeric(0), effect = numeric(0), var_explained = numeric(0),
+    maf = numeric(0), effect = numeric(0), d = numeric(0),
+    var_explained = numeric(0),
     QTN_t1 = character(0), QTN_t2 = character(0), ld_r2 = numeric(0),
     stringsAsFactors = FALSE
   )
@@ -290,6 +319,7 @@ qtn_table <- function(sim, rep = 1L) {
   }
 
   block <- function(trait, type, set, idx, effect, var_explained,
+                    d = NA_real_,
                     QTN_t1 = NA_character_, QTN_t2 = NA_character_,
                     ld_r2 = NA_real_) {
     data.frame(
@@ -301,6 +331,7 @@ qtn_table <- function(sim, rep = 1L) {
       pos           = sim$map$pos[idx],
       maf           = sim$maf[idx],
       effect        = effect,
+      d             = d,
       var_explained = var_explained,
       QTN_t1        = QTN_t1,
       QTN_t2        = QTN_t2,
@@ -323,6 +354,7 @@ qtn_table <- function(sim, rep = 1L) {
       pos           = rep(sim$map$pos[NA_integer_], n),
       maf           = rep(NA_real_, n),
       effect        = effect,
+      d             = NA_real_,          # no dominance deviation for a gene predictor
       var_explained = var_explained,
       QTN_t1        = NA_character_,
       QTN_t2        = NA_character_,
@@ -364,10 +396,11 @@ qtn_table <- function(sim, rep = 1L) {
           qtn_t2 <- sim$map$snp[ld$qtn_t2]
           r2 <- ld$r2
         }
+        d_col <- if (isTRUE(ly$orthogonal)) ly$d_effect[[t]] else NA_real_
         rows[[length(rows) + 1L]] <-
           block(trait, ly$type, NA_integer_, idx, eff,
-                .qtn_var(sim, ly, t, idx, eff),
-                QTN_t1 = qtn_t1, QTN_t2 = qtn_t2, ld_r2 = r2)
+                .qtn_var(sim, ly, t, idx, eff, var_p[t]),
+                d = d_col, QTN_t1 = qtn_t1, QTN_t2 = qtn_t2, ld_r2 = r2)
       }
     }
   }

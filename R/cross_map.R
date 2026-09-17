@@ -26,7 +26,22 @@
 #' region. The rate is integrated across marker intervals and rescaled so each
 #' chromosome spans its target length, so cM is a monotone function of bp.
 #'
+#' The Gaussian form here is a **phenomenological choice**, not a formula taken
+#' from a published model: it is a smooth, single-parameter way to reproduce the
+#' qualitative pattern of pericentromeric suppression. Bauer et al. (2013)
+#' document that recombination in maize is strongly reduced around the
+#' centromere and report the genome-wide scale (~0.74 cM/Mb, ~1,508 cM mean map
+#' length) that the defaults approximate, but they do not prescribe this
+#' functional form or its parameters. Treat `suppression` and `width` as tuning
+#' knobs for a plausible landscape, not as estimated biological quantities.
+#'
 #' Setting `suppression = 0` gives a uniform map, i.e. cM proportional to bp.
+#'
+#' @references
+#' Bauer, E. \emph{et al.} (2013). Intraspecific variation of recombination rate
+#' in maize. \emph{Genome Biology} 14, R103. \doi{10.1186/gb-2013-14-9-r103}
+#' (for the pericentromeric-suppression pattern and genome-wide scale the
+#' defaults approximate; the Gaussian form itself is not from this source).
 #'
 #' @param chr chromosome identifier per marker.
 #' @param pos physical position per marker, in base pairs. Must be
