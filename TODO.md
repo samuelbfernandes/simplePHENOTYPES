@@ -258,6 +258,70 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
 
 ---
 
+## Block 3B — Engine work requested by breedingDesigner
+
+breedingDesigner (BD, `../breeding_designer`) runs every simulation through this package
+and must not reimplement genetics, so each item below is blocked on the engine. Refs point
+into the BD repo. Methods/theory items need an independent theory review
+(`docs/THEORY_REVIEW.md`) before they ship.
+
+**Now — blocking current BD users**
+- [x] **Publish the `restructure` engine where users install from.** *Done: merged to
+  `master` (all 16 exports below present) and tagged `v2.0.0`; the `restructure`
+  branch is deleted. BD-side follow-up: switch `Remotes:` to
+  `samuelbfernandes/simplePHENOTYPES@v2.0.0` (or `master`) and pin `(>= 2.0.0)`.* A plain
+  `remotes::install_github("samuelbfernandes/simplePHENOTYPES")` (or the released
+  version) lacks operators BD dispatches, and runs fail with `'select_ind' is not an
+  exported object`. BD needs all of: `as_population`, `cross`, `selfcross`,
+  `double_haploid`, `single_seed_descent`, `bulk`, `simulate_phenotype`, `select_ind`,
+  `optimum_contribution`, `cross_usefulness`, `recurrent_selection`, `sample_parents`,
+  `pedigree`, `n_individuals`, `dosages`, `synthetic_map` (BD `R/run_app.R`
+  `engine_required_exports()`; BD pins `simplePHENOTYPES (>= 1.4.0.9002)`,
+  `Remotes: samuelbfernandes/simplePHENOTYPES@restructure`). Tag a version when merged.
+
+**Next — methods BD has specced and is waiting on**
+- [x] **Marker-assisted backcross: `mabc_select()` + `recurrent_parent_recovery()`**
+  *Done (PR #8, `R/mabc.R`, `tests/testthat/test-mabc.R`; unselected recovery
+  0.5000 / 0.7513 / 0.8719 / 0.9351 at F1–BC3; theory review PASS).*
+  (full design in `docs/ROADMAP.md` → "Modern methods — NEXT"; BD
+  `docs/reviews/backcross-theory-review.md`, `specs/SPEC-0012`). BD now ships the
+  unselected structural backcross and a lineage-level recovery test (BD
+  `tests/testthat/test-backcross-recovery.R`: synthetic informative-marker fixture,
+  60 lineages, predeclared tolerance, selfing negative control) that can be reused
+  to validate the unselected baseline here.
+- [x] **Fixed-scale TOTAL genotypic value (additive + dominance) accessor** — *already
+  provided by `genotypic_value(x, qtn, a, d)` (`G = A + D`, fixed scale; in the backend
+  contract).* Sibling of
+  `additive_value()`, with no per-population re-centring/re-scaling. Gates
+  heterosis-capturing reciprocal recurrent selection (RRS-1b); until then BD runs an
+  additive-only RRS and says so (BD `specs/SPEC-0011`, `R/rrs.R`). Not yet in
+  `docs/ROADMAP.md`.
+- [x] **Per-trait `effect` list in `additive()`.** *Done (PR #8): `additive(effect =
+  list(...))`; re-scoring a frozen pleiotropic template reproduces its values.* Frozen multi-trait architectures with
+  different per-trait effects currently need one trait-masked layer per trait in BD
+  (BD `specs/SPEC-0002`); a per-trait effect list makes it a single layer.
+
+**Later — engine dependencies in BD's methods catalog (not yet specced; confirm scope)**
+Source: BD `docs/BREEDING_METHODS_CATALOG.md` ("Engine:" notes).
+- [ ] Combining-ability scorer (GCA / SCA, testcross merit) — half-sib RS with a
+  tester, hybrid development, RRS. (BD composes GCA from `cross` + `select_ind` today.)
+- [ ] Marker-based selection for MAS / gene pyramiding, and a marker index for MARS.
+- [ ] BLUP / EBV prediction verb (pedigree + own + relatives); GS accuracy is currently
+  approximated.
+- [ ] Progeny-mean scorer (progeny testing), and family-structured phenotyping for
+  between-family selection (`select_ind()` already has `within_family` /
+  `among_family` / `combined` methods; the gap is building families in a design).
+- [ ] Multi-trait sequential rules: tandem selection and independent culling
+  (`select_ind()` already has `index` / `quadratic_index`).
+- [ ] Multi-population mating for crossbreeding (two-way / three-way / rotational /
+  terminal sire); ties to BD SPEC-0007 (mate allocation).
+- [ ] Polyploid (tetrasomic) model — BD's `Wheat_div` is allotetraploid coded diploid
+  per subgenome as an approximation (already `docs/ROADMAP.md` → "Polyploids").
+- [ ] Python package — BD's canvas already generates Python for the planned
+  `simplephenotypes` API (already `docs/ROADMAP.md` §8b).
+
+---
+
 ## Block 4 — CRAN submission
 
 - [ ] All parity tests passing (no `skip()`s remaining in `test-v130-parity.R`).
