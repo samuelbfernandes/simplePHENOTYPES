@@ -4,7 +4,7 @@
 > Audience: implementers (Rust core + R bindings), CRAN maintainer, package users
 > Companion docs: ARCHITECTURE.md, DECISIONS.md, BUGS.md
 > Describes behavior, signatures, and data contracts. No implementation code.
-> Reference implementations: `context/isqg/` (C++ meiosis/cross/DH), `context/PleioArch-main/` (exact rhoG pleiotropy).
+> Reference implementations: `context/isqg/` (C++ meiosis/cross/DH), `context/PleioArch-main/` (rhoG-controlled pleiotropy).
 
 ---
 
@@ -147,10 +147,18 @@ so piping more layers onto a one-call result still works.
 A per-layer `n_qtn` **overrides** the baseline and emits a warning naming both values.
 
 Architecture-specific arguments:
-- `"pleiotropy"`: exact genetic-correlation control via the PleioArch algorithm (§13).
+- `"pleiotropy"`: genetic-correlation control via the PleioArch algorithm (§13), in
+  every mean-effect layer (DECISION-023).
   Additional args (all with sensible defaults):
-  - `cor = 0` — target genetic correlation, realized exactly in expectation for **any
-    number of traits** by the PleioArch multivariate-normal engine (DECISION-013). Either
+  - `cor = 0` — target genetic correlation for **any number of traits**, set by the
+    PleioArch multivariate-normal engine (DECISION-013): the effect draw's cross-trait
+    covariance and variances equal their targets in expectation, so `cor` is the ratio
+    of expected moments. The realized correlation is a random ratio that converges to
+    `cor` as the shared QTNs and the individuals grow (with a fixed sample it levels
+    off at the sampling spread of a correlation over n) when the causal loci are in approximate linkage
+    equilibrium and no major QTN keeps a fixed variance share (see `n_pleio_major`
+    below); with few shared QTNs it is attenuated toward 0 on average, and strong
+    LD can prevent convergence (DECISION-023, Scope). Either
     a scalar applied to every trait pair, or a full `n_traits × n_traits` matrix
     (negative correlations allowed). Must be attainable: the implied genetic covariance
     matrix has to be positive semi-definite, which for two traits is exactly
@@ -535,7 +543,7 @@ vqtl uses same_as_add; complex_phenotypes uses first seed + warning; LD names mo
 
 ---
 
-## 13. PleioArch Algorithm — Exact Genetic Correlation for Pleiotropy
+## 13. PleioArch Algorithm — Controlled Genetic Correlation for Pleiotropy
 
 > Reference implementation: `context/PleioArch-main/Functions/simulateEffects.R`
 > DECISION-007: adopted as the effect-generation engine for `architecture = "pleiotropy"`.
@@ -543,9 +551,14 @@ vqtl uses same_as_add; complex_phenotypes uses first seed + warning; LD names mo
 ### Motivation
 v1 "pleiotropy" merely shares QTN loci across traits; the resulting genetic correlation
 is an emergent by-product of allele-frequency differences and cannot be set precisely.
-The PleioArch algorithm draws allelic effects from correlated distributions so that the
-realized genetic correlation equals the user's `cor` exactly in expectation (for
-`n_traits = 2`).
+The PleioArch algorithm draws allelic effects from correlated distributions whose
+cross-trait covariance and variances equal their targets in expectation, so the user's
+`cor` is the ratio of expected moments. The realized genetic correlation is a random
+ratio: it converges to `cor` as the shared QTNs and the individuals grow (a sample
+correlation over n individuals cannot beat its sampling spread) when the causal loci are in
+approximate linkage equilibrium, is attenuated toward 0 on average with few shared QTNs,
+and under strong LD need not converge (complete LD: every realized value is ±1). See
+DECISION-023, Scope / limits, which also extends this to dominance and epistasis.
 
 ### QTN classification
 Each pleiotropy simulation partitions QTNs into three classes:
@@ -596,7 +609,7 @@ to per-genotype scale (matching the `scaleQTNEffects()` step in the reference co
 - v1 `create_phenotypes(architecture = "pleiotropic")` does **not** map to PleioArch — it
   is frozen legacy (§4.4, DECISION-008) and keeps v1's shared-loci behavior. PleioArch is
   the new grammar's pleiotropy engine, controlled by `cor` (DECISION-010, amended).
-- **Any `n_traits`**: the exact engine generalizes directly (DECISION-013). The
+- **Any `n_traits`**: the engine generalizes directly (DECISION-013). The
   bivariate normal becomes an `n × n` multivariate normal with
 
   ```
@@ -606,7 +619,8 @@ to per-genotype scale (matching the `scaleQTNEffects()` step in the reference co
   ```
 
   Trait-specific effects remain univariate normal with variance `(1 − pi_i) × V_i`, so
-  each trait's total genetic variance is still `V_i` and every pair realizes `cor_ij`.
+  each trait's expected genetic variance is still `V_i` and every pair targets `cor_ij`
+  (in the sense above).
   For two traits this reduces algebraically to the bivariate reference implementation.
   The `cor² ≤ pi_i × pi_j` constraint generalizes to "`Sigma` must be positive
   semi-definite", checked by eigenvalue and raised as an error naming the smallest

@@ -440,12 +440,7 @@
       if (is.null(itype)) itype <- rep("a", ncol(idx))
       out <- rep(0, n)
       for (p in seq_len(nrow(idx))) {
-        block <- .geno_cols(sim, idx[p, ])
-        design <- vapply(seq_len(ncol(block)), function(k) {
-          col <- if (itype[k] == "d") (block[, k] == 0) * 1 else block[, k]
-          col - mean(col)                      # center each locus
-        }, numeric(n))
-        out <- out + apply(design, 1, prod) * eff[p]
+        out <- out + .epi_unit_column(sim, idx[p, ], itype) * eff[p]
       }
       out
     },
@@ -456,6 +451,28 @@
     rep(0, n)
   )
   g - mean(g)
+}
+
+#' Design column of one epistatic interacting set
+#'
+#' Each position k of the set contributes its centered additive dosage
+#' (`interaction_type` "a") or its centered heterozygote indicator ("d"); the
+#' set's column is the product across positions. Single source of truth shared by
+#' realization ([.component_raw()]) and by the correlated pleiotropic effect draw
+#' ([.pleio_unit_effects()]), whose per-set normalizer must match this column
+#' exactly.
+#' @param loci marker indices of the set (length = interaction).
+#' @param itype length-`interaction` "a"/"d" vector.
+#' @keywords internal
+#' @noRd
+.epi_unit_column <- function(sim, loci, itype) {
+  block <- .geno_cols(sim, loci)
+  n <- nrow(block)
+  design <- vapply(seq_len(ncol(block)), function(k) {
+    col <- if (itype[k] == "d") (block[, k] == 0) * 1 else block[, k]
+    col - mean(col)                      # center each locus
+  }, numeric(n))
+  apply(design, 1, prod)
 }
 
 #' Apply variance-QTL heterogeneity to a residual vector

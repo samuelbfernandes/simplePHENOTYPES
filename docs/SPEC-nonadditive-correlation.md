@@ -1,20 +1,62 @@
 # SPEC-nonadditive-correlation.md — genetic-correlation control for non-additive layers
 
-> **DRAFT / scoping — not yet implemented.** Companion to `SPEC.md` (§13 PleioArch)
-> and `SPEC-transcriptome.md`. Records the design for extending `cor` / pleiotropy /
-> LD architecture control from the **additive** layer to **dominance** and
-> **epistasis** layers, per the 2026-09-17 audit (grammar P1/P4, effects-arch O2/X1)
-> and the user's decision to *extend* control (vs. document-only or reject).
-> Needs **DECISION-023** recorded once the approach here is accepted.
+> **IMPLEMENTED (2026-09-25) — recorded as DECISION-023.** Companion to `SPEC.md`
+> (§13 PleioArch) and `SPEC-transcriptome.md`. Extends `cor` / pleiotropy / LD
+> architecture control from the **additive** layer to **dominance** and
+> **epistasis** layers, per the 2026-09-17 audit (grammar P1/P4, effects-arch
+> O2/X1) and the maintainer's decision to *extend* control (vs. document-only or
+> reject). Code: `.pleio_nonadditive_draw()` / `.pleio_units()` /
+> `.pleio_unit_effects()` (`R/effects_pleioarch.R`), `.epi_unit_column()`
+> (`R/grammar_realize.R`); tests: `tests/testthat/test-nonadditive-cor.R`.
+> **§5.3 outcome: the restriction fallback was taken** — under "ld", dominance must
+> reuse the additive layer's linked loci (`same_as_add = TRUE`) and `epistasis()`
+> errors (see §5.3). §6 acceptance criteria met after the independent review's
+> findings were fixed — round 1: total-vs-component claim, constant units in the
+> variance allocation, single-shared-unit warning text, component named in
+> feasibility errors; round 2: "in expectation" wording for a random-ratio
+> correlation, "ld" epistatic markers shared across traits, the attenuation
+> multiplier; round 3: the total-correlation warning's "expected" label, "ld"
+> epistasis outside the r² window / reusing other layers' loci, this file's stale
+> sections; round 4: raw-draw vs rescaled covariance, the LE condition, one live
+> shared unit after dropping hetless units; round 5: `cor = 0` in the single-unit
+> guards, remaining "equals"/"exact" wording and the complete-LD case (±1 per
+> replicate, not a limit), the sign of the constant-specific-unit warning; round
+> 6: dated corrections to DECISION-007/010/013's "in expectation" claims and the
+> major-QTN exception to convergence in the public `cor` docs; round 7: derived
+> transcriptome signal outside `cor` (warned), a second additive layer under
+> "ld" rejected, the dead-shared-unit warning's "near 0", stale README/vignette
+> wording; round 8: single-draw direction wording in two warnings, the one-unit
+> and `cor = 0` conditions, the direction of the `pi` advice. See DECISION-023 and
+> the §3 correction. Round 9: the derived-transcriptome warning extended to "ld". Round 10: the
+> multi-trait feasibility check made variance-free; no transcriptome warning at
+> `prop = 0`. Round 11: one-trait transcriptome under "ld" warns; no inflation
+> warning at `cor = 0`. Round 12: single-unit ±1 vs noisy classified per pair;
+> relative (1%) threshold for the non-proportional-total warning. Round 13:
+> zero-variance pairs excluded from the single-unit warning. Round 14: the v2
+> vignette's convergence sentence, §6's stale "current code" line and its
+> golden-set claim (the acceptance run is now `dev/accept-nonadditive-cor.R`).
+> Round 15: dead-shared-unit warning at `cor = 0`; §2's "MAF scaling" for every
+> component. Round 16: effective per-component targets in the total check,
+> exact-±1 reclassification after constant specifics, no transcriptome warning at
+> genetic h² = 0. Round 17: the transcriptome gene check covers every
+> `vary_qtn` replication. Round 18: gene check limited to contributing traits;
+> per-replication effective targets; the acceptance script gates on components.
+> Round 19: hetless checks over every replication; transcriptome warning on the
+> realized genetic signal. Round 20: convergence needs the individuals to grow
+> too (a sample correlation over n); §6 item 6 no longer names the review tool.
+> Round 21: TODO wording, covariance-vs-correlation in the complete reference,
+> small-value formatting in the total warning.
+>
+> §1 and §4 below describe the code **as it was before** DECISION-023.
 
-## 1. Problem
+## 1. Problem (before DECISION-023)
 
-`cor` (and the `pleiotropy` / `ld` architectures) controls only the **additive**
-genetic correlation. Dominance and epistasis layers ignore it: under
-`architecture = "pleiotropy"` they reuse the **same loci** across traits
-(`arch_independent.R`: `rep(list(shared), nt)`) and are given the **same
+`cor` (and the `pleiotropy` / `ld` architectures) controlled only the **additive**
+genetic correlation. Dominance and epistasis layers ignored it: under
+`architecture = "pleiotropy"` they reused the **same loci** across traits
+(`arch_independent.R`: `rep(list(shared), nt)`) and were given the **same
 deterministic effect series** (`effects_series.R`: `base ^ seq_len(n)`, identical
-per trait), so those components realize a genetic correlation of ≈ **+1**
+per trait), so those components realized a genetic correlation of ≈ **+1**
 irrespective of the requested `cor`.
 
 **Audit evidence (executed):**
@@ -25,20 +67,31 @@ irrespective of the requested `cor`.
   seeds → additive correlation **0.196** (correct), **total** genetic correlation
   **0.60** (range 0.44–0.71), not 0.2.
 
-The additive machinery is correct (audit P1/P2/P3 PASS); the gap is that the
-non-additive components are not brought under the same control, and the public
-docs advertise "controlled genetic correlation" for models (`AD`, `AE`) and
-architectures that include them (grammar X1, effects-arch X1).
+The additive machinery was correct (audit P1/P2/P3 PASS); the gap was that the
+non-additive components were not brought under the same control, while the public
+docs advertised "controlled genetic correlation" for models (`AD`, `AE`) and
+architectures that included them (grammar X1, effects-arch X1).
 
 ## 2. Goals and non-goals
 
 ### Goals
-- The **realized total genetic correlation** between traits equals the requested
-  `cor` (in expectation, up to finite-QTN sampling) for models that combine
-  additive with **dominance** and/or **epistasis** pleiotropic layers.
+- Every mean-effect **component** (additive, dominance, epistasis) targets the
+  requested `cor` — `cor` sets the effect draw's covariance; after rescaling to
+  `prop` the realized correlation converges to `cor` as the units and the
+  individuals grow, given
+  approximate linkage equilibrium among the causal loci (a random ratio,
+  attenuated toward 0 on average with few units, and possibly not converging at
+  all under strong LD, as for the additive layer) —
+  so the **total genetic correlation** targets `cor`
+  whenever the layers' per-trait `prop` profiles are proportional — always so for
+  scalar `prop` and the one-call models — and is otherwise reported (warned) at
+  its attainable, attenuated value (§3).
 - One consistent mechanism: the same PleioArch covariance construction
-  (`Σ_ij = cor_ij · √(V_i V_j)`, PSD feasibility, MAF scaling) applied per genetic
-  **component**, not just to the additive effects.
+  (`Σ_ij = cor_ij · √(V_i V_j)`, PSD feasibility, per-unit design scaling) applied
+  per genetic **component**, not just to the additive effects. The scaling is
+  MAF-based `1/√(2·MAF·(1−MAF))` for additive and the realized design-column sd
+  for dominance/epistasis (DECISION-023: non-additive design variance is not a
+  clean function of MAF).
 - Honest, self-consistent public documentation once implemented; retire the
   additive-only caveats added for the audit.
 - Backward compatible for additive-only models (identical realized values under a
@@ -65,25 +118,45 @@ Cov(g_1, g_2) = Σ_c Cov(x_{c,1}, x_{c,2})
 Var(g_t)      = Σ_c Var(x_{c,t})
 ```
 
-If **each component** realizes the target correlation — `Cov(x_{c,1}, x_{c,2}) =
-cor · √(Var(x_{c,1}) Var(x_{c,2}))` — and per-trait component variances are equal
-across traits (they are, by the `prop` budget), then `Cov(g_1,g_2) = cor · Σ_c
-Var(x_{c,t}) = cor · Var(g_t)`, i.e. **the total genetic correlation equals `cor`.**
-So it suffices to make every mean-effect component realize `cor` on its own; no
-joint optimization across components is required. This is the design's core claim
-and the first thing the acceptance tests must confirm empirically.
+If **each component** has expected cross-trait covariance `cor · √(V_{c,1} V_{c,2})`
+with `V_{c,t} = Var(x_{c,t})`, the total's target — expected covariance over the
+root of the expected variances, which the realized correlation converges to as the
+units and the individuals grow when the causal loci are in approximate linkage
+equilibrium — is
 
-## 4. Current mechanism (additive), to be generalized
+```
+cor · Σ_c √(V_{c,1} V_{c,2}) / √(Σ_c V_{c,1} · Σ_c V_{c,2})
+```
+
+By Cauchy–Schwarz the ratio is ≤ 1, with equality **iff the per-trait variance
+profiles are proportional across components** (`V_{c,1} / V_{c,2}` the same for
+every c). That holds whenever each layer's `prop` is a scalar (the case in every
+example and the one-call models): then **the total genetic correlation's target
+equals `cor`** (as it trivially does for `cor = 0`), and per-component control suffices — no joint optimization is
+needed.
+
+*Correction (independent review, 2026-09-25, O1):* an earlier draft of this
+section asserted that component variances are always equal across traits "by the
+`prop` budget". They are not when `prop` is a per-trait vector. E.g. additive
+`prop = c(0.49, 0.01)` with dominance `prop = c(0.01, 0.49)` gives a total of
+`cor · 2·√(0.49·0.01) / 0.5 = 0.28 · cor` (0.14 at `cor = 0.5`) — and since each component's correlation
+is bounded by 1, a total of 0.5 is **not attainable** there at all with independent
+components. Layers are also added one at a time (a pipe), so re-targeting earlier
+layers to compensate is neither well defined nor order-independent. The design
+therefore controls `cor` **per component**, and `.pleio_total_cor_check()` warns
+with the total's large-sample target whenever the profiles are not proportional.
+
+## 4. The additive mechanism that was generalized (state before DECISION-023)
 
 - `effects_pleioarch.R::.pleio_draw()` partitions QTN into shared (pleiotropic)
   and trait-specific classes from `pi`, builds `Σ` from `cor` and per-trait
   additive `prop`, checks PSD feasibility (`cor² ≤ π_i π_j`, eigenvalue), draws
   correlated **additive** effects on the shared loci (eigen square root of `Σ`),
-  and applies MAF scaling `1/√(2·MAF·(1−MAF))`.
-- It is called **only** from `additive()` (`grammar_layers.R:206`).
-- `dominance()` / `epistasis()` draw loci via `arch_independent.R` (shared under
+  and applies MAF scaling `1/√(2·MAF·(1−MAF))`. (Unchanged.)
+- It was called **only** from `additive()`.
+- `dominance()` / `epistasis()` drew loci via `arch_independent.R` (shared under
   `pleiotropy`) but effects via `effects_series.R` (identical series per trait) →
-  correlation ≈ 1.
+  correlation ≈ 1. They now use `.pleio_nonadditive_draw()` under "pleiotropy".
 
 ## 5. Design
 
@@ -96,9 +169,10 @@ heterozygosity, so:
 - Shared loci must be het-bearing in **both** traits (they are the same
   individuals, so a locus is het-bearing or not regardless of trait — the existing
   hetless guards from the audit already apply).
-- Factor MAF/heterozygosity scaling into the effect covariance so realized (not
-  nominal) dominance variance matches the budget, mirroring how additive uses MAF
-  scaling.
+- Factor heterozygosity scaling into the effect draw so realized (not nominal)
+  dominance variance matches the budget, mirroring how additive uses MAF scaling.
+  *(Implemented as division by the realized sd of each unit's design column, not a
+  MAF formula — see DECISION-023.)*
 
 ### 5.2 Epistasis
 Draw **correlated interaction effects** across traits on the shared interacting
@@ -116,18 +190,32 @@ if it cannot be made faithful within budget, **restrict** `ld` to additive +
 dominance and error clearly for epistasis under `ld` (a documented restriction,
 not silent misbehavior).
 
+**Outcome (implemented):** the restriction was taken. Independent review showed
+that ld epistasis — whether documented as trait-specific or drawn disjoint within
+the layer — breaks DECISION-014's contract (causal markers outside the r² window,
+and markers another layer made causal for the other trait). `epistasis()` under
+"ld" errors; `dominance()` under "ld" must reuse the additive linked loci
+(`same_as_add = TRUE`), because a fresh dominance draw can collide across layers.
+
 ### 5.4 Feasibility and signs
 - Reuse the PSD feasibility check per component; a target `cor` infeasible for a
   component's `pi`/`prop` errors with the component named.
 - Preserve the audit guards: zero-variance-trait `cor` (warn/undefined),
   single-shared-QTN `cor` (±1 warning) apply per component.
 
-## 6. Acceptance criteria (executed-R, added to the eval golden set)
+## 6. Acceptance criteria (executed-R)
+
+Criteria 1–2 are checked by the ≥30-seed acceptance run
+`dev/accept-nonadditive-cor.R` (18/18 cells passed; results in DECISION-023). The
+committed `tests/testthat/test-nonadditive-cor.R` is a lighter 4-seed regression of
+the same behaviour plus the guard and restriction tests. (The `evals/` golden set
+seeds theory bugs to test the *reviewer*; no DECISION-023 entry was added there.)
 
 1. **Total correlation hits target.** For `model ∈ {AD, AE, ADE}` and
    `architecture = "pleiotropy"`, over ≥30 seeds with adequate QTN counts, the mean
-   realized **total** genetic correlation equals `cor` within a stated tolerance,
-   for `cor ∈ {−0.5, 0, 0.5}`. (The current code fails this: `cor=0` → ~1.0.)
+   realized **total** genetic correlation is within a stated tolerance of `cor`,
+   for `cor ∈ {−0.5, 0, 0.5}`. (The code before DECISION-023 failed this:
+   `cor = 0` → ~1.0.)
 2. **Per-component correlation** each ≈ `cor` (diagnostic that §3 holds).
 3. **Additive-only backward compatibility:** identical realized values under a
    fixed seed vs. pre-change (golden snapshot).
@@ -135,8 +223,9 @@ not silent misbehavior).
    (zero-variance, single-QTN) still fire per component.
 5. **Docs:** grammar X1 / effects-arch X1 overclaim caveats removed; `cor` docs
    describe total-genetic-correlation control across A/D/E.
-6. Full `devtools::test()` + `cargo test` green; independent review (Codex, and the
-   PleioArch reference implementation) agrees the covariance construction is correct.
+6. Full `devtools::test()` + `cargo test` green; the covariance construction is
+   checked against the PleioArch reference implementation and passes the
+   independent theory review (`docs/THEORY_REVIEW.md`) before commit.
 
 ## 7. Risks / open questions
 
@@ -165,12 +254,13 @@ not silent misbehavior).
 `R/arch_ld.R` (non-additive LD or the restriction), `R/grammar_realize.R` (no
 change expected; the design columns already exist), docs (`SPEC.md` §13,
 `grammar_simulate_phenotype.R` roxygen, `DECISIONS.md` DECISION-023), and
-`evals/mutations.json` + tests for §6.
+tests for §6 (the acceptance run landed in `dev/accept-nonadditive-cor.R`, not in
+`evals/mutations.json`).
 
 ## 9. Decision to record
 
-**DECISION-023** (pending): genetic-correlation control extends to dominance and
-epistasis via per-component PleioArch covariance draws; the realized **total**
-genetic correlation is the controlled quantity; epistasis-under-LD is faithful or
-an explicit restriction. Record in `docs/DECISIONS.md` once the approach is
-accepted and the acceptance tests (§6) pass.
+**DECISION-023 — recorded** in `docs/DECISIONS.md` (2026-09-25): genetic-correlation
+control extends to dominance and epistasis via per-component PleioArch covariance
+draws; each component targets `cor`, and the total targets `cor` for proportional
+per-trait `prop` (otherwise a warning gives its large-sample target); under "ld"
+the restriction of §5.3 applies.

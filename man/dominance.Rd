@@ -55,9 +55,24 @@ Dominance needs heterozygotes to be identifiable: it is identically zero at a
 locus with no heterozygous individuals. If the selected loci carry none
 (common on a near-inbred panel such as the bundled maize lines, ~0.4\%
 heterozygous), \code{dominance()} \strong{errors} rather than silently substituting
-loci. Pre-filter to heterozygous markers with \code{filter_geno(hets = "include")},
+loci; if only some of them carry none, it warns that the rest absorb \code{prop}.
+Pre-filter to heterozygous markers with \code{filter_geno(hets = "include")},
 fix het-bearing loci with \verb{qtn =}, or simulate dominance on an outbred or
 F2-type population instead.
+
+Under \code{architecture = "pleiotropy"} the dominance effects are drawn with the
+same covariance as the additive layer (DECISION-023): shared loci carry
+correlated effects and trait-specific loci independent ones, split by \code{pi},
+so the dominance component targets \code{cor} -- its realized correlation
+converges to \code{cor} as the loci and individuals grow, for loci in approximate
+linkage equilibrium; see \code{\link[=simulate_phenotype]{simulate_phenotype()}} \code{cor} --
+rather than every trait getting one identical effect series. With \code{same_as_add = TRUE} the
+additive layer's shared and trait-specific loci are reused. Each locus's
+effect is scaled by the realized standard deviation of its heterozygote
+indicator. Fixing loci with \verb{qtn =} is rejected under "pleiotropy" and "ld",
+which draw their own loci; under "ld" dominance must reuse the additive
+layer's linked loci (\code{same_as_add = TRUE}), since a fresh draw could make a
+marker causal for both traits across layers.
 }
 \examples{
 data("SNP55K_maize282_maf04")

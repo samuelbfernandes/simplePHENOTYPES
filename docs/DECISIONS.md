@@ -70,10 +70,11 @@ the safest path to it.
 ## DECISION-007: PleioArch for the "pleiotropy" architecture
 
 **Decision:** Adopt the PleioArch algorithm (`context/PleioArch-main/`) as the
-effect-generation engine for `architecture = "pleiotropy"` — exact genetic-correlation
+effect-generation engine for `architecture = "pleiotropy"` — genetic-correlation
 control via bivariate-normal effect draws.
-**Rationale:** v1 pleiotropy merely shares loci and cannot control rho_g; PleioArch makes
-the realized correlation equal the target in expectation.
+**Rationale:** v1 pleiotropy merely shares loci and cannot control rho_g; PleioArch draws
+effects whose cross-trait covariance equals the target in expectation, so the realized
+correlation targets `cor`. *[Wording corrected 2026-09-25 (DECISION-023): the effect draw's cross-trait covariance and variances equal their targets in expectation, so `cor` is the ratio of expected moments; the realized correlation is a random ratio, not equal to `cor` in expectation — see DECISION-023, Scope / limits.]*
 **Refined by DECISION-010** (the user-facing control is `rho_g`, replacing v1's buggy
 `cor`).
 **Date:** 2026-06 (locked; refined by 010)
@@ -149,8 +150,9 @@ framing in CLAUDE.md (Rule #5) and SPEC §8.1.
 **Decision (amended 2026-06-11):** The grammar's pleiotropy correlation argument is
 named **`cor`** (the v1 name is reused, not a new `rho_g`). Its engine depends on the
 number of traits:
-- `n_traits = 2`: the **PleioArch** bivariate-normal engine (DECISION-007) realizes the
-  target `cor` exactly in expectation; enforces `cor² ≤ pi_target × pi_secondary`.
+- `n_traits = 2`: the **PleioArch** bivariate-normal engine (DECISION-007) targets
+  `cor` (effect covariance equal to the target in expectation); enforces
+  `cor² ≤ pi_target × pi_secondary`. *[Wording corrected 2026-09-25 (DECISION-023): the effect draw's cross-trait covariance and variances equal their targets in expectation, so `cor` is the ratio of expected moments; the realized correlation is a random ratio, not equal to `cor` in expectation — see DECISION-023, Scope / limits.]*
 - `n_traits > 2`: fall back to v1.3's **Cholesky** decomposition
   (`base_line_multi_traits.R`) to impose `cor` (scalar per pair, or an
   `n_traits × n_traits` matrix), emitting a **warning** that the phenotypes are
@@ -247,7 +249,7 @@ behavior."
 `n_traits > 2` to a Cholesky fallback that warned individual QTN effects were not
 guaranteed. Can the exact engine cover any number of traits?
 
-**Decision:** **Yes — the exact engine now handles any `n_traits`, and the Cholesky
+**Decision:** **Yes — the PleioArch engine now handles any `n_traits`, and the Cholesky
 fallback is removed.** The bivariate normal generalizes directly to an `n x n`
 multivariate normal:
 
@@ -258,8 +260,8 @@ Sigma[i,j] = cor_ij * sqrt(V_i * V_j)     the whole genetic covariance
 
 Trait-specific effects stay univariate with variance `(1 - pi_i) * V_i`. Because
 trait-specific loci are independent across traits, each trait's total genetic variance is
-still `V_i` while the entire covariance comes from the shared loci, so every pair realizes
-`cor_ij` in expectation. For two traits this reduces algebraically to the bivariate
+still `V_i` while the entire covariance comes from the shared loci, so every pair targets
+`cor_ij` (covariance and variances equal their targets in expectation). *[Wording corrected 2026-09-25 (DECISION-023): the effect draw's cross-trait covariance and variances equal their targets in expectation, so `cor` is the ratio of expected moments; the realized correlation is a random ratio, not equal to `cor` in expectation — see DECISION-023, Scope / limits.]* For two traits this reduces algebraically to the bivariate
 reference implementation, so DECISION-007 is preserved rather than replaced.
 
 `cor` accepts a scalar (applied to all pairs) or a full `n_traits x n_traits` matrix,
@@ -579,7 +581,7 @@ unchanged — only their home moves.
 quadratic (QGSI) index merit all need a *breeding value*. What quantity, and how
 computed? The first implementation used the sample least-squares projection of the
 total genetic value onto the causal loci's gene content (the Fisher/NOIA
-*statistical* additive value). The independent review (Codex) showed this equals
+*statistical* additive value). The independent theory review showed this equals
 the transmissible breeding value only under Hardy–Weinberg: on a deliberately
 non-HWE locus it was ~64% off the Mendelian expected-offspring value, so OCS and
 the indices would not optimize transmitted progeny merit after inbreeding or
@@ -727,6 +729,279 @@ docs flag this; cross-generation callers pass `var_e` or `ref = <base>`.
 
 ---
 
+## DECISION-023: genetic-correlation control extends to dominance and epistasis
+
+*(DECISION-022 is the transcriptome decision, drafted in its own file.)*
+
+**Context:** the 2026-09-17 audit (grammar P1/P4, effects-arch O2/X1) found that
+`cor` controlled only the **additive** layer. Under `architecture = "pleiotropy"`
+`dominance()` / `epistasis()` reused shared loci and gave every trait one identical
+effect series, so those components realized a correlation of ~ +1 whatever `cor`
+was — target `cor = 0` realized **1.0** for pleiotropic epistasis and **0.45** for
+the one-call `model = "AD"`; `cor = 0.2` with an epistatic layer realized ~0.60. A
+fixed `qtn =` on a non-additive layer was also accepted under "pleiotropy"/"ld"
+(replicated to every trait → correlation 1.0, and under "ld" the same set causal
+for both traits). The maintainer chose to *extend* control (over document-only or
+reject). Scoped in `docs/SPEC-nonadditive-correlation.md`.
+
+**Decision:** the PleioArch covariance construction (DECISION-007/013) is applied
+per mean-effect component. `.pleio_nonadditive_draw()` partitions a dominance or
+epistasis layer's units (a locus / an interacting set) by the same `pi` into shared
+units (common to every trait; effects jointly MVN(0, Σ/n), Σᵢᵢ = πᵢVᵢ,
+Σᵢⱼ = corᵢⱼ√(VᵢVⱼ)) and trait-specific units (independent), with the same `cor`,
+feasibility check and zero-variance / single-shared-unit guards. Each unit's effect
+is divided by the **realized** standard deviation of its design column (heterozygote
+indicator; centered product via `.epi_unit_column()`, now the single source of truth
+for realization too), so every unit contributes equal design variance on the
+simulated sample; then, over effect draws, E[Cov(c₁,c₂)] = Σ₁₂ and E[Var(c_t)] = Σ_tt
+(any LD: effects of different units are independent), so the component targets `cor`
+in the same sense as the additive layer (see Scope for what that means for the
+realized correlation). Constant design columns (e.g. hetless loci) get effect 0 and are
+left out of the allocation, so Σ is split over the informative shared units and
+(1−π)V over the informative specific ones (counting dead units would shift the
+shared:specific ratio and bias the correlation); warnings fire when degeneracy
+leaves no informative shared units (correlation cannot be carried) or no
+informative specific units for a trait (targeted correlation inflated in magnitude,
+i.e. further from 0 than a nonzero `cor`; a zero target stays 0 and does not warn). Independently
+drawn components add no cross-component covariance in expectation, so the
+**total** genetic correlation targets `cor · Σ_c√(V_c1V_c2) / √(ΣV_c1·ΣV_c2)` (a
+ratio of expected moments): exactly `cor` when the layers' per-trait `prop` profiles are proportional or `cor = 0` (proportional always for
+scalar `prop` and the one-call models), otherwise attenuated toward 0 (Cauchy–
+Schwarz) — possibly below what any per-layer correlation could restore — and
+`.pleio_total_cor_check()` warns with that large-sample target (a ratio of
+expected moments, not the finite-unit mean correlation). The total is not
+re-targeted (layers arrive one at a time). With `same_as_add = TRUE` dominance
+reuses the additive layer's shared/trait-specific loci (shared = present for every
+trait). The additive draw is unchanged. Fixed
+`qtn =` on `dominance()`/`epistasis()` is rejected under "pleiotropy" and "ld", and
+`effect =` / non-default `dist` under "pleiotropy" (as `additive()` already did).
+
+**Why the realized sd, not MAF:** the additive `1/√(2·MAF·(1−MAF))` is the HWE
+expectation of the same normalizer. Non-additive design variance is not a clean
+function of MAF — a near-inbred panel has far fewer heterozygotes than 2pq — so the
+realized sd is what equalizes unit contributions on the sample actually simulated.
+
+**"ld" (SPEC §5.3 restriction taken):** the ld contract (DECISION-014) is that each
+trait's causal loci are distinct markers in LD within the r² window, with no SNP
+causal for both traits in the mean-effect (genetic-value) layers. It holds within
+one additive draw only, so a **second `additive()` layer under "ld" now errors**
+(round 7: two layers made six SNPs causal for both traits). A genome-derived
+`transcriptome()` layer adds a shared genetic cause (shared genes / eQTL) outside
+this design, so it warns under "ld" as under "pleiotropy" (round 9) — even when only
+one trait receives it, since its eQTL markers can be the other trait's causal loci
+(round 11). Dominance satisfies it only by reusing the additive layer's
+linked loci (`same_as_add = TRUE`, the default); `dominance(same_as_add = FALSE)`
+under "ld" now errors, because a fresh draw knows nothing of the additive loci and
+can make a marker causal for both traits across layers. `epistasis()` under "ld"
+now errors: epistatic sets have no linked-distinct construction — drawn anywhere
+they are unlinked (outside the r² window) and can reuse another layer's causal
+marker for the other trait. (Earlier drafts documented ld epistasis as
+trait-specific and, in round 2, made its sets disjoint within the layer; round 3
+showed both still break the contract, so the restriction fallback the SPEC had
+anticipated was taken.) No test or vignette used either form.
+
+**Verification:** 18/18 acceptance cells pass (outbred HWE panel, 30 seeds,
+cor ∈ {−0.5, 0, 0.5} × {AD reused loci, AD fresh loci, AE a×a, AE a×d, A+D+E with
+π = 0.7, one-call AD}): mean realized total correlation within max(0.06, 3·se) of
+target, every component likewise (`dev/accept-nonadditive-cor.R`). A 150-seed independent re-check of the reused-loci
+dominance case shows no bias (z = 0.62 at cor = 0, 0.16 at 0.5). Additive
+pleiotropy (incl. major QTN, vary_qtn, one-call A), independent A/D/E and ld models
+are bit-identical to the previous release. `tests/testthat/test-nonadditive-cor.R`
+fails on the pre-change code and passes now. **Independent theory review
+(THEORY_REVIEW rubric) BLOCKed the first version** on four points, all confirmed and
+fixed before commit: (O1) the claim that per-component control always gives a total
+of `cor` — false for non-proportional per-trait `prop` (0.14 at target 0.5 in the
+reviewer's counterexample); (O2) constant units still counted in the variance
+allocation, biasing the correlation (0.306 instead of 0.5); (O3) the single-shared-
+unit warning claimed ±1 even with trait-specific units; (O4) infeasibility errors
+did not name the component, although the SPEC's acceptance criteria required it.
+Each has a regression test. **Round 2 BLOCKed** on three further points, also
+confirmed and fixed: (O1) "realizes `cor` in expectation" is imprecise — the
+raw draw's covariance is exact in expectation but the realized correlation is a random ratio,
+attenuated toward 0 with few units (2 shared units: mean 0.41 at target 0.5); the
+wording is now precise everywhere, with independently verified numbers; (O2) under
+"ld", independent per-trait epistatic draws could make a marker (or a whole set)
+causal for both traits — first fixed by drawing the sets jointly, then superseded in
+round 3 by the "ld" restriction; (O3) the
+attenuation example's multiplier was misstated as 0.14 × `cor` (it is 0.28 × `cor`,
+i.e. 0.14 at `cor = 0.5`; the warning's computed value was always right).
+**Round 3 BLOCKed** on four more, confirmed and fixed: (O1) the non-proportional
+warning called the moment ratio the "expected" total correlation — it is the
+large-sample target (reviewer: target 0.40, realized mean 0.29 with two shared
+loci), now worded so; (O2, O3) ld epistasis sets, even disjoint within the layer,
+were outside the r² window and could reuse another layer's causal marker for the
+other trait — resolved by the "ld" restriction above; (O4) the SPEC still described
+the pre-change mechanism as current and the test header overstated the total-
+correlation claim. The attenuation multipliers are also now stated at `cor = 0.5`
+(they grow toward 1 as |cor| → 1).
+**Round 4 BLOCKed** on three more, confirmed and fixed: (O1) "the expected
+covariance is exact" held only for the raw effect draw, not the component after
+rescaling to `prop` (reviewer: realized 0.156 vs 0.2 with two shared loci) — the
+wording now distinguishes them; (O2) convergence was claimed without its condition —
+the docs now state that it needs approximate linkage equilibrium among causal loci
+and that the attenuation depends on `cor`, π and the designs; (O3) with reused additive loci, hetless units could leave exactly one
+informative shared unit without the single-unit warning — `.pleio_unit_effects()`
+now warns in that case.
+**Round 5 BLOCKed** on three more, confirmed and fixed: (O1) the single-shared-unit
+guards skipped `cor = 0`, which one shared unit cannot realize either (reviewer:
++1.000 with no warning) — both guards now fire for any target strictly inside
+(−1, 1); (O2) several passages (and canonical SPEC §4/§13) still said "realizes",
+"equals", "exact in expectation" or "expected value", and the complete-LD case was
+misdescribed as a limit — under complete LD every realized r is ±1 however many
+units, and 2·asin(cor)/π is only the ensemble mean (reviewer: 300 seeds, all ±1,
+mean 0.360); all now say "targets" / "converges (given approximate LE)"; (O3) the
+constant-specific-unit warning said "inflated above `cor`", wrong in direction for
+negative `cor` (reviewer: −0.83 at target −0.4) — it now says inflated in magnitude.
+**Round 6 BLOCKed** on two documentation points, confirmed and fixed: (O1) DECISION-007,
+-010 and -013 still said the realized correlation equals `cor` in expectation (reviewer:
+mean 0.407 at target 0.5 with two shared units) — each now carries a dated correction;
+(O2) the public `cor` docs stated convergence without the major-QTN exception — now
+stated there, in the PleioArch header and in THEORY_REVIEW P1.
+**Round 7 BLOCKed** on four more, confirmed and fixed: (O1) a `transcriptome()` layer
+on a genome-derived source adds its genome-mediated signal to `genetic_values()`
+outside `cor` (reviewer: `cor = 0`, total 0.64, no warning) — it now warns under
+"pleiotropy" and the docs say the total is then not targeted; (O2) several
+`additive()` layers under "ld" could make a SNP causal for both traits — a second
+layer is now rejected; (O3) the all-constant-shared-unit warning promised a
+correlation "near 0", false under LD among the specific units — it now says the
+correlation is no longer controlled by `cor`; (O4) README, the complete reference,
+the v2 vignette and ARCHITECTURE.md still said "in expectation" / "exact" — corrected
+(the round-5 note's "all now say" was premature).
+**Round 8 BLOCKed** on four wording/advice points, confirmed and fixed: (O1) two
+warnings stated the direction of a single finite draw ("is inflated", "is smaller")
+where only the target or the average moves (reviewer: 0.25 at target 0.4; 0.82 at
+target 0.48) — they now describe the target and note the scatter; (O2) the partition
+helper's doc said one shared unit gives ±1 without the no-trait-specific-units
+condition; (O3) "exactly `cor` when proportional" omitted `cor = 0`, and a test comment
+said "realizes"; (O4) the marker-shortage error advised lowering `pi`, which raises the
+number of distinct markers needed (nt·n − (nt−1)·pleio_n) — it now says raise `pi`; the
+additive draw had no such guard at all and failed inside `sample()`, so it now gets the
+same message.
+**Round 9 BLOCKed** on one point, confirmed and fixed: (O1) the derived-transcriptome
+warning covered "pleiotropy" only, although under "ld" shared genes likewise add a
+genetic cause outside the distinct-linked-loci design (reviewer: additive correlation
+0.55 → total 0.94, no warning) — it now warns under "ld" too.
+**Round 10 BLOCKed** on two, confirmed and fixed: (O1) the multi-trait feasibility check
+tested the variance-scaled Σ with a tolerance set by its largest eigenvalue, so a block
+of tiny-variance traits could pass while infeasible (reviewer: `prop = c(1e-16, 1e-16,
+0.5)`, `pi = c(0.1, 0.1, 1)`, cor₁₂ = 0.5 > √(0.1·0.1) accepted) — it now tests the
+variance-free M (Mᵢᵢ = πᵢ, Mᵢⱼ = corᵢⱼ; Σ = D^½ M D^½ is PSD exactly when M is);
+(O2) `transcriptome(prop = 0)` emitted the correlation warning although it adds
+nothing — the warning now requires a contributing layer.
+**Round 11 BLOCKed** on two, confirmed and fixed: (O1) under "ld" that warning required
+two contributing traits, but a one-trait layer can reuse the other trait's causal
+marker as an eQTL (reviewer: total −0.48 → −0.32, no warning) — any contribution now
+warns; (O2) the lost-trait-specific-units warning claimed inflation at `cor = 0`, where
+the target stays 0 (reviewer: mean 0.002) — it now fires only for a nonzero `cor`.
+**Round 12 BLOCKed** on two, confirmed and fixed: (O1) the single-shared-unit warning
+chose "exactly ±1" vs "one noisy draw" globally; it is per pair — two traits with no
+trait-specific variance (none drawn, or π = 1) are exactly ±1 even when other traits
+have specific units (reviewer: π = (1, 1, 0.1) gave −1.000 but the "noisy" text) — the
+warning now lists pairs under each case; (O2) the non-proportional-total warning used an
+absolute 0.01 threshold, silent at `cor = 0.01` despite a 72% attenuation — it is now
+relative (more than 1% of `cor`).
+**Round 13 BLOCKed** on one, confirmed and fixed: (O1) with `prop = 0` for a trait the
+single-unit warning still claimed "exactly ±1" for its pairs, whose correlation is
+undefined (NA; `.pleio_check_zero_var()` already says so) — zero-variance pairs are
+now skipped there.
+**Round 14 BLOCKed** on three documentation/evidence points, confirmed and fixed: (O1)
+the v2 vignette still said the mean "sits on the target at every size" with SD
+falling as 1/√n_qtn (reviewer, bundled maize: 0.593 / 0.597 / 0.575, SD 0.146 / 0.077 /
+0.080 at 20 / 100 / 400 QTNs) — reworded; (O2) SPEC §6 still said "the current code
+fails this"; (O3) SPEC §6 claimed the ≥30-seed criteria were added to the `evals/`
+golden set — they were run as a one-off script, now committed as
+`dev/accept-nonadditive-cor.R`, and the SPEC says so.
+**Round 15 BLOCKed** on two, confirmed and fixed: (O1) the all-constant-shared-unit
+warning said the correlation is no longer controlled even at `cor = 0`, where the
+independent specific effects still target 0 (reviewer: mean 0.0007) — at `cor = 0` it
+now reports only the lost shared variance share; (O2) SPEC §2 said "MAF scaling" is
+applied per component, whereas dominance/epistasis divide by the realized design-column
+sd — corrected.
+**Round 16 BLOCKed** on four, confirmed and fixed: (O1) this record named the review
+tool, which AGENTS.md forbids in files — removed (also from DECISION-019's older
+text); (O2) `.pleio_total_cor_check()` assumed every layer targets `cor`, false once
+a component loses its shared or specific units (reviewer: dead shared dominance units,
+reported total 0.320, correct 0.160) — each pleiotropic non-additive layer now records
+its effective target (`layer$target_cor`) and the check sums those; (O3) a fresh draw
+with one shared unit kept the partition's nominal "noisy draw" text when every
+specific unit proved constant (realized −1.000) — the informative-unit recheck now runs
+then and reports the exact ±1; (O4) the transcriptome warning fired for a derived
+source at h² = 0, whose genetic expression is constant — it now requires genetic
+variance in the layer's causal genes.
+**Round 17 BLOCKed** on one, confirmed and fixed: (O1) that gene check looked only at
+the canonical draw, so under `vary_qtn` a later replication's genome-mediated genes
+went unwarned — it now checks every replication's genes. (The complete-LD
+2·asin(cor)/π value is now given with its derivation.)
+**Round 18 BLOCKed** on three, confirmed and fixed: (O1) the gene check pooled the genes
+of every trait, including `prop = 0` traits that receive no signal — it now uses only
+contributing traits; (O2) under `vary_qtn` only the canonical replication's effective
+target was kept (reviewer: replication 5 targeted 0.231, reported 0.366) — every
+replication's target is now stored (`target_cor_reps`) and checked, and a replication
+that differs is reported by number; (O3) `dev/accept-nonadditive-cor.R` printed the
+per-component means but gated only on the total — it now gates on both (still 18/18).
+**Round 19 BLOCKed** on two, confirmed and fixed: (O1) the dominance/epistasis hetless
+checks looked only at the canonical draw, so a `vary_qtn` replication could silently
+lose units (reviewer: live counts 4, 3, 4, 4, 2, no warning) — they now check every
+replication; (O2) the transcriptome warning tested gene-level genetic variance, not the
+layer's realized genetic signal, so zero slopes still warned — it now tests the
+realized genome-mediated component (`.tx_raw(..., "genetic")`) per contributing trait
+and replication.
+**Round 20 BLOCKed** on two, confirmed and fixed: (O1) convergence was stated as the
+shared units grow, but r is a sample correlation over n individuals, so with n fixed
+its spread levels off (SD 0.18 at n = 20 even with 5 000 QTNs) — every convergence
+statement now requires the individuals to grow too; (O2) SPEC §6 item 6 (written
+before implementation) named the review tool and pre-announced its agreement —
+reworded.
+**Round 21 BLOCKed** on three, confirmed and fixed: (O1) the TODO entry still said
+"converges as units grow" without the individuals; (O2) the complete reference said
+the effect covariance "matches `cor`" — it is `cor·√(V₁V₂)`, and it is the correlation
+that targets `cor`; (O3) the total warning printed `%.3f`, so at `cor = 1e-4` a 72%
+attenuation read "0.000 (cor 0.000)" — tiny values now print significant digits.
+
+**Scope / limits:** what holds exactly in expectation (over effect draws, whatever
+the LD) is the **raw effect draw's** cross-trait covariance cor·√(VᵢVⱼ) and variances
+Vᵢ, so `cor` is the ratio of expected moments — the target. Each layer is then
+rescaled to its `prop`, so what is realized is a correlation r (covariance
+r·√(VᵢVⱼ)), a random ratio, and E[r] ≠ `cor` in general. r is a sample correlation
+over the n individuals, so it converges to `cor` only as the shared units **and n**
+grow — with n fixed, more units bring r to the finite-n sampling distribution of a
+correlation, whose spread does not vanish (reviewer: n = 20, 5 000 shared QTNs, SD
+0.18 at `cor = 0.5`) — and **only if the units' design columns are close to
+uncorrelated** — linkage equilibrium among causal loci, disjoint loci — which the
+draw does not enforce (it samples distinct markers) — and only if no unit keeps a
+non-vanishing share of the variance: additive major QTNs (`n_pleio_major` /
+`prop_var_major`) keep theirs however many QTNs there are, so r then does not
+converge (reviewer: SD 0.31 / 0.28 / 0.28 at 20 / 100 / 400 shared QTNs with one
+major unit holding half the shared variance; cf. DECISION-013's 0.25 / 0.32 / 0.23).
+Under strong LD it need not converge at all either: with complete LD (identical design columns) every realized r is
+±1 however many units — the sign of the product of the two summed effects, which are
+bivariate normal with correlation `cor` — so its ensemble mean is
+P(XY>0) − P(XY<0) = 2·asin(cor)/π, from the bivariate-normal orthant probability
+P(XY>0) = 1/2 + asin(cor)/π (reviewer: 100 linked
+units, 300 seeds, mean 0.360 at `cor = 0.5`). Under LE, with few units r is
+attenuated toward 0 on average by an amount
+that depends on `cor`, π and the designs: 0.68 / 0.82 / 0.92 / 0.97 / 0.98 / 0.99 ×
+`cor` at 1 / 2 / 5 / 10 / 20 / 60 shared units for `cor = 0.5`, π = 1 and
+orthogonal unit-variance designs (40 000-draw check); with trait-specific units
+(π = 0.5) the reviewer measured 0.947 × `cor` at two shared units. This holds
+equally for the additive PleioArch layer: DECISION-007/013's "realizes `cor` in
+expectation" should be read this way (SPEC §4/§13 now say so). A single shared unit warns: with no
+trait-specific units the realized correlation is exactly ±1; with them, the whole
+covariance rests on one effect pair, so it is one noisy draw (any target strictly
+inside (−1, 1), `cor = 0` included). `n_pleio_major` / `prop_var_major` shape
+the additive layer only. The derivation assumes units uncorrelated with one another
+(linkage equilibrium, disjoint loci); at a shared locus the additive and dominance
+design columns correlate when p ≠ 0.5, but their effects are drawn independently,
+so the cross-component covariance is zero only in expectation. Hetless units
+contribute nothing (existing warnings apply). The PleioArch additive construction is
+Prado et al. (in preparation); this non-additive extension is this package's design,
+not a published method (Rule #7).
+
+**Refines:** DECISION-007/013 (PleioArch, now all mean-effect layers); DECISION-014
+("ld" non-additive behavior). **Date:** 2026-09-25
+
+---
+
 ## Decision Log Summary
 
 | ID | Decision | Status |
@@ -752,3 +1027,4 @@ docs flag this; cross-generation callers pass `var_e` or `ref = <base>`.
 | 019 | Breeding value (`on = "bv"`, OCS default, index merit) = classical average-effect A = Σαⱼ(xⱼ−2pⱼ), αⱼ = aⱼ+dⱼ(qⱼ−pⱼ) reconstructed analytically from known QTN effects (LD- and HWE-robust); epistasis-induced marginals omitted; index methods ignore `on` | locked (2026-09-13) |
 | 020 | orthogonal genotypic model as `additive(orthogonal = TRUE, a =, d =)` (orthogonal in expectation under random mating → per-locus HWE, e.g. F2; LD is fine, but nonrandom multilocus association breaks it; A is the transmitting average effect, Falconer 1985): per-locus a/d, whole value scaled to `prop`; budget reports realized Var(A)/Var(g), Var(D)/Var(g) + an `add_dom_cov` row 2Cov(A,D)/Var(g) (=0 in expectation under random mating; nonzero for structured / finite samples) closing to `prop`; degree of dominance d/abs(a) meaningful; d!=0 requires a het per locus (checked per-locus); `qtn_table()` gains a `d` column; new args appended to the signature (positional compat kept); incompatible with vary_qtn / dominance() / pleiotropy(multi) / ld | locked (2026-09-13) |
 | 021 | `phenotype_value(x, qtn, effect, h2/var_e, ref, seed)` = fixed additive value (`additive_value()`) + independent residual on a **frozen** variance (no per-population rescale), so the parametric h²=Var(g)/(Var(g)+var_e) declines as variance is exhausted (faithful cross-gen `on="pheno"`); exactly one of h2/var_e (h2 → var_e=Var(g_ref)(1−h2)/h2); RNG in R; version bump 1.4.0-9002 so downstream can pin | locked (2026-09-14) |
+| 023 | `cor` control extends to dominance + epistasis under "pleiotropy": per-component PleioArch covariance (shared units MVN-correlated, trait-specific independent, split by `pi`), each unit scaled by its realized design-column sd, constant units left out of the allocation; every component targets `cor` (realized correlation converges as units and individuals grow under approximate linkage equilibrium; attenuated on average with few units; strong LD can prevent convergence), and the total targets `cor` when layers' per-trait `prop` profiles are proportional (scalar `prop`), else attenuated with a warning giving its large-sample target; fixed `qtn=` rejected under pleiotropy/ld and `effect=`/`dist` under pleiotropy; under "ld" dominance must reuse the additive linked loci (`same_as_add = TRUE`), epistasis and a second additive layer are rejected (SPEC §5.3 restriction); a derived `transcriptome()` layer's genome-mediated signal is outside `cor` (warned under pleiotropy); additive draw unchanged (bit-identical) | locked (2026-09-25) |

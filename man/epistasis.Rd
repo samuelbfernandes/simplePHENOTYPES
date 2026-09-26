@@ -69,6 +69,19 @@ simulation quantity, not an orthogonal share of variance.
 \code{interaction_type} values of \code{"d"} depend on heterozygotes and are
 near-degenerate on a fully inbred panel (see \code{\link[=dominance]{dominance()}}); use \code{"a"} (the
 default) for inbred data, or an outbred/F2-type population for \code{"d"}.
+
+Under \code{architecture = "pleiotropy"} the interacting sets are split by \code{pi}
+into shared sets (common to every trait, with correlated effects) and
+trait-specific sets (independent effects), drawn with the same covariance as
+the additive layer, so the epistatic component targets \code{cor} (its realized
+correlation converges as the sets and individuals grow, for loci in
+approximate linkage equilibrium; DECISION-023). Each set's effect is scaled by the realized standard
+deviation of its centered-product design column; \verb{effect =} and fixed
+\verb{qtn =} are rejected there. \code{epistasis()} is not supported under
+\code{architecture = "ld"}: that architecture makes each trait's causal loci
+distinct markers in LD within the r2 window, and epistatic sets have no such
+linked construction -- they would be unlinked and could reuse a marker
+another layer made causal for the other trait.
 }
 \examples{
 data("SNP55K_maize282_maf04")

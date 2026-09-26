@@ -171,8 +171,10 @@ simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 3,
   additive(n_qtn = 300)
 ```
 
-The realized correlation is the target in expectation, and tightens as QTNs are
-added; the
+The realized correlation is a random draw around the target (pulled a little
+toward 0 when few QTNs are shared) and tightens toward it as QTNs and
+individuals are added, for
+loci in approximate linkage equilibrium; the
 [complete reference](docs/complete-reference.md#4-genetic-architectures) shows
 how closely, and what happens when a request is not attainable.
 

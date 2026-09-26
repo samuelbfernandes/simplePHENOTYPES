@@ -221,8 +221,9 @@ simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 3,
 #>   Requested genetic share = [0.50, 0.50, 0.50]   realized H² = [0.52, 0.49, 0.47]
 ```
 
-The realized correlation is the target in expectation, and tightens as
-QTNs are added; the [complete
+The realized correlation is a random draw around the target (pulled a
+little toward 0 when few QTNs are shared) and tightens toward it as QTNs
+and individuals are added, for loci in approximate linkage equilibrium; the [complete
 reference](docs/complete-reference.md#4-genetic-architectures) shows how
 closely, and what happens when a request is not attainable.
 

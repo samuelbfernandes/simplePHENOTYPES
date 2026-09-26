@@ -461,8 +461,12 @@ head(qtn[[2]], 3)      # trait 2: different loci
 
 ## Pleiotropy with a target genetic correlation
 
-Shared QTNs whose effects are drawn from a multivariate normal, so the
-genetic correlation is the target in expectation. Works for **any number
+Shared QTNs whose effects are drawn from a multivariate normal with
+cross-trait covariance `cor * sqrt(V1 * V2)`, so the realized genetic
+correlation
+targets `cor` -- scattering around it, and converging as the shared QTNs
+and the individuals
+grow for loci in approximate linkage equilibrium. Works for **any number
 of traits**.
 
 ``` r

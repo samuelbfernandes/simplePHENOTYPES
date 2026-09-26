@@ -158,10 +158,12 @@ independently. With uncorrelated residuals the two are related by
 $r_P \approx r_G \sqrt{h^2_1 h^2_2}$, so a genetic correlation of 0.6 between
 traits with $h^2 = 0.5$ shows up as a phenotypic correlation near 0.3.
 
-*It is realized, not fixed.* `cor` is achieved in expectation over repeated
-simulations, not exactly in any one of them. The QTN effects are random draws,
-so the realized correlation scatters around the target, and the scatter narrows
-as QTNs are added. Measuring the genetic correlation directly, over 30 seeds:
+*It is realized, not fixed.* `cor` is the target the effect draws aim at, not a
+value hit exactly in any one simulation. The QTN effects are random draws, so the
+realized correlation scatters around the target -- with few shared QTNs it is
+also pulled slightly toward 0 on average -- and the scatter narrows as QTNs are
+added (for loci in approximate linkage equilibrium), down to the sampling spread
+of a correlation over the individuals you simulated. Measuring the genetic correlation directly, over 30 seeds:
 
 ```{r cor-scatter}
 scatter <- data.frame(n_qtn = c(20, 100, 400), mean = NA_real_, sd = NA_real_)
@@ -182,10 +184,14 @@ for (i in seq_len(nrow(scatter))) {
 scatter
 ```
 
-The mean sits on the target at every size; the standard deviation falls as
-$1/\sqrt{n_{qtn}}$, as drawing more effects from the same bivariate normal
-should. If you need a tight correlation in one particular data set, use many
-QTNs — and check what you actually got rather than assuming.
+The mean stays near the target and the scatter narrows as QTNs are added, but on a
+real panel not indefinitely, and not as $1/\sqrt{n_{qtn}}$: the correlation is
+measured over a fixed number of individuals, whose sampling spread no number of
+QTNs removes, linkage disequilibrium among the causal loci limits it further, and
+with few shared QTNs
+the realized value is also pulled slightly toward 0 on average. If you need a tight
+correlation in one particular data set, use many QTNs — and check what you actually
+got rather than assuming.
 
 *Any number of traits.* The same engine covers three, five or twenty traits —
 `cor` is either a scalar applied to every pair or a full `n_traits x n_traits`
