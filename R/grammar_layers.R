@@ -15,7 +15,11 @@
 #'   separately. `n_qtn` is then taken from what you supply. Fixed loci are not
 #'   redrawn by `vary_qtn`.
 #' @param effect optional geometric base (scalar) or explicit effect series
-#'   (length `n_qtn`).
+#'   (length `n_qtn`), used for every trait; or a length-`n_traits` list of these,
+#'   one per trait -- e.g. to re-score per-trait effects frozen from an earlier
+#'   simulation on fixed `qtn` in a single layer. Not available under
+#'   `architecture = "pleiotropy"` (multi-trait), whose correlated draw sets the
+#'   effects, nor with `orthogonal = TRUE` (use `a`).
 #' @param orthogonal use the orthogonal genotypic model instead of the
 #'   variance-partition coding (default `FALSE`). When `TRUE`, give per-locus
 #'   additive effects `a` and dominance deviations `d`; the additive and
@@ -142,6 +146,11 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
       stop("additive(orthogonal = TRUE): give additive effects via `a` (and ",
            "dominance deviations via `d`), not `effect`.", call. = FALSE)
     }
+    if (is.list(a)) {
+      stop("additive(orthogonal = TRUE): `a` must be a scalar geometric base ",
+           "or a length-n_qtn vector (one series for every trait).",
+           call. = FALSE)
+    }
     if ((sim$architecture == "pleiotropy" && sim$n_traits > 1) ||
         sim$architecture == "ld") {
       stop("additive(orthogonal = TRUE) sets per-locus effects, which ",
@@ -164,6 +173,22 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
          call. = FALSE)
   }
   prop <- .resolve_prop(sim, prop, "additive")
+  # A list gives one effect specification per trait (each a geometric base or an
+  # explicit series, checked by .effect_series() when the layer is built).
+  if (is.list(effect)) {
+    if (length(effect) != sim$n_traits) {
+      stop("additive(effect=): a list must have one element per trait (",
+           sim$n_traits, "); got ", length(effect), ".", call. = FALSE)
+    }
+    # NULL would silently fall back to the default series for that trait
+    bad <- which(!vapply(effect, function(x) is.numeric(x) && length(x) > 0L,
+                         logical(1)))
+    if (length(bad)) {
+      stop("additive(effect=): every list element must be a numeric geometric ",
+           "base or effect series; element(s) ", paste(bad, collapse = ", "),
+           " are not.", call. = FALSE)
+    }
+  }
   user_qtn <- .resolve_qtn_arg(sim, qtn, "additive")
   # Fixing the additive loci is incompatible with the architectures that draw
   # their own loci to build a controlled cross-trait correlation. Under
@@ -199,13 +224,16 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
   # In the orthogonal genotypic model the additive effects come from `a`; the
   # standard variance-partition layer uses `effect`.
   eff_arg <- if (orthogonal) a else effect
+  eff_for <- function(t) if (is.list(eff_arg)) eff_arg[[t]] else eff_arg
+  eff_name <- if (orthogonal) "a" else "effect"
   d_series <- if (orthogonal) .orthogonal_d_series(d, nq) else NULL
 
   build <- function(rep_seed, rep = 0L) {
     if (!is.null(user_qtn)) {
       q <- user_qtn
       e <- lapply(seq_len(sim$n_traits),
-                  function(t) .effect_series(nq, dist, eff_arg))
+                  function(t) .effect_series(nq, dist, eff_for(t),
+                                             arg = eff_name))
     } else if (!orthogonal && sim$architecture == "pleiotropy" &&
                sim$n_traits > 1) {
       if (!is.null(effect) || !identical(dist, "geometric")) {
@@ -219,7 +247,8 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
     } else {
       q <- .draw_qtn(sim, nq, rep_seed)
       e <- lapply(seq_len(sim$n_traits),
-                  function(t) .effect_series(nq, dist, eff_arg))
+                  function(t) .effect_series(nq, dist, eff_for(t),
+                                             arg = eff_name))
     }
     list(qtn = q, effect = .apply_phase(e, phase))
   }
@@ -448,6 +477,8 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
 #'
 #' @inheritParams additive
 #' @param n_pairs number of interacting QTN sets.
+#' @param effect optional geometric base (scalar) or explicit effect series
+#'   (length `n_pairs`), used for every trait.
 #' @param interaction number of markers per epistatic QTN (default 2, pairwise).
 #' @param interaction_type how each marker in an interacting set contributes:
 #'   `"a"` (additive -- the centered dosage) or `"d"` (dominance -- the centered
@@ -569,7 +600,7 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
     q <- if (!is.null(user_pairs)) user_pairs else
       .draw_qtn_pairs(sim, np, interaction, rep_seed)
     e <- lapply(seq_len(sim$n_traits),
-                function(t) .effect_series(np, dist, effect))
+                function(t) .effect_series(np, dist, effect, count = "n_pairs"))
     list(qtn = q, effect = e)
   }
 

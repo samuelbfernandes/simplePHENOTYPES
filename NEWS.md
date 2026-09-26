@@ -1,3 +1,27 @@
+# simplePHENOTYPES (development version)
+
+## New features
+* `mabc_select()` and `recurrent_parent_recovery()`: marker-assisted
+  backcross selection (foreground filter, flanking-marker recombinant
+  selection, background recovery of the recurrent-parent genome; Frisch &
+  Melchinger 2001, 2005).
+* `additive(effect = list(...))`: one effect specification per trait in a
+  single layer, e.g. to re-score per-trait effects frozen from an earlier
+  (pleiotropic) simulation on fixed `qtn`.
+* Under `architecture = "pleiotropy"`, `cor` now controls `dominance()` and
+  `epistasis()` too (DECISION-023). Previously both layers gave every trait
+  one identical effect series, so on the loci the traits shared the
+  non-additive components correlated near +1 regardless of `cor` (e.g. a
+  target of 0 gave 1.0 for pleiotropic epistasis).
+
+## Behaviour changes
+* Under `architecture = "ld"`, `epistasis()`, `dominance(same_as_add = FALSE)`
+  and a second `additive()` layer now error: they could make one marker causal
+  for both traits.
+* Documentation now states that `cor` is a target: the realized correlation
+  converges to it only as QTNs and individuals grow, for causal loci in
+  approximate linkage equilibrium and without major QTNs.
+
 # simplePHENOTYPES 2.0.0
 
 Version 2.0 is the release line that introduces the v2 simulation grammar and
