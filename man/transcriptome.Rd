@@ -54,6 +54,12 @@ genetic / environmental / covariance shares of V_P.
 not asserted, so the whole component is treated as an environmental
 predictor and \strong{excluded} from the genetic value and from H2.
 }
+Under \code{architecture = "pleiotropy"} or \code{"ld"}, the correlation design covers
+the marker layers only: a derived source's genome-mediated part \code{Tx_g} enters
+\code{\link[=genetic_values]{genetic_values()}} with a cross-trait correlation set by the per-trait genes
+and slopes, so the total genetic correlation is then not targeted at \code{cor}
+("pleiotropy") or no longer comes solely from distinct linked loci ("ld")
+(warned).
 A genotype-free basis (\code{simulate_phenotype(expression = ...)} with no \code{geno}),
 \code{qtn_table()} gene rows, and cross-population reuse of an architecture
 (\code{\link[=predict.transcriptome_sim]{predict.transcriptome_sim()}}) are all supported. Still-planned follow-ups:

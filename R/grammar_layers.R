@@ -182,6 +182,16 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
          "and controls the cross-trait correlation through them. Omit `qtn`, or ",
          "use architecture = \"independent\" to fix loci.", call. = FALSE)
   }
+  # "ld" pairs each trait's causal loci as distinct linked markers within one
+  # draw; a second additive draw knows nothing of the first and could make a
+  # marker causal for both traits across layers (DECISION-014/023).
+  if (sim$architecture == "ld" && !is.null(.last_layer_of_type(sim, "additive"))) {
+    stop("additive(): architecture = \"ld\" supports a single additive layer. ",
+         "Each additive() draw pairs distinct linked loci for the two traits, but ",
+         "a second draw knows nothing of the first and can make one marker causal ",
+         "for both traits across layers. Put all additive QTNs in one layer ",
+         "(raise n_qtn).", call. = FALSE)
+  }
   nq <- if (!is.null(user_qtn)) length(user_qtn[[1]]) else
     .resolve_n_qtn(sim, n_qtn, "additive")
   occ <- .type_occurrence(sim, "additive")
@@ -215,6 +225,9 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
   }
 
   drawn <- .draw_layer(sim, "additive", occ, build, fixed = !is.null(user_qtn))
+  if (!orthogonal && sim$architecture == "pleiotropy" && sim$n_traits > 1) {
+    .pleio_total_cor_check(sim, .expand_prop(prop, sim$n_traits))
+  }
   layer <- list(type = "additive", prop = prop, n_qtn = nq, dist = dist,
                 phase = phase, qtn = drawn$qtn, effect = drawn$effect)
   if (!is.null(drawn$qtn_reps)) {
@@ -279,9 +292,24 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
 #' locus with no heterozygous individuals. If the selected loci carry none
 #' (common on a near-inbred panel such as the bundled maize lines, ~0.4%
 #' heterozygous), `dominance()` **errors** rather than silently substituting
-#' loci. Pre-filter to heterozygous markers with `filter_geno(hets = "include")`,
+#' loci; if only some of them carry none, it warns that the rest absorb `prop`.
+#' Pre-filter to heterozygous markers with `filter_geno(hets = "include")`,
 #' fix het-bearing loci with `qtn =`, or simulate dominance on an outbred or
 #' F2-type population instead.
+#'
+#' Under `architecture = "pleiotropy"` the dominance effects are drawn with the
+#' same covariance as the additive layer (DECISION-023): shared loci carry
+#' correlated effects and trait-specific loci independent ones, split by `pi`,
+#' so the dominance component targets `cor` -- its realized correlation
+#' converges to `cor` as the loci and individuals grow, for loci in approximate
+#' linkage equilibrium; see [simulate_phenotype()] `cor` --
+#' rather than every trait getting one identical effect series. With `same_as_add = TRUE` the
+#' additive layer's shared and trait-specific loci are reused. Each locus's
+#' effect is scaled by the realized standard deviation of its heterozygote
+#' indicator. Fixing loci with `qtn =` is rejected under "pleiotropy" and "ld",
+#' which draw their own loci; under "ld" dominance must reuse the additive
+#' layer's linked loci (`same_as_add = TRUE`), since a fresh draw could make a
+#' marker causal for both traits across layers.
 #' @seealso [additive()], [epistasis()], [vqtl()], [filter_geno()].
 #' @export
 #' @examples
@@ -312,6 +340,30 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
   prop <- .resolve_prop(sim, prop, "dominance")
   occ <- .type_occurrence(sim, "dominance")
   user_qtn <- .resolve_qtn_arg(sim, qtn, "dominance")
+  pleio <- identical(sim$architecture, "pleiotropy") && sim$n_traits > 1
+  # As in additive(): fixed loci would bypass the correlated draw (identical
+  # per-trait effects -> realized correlation +1 whatever `cor`) under
+  # "pleiotropy", and make one locus causal for both traits under "ld".
+  if (!is.null(user_qtn) && (pleio || identical(sim$architecture, "ld"))) {
+    stop("dominance(qtn=) fixes the causal loci, which architecture = \"",
+         sim$architecture, "\" cannot honour: it draws its own loci and controls ",
+         "the cross-trait correlation through them. Omit `qtn`, or use ",
+         "architecture = \"independent\" to fix loci.", call. = FALSE)
+  }
+  if (pleio && !identical(dist, "geometric")) {
+    stop("dominance(): a non-default `dist` cannot be used under architecture = ",
+         "\"pleiotropy\" because effects come from the multivariate draw that ",
+         "controls `cor`.", call. = FALSE)
+  }
+  # Under "ld" a fresh dominance draw knows nothing of the additive layer's loci,
+  # so it could make a marker causal for both traits across layers; only reusing
+  # the additive linked loci keeps every causal locus trait-specific.
+  if (identical(sim$architecture, "ld") && !isTRUE(same_as_add)) {
+    stop("dominance(same_as_add = FALSE) is not supported under architecture = ",
+         "\"ld\": a fresh draw could make a marker causal for both traits ",
+         "across layers. Under \"ld\" dominance reuses the additive layer's ",
+         "linked loci (same_as_add = TRUE).", call. = FALSE)
+  }
 
   add_layer <- .last_layer_of_type(sim, "additive")
   if (isTRUE(same_as_add) && is.null(user_qtn) && is.null(add_layer)) {
@@ -332,8 +384,18 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
       q <- user_qtn
     } else if (isTRUE(same_as_add)) {
       q <- .rep_qtn(add_layer, rep)      # follow additive's per-rep loci
+    } else if (pleio) {
+      q <- NULL                          # drawn with the correlated effects
     } else {
       q <- .draw_qtn(sim, nq, rep_seed)
+    }
+    if (pleio) {
+      # DECISION-023: dominance effects target `cor` across traits (shared
+      # units correlated, trait-specific independent), instead of one identical
+      # series per trait, which forced a dominance correlation of ~ +1.
+      return(.pleio_nonadditive_draw(sim, .expand_prop(prop, sim$n_traits),
+                                     rep_seed, "dominance", q = q,
+                                     n_units = nq))
     }
     e <- lapply(seq_len(sim$n_traits),
                 function(t) .effect_series(nq, dist))
@@ -346,14 +408,17 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
   # A dominance deviation is a heterozygote effect, so it is identically zero at
   # a locus with no heterozygotes. Rather than silently substitute loci, fail
   # with a clear message so the user knows the (near-inbred) data has none.
-  if (.dom_hetless(sim, drawn$qtn)) {
+  # every vary_qtn replication's loci, not just the canonical draw
+  qsets <- c(list(drawn$qtn), drawn$qtn_reps)
+  if (any(vapply(qsets, function(q) .dom_hetless(sim, q), logical(1)))) {
     stop("dominance(): the selected loci have no heterozygous individuals, so a ",
          "dominance deviation (which acts on heterozygotes) cannot be ",
          "simulated -- the genotype is (near-)inbred at those loci. Pre-filter ",
          "to heterozygous markers with filter_geno(hets = \"include\"), choose ",
          "loci with heterozygotes via qtn =, or use an outbred / F2 population.",
          call. = FALSE)
-  } else if (.dom_partial_hetless(sim, drawn$qtn)) {
+  } else if (any(vapply(qsets, function(q) .dom_partial_hetless(sim, q),
+                        logical(1)))) {
     warning("dominance(): some (but not all) selected loci have no heterozygous ",
             "individuals, so those loci contribute nothing and the remaining ",
             "het-bearing loci absorb the layer's `prop` -- the realized ",
@@ -361,9 +426,15 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
             "loci (qtn =) or pre-filter with filter_geno(hets = \"include\") if ",
             "that is not intended.", call. = FALSE)
   }
+  if (pleio) {
+    .pleio_total_cor_check(sim, .expand_prop(prop, sim$n_traits),
+                           drawn$target_cor, drawn$target_cor_reps)
+  }
   layer <- list(type = "dominance", prop = prop, n_qtn = nq, dist = dist,
                 same_as_add = same_as_add,
                 qtn = drawn$qtn, effect = drawn$effect)
+  layer$target_cor <- drawn$target_cor
+  layer$target_cor_reps <- drawn$target_cor_reps
   if (!is.null(drawn$qtn_reps)) {
     layer$qtn_reps <- drawn$qtn_reps
     layer$effect_reps <- drawn$effect_reps
@@ -401,6 +472,19 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
 #' `interaction_type` values of `"d"` depend on heterozygotes and are
 #' near-degenerate on a fully inbred panel (see [dominance()]); use `"a"` (the
 #' default) for inbred data, or an outbred/F2-type population for `"d"`.
+#'
+#' Under `architecture = "pleiotropy"` the interacting sets are split by `pi`
+#' into shared sets (common to every trait, with correlated effects) and
+#' trait-specific sets (independent effects), drawn with the same covariance as
+#' the additive layer, so the epistatic component targets `cor` (its realized
+#' correlation converges as the sets and individuals grow, for loci in
+#' approximate linkage equilibrium; DECISION-023). Each set's effect is scaled by the realized standard
+#' deviation of its centered-product design column; `effect =` and fixed
+#' `qtn =` are rejected there. `epistasis()` is not supported under
+#' `architecture = "ld"`: that architecture makes each trait's causal loci
+#' distinct markers in LD within the r2 window, and epistatic sets have no such
+#' linked construction -- they would be unlinked and could reuse a marker
+#' another layer made causal for the other trait.
 #' @seealso [additive()], [dominance()], [vqtl()].
 #' @export
 #' @examples
@@ -441,8 +525,47 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
   np <- if (!is.null(user_pairs)) nrow(user_pairs[[1]]) else
     .resolve_n_qtn(sim, n_pairs, "epistasis", arg = "n_pairs")
   occ <- .type_occurrence(sim, "epistasis")
+  pleio <- identical(sim$architecture, "pleiotropy") && sim$n_traits > 1
+  # "ld" places each trait's causal loci as DISTINCT markers in LD within the r2
+  # window (DECISION-014). An epistatic set has no linked-distinct analog here:
+  # sets drawn elsewhere are unlinked (outside the r2 window) and can reuse a
+  # marker that another layer made causal for the other trait -- pleiotropy
+  # inside an "ld" model. SPEC-nonadditive-correlation 5.3: restrict it.
+  if (identical(sim$architecture, "ld")) {
+    stop("epistasis() is not supported under architecture = \"ld\": that ",
+         "architecture makes each trait's causal loci distinct markers in LD ",
+         "within the r2 window (DECISION-014), and epistatic sets have no such ",
+         "linked construction -- they would be unlinked and could reuse another ",
+         "layer's causal marker for the other trait. Use architecture = ",
+         "\"independent\" or \"pleiotropy\" for epistasis (DECISION-023).",
+         call. = FALSE)
+  }
+  # As in additive(): a fixed set matrix is replicated to every trait, so under
+  # "pleiotropy" it bypasses the correlated draw (realized correlation +1
+  # whatever `cor`).
+  if (!is.null(user_pairs) && pleio) {
+    stop("epistasis(qtn=) fixes the interacting sets, which architecture = \"",
+         sim$architecture, "\" cannot honour: the same sets would be causal for ",
+         "every trait, bypassing its control of the cross-trait correlation. ",
+         "Omit `qtn`, or use architecture = \"independent\" to fix sets.",
+         call. = FALSE)
+  }
+  if (pleio && (!is.null(effect) || !identical(dist, "geometric"))) {
+    stop("epistasis(): `effect` and non-default `dist` cannot be used under ",
+         "architecture = \"pleiotropy\" because effects come from the ",
+         "multivariate draw that controls `cor`.", call. = FALSE)
+  }
 
   build <- function(rep_seed, rep = 0L) {
+    if (pleio) {
+      # DECISION-023: epistatic effects target `cor` across traits (shared
+      # sets correlated, trait-specific sets independent), instead of one
+      # identical series on shared sets, which forced a correlation of ~ +1.
+      return(.pleio_nonadditive_draw(sim, .expand_prop(prop, sim$n_traits),
+                                     rep_seed, "epistasis", n_units = np,
+                                     interaction = interaction, itype = itype,
+                                     arg = "n_pairs"))
+    }
     q <- if (!is.null(user_pairs)) user_pairs else
       .draw_qtn_pairs(sim, np, interaction, rep_seed)
     e <- lapply(seq_len(sim$n_traits),
@@ -456,7 +579,8 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
   # makes the pair identically zero and it silently drops out while the rest
   # absorb `prop`. Warn (as dominance() does for its partial case) rather than
   # realize fewer effective pairs than requested without notice.
-  if (.epi_hetless_d(sim, drawn$qtn, itype)) {
+  if (any(vapply(c(list(drawn$qtn), drawn$qtn_reps),
+                 function(q) .epi_hetless_d(sim, q, itype), logical(1)))) {
     warning("epistasis(): a \"d\" interaction position sits on a locus with no ",
             "heterozygous individuals, so that interaction term is identically ",
             "zero and its pair contributes nothing while the remaining pairs ",
@@ -465,10 +589,16 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
             "\"include\"), or set that position's interaction_type to \"a\" if ",
             "that is not intended.", call. = FALSE)
   }
+  if (pleio) {
+    .pleio_total_cor_check(sim, .expand_prop(prop, sim$n_traits),
+                           drawn$target_cor, drawn$target_cor_reps)
+  }
   layer <- list(type = "epistasis", prop = prop, n_pairs = np,
                 interaction = interaction, interaction_type = itype,
                 dist = dist,
                 qtn = drawn$qtn, effect = drawn$effect)
+  layer$target_cor <- drawn$target_cor
+  layer$target_cor_reps <- drawn$target_cor_reps
   if (!is.null(drawn$qtn_reps)) {
     layer$qtn_reps <- drawn$qtn_reps
     layer$effect_reps <- drawn$effect_reps
@@ -715,19 +845,26 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
 .draw_layer <- function(sim, type, occ, build, fixed = FALSE) {
   canonical <- build(.layer_seed(sim$seed, type, occ), 1L)
   if (!isTRUE(sim$vary_qtn) || sim$n_reps <= 1 || fixed) {
-    return(list(qtn = canonical$qtn, effect = canonical$effect))
+    out <- list(qtn = canonical$qtn, effect = canonical$effect)
+    out$target_cor <- canonical$target_cor      # pleiotropic non-additive only
+    return(out)
   }
   reps <- vector("list", sim$n_reps)
   reps[[1L]] <- canonical
   for (r in seq_len(sim$n_reps)[-1L]) {
     reps[[r]] <- build(.layer_seed(sim$seed, paste0(type, "_rep", r), occ), r)
   }
-  list(
+  out <- list(
     qtn        = canonical$qtn,
     effect     = canonical$effect,
     qtn_reps   = lapply(reps, function(x) x$qtn),
     effect_reps = lapply(reps, function(x) x$effect)
   )
+  out$target_cor <- canonical$target_cor
+  if (!is.null(canonical$target_cor)) {
+    out$target_cor_reps <- lapply(reps, function(x) x$target_cor)
+  }
+  out
 }
 
 #' TRUE when a reused QTN set cannot support any dominance deviation

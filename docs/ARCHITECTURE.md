@@ -26,7 +26,7 @@ v1.3.0 behavior exactly under matching architectures.
 | 004 | Multi-generation stays in simplePHENOTYPES |
 | 005 | Expression-based simulation deferred to v3 |
 | 006 | **Rust is surgical, not a rewrite** — only C++-origin code and profiled bottlenecks move to Rust; the stochastic simulation core stays in R |
-| 007 | PleioArch adopted for `"pleiotropy"` — exact rhoG control via bivariate-normal draws |
+| 007 | PleioArch adopted for `"pleiotropy"` — rhoG control (target `cor`) via bivariate-normal draws |
 | 008 | `create_phenotypes()` = frozen legacy (bugfix-only, superseded), NOT a delegation shim |
 | 009 | New grammar has NO bit-for-bit v1 parity; RDS references guard the legacy fn + statistical checks for the grammar |
 | 010 | v1 `cor` dropped; genetic correlation reimplemented as `rho_g` via PleioArch |

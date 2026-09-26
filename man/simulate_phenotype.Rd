@@ -37,7 +37,22 @@ need \code{geno}).}
 "pleiotropy" (shared QTNs with a controlled genetic correlation), or "ld"
 (two traits whose \emph{distinct} causal loci are in linkage disequilibrium, so
 they covary through linkage rather than pleiotropy; requires
-\code{n_traits = 2}).}
+\code{n_traits = 2}). Under "pleiotropy" the correlation is controlled in every
+mean-effect layer -- \code{\link[=additive]{additive()}}, \code{\link[=dominance]{dominance()}} and \code{\link[=epistasis]{epistasis()}} each
+target \code{cor} (the realized correlation converges to it as the numbers of
+QTNs / sets and of individuals grow, for causal loci in approximate linkage
+equilibrium and no major QTN holding a fixed share of the variance; see
+\code{cor} below) -- and the
+total genetic correlation
+targets \code{cor} when the layers' per-trait \code{prop} profiles are proportional,
+e.g. scalar \code{prop} (DECISION-023). Under "ld" the linked-loci design
+covers one \code{\link[=additive]{additive()}} layer and \code{\link[=dominance]{dominance()}} on the same linked loci
+(\code{same_as_add = TRUE}, the default); \code{\link[=epistasis]{epistasis()}}, a fresh dominance
+draw and a second additive layer are rejected there, since they could not
+keep every causal marker trait-specific and inside the r2 window; a
+\code{\link[=transcriptome]{transcriptome()}} layer on a genome-derived source adds a shared genetic
+cause there (warned). Fixing loci with \verb{qtn =} is
+rejected under "pleiotropy" and "ld", which draw their own loci.}
 
 \item{n_traits}{number of traits to simulate.}
 
@@ -98,11 +113,42 @@ are directly in LD).
 
 \code{cor} is the target \strong{genetic} correlation and works for any number of
 traits: a scalar applied to every trait pair, or a full
-\verb{n_traits x n_traits} matrix (negative correlations allowed). The request
-must be attainable -- the implied genetic covariance matrix has to be
-positive semi-definite, which for two traits is \code{cor^2 <= pi_1 * pi_2} --
-otherwise an error is raised rather than an approximation returned.
-Using \code{cor} prints a citation notice once per session.}
+\verb{n_traits x n_traits} matrix (negative correlations allowed). It applies to
+every mean-effect layer (additive, dominance, epistasis), each targeting
+it: \code{cor} sets the cross-trait covariance of each layer's effect draw, and
+after the layer is scaled to its \code{prop} the realized correlation -- a
+random ratio -- converges to \code{cor} as the numbers of shared QTNs / sets
+and of individuals grow, \strong{provided the causal loci are in approximate
+linkage equilibrium and no unit keeps a non-vanishing share of the
+variance}. It is a sample correlation over the simulated individuals, so
+with a fixed sample its scatter levels off at that sampling spread however
+many QTNs there are (e.g. SD about 0.18 at \code{cor = 0.5} with 20 individuals,
+even with 5 000 QTNs). With
+\code{n_pleio_major} / \code{prop_var_major} the major QTNs keep \code{prop_var_major} of
+the shared variance however many QTNs there are, so the realized
+correlation stays as variable as a few-QTN draw and does not converge.
+With few shared units it is attenuated toward 0 on average by an amount
+that depends on \code{cor}, \code{pi} and the designs (about 0.82 x \code{cor} with two
+shared units at \code{cor = 0.5}, \code{pi = 1}, unlinked loci); strong LD among the
+causal loci can prevent convergence (under complete LD every realized value
+is +/-1); and a single shared unit gives +/-1 or one noisy draw (warned, for
+any \code{cor} strictly between -1 and 1, 0 included). \code{pi} sets the
+shared vs trait-specific split in each layer. The \strong{total} genetic
+correlation targets \code{cor} when every
+layer's per-trait \code{prop} profile is proportional (always so for scalar
+\code{prop} and for the one-call models); otherwise it is the layers'
+variance-weighted combination, attenuated toward 0, and a warning reports
+that large-sample target (when it falls more than 1\% short of \code{cor}) (e.g. additive \code{prop = c(0.49, 0.01)} with dominance
+\code{prop = c(0.01, 0.49)} gives 0.28 x \code{cor}, i.e. 0.14 at \code{cor = 0.5}). A
+\code{\link[=transcriptome]{transcriptome()}} layer on a genome-derived source is outside \code{cor}: its
+genome-mediated signal adds to the genetic value with its own cross-trait
+correlation, so the total is then not targeted at \code{cor} (warned).
+\code{n_pleio_major} / \code{prop_var_major} shape the additive layer
+only. The request must be attainable -- the implied genetic covariance
+matrix has to be positive semi-definite, which for two traits is
+\code{cor^2 <= pi_1 * pi_2} -- otherwise an error is raised rather than an
+approximation returned. Using \code{cor} prints a citation notice once per
+session.}
 }
 \value{
 a \code{phenotype_sim} object.

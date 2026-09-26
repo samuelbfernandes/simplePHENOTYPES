@@ -38,7 +38,22 @@
 #'   "pleiotropy" (shared QTNs with a controlled genetic correlation), or "ld"
 #'   (two traits whose *distinct* causal loci are in linkage disequilibrium, so
 #'   they covary through linkage rather than pleiotropy; requires
-#'   `n_traits = 2`).
+#'   `n_traits = 2`). Under "pleiotropy" the correlation is controlled in every
+#'   mean-effect layer -- [additive()], [dominance()] and [epistasis()] each
+#'   target `cor` (the realized correlation converges to it as the numbers of
+#'   QTNs / sets and of individuals grow, for causal loci in approximate linkage
+#'   equilibrium and no major QTN holding a fixed share of the variance; see
+#'   `cor` below) -- and the
+#'   total genetic correlation
+#'   targets `cor` when the layers' per-trait `prop` profiles are proportional,
+#'   e.g. scalar `prop` (DECISION-023). Under "ld" the linked-loci design
+#'   covers one [additive()] layer and [dominance()] on the same linked loci
+#'   (`same_as_add = TRUE`, the default); [epistasis()], a fresh dominance
+#'   draw and a second additive layer are rejected there, since they could not
+#'   keep every causal marker trait-specific and inside the r2 window; a
+#'   [transcriptome()] layer on a genome-derived source adds a shared genetic
+#'   cause there (warned). Fixing loci with `qtn =` is
+#'   rejected under "pleiotropy" and "ld", which draw their own loci.
 #' @param n_traits number of traits to simulate.
 #' @param n_qtn baseline QTN count; a per-layer `n_qtn` overrides it with a
 #'   warning.
@@ -87,11 +102,42 @@
 #'
 #'   `cor` is the target **genetic** correlation and works for any number of
 #'   traits: a scalar applied to every trait pair, or a full
-#'   `n_traits x n_traits` matrix (negative correlations allowed). The request
-#'   must be attainable -- the implied genetic covariance matrix has to be
-#'   positive semi-definite, which for two traits is `cor^2 <= pi_1 * pi_2` --
-#'   otherwise an error is raised rather than an approximation returned.
-#'   Using `cor` prints a citation notice once per session.
+#'   `n_traits x n_traits` matrix (negative correlations allowed). It applies to
+#'   every mean-effect layer (additive, dominance, epistasis), each targeting
+#'   it: `cor` sets the cross-trait covariance of each layer's effect draw, and
+#'   after the layer is scaled to its `prop` the realized correlation -- a
+#'   random ratio -- converges to `cor` as the numbers of shared QTNs / sets
+#'   and of individuals grow, **provided the causal loci are in approximate
+#'   linkage equilibrium and no unit keeps a non-vanishing share of the
+#'   variance**. It is a sample correlation over the simulated individuals, so
+#'   with a fixed sample its scatter levels off at that sampling spread however
+#'   many QTNs there are (e.g. SD about 0.18 at `cor = 0.5` with 20 individuals,
+#'   even with 5 000 QTNs). With
+#'   `n_pleio_major` / `prop_var_major` the major QTNs keep `prop_var_major` of
+#'   the shared variance however many QTNs there are, so the realized
+#'   correlation stays as variable as a few-QTN draw and does not converge.
+#'   With few shared units it is attenuated toward 0 on average by an amount
+#'   that depends on `cor`, `pi` and the designs (about 0.82 x `cor` with two
+#'   shared units at `cor = 0.5`, `pi = 1`, unlinked loci); strong LD among the
+#'   causal loci can prevent convergence (under complete LD every realized value
+#'   is +/-1); and a single shared unit gives +/-1 or one noisy draw (warned, for
+#'   any `cor` strictly between -1 and 1, 0 included). `pi` sets the
+#'   shared vs trait-specific split in each layer. The **total** genetic
+#'   correlation targets `cor` when every
+#'   layer's per-trait `prop` profile is proportional (always so for scalar
+#'   `prop` and for the one-call models); otherwise it is the layers'
+#'   variance-weighted combination, attenuated toward 0, and a warning reports
+#'   that large-sample target (when it falls more than 1% short of `cor`) (e.g. additive `prop = c(0.49, 0.01)` with dominance
+#'   `prop = c(0.01, 0.49)` gives 0.28 x `cor`, i.e. 0.14 at `cor = 0.5`). A
+#'   [transcriptome()] layer on a genome-derived source is outside `cor`: its
+#'   genome-mediated signal adds to the genetic value with its own cross-trait
+#'   correlation, so the total is then not targeted at `cor` (warned).
+#'   `n_pleio_major` / `prop_var_major` shape the additive layer
+#'   only. The request must be attainable -- the implied genetic covariance
+#'   matrix has to be positive semi-definite, which for two traits is
+#'   `cor^2 <= pi_1 * pi_2` -- otherwise an error is raised rather than an
+#'   approximation returned. Using `cor` prints a citation notice once per
+#'   session.
 #' @return a `phenotype_sim` object.
 #' @export
 #' @examples

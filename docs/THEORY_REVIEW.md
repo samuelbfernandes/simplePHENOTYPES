@@ -109,8 +109,22 @@ THEORY: PASS | FAIL (n)
 
 ### P. Pleiotropy / correlation (SPEC §13, DECISION-013)
 - **P1** Σ[i,i] = πᵢ·Vᵢ; Σ[i,j] = cor_ij·√(Vᵢ·Vⱼ); trait-specific var = (1−πᵢ)·Vᵢ, drawn
-  independently per trait, so each trait's total genetic var is Vᵢ and every pair realizes
-  cor_ij in expectation.
+  independently per trait, so the *effect draw* gives each trait variance Vᵢ and cross-trait
+  covariance cor_ij·√(VᵢVⱼ) in expectation. Each layer is then rescaled to its `prop`, so
+  the realized quantity is a correlation r (covariance r·√(VᵢVⱼ)): a random ratio that
+  converges to cor_ij as shared loci **and individuals** grow (with n fixed it levels off at
+  the sampling spread of a correlation over n) **only under approximate linkage equilibrium among
+  the causal loci and with no unit keeping a non-vanishing variance share** (major QTNs via
+  n_pleio_major / prop_var_major prevent convergence); with few loci it is attenuated toward 0 on average (the multiplier
+  depends on cor, π and the designs), and strong LD can prevent convergence (complete LD:
+  every realized r is ±1, ensemble mean 2·asin(cor)/π — a mean, not a limit). Claims must
+  say "targets/converges (given LE)", not "realizes", "equals" or "exact covariance".
+  Single-shared-unit guards must cover every target strictly inside (−1, 1), `cor = 0`
+  included; direction words ("inflated", "attenuated") must hold for negative `cor`. **Applies to every mean-effect layer** (DECISION-023): dominance and
+  epistasis use the same Σ per component, each unit's effect divided by the *realized* sd of
+  its design column (het indicator / centered product) — check that this normalizer matches
+  the realization's design exactly, that the shared units are the ones common to every trait,
+  and that the **total** genetic correlation (not just the additive one) tracks `cor`.
 - **P2** Attainability = **Σ positive semi-definite** (checked by eigenvalue; error names
   the smallest). Two-trait reduces to **cor² ≤ π₁·π₂**. No silent approximation.
 - **P3** Allele→genotype scaling **1/√(2·MAF·(1−MAF))** applied (scaleQTNEffects step).

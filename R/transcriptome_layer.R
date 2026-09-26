@@ -127,6 +127,12 @@
 #'     not asserted, so the whole component is treated as an environmental
 #'     predictor and **excluded** from the genetic value and from H2.
 #' }
+#' Under `architecture = "pleiotropy"` or `"ld"`, the correlation design covers
+#' the marker layers only: a derived source's genome-mediated part `Tx_g` enters
+#' [genetic_values()] with a cross-trait correlation set by the per-trait genes
+#' and slopes, so the total genetic correlation is then not targeted at `cor`
+#' ("pleiotropy") or no longer comes solely from distinct linked loci ("ld")
+#' (warned).
 #' A genotype-free basis (`simulate_phenotype(expression = ...)` with no `geno`),
 #' `qtn_table()` gene rows, and cross-population reuse of an architecture
 #' ([predict.transcriptome_sim()]) are all supported. Still-planned follow-ups:
@@ -256,5 +262,58 @@ transcriptome <- function(sim, prop = NULL, n_genes = NULL, genes = NULL,
     layer$qtn_reps <- drawn$qtn_reps
     layer$effect_reps <- drawn$effect_reps
   }
+  .tx_cor_design_warning(sim, layer)
   .add_layer(sim, layer)
+}
+
+#' Warn when a transcriptome layer adds genome-mediated signal outside `cor`
+#'
+#' The correlation-controlling architectures govern the marker mean-effect
+#' layers only. A derived source's genome-mediated signal is part of
+#' genetic_values(), so it adds a cross-trait genetic covariance of its own:
+#' under "pleiotropy" the total is no longer targeted at `cor`; under "ld" the
+#' covariance no longer comes solely from distinct linked loci (one contributing
+#' trait is enough there -- its eQTL markers can be the other trait's causal
+#' loci). Warn only when the layer's realized genetic component is non-constant
+#' for some trait with `prop > 0` in some replication: zero slopes, a derived
+#' source at h2 = 0, or genes carrying no genetic expression add nothing.
+#' @keywords internal
+#' @noRd
+.tx_cor_design_warning <- function(sim, layer) {
+  if (!sim$architecture %in% c("pleiotropy", "ld") || sim$n_traits < 2L ||
+      is.null(sim$genetic_expression)) {
+    return(invisible())
+  }
+  pos <- which(.expand_prop(layer$prop, sim$n_traits) > 0)
+  n_rep <- if (is.null(layer$qtn_reps)) 1L else length(layer$qtn_reps)
+  adds <- FALSE
+  for (r in seq_len(n_rep)) {
+    for (t in pos) {
+      g <- stats::sd(.tx_raw(layer, sim, t, r, "genetic"))
+      tot <- stats::sd(.tx_raw(layer, sim, t, r, "total"))
+      if (is.finite(g) && is.finite(tot) && tot > 0 && g / tot > 1e-8) {
+        adds <- TRUE
+        break
+      }
+    }
+    if (adds) break
+  }
+  if (!adds) {
+    return(invisible())
+  }
+  effect_txt <- if (identical(sim$architecture, "pleiotropy")) {
+    "so the TOTAL genetic correlation is not targeted at `cor`"
+  } else {
+    paste0("so the genetic correlation no longer comes solely from distinct ",
+           "linked loci (shared genes, or eQTL markers that are causal for ",
+           "another trait, act as a shared genetic cause)")
+  }
+  warning("transcriptome(): under architecture = \"", sim$architecture,
+          "\" the correlation design covers the marker layers (additive, ",
+          "dominance, epistasis) only. This layer's genome-mediated expression ",
+          "signal counts toward genetic_values(), but its cross-trait ",
+          "correlation is set by the per-trait genes and slopes (shared genes ",
+          "with identical `slopes` make it ~1), ", effect_txt, ".",
+          call. = FALSE)
+  invisible()
 }
