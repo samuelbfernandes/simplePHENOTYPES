@@ -43,7 +43,7 @@ separately. \code{n_qtn} is then taken from what you supply. Fixed loci are not
 redrawn by \code{vary_qtn}.}
 
 \item{effect}{optional geometric base (scalar) or explicit effect series
-(length \code{n_qtn}).}
+(length \code{n_pairs}), used for every trait.}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
 }

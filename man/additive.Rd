@@ -37,7 +37,11 @@ separately. \code{n_qtn} is then taken from what you supply. Fixed loci are not
 redrawn by \code{vary_qtn}.}
 
 \item{effect}{optional geometric base (scalar) or explicit effect series
-(length \code{n_qtn}).}
+(length \code{n_qtn}), used for every trait; or a length-\code{n_traits} list of these,
+one per trait -- e.g. to re-score per-trait effects frozen from an earlier
+simulation on fixed \code{qtn} in a single layer. Not available under
+\code{architecture = "pleiotropy"} (multi-trait), whose correlated draw sets the
+effects, nor with \code{orthogonal = TRUE} (use \code{a}).}
 
 \item{phase}{QTN effect-sign pattern, \code{"coupling"} (default) or
 \code{"repulsion"}. Under \code{"repulsion"} the effect \strong{signs alternate across the

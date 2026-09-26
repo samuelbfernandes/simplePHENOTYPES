@@ -10,10 +10,15 @@
 #' @param effect optional override. A scalar is treated as the geometric base;
 #'   a length-`n` vector is used verbatim as a custom series (v1
 #'   `sim_method = "custom"`).
+#' @param count name of the count argument, for the length error message
+#'   (`"n_qtn"`, or `"n_pairs"` for epistasis).
+#' @param arg name of the user's effect argument in messages (`"effect"`, or
+#'   `"a"` for the orthogonal model).
 #' @return numeric vector of length `n`.
 #' @keywords internal
 #' @noRd
-.effect_series <- function(n, dist = "geometric", effect = NULL) {
+.effect_series <- function(n, dist = "geometric", effect = NULL,
+                           count = "n_qtn", arg = "effect") {
   if (n <= 0) {
     return(numeric(0))
   }
@@ -22,7 +27,7 @@
   }
   if (!is.null(effect) &&
       (!is.numeric(effect) || any(!is.finite(effect)))) {
-    stop("`effect` must contain only finite numeric values.", call. = FALSE)
+    stop("`", arg, "` must contain only finite numeric values.", call. = FALSE)
   }
   if (!is.null(effect) && length(effect) == n && n > 1) {
     return(as.numeric(effect))
@@ -33,8 +38,8 @@
     return(as.numeric(effect))
   } else if (!is.null(effect)) {
     stop(
-      "`effect` must be either a single value (geometric base) or a vector of ",
-      "length n_qtn (custom series); got length ", length(effect), ".",
+      "`", arg, "` must be either a single value (geometric base) or a vector of ",
+      "length ", count, " (custom series); got length ", length(effect), ".",
       call. = FALSE
     )
   } else {

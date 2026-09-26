@@ -17,6 +17,7 @@ backend_contract <- c(
   "recurrent_selection",
   # Modern methods
   "g_matrix", "optimum_contribution", "sample_parents", "cross_usefulness",
+  "mabc_select", "recurrent_parent_recovery",
   # Fixed-scale accessors
   "additive_value", "genotypic_value", "phenotype_value",
   # Genotype ingestion / QC
