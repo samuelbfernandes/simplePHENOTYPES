@@ -47,7 +47,7 @@ consumer.
 
 ### Phenotype grammar
 `simulate_phenotype`, the layers `additive` (whose `effect` also takes a
-per-trait list, added after 2.0.0), `dominance`, `epistasis`, `vqtl`,
+per-trait list, added in 2.0.0.9000), `dominance`, `epistasis`, `vqtl`,
 `complex_phenotypes`, `genetic_values`, `qtn_table`, the exporters
 `phenotypes_long`, `phenotypes_wide`, `write_phenotypes`, and
 `plot.phenotype_sim`.
@@ -59,7 +59,7 @@ per-trait list, added after 2.0.0), `dominance`, `epistasis`, `vqtl`,
 ### Modern methods
 `g_matrix` (VanRaden), `optimum_contribution` + `sample_parents` (Meuwissen
 OCS), `cross_usefulness`, and `print.ocs`; marker-assisted backcrossing
-`mabc_select` + `recurrent_parent_recovery` (added after 2.0.0; development version).
+`mabc_select` + `recurrent_parent_recovery` (added in 2.0.0.9000).
 
 ### Fixed-scale cross-generation accessors
 `additive_value`, `genotypic_value`, `phenotype_value` — the fixed-scale scorers
