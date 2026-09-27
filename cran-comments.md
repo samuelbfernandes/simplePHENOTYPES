@@ -1,3 +1,23 @@
+## Submission
+
+This is a major update from the CRAN version 1.3.0 to the 2.x line. It adds a
+composable phenotype-simulation grammar (`simulate_phenotype()` with `additive()`,
+`dominance()`, `epistasis()`, `vqtl()` layers), multi-generation crossing and
+selection tools, and a small Rust core (via extendr) for genotype conversion and
+meiosis. The v1 interface `create_phenotypes()` is kept unchanged, so existing
+code keeps working. There are no reverse dependencies on CRAN.
+
+### Rust code
+
+* All Rust dependencies are vendored in `src/rust/vendor.tar.xz` (xz-compressed,
+  from `cargo vendor`), so the package builds offline; nothing is downloaded at
+  install time.
+* `cargo build` runs with `-j 2 --offline` on CRAN (`tools/config.R`), and the
+  `cargo`/`rustc` versions are reported during configure (`tools/msrv.R`).
+* `SystemRequirements: Cargo (Rust's package manager), rustc >= 1.65.0, xz`.
+* The authors and licences of the vendored crates are declared in the DESCRIPTION
+  `Copyright` field, which points to `inst/COPYRIGHTS`.
+
 ## Maintainer address change
 
 The maintainer address changes in this submission, from `samuelf@illinois.edu`
@@ -16,23 +36,22 @@ address.
 
 ## Test environments
 
-* macOS (local), R 4.4.3, `R CMD check --as-cran`
-* win-builder (devel and release)
+* macOS Tahoe 26.7 (aarch64), R 4.6.1, `R CMD check --as-cran`
+* win-builder (devel and release) — to be run before submission
 
 ## R CMD check results
 
-No ERRORs. Locally, the only WARNING and NOTEs are environmental, not package
-issues:
+0 ERRORs. Locally the remaining WARNING and NOTEs come from the check machine,
+not the package:
 
-* WARNING "A complete check needs the 'checkbashisms' script" — the `checkbashisms`
-  helper is not installed on the local macOS machine; there are no shell scripts
-  in the package that would trip it.
-* NOTE "checking HTML version of manual" — emitted by an older local `tidy` that
-  does not recognise the HTML5 `<main>` element R now generates; not reproduced
-  on CRAN's infrastructure.
-* NOTE "checking for future file timestamps" — the local sandbox clock, unrelated
-  to the package.
+* WARNING "A complete check needs the 'checkbashisms' script" — the helper is not
+  installed on the local macOS machine.
+* NOTE "checking HTML version of manual" — the local HTML Tidy is too old to
+  validate R's generated HTML.
 
 The expected NOTE on CRAN is:
 
 * "New maintainer" — the maintainer address change described above.
+
+URLs and DOIs were checked with `urlchecker::url_check()` and
+`tools:::check_doi_db()`: all resolve.

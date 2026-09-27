@@ -368,6 +368,34 @@ against it. These are open questions to resolve, not settled decisions.
     predict biparental progeny mean/variance/correlated response from **estimated
     marker effects** (from a training set) rather than simulation with known
     effects. Needs a marker-effect estimation step (or a supplied effect vector).
+  - **Marker-assisted backcross (MABC) selection & recurrent-genome recovery** —
+    *IMPLEMENTED (PR #8, 2.0.0.9000): `mabc_select()` + `recurrent_parent_recovery()`.
+    Founders and candidates must share one allele coding (documented; not detectable
+    from dosages).* (requested by breedingDesigner; see its `docs/reviews/backcross-theory-review.md`
+    and `specs/SPEC-0012`). A true backcross is already expressible with `cross()`
+    (progeny × recurrent founder), but faithful *conversion* needs marker-based
+    selection the package does not provide. Export `mabc_select(pop, recurrent, donor,
+    target_markers, target_requirement = c("donor_carrier", "donor_homozygote"),
+    background_markers = NULL, exclude_interval = NULL, flanking_markers = NULL,
+    n = 1L, marker_weights = NULL, seed = NULL)`: (1) validate informative target
+    markers (fail rather than guess allele orientation), (2) foreground selection as a
+    HARD feasibility filter (not a scalar-trait contribution), (3) optional
+    flanking/recombinant selection to cut linkage drag, (4) rank feasible carriers by
+    marker-observed recurrent-parent recovery (recurrent hom = 1, het = 0.5, donor
+    hom = 0; map-interval weights so a dense cluster is not over-counted), (5) return a
+    crossable `Population` plus a diagnostic table (target states, recovery, flanking
+    states, selected ids, seeded tie-breaks; error clearly if fewer than `n` feasible
+    carriers). Also export the scorer `recurrent_parent_recovery(pop, recurrent, donor,
+    markers, weights)` so BD does not reimplement it. `Population` stores no per-locus
+    founder ancestry, so the score is **marker-observed** recurrent-parent allele
+    recovery, not IBD; exact founder-genome recovery would additionally need
+    founder-origin haplotypes propagated through `cross()`/`selfcross()`/
+    `double_haploid()`/subsetting/concatenation plus an ancestry accessor. Plain
+    truncation `select_ind()` is NOT a substitute and must not be labelled MABC.
+    Validation: unselected recurrent-genome fraction 1 − (1/2)^(t+1) =
+    0.5/0.75/0.875/0.9375 at F1/BC1/BC2/BC3. Refs: Frisch & Melchinger 2001
+    (*Crop Sci* 41:1485–1494); Frisch & Melchinger 2005 (*Genetics* 170:909–917);
+    Yadav et al. 2020 (*Sci Rep* 10:13877).
 - **THEORETICAL-CORRECTNESS SCRUTINY GATE (load-bearing, before the designer/
   selection engine ships).** The *entire* designer and selection-engine
   implementation must pass a deep review of the **theoretical correctness** of every

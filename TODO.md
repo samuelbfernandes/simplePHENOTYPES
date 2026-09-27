@@ -36,18 +36,21 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
 
 ## Block 1 — One-time setup
 *Do once. ~30 min total. None of this touches the package code.*
+*Status checked 2026-09-27 against the repo; items that live only on the maintainer's
+machine (VS Code extensions, `GITHUB_TOKEN`) cannot be verified from here and stay open.*
 
-- [ ] Save all docs from planning session to project:
-  - [ ] `CLAUDE.md` → project root (gitignored)
-  - [ ] `.gitignore` → project root
-  - [ ] `.Rbuildignore` → project root
-  - [ ] `docs/ARCHITECTURE.md`
-  - [ ] `docs/DECISIONS.md`
-  - [ ] `docs/SPEC.md`
-  - [ ] `docs/NEXT_STEPS.md`
-  - [ ] `docs/PROJECT_CONTEXT.md`
+- [x] Save all docs from planning session to project:
+  - [x] `CLAUDE.md` → project root (gitignored)
+  - [x] `.gitignore` → project root
+  - [x] `.Rbuildignore` → project root
+  - [x] `docs/ARCHITECTURE.md`
+  - [x] `docs/DECISIONS.md`
+  - [x] `docs/SPEC.md`
+  - [x] `docs/NEXT_STEPS.md`
+  - [ ] `docs/PROJECT_CONTEXT.md` *(not in the repo)*
 
-- [ ] Disable Claude AI attribution globally:
+- [x] Disable Claude AI attribution globally *(also enforced by `.githooks/commit-msg`
+  and the `no-ai-attribution` CI check)*:
   ```bash
   mkdir -p ~/.claude
   # paste settings.json → ~/.claude/settings.json
@@ -56,7 +59,7 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
 - [ ] Install VS Code extensions:
   `rust-analyzer`, `R` (Posit), `Claude Code`, `Error Lens`, `Even Better TOML`, `CodeLLDB`
 
-- [ ] Add MCP servers (terminal, one-time globally):
+- [x] Add MCP servers (terminal, one-time globally):
   ```bash
   claude mcp add github -- npx -y @modelcontextprotocol/server-github
   claude mcp add filesystem -- npx -y @modelcontextprotocol/server-filesystem ~/projects
@@ -72,7 +75,7 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
   export GITHUB_TOKEN=ghp_your_existing_token
   ```
 
-- [ ] Install spec workflow slash commands (project root, one-time):
+- [x] Install spec workflow slash commands (project root, one-time):
   ```bash
   npx @pimzino/claude-code-spec-workflow
   ```
@@ -81,7 +84,7 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
 
 ## Block 2 — Before writing a single line of new code
 
-- [ ] **Capture v1.3.0 reference outputs** ← most important step
+- [x] **Capture v1.3.0 reference outputs** ← most important step
   - In a clean R session with simplePHENOTYPES 1.3.0 installed, run each README
     vignette example with `big_add_QTN_effect` removed.
   - Save the selected QTN names AND phenotype values as RDS files.
@@ -94,12 +97,12 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
     > and saves QTN names and phenotype matrix as RDS per example. Use
     > SNP55K_maize282_maf04. Plan first."
 
-- [ ] Run the capture script and verify RDS files exist:
+- [x] Run the capture script and verify RDS files exist:
   ```r
   list.files("inst/extdata/v1_3_0_reference/")
   ```
 
-- [ ] Commit captured references:
+- [x] Commit captured references:
   ```bash
   git add inst/extdata/v1_3_0_reference/
   git commit -m "test: add v1.3.0 frozen reference outputs (big-QTN removed)"
@@ -114,11 +117,11 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
 *input and output are both known, and it will be the first Rust port.*
 
 ### Step 1 — Set up testthat infrastructure
-- [ ] Add testthat to the package (if `tests/testthat/` does not yet exist):
+- [x] Add testthat to the package (if `tests/testthat/` does not yet exist):
   ```r
   usethis::use_testthat()
   ```
-- [ ] Verify the test harness runs (zero tests is fine):
+- [x] Verify the test harness runs (zero tests is fine):
   ```r
   devtools::test()
   ```
@@ -127,7 +130,7 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
 *Deterministic input → deterministic output. This is TDD: write the test first,*
 *then the Rust port must pass it. No ambiguity about what "correct" means.*
 
-- [ ] Create `tests/testthat/test-as-numeric.R`.
+- [x] Create `tests/testthat/test-as-numeric.R`.
   Include at minimum:
   - A small, hand-checkable example (e.g., 5 markers × 4 individuals; hand-verify
     the -1/0/1 encoding before writing the assertion).
@@ -141,12 +144,12 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
     > with expected -1/0/1 matrix written explicitly; NA handling; parity assertion
     > against inst/extdata/v1_3_0_reference/ for the same input. Plan first."
 
-- [ ] Make sure the test passes against the current R implementation:
+- [x] Make sure the test passes against the current R implementation:
   ```r
   testthat::test_file("tests/testthat/test-as-numeric.R")
   ```
 
-- [ ] Commit:
+- [x] Commit:
   ```bash
   git commit -m "test: add as_numeric() unit tests — first test in package"
   ```
@@ -154,7 +157,7 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
 ### Step 3 — Write the v1.3.0 parity test harness
 *Now that the reference RDS files exist and testthat is running, wire them up.*
 
-- [ ] Create `tests/testthat/test-v130-parity.R`:
+- [x] Create `tests/testthat/test-v130-parity.R`:
   - For each RDS in `inst/extdata/v1_3_0_reference/`:
     load, configure the equivalent new-grammar call, assert identical QTNs and
     identical phenotype values.
@@ -163,7 +166,7 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
     `devtools::test()` stays green.
   - Remove the skips one by one as each grammar function is completed.
 
-- [ ] Commit:
+- [x] Commit:
   ```bash
   git commit -m "test: add v1.3.0 parity harness (skipped until grammar implemented)"
   ```
@@ -172,11 +175,11 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
 *The test already exists. Port, then remove the R fallback and confirm the test still*
 *passes. This proves the pattern for every future surgical Rust port.*
 
-- [ ] Set up the rextendr scaffold (if `src/rust/` does not yet exist):
+- [x] Set up the rextendr scaffold (if `src/rust/` does not yet exist):
   ```r
   rextendr::use_extendr()
   ```
-- [ ] Implement `as_numeric()` in `src/rust/src/numeric.rs`.
+- [x] Implement `as_numeric()` in `src/rust/src/numeric.rs`.
   Claude Code prompt (new session, plan mode):
   > `@CLAUDE.md @docs/ARCHITECTURE.md @R/as_numeric.R
   >  @tests/testthat/test-as-numeric.R`
@@ -184,16 +187,16 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
   > existing testthat tests exactly. R passes the genotype matrix; Rust returns -1/0/1
   > integers. No RNG — fully deterministic. Plan first."
 
-- [ ] Confirm Rust passes the existing test without modification:
+- [x] Confirm Rust passes the existing test without modification:
   ```r
   testthat::test_file("tests/testthat/test-as-numeric.R")
   ```
-- [ ] Run full check:
+- [x] Run full check:
   ```r
   devtools::test()
   rcmdcheck::rcmdcheck()
   ```
-- [ ] Commit:
+- [x] Commit:
   ```bash
   git commit -m "port: as_numeric() to Rust — tests pass"
   ```
@@ -202,10 +205,10 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
 *Build a minimal safety net. These don't need to be exhaustive — just enough to*
 *catch regressions during the restructure.*
 
-- [ ] `test-format-conversion.R` — test HapMap / VCF input parsing (deterministic).
-- [ ] `test-shim.R` — smoke-test that `create_phenotypes()` still runs without error
+- [x] `test-format-conversion.R` — test HapMap / VCF input parsing (deterministic).
+- [x] `test-shim.R` — smoke-test that `create_phenotypes()` still runs without error
   on the SNP55K dataset (not checking values yet — just that it doesn't crash).
-- [ ] Commit:
+- [x] Commit:
   ```bash
   git commit -m "test: add format-conversion and shim smoke tests"
   ```
@@ -233,7 +236,9 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
   - [x] `complex_phenotypes()`
   - [x] ~~`sim_phenotypes()`~~ dropped — one-call folded into `simulate_phenotype()`
         (DECISION; create_phenotypes() also remains for v1-style one-call).
-  - [x] PleioArch pleiotropy engine (`cor`, exact for 2 traits; Cholesky fallback >2).
+  - [x] PleioArch pleiotropy engine (`cor` targeted for any number of traits; the
+        Cholesky fallback was removed by DECISION-013; see DECISION-023 for what is and
+        is not exact).
 
 - [x] Mark `create_phenotypes()` as frozen legacy (superseded `@description` note; no
   lifecycle dependency to avoid an unused-import NOTE). Does NOT delegate (DECISION-008).
@@ -255,6 +260,70 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
   `.normalize_geno()` hook so `simulate_phenotype()` accepts a `Population` (SPEC §4.1).
 - [x] Vignette demonstrating every user-facing function
   (`vignettes/simplePHENOTYPES-v2.Rmd`).
+
+---
+
+## Block 3B — Engine work requested by breedingDesigner
+
+breedingDesigner (BD, `../breeding_designer`) runs every simulation through this package
+and must not reimplement genetics, so each item below is blocked on the engine. Refs point
+into the BD repo. Methods/theory items need an independent theory review
+(`docs/THEORY_REVIEW.md`) before they ship.
+
+**Now — blocking current BD users**
+- [x] **Publish the `restructure` engine where users install from.** *Done: merged to
+  `master` (all 16 exports below present) and tagged `v2.0.0`; the `restructure`
+  branch is deleted. BD-side follow-up: switch `Remotes:` to
+  `samuelbfernandes/simplePHENOTYPES@v2.0.0` (or `master`) and pin `(>= 2.0.0)`.* A plain
+  `remotes::install_github("samuelbfernandes/simplePHENOTYPES")` (or the released
+  version) lacks operators BD dispatches, and runs fail with `'select_ind' is not an
+  exported object`. BD needs all of: `as_population`, `cross`, `selfcross`,
+  `double_haploid`, `single_seed_descent`, `bulk`, `simulate_phenotype`, `select_ind`,
+  `optimum_contribution`, `cross_usefulness`, `recurrent_selection`, `sample_parents`,
+  `pedigree`, `n_individuals`, `dosages`, `synthetic_map` (BD `R/run_app.R`
+  `engine_required_exports()`; BD pins `simplePHENOTYPES (>= 1.4.0.9002)`,
+  `Remotes: samuelbfernandes/simplePHENOTYPES@restructure`). Tag a version when merged.
+
+**Next — methods BD has specced and is waiting on**
+- [x] **Marker-assisted backcross: `mabc_select()` + `recurrent_parent_recovery()`**
+  *Done (PR #8, `R/mabc.R`, `tests/testthat/test-mabc.R`; unselected recovery
+  0.5000 / 0.7513 / 0.8719 / 0.9351 at F1–BC3; theory review PASS).*
+  (full design in `docs/ROADMAP.md` → "Modern methods — NEXT"; BD
+  `docs/reviews/backcross-theory-review.md`, `specs/SPEC-0012`). BD now ships the
+  unselected structural backcross and a lineage-level recovery test (BD
+  `tests/testthat/test-backcross-recovery.R`: synthetic informative-marker fixture,
+  60 lineages, predeclared tolerance, selfing negative control) that can be reused
+  to validate the unselected baseline here.
+- [x] **Fixed-scale TOTAL genotypic value (additive + dominance) accessor** — *already
+  provided by `genotypic_value(x, qtn, a, d)` (`G = A + D`, fixed scale; in the backend
+  contract).* Sibling of
+  `additive_value()`, with no per-population re-centring/re-scaling. Gates
+  heterosis-capturing reciprocal recurrent selection (RRS-1b); until then BD runs an
+  additive-only RRS and says so (BD `specs/SPEC-0011`, `R/rrs.R`). Not yet in
+  `docs/ROADMAP.md`.
+- [x] **Per-trait `effect` list in `additive()`.** *Done (PR #8): `additive(effect =
+  list(...))`; re-scoring a frozen pleiotropic template reproduces its values.* Frozen multi-trait architectures with
+  different per-trait effects currently need one trait-masked layer per trait in BD
+  (BD `specs/SPEC-0002`); a per-trait effect list makes it a single layer.
+
+**Later — engine dependencies in BD's methods catalog (not yet specced; confirm scope)**
+Source: BD `docs/BREEDING_METHODS_CATALOG.md` ("Engine:" notes).
+- [ ] Combining-ability scorer (GCA / SCA, testcross merit) — half-sib RS with a
+  tester, hybrid development, RRS. (BD composes GCA from `cross` + `select_ind` today.)
+- [ ] Marker-based selection for MAS / gene pyramiding, and a marker index for MARS.
+- [ ] BLUP / EBV prediction verb (pedigree + own + relatives); GS accuracy is currently
+  approximated.
+- [ ] Progeny-mean scorer (progeny testing), and family-structured phenotyping for
+  between-family selection (`select_ind()` already has `within_family` /
+  `among_family` / `combined` methods; the gap is building families in a design).
+- [ ] Multi-trait sequential rules: tandem selection and independent culling
+  (`select_ind()` already has `index` / `quadratic_index`).
+- [ ] Multi-population mating for crossbreeding (two-way / three-way / rotational /
+  terminal sire); ties to BD SPEC-0007 (mate allocation).
+- [ ] Polyploid (tetrasomic) model — BD's `Wheat_div` is allotetraploid coded diploid
+  per subgenome as an approximation (already `docs/ROADMAP.md` → "Polyploids").
+- [ ] Python package — BD's canvas already generates Python for the planned
+  `simplephenotypes` API (already `docs/ROADMAP.md` §8b).
 
 ---
 

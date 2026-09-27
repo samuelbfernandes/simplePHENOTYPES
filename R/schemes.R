@@ -138,7 +138,7 @@ bulk <- function(x, generations = 5L, n = NULL, seed = NULL) {
 #'
 #' Selfs and selects each generation: the population is phenotyped, the best
 #' fraction is kept, and those are selfed to form the next generation (Bernardo
-#' 2020; Falconer \& Mackay 1996). Response accumulates across generations.
+#' 2020; Falconer & Mackay 1996). Response accumulates across generations.
 #'
 #' @inheritParams single_seed_descent
 #' @param phenotype a function mapping a `Population` to a realized
@@ -209,7 +209,7 @@ pedigree <- function(x, phenotype, generations = 5L, prop = 0.1,
 #' Recurrent selection
 #'
 #' Cycles of select-then-intermate for population improvement (Bernardo 2020;
-#' Falconer \& Mackay 1996): each cycle the population is phenotyped, the best parents
+#' Falconer & Mackay 1996): each cycle the population is phenotyped, the best parents
 #' are selected, and they are intercrossed to form the next cycle's population.
 #'
 #' @inheritParams pedigree

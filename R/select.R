@@ -60,7 +60,7 @@
 #' individual's own record and its family mean to predict breeding value; the
 #' weights are the selection-index solution \eqn{b = V^{-1} c} built from `h2` and
 #' the within-family additive relationship `family_relationship` (0.25 half-sibs,
-#' 0.5 full-sibs), following Falconer \& Mackay (1996) and Lynch \& Walsh (1998).
+#' 0.5 full-sibs), following Falconer & Mackay (1996) and Lynch & Walsh (1998).
 #' `"index"` is
 #' the Smith--Hazel multi-trait economic index (`weights` = economic weights, one
 #' per trait): \eqn{b = P^{-1} G a}, selecting on \eqn{b'y}. `"quadratic_index"` is

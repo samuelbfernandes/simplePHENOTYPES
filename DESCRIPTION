@@ -11,6 +11,9 @@ Authors@R: c(
     	comment = c(ORCID = "0000-0003-1571-8528"))
     )
 License: MIT + file LICENSE
+Copyright: The package authors, except the Rust crates vendored in
+    src/rust/vendor.tar.xz; see file inst/COPYRIGHTS for their authors and
+    licences.
 Encoding: UTF-8
 LazyData: true
 Depends:
