@@ -15,7 +15,7 @@ MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.or
 
 <p align="center">
 
-<img src="head.png" alt="Simulation of Pleiotropic, Linked and Epistatic Phenotypes" width="100%" />
+<img src="man/figures/head.png" alt="Simulation of Pleiotropic, Linked and Epistatic Phenotypes" width="100%" />
 </p>
 
 Simulation of pleiotropic, linked and epistatic phenotypes from real

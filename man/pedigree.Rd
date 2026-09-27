@@ -48,7 +48,7 @@ intensity i), per DECISION-015.
 \description{
 Selfs and selects each generation: the population is phenotyped, the best
 fraction is kept, and those are selfed to form the next generation (Bernardo
-2020; Falconer \& Mackay 1996). Response accumulates across generations.
+2020; Falconer & Mackay 1996). Response accumulates across generations.
 }
 \examples{
 data("SNP55K_maize282_maf04")

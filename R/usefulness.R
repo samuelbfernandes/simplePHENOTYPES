@@ -13,7 +13,7 @@
 #'
 #' For each candidate biparental cross, simulates a progeny family and reports its
 #' additive genetic mean, genetic standard deviation, and \emph{usefulness}
-#' \eqn{U = \mu + i\,\sigma} (Zhong \& Jannink 2007; Lehermeier et al. 2017). A
+#' \eqn{U = \mu + i\,\sigma} (Zhong & Jannink 2007; Lehermeier et al. 2017). A
 #' cross with a lower mean but more genetic variance can outrank a safer one,
 #' which is the information parent-mean ranking misses.
 #'

@@ -46,7 +46,7 @@ a \code{Population} (the final cycle), carrying attribute \code{history}.
 }
 \description{
 Cycles of select-then-intermate for population improvement (Bernardo 2020;
-Falconer \& Mackay 1996): each cycle the population is phenotyped, the best parents
+Falconer & Mackay 1996): each cycle the population is phenotyped, the best parents
 are selected, and they are intercrossed to form the next cycle's population.
 }
 \examples{
