@@ -370,8 +370,35 @@ Lynch & Walsh).
     `family` grouping.
   - **`combined`** ranks on the selection-index prediction of breeding value from
     the individual's own record and its family mean, `b = V⁻¹ c` built from `h2`
-    and the within-family additive relationship `family_relationship` (0.25
-    half-sibs default, 0.5 full-sibs/selfed). Derived from first principles
+    and `family_relationship`, the within-family correlation of breeding values
+    A_ij/√(A_ii A_jj) (for families of non-inbred, unrelated parents: 0.25
+    half-sibs default, 0.5 full-sibs, 0.5 doubled haploids, 2/3 S1 sibs).
+    *[Corrected 2026-09-27: this was first recorded as the "additive relationship"
+    with "0.5 full-sibs/selfed". Since `r` enters as t = r·h² with h² the
+    candidates' own heritability, it is the correlation of breeding values, which
+    equals A_ij only for non-inbred members; S1 sibs of a non-inbred plant have
+    A_ij = 1, A_ii = 1.5, so r = 2/3. Inbred or related parents change all these
+    values (the package's derivation: 2(1+F)/(3+F) for S1 sibs, (1+F)/2 for doubled
+    haploids of a parent with inbreeding F). The code was right; the advice was not.
+    Derivation (tabular A, parent P with inbreeding F): coancestry of two gametes of
+    P is Θ_PP = (1+F)/2, so two S1 sibs have A_ij = 2Θ_PP = 1+F and each has
+    inbreeding Θ_PP, A_ii = 1 + (1+F)/2, giving r = 2(1+F)/(3+F); two doubled
+    haploids also have A_ij = 1+F but A_ii = 2, giving r = (1+F)/2. Same review:
+    the index weights depend on family size but were applied to raw records, so with
+    unequal families the ranking depended on the phenotype origin (adding a constant
+    changed the selection); the score now uses deviations from the candidate mean
+    (Hazel 1943), a family of one is scored h²·deviation, and the docs state that one
+    h² and one r are shared by all families (mixing family types is out of scope).
+    The singular-case test also used an absolute floor on the denominator, so tiny-unit
+    records fell back to own-record scoring and changed the selection; it now tests
+    the dimensionless 1 − r·h², and the weights are computed in their vP-free form
+    b₁ = h²(1−r)/(1−rh²), b₂ = h²nr(1−h²)/{[1+(n−1)rh²](1−rh²)} (equal to V⁻¹c to
+    ~1e-15; the vP² products under/overflowed at extreme scales), with
+    1 − rh² = (1−r) + r(1−h²) so the own-record fallback is needed only at exactly
+    r = h² = 1 (a tolerance there reversed valid near-singular selections). The docs
+    no longer call the index "optimal" outright: it is optimal under the additive
+    model t = r·h²; dominance / epistasis / family environment add to full-sib and
+    selfed covariances. The Lush (1947) reference gained Part II's DOI.]* Derived from first principles
     (Var(own)=vP; Var(fam mean)=Cov(own,fam mean)=vP(1+(n−1)t)/n; Cov(A,own)=vA;
     Cov(A,fam mean)=vA(1+(n−1)r)/n; t=r·h²). Both weights are non-negative and the
     family term vanishes as h²→1 (own record becomes sufficient). Requires `h2`.

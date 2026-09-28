@@ -55,9 +55,11 @@ linear weights \code{w} for \code{method = "quadratic_index"}.}
 \item{h2}{narrow-sense heritability of the selection trait, required by
 \code{method = "combined"} to weight family versus individual information.}
 
-\item{family_relationship}{additive relationship among family members for
-\code{method = "combined"} (default 0.25 = half-sibs; use 0.5 for full-sibs or
-selfed families).}
+\item{family_relationship}{correlation of breeding values among family members
+for \code{method = "combined"}. The default 0.25 is for half-sibs of non-inbred,
+unrelated parents; with such parents use 0.5 for full-sibs or doubled
+haploids and 2/3 for S1 sibs. Inbred or related parents change these -- see
+Details.}
 
 \item{rep}{replication to select on when several were simulated (default 1).}
 }
@@ -122,11 +124,31 @@ your index and pass it through \code{on} with \code{method = "mass"}.
 
 \code{"mass"} truncates on the individual criterion. \code{"within_family"} keeps the top
 fraction inside each family, \code{"among_family"} keeps whole top-ranked families,
-and \code{"combined"} ranks on the Lush combined index that optimally weights an
+and \code{"combined"} ranks on the Lush combined index that weights an
 individual's own record and its family mean to predict breeding value; the
 weights are the selection-index solution \eqn{b = V^{-1} c} built from \code{h2} and
-the within-family additive relationship \code{family_relationship} (0.25 half-sibs,
-0.5 full-sibs), following Falconer & Mackay (1996) and Lynch & Walsh (1998).
+\code{family_relationship}, following Falconer & Mackay (1996) and Lynch & Walsh
+(1998). \code{h2} is the candidates' own heritability, so \code{family_relationship} is
+the \strong{correlation of breeding values} between two members of a family,
+\eqn{A_{ij} / \sqrt{A_{ii} A_{jj}}} (\eqn{A} the additive relationship
+matrix), not \eqn{A_{ij}} alone; the index uses one such value for every
+family. For families of non-inbred, unrelated parents it is 1/4 for half-sibs,
+1/2 for full-sibs, 1/2 for doubled haploids and 2/3 for S1 sibs (for which
+\eqn{A_{ij} = 1}, \eqn{A_{ii} = 1.5}). Inbred or related parents change
+these: this package's derivation from the tabular \eqn{A} gives
+\eqn{2(1 + F) / (3 + F)} for S1 sibs and \eqn{(1 + F) / 2} for doubled
+haploids of a parent with inbreeding \eqn{F}; for other families compute
+\eqn{A_{ij} / \sqrt{A_{ii} A_{jj}}} from the pedigree. The index uses one \code{h2}
+and one \code{family_relationship} for every family, so it assumes families of one
+type from comparable parents; mixing family types (e.g. S1 with full-sib
+families) is outside this model. The weights are optimal under an \strong{additive}
+model, in which family members covary only through breeding values
+(\eqn{t = r h^2}). Dominance, epistasis or a shared family environment add to
+the covariance of full-sib or selfed family members (e.g. \eqn{V_D / 4} for
+full sibs), so with those in the phenotype the index is a reasonable but not an
+optimal predictor. Scores are predictions from deviations of the
+records from their mean (so families of different sizes are ranked on one
+scale); a family of one is scored by its own record, \code{h2} times its deviation.
 \code{"index"} is
 the Smith--Hazel multi-trait economic index (\code{weights} = economic weights, one
 per trait): \eqn{b = P^{-1} G a}, selecting on \eqn{b'y}. \code{"quadratic_index"} is
@@ -154,7 +176,8 @@ Walsh B (1998) Genetics and Analysis of Quantitative Traits. Sinauer
 Associates, Sunderland, Massachusetts.
 Combined (family + individual) selection: Lush JL (1947) Family merit and
 individual merit as bases for selection. \emph{The American Naturalist}
-81:241--261 (Part I) and 362--379 (Part II). \doi{10.1086/281520}
+81:241--261 (Part I, \doi{10.1086/281520}) and 362--379 (Part II,
+\doi{10.1086/281532}).
 Multi-trait selection index \eqn{b = P^{-1} G a}: Smith HF (1936) A discriminant
 function for plant selection. \emph{Annals of Eugenics} 7(3):240--250.
 \doi{10.1111/j.1469-1809.1936.tb02143.x}; Hazel LN (1943) The genetic basis

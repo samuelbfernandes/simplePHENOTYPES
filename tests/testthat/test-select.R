@@ -246,6 +246,38 @@ test_that("combined selection needs h2 and produces sane weights", {
   expect_setequal(attr(near1, "selected"), attr(mass, "selected"))
 })
 
+test_that("combined selection does not depend on the phenotype origin", {
+  # review 2026-09-27: family-size-dependent weights applied to raw records made
+  # unequal families' ranking shift when a constant was added to every record
+  vals <- c(0, 10, 6, 6, 6)
+  fam  <- c(1, 1, 2, 2, 2)
+  a <- .combined_score(vals, fam, h2 = 0.5, r = 0.5)
+  b <- .combined_score(vals + 100, fam, h2 = 0.5, r = 0.5)
+  expect_equal(a, b)
+  expect_equal(which.max(a), which.max(b))
+  # and not on its scale: scores scale with the records, the ranking does not
+  # (an absolute singularity floor once sent tiny-unit records to the fallback)
+  v <- c(0, 8, 6, 6); f <- c(1, 1, 2, 2)
+  s1 <- .combined_score(v, f, h2 = 0.1, r = 0.5)
+  for (k in c(1e-170, 1e-100, 1e-10, 1e100)) {
+    sk <- .combined_score(v * k, f, h2 = 0.1, r = 0.5)
+    expect_false(anyNA(sk))
+    expect_equal(sk / k, s1)
+  }
+  expect_equal(unname(s1), c(-0.3533835, 0.0676692, 0.1428571, 0.1428571),
+               tolerance = 1e-6)
+  # close to (but not at) the singular point the two-record index still applies:
+  # r = 1, h2 = 1 - 1e-15 has exact weights b = (0, 2 h2 / (1 + h2))
+  h <- 1 - 1e-15; e <- sqrt(.Machine$double.eps)
+  sn <- .combined_score(c(2 * e, -2 * e, e, e), c(1, 1, 2, 2), h2 = h, r = 1)
+  expect_equal(order(-sn)[1:2], c(3L, 4L))
+  expect_equal(unname(sn[1]), unname(sn[2]))   # b1 = 0: own record carries no weight
+  # a family of one is scored h2 * deviation, on the same scale as the rest
+  s <- .combined_score(c(4, 0, 2, 2), c(1, 2, 2, 3), h2 = 0.4, r = 0.25)
+  expect_equal(unname(s[1]), 0.4 * (4 - 2))
+  expect_equal(unname(s[4]), 0.4 * (2 - 2))
+})
+
 test_that("additive_value scores on a fixed cross-generational scale", {
   f2  <- .f2(40)
   qtn <- c(1L, 5L, 9L)

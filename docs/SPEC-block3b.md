@@ -552,12 +552,18 @@ and within-family selection follow Falconer & Mackay (1996) and Lynch & Walsh (1
 (author-year only, C2); the engine already implements the Lush weights (rubric S3) and
 this item adds only the *structure*.
 
-*Selfed families — an existing-documentation check.* `select_ind()` documents
-`family_relationship = 0.5` "for full-sibs or selfed families". For S1 sibs of a
+*Selfed families — an existing-documentation check.* `select_ind()` documented
+(until the 2026-09-27 fix below) `family_relationship = 0.5` "for full-sibs or selfed
+families". For S1 sibs of a
 non-inbred S0 plant the tabular rule gives `A_ij = 2Θ = 2·Θ_PP = 1` (with
 `Θ_PP = ½(1 + F_P) = ½`), and the sibs are themselves inbred (`F = ½`), so the
 correlation of their breeding values is `A_ij / sqrt(A_ii A_jj) = 1/1.5 = 2/3`, not 0.5.
-Which quantity the Lush derivation in `.combined_score()` needs (`r` as the additive
+*Resolved 2026-09-27:* `.combined_score()` uses `t = r·h²` and
+`Cov(A, family mean) = V_A(1 + (n − 1)r)/n` with `h²` the candidates' own heritability,
+so `r` is the correlation of breeding values `A_ij/A_ii` — 2/3 for these S1 sibs. The
+`select_ind()` docs (and DECISION-015's note) now say so. The same review found the
+index applied size-dependent weights to raw records (fixed: deviations from the mean).
+The original flag read: which quantity the Lush derivation in `.combined_score()` needs (`r` as the additive
 relationship vs. as the intraclass correlation of breeding values) should be re-derived
 in this item's review and the docs/default corrected if needed — flagged here, not
 asserted.
