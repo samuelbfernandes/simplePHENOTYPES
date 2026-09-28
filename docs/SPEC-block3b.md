@@ -36,8 +36,10 @@ package (item 8) is not a genetics item, is already sequenced after CRAN (ROADMA
 and the only near-term action is to stop BD presenting generated Python as runnable.
 Recommended order: pedigree foundation → `mate()`/`mating_design()` → combining ability →
 families/progeny test → tandem/culling → marker selection → BLUP/EBV → crossbreeding
-wrapper; defer 7 and 8. All additions are additive exports (a **2.1.0** minor bump under
-`BACKEND_CONTRACT.md`), RNG stays in R, nothing new moves to Rust.
+wrapper; defer 7 and 8. All additions are additive exports (a minor bump under
+`BACKEND_CONTRACT.md`'s rules; maintainer decision 2026-09-28: no `2.1.0` — the
+user-facing release stays `2.0`, and Block 3B ships in the development version
+`2.0.0.9001`), RNG stays in R, nothing new moves to Rust.
 
 ## 1. Shared foundation
 
@@ -910,8 +912,9 @@ second implementation and a second theory review.
 Ordering principle: unblock the most BD rows per unit of new genetics, reuse the most
 existing tested code, and keep the theory surface per PR small enough for the
 independent review (each item is one `dev/dual.sh` loop, one DECISION entry, one
-contract addition). Version: each landing is an additive export → `2.1.0` at the end of
-the block; add every new export to `tests/testthat/test-backend-contract.R`.
+contract addition). Version: each landing is an additive export; per the maintainer
+(2026-09-28) the release tag stays `2.0` and only the development version moves
+(`2.0.0.9001`); add every new export to `tests/testthat/test-backend-contract.R`.
 
 ## 11. Deferrals and declines
 

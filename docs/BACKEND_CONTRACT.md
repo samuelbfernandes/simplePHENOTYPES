@@ -44,9 +44,9 @@ consumer.
 ### Populations & crossing (multi-generation genetics)
 `as_population`, `cross`, `selfcross`, `double_haploid`, `dosages`,
 `n_individuals`, `synthetic_map`, and the `Population` methods `[`, `c`, `print`.
-Pedigree and mating plans (2.0.0.9000): `parentage`, `families`, `mating_design`,
+Pedigree and mating plans (2.0.0.9001): `parentage`, `families`, `mating_design`,
 `mate` (DECISION-024/025).
-Crossbreeding (2.0.0.9000): `crossbreed`, `breed_composition`, `heterosis`
+Crossbreeding (2.0.0.9001): `crossbreed`, `breed_composition`, `heterosis`
 (DECISION-031).
 
 ### Phenotype grammar
@@ -58,7 +58,7 @@ per-trait list, added in 2.0.0.9000), `dominance`, `epistasis`, `vqtl`,
 
 ### Selection engine
 `select_ind` and the named schemes `single_seed_descent`, `bulk`, `pedigree`,
-`recurrent_selection`. Added in 2.0.0.9000: `select_ind(method = "culling")` and
+`recurrent_selection`. Added in 2.0.0.9001: `select_ind(method = "culling")` and
 tandem selection (a `trait` vector on `pedigree` / `recurrent_selection`,
 DECISION-028); `combining_ability`, `template_effects` (DECISION-026);
 `progeny_test` (DECISION-027); `marker_select` (DECISION-029); `predict_ebv`,
@@ -72,7 +72,7 @@ OCS), `cross_usefulness`, and `print.ocs`; marker-assisted backcrossing
 
 ### Fixed-scale cross-generation accessors
 `additive_value`, `genotypic_value`, `phenotype_value` (which gains `d =` in
-2.0.0.9000, DECISION-026) — the fixed-scale scorers
+2.0.0.9001, DECISION-026) — the fixed-scale scorers
 a downstream recurrent driver needs so a selection response is visible across
 generations (DECISION-020 / DECISION-021). `genotypic_value()` is each
 individual's own **per se** additive-plus-dominance total genotypic value
