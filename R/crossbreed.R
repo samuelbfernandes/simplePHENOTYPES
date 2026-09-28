@@ -88,8 +88,9 @@ breed_composition <- function(pop) {
 #' @seealso [breed_composition()], [crossbreed()], [genotypic_value()]
 #' @export
 #' @examples
-#' g <- data.frame(snp = paste0("m", 1:20), allele = "A/G", chr = 1:2,
-#'                 pos = 1:20, cm = rep(seq(0, 90, by = 10), 2))
+#' g <- data.frame(snp = paste0("m", 1:20), allele = "A/G",
+#'                 chr = rep(1:2, each = 10), pos = rep(1:10, 2),
+#'                 cm = rep(seq(0, 90, by = 10), 2))
 #' set.seed(1)
 #' A <- as_population(cbind(g, matrix(sample(c(-1L, 1L), 200, TRUE), 20,
 #'                         dimnames = list(NULL, paste0("A", 1:10)))), pool = "A")
