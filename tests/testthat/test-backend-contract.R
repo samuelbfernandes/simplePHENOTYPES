@@ -18,6 +18,13 @@ backend_contract <- c(
   # Modern methods
   "g_matrix", "optimum_contribution", "sample_parents", "cross_usefulness",
   "mabc_select", "recurrent_parent_recovery",
+  # Pedigree and mating plans (DECISION-024/025)
+  "parentage", "families", "mate", "mating_design",
+  # Block 3B items (DECISION-026..031)
+  "combining_ability", "template_effects", "progeny_test",
+  "marker_select",
+  "predict_ebv", "a_matrix", "prediction_accuracy", "selection_methods",
+  "crossbreed", "breed_composition", "heterosis",
   # Fixed-scale accessors
   "additive_value", "genotypic_value", "phenotype_value",
   # Genotype ingestion / QC

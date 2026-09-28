@@ -9,7 +9,9 @@ cross(mother, father, n = 1, seed = NULL)
 \arguments{
 \item{mother, father}{single-individual \code{Population}s (use \code{[} to select one).
 Their roles are symmetric apart from which homologue a progeny inherits
-first; there is no sex-specific recombination.}
+first; there is no sex-specific recombination. Crossing an individual with
+itself is a self: it draws what \code{\link[=selfcross]{selfcross()}} draws and the pedigree records
+it as one (\code{design = "self"}, see \code{\link[=parentage]{parentage()}}).}
 
 \item{n}{number of progeny.}
 

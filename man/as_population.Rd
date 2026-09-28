@@ -4,7 +4,7 @@
 \alias{as_population}
 \title{Create a population of phased individuals from genotype data}
 \usage{
-as_population(geno, individuals = NULL)
+as_population(geno, individuals = NULL, pool = NA_character_)
 }
 \arguments{
 \item{geno}{a numeric-format data frame whose first five columns are
@@ -13,9 +13,18 @@ with the remaining columns individuals coded -1/0/1.}
 
 \item{individuals}{optional character or numeric vector selecting which
 individuals to keep, in the order given. Defaults to all of them.}
+
+\item{pool}{optional label for the founder pool these individuals come from
+(e.g. a breed or heterotic group), recorded in the pedigree so progeny can
+be traced to it (see \code{\link[=parentage]{parentage()}}). Default \code{NA}. A founder is identified
+by its pool label, id and haplotypes, so the same genotypes imported twice
+under the same label (or none) are the same individuals; give each breed or
+pool its own label when individuals in different pools may share an id and
+genotype. The empty string and \code{"<unassigned>"} (the column
+\code{\link[=breed_composition]{breed_composition()}} uses for founders without a label) are reserved.}
 }
 \value{
-A \code{Population}.
+A \code{Population}. Its individuals are recorded as pedigree founders.
 }
 \description{
 Meiosis needs to know which allele sits on which of an individual's two

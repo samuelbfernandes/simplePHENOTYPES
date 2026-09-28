@@ -11,7 +11,8 @@ phenotype_value(
   h2 = NULL,
   var_e = NULL,
   ref = NULL,
-  seed = NULL
+  seed = NULL,
+  d = NULL
 )
 }
 \arguments{
@@ -25,8 +26,10 @@ marker (row) indices.}
 \item{effect}{a finite numeric vector of per-locus additive effects, one per
 entry of \code{qtn} and in the same order.}
 
-\item{h2}{target narrow-sense heritability in \verb{(0, 1]}, used with \code{ref} to set a
-fixed residual variance. Give exactly one of \code{h2} or \code{var_e}.}
+\item{h2}{target heritability in \verb{(0, 1]}, used with \code{ref} to set a fixed
+residual variance: of the additive value (narrow-sense) by default, or of
+the total genotypic value \code{A + D} when \code{d} is given (broad-sense, see \code{d}).
+Give exactly one of \code{h2} or \code{var_e}.}
 
 \item{var_e}{fixed residual variance (a single non-negative number), on the same
 scale as \code{Var(additive_value(x, qtn, effect))}. Give exactly one of \code{h2} or
@@ -39,16 +42,23 @@ genetic variance converts \code{h2} to \code{var_e}; defaults to \code{x}. Ignor
 \item{seed}{optional seed for the residual draw -- \code{NULL} or one non-negative
 whole number (the RNG state is restored afterwards), for reproducible
 phenotypes.}
+
+\item{d}{optional dominance deviations of the loci (one value, or one per
+locus): the genetic part is then the fixed total genotypic value \code{A + D} of
+\code{\link[=genotypic_value]{genotypic_value()}} (with \code{effect} as its \code{a}), and \code{h2} is the heritability
+of that total value in \code{ref} -- a broad-sense heritability. Default \code{NULL}:
+additive only.}
 }
 \value{
 a named numeric vector of phenotypes, one per individual, with
 attributes \code{var_e} (the fixed residual variance used) and \code{genetic_value} (the
-fixed additive values).
+fixed additive -- or, with \code{d}, total genotypic -- values).
 }
 \description{
 The phenotypic counterpart of \code{\link[=additive_value]{additive_value()}}: each individual's phenotype is
 its \strong{fixed} additive genetic value (frozen loci \code{qtn} and their \code{effect}s, on
-the -1/0/1 dosage scale, with no per-population rescaling) plus an independent
+the -1/0/1 dosage scale, with no per-population rescaling; with \code{d}, its total
+genotypic value \code{A + D}, see \code{\link[=genotypic_value]{genotypic_value()}}) plus an independent
 residual \code{e ~ N(0, var_e)} on a \strong{fixed} residual-variance parameter \code{var_e}.
 Because neither the genetic scale nor \code{var_e} is re-fit to the scored population,
 the \strong{parametric (population) heritability} \code{Var(g) / (Var(g) + var_e)} \emph{declines}
@@ -91,7 +101,8 @@ head(y0)
 }
 \references{
 Falconer DS, Mackay TFC (1996) \emph{Introduction to Quantitative Genetics},
-4th ed. Longman, Harlow (heritability \eqn{h^2 = V_A / (V_A + V_E)}); Lynch M,
+4th ed. Longman, Harlow (heritability \eqn{h^2 = V_A / (V_A + V_E)}; with \code{d},
+the broad-sense \eqn{H^2 = V_G / (V_G + V_E)}); Lynch M,
 Walsh B (1998) \emph{Genetics and Analysis of Quantitative Traits}. Sinauer,
 Sunderland, MA.
 }

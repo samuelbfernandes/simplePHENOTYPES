@@ -306,22 +306,35 @@ into the BD repo. Methods/theory items need an independent theory review
   different per-trait effects currently need one trait-masked layer per trait in BD
   (BD `specs/SPEC-0002`); a per-trait effect list makes it a single layer.
 
-**Later — engine dependencies in BD's methods catalog (not yet specced; confirm scope)**
+**Specced in `docs/SPEC-block3b.md` — done (branch `feat/block3b-engine`; every batch
+independently theory-reviewed, AGREE)**
 Source: BD `docs/BREEDING_METHODS_CATALOG.md` ("Engine:" notes).
-- [ ] Combining-ability scorer (GCA / SCA, testcross merit) — half-sib RS with a
-  tester, hybrid development, RRS. (BD composes GCA from `cross` + `select_ind` today.)
-- [ ] Marker-based selection for MAS / gene pyramiding, and a marker index for MARS.
-- [ ] BLUP / EBV prediction verb (pedigree + own + relatives); GS accuracy is currently
-  approximated.
-- [ ] Progeny-mean scorer (progeny testing), and family-structured phenotyping for
-  between-family selection (`select_ind()` already has `within_family` /
-  `among_family` / `combined` methods; the gap is building families in a design).
-- [ ] Multi-trait sequential rules: tandem selection and independent culling
-  (`select_ind()` already has `index` / `quadratic_index`).
-- [ ] Multi-population mating for crossbreeding (two-way / three-way / rotational /
-  terminal sire); ties to BD SPEC-0007 (mate allocation).
+- [x] Pedigree in `Population` + mating plans: `parentage()`, `families()`,
+  `mating_design()`, `mate()` (DECISION-024/025; F1/F2).
+- [x] Combining-ability scorer (GCA / SCA, testcross merit):
+  `combining_ability()` (expected + simulated), `template_effects()`,
+  `phenotype_value(d =)` (DECISION-026).
+- [x] Marker-based selection for MAS / gene pyramiding, and a marker index for MARS:
+  `marker_select()`; `additive_value()` is the MARS index (DECISION-029).
+- [x] BLUP / EBV prediction verb: `predict_ebv()` (GBLUP / pedigree, known variances),
+  `a_matrix()`, `prediction_accuracy()`, `selection_methods()` (DECISION-030).
+- [ ] Multi-trait BLUP and single-step (pedigree + genomic, `H`) BLUP — deferred by
+  maintainer decision D14 (`docs/SPEC-block3b.md`); single-trait known-variance BLUP
+  comes first.
+- [x] Progeny-mean scorer (progeny testing): `progeny_test()` (DECISION-027); families
+  in a design via `mating_design()` / `mate()` + `families()`.
+- [x] Multi-trait sequential rules: `select_ind(method = "culling")` and tandem
+  selection (a `trait` vector on `pedigree()` / `recurrent_selection()`, DECISION-028).
+- [x] Multi-population mating for crossbreeding: `crossbreed()` (two-way / backcross /
+  three-way / terminal / rotational), `breed_composition()`, `heterosis()`
+  (DECISION-031); `mate()` executes BD SPEC-0007 plans.
+
+**Still open**
 - [ ] Polyploid (tetrasomic) model — BD's `Wheat_div` is allotetraploid coded diploid
   per subgenome as an approximation (already `docs/ROADMAP.md` → "Polyploids").
+  Maintainer decisions D22/D23: deferred to v3; the concrete autotetraploid driver is
+  **potato**. (Disomic allotetraploids such as wheat are already modelled correctly
+  by the diploid-per-subgenome coding.)
 - [ ] Python package — BD's canvas already generates Python for the planned
   `simplephenotypes` API (already `docs/ROADMAP.md` §8b).
 

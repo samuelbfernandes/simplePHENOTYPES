@@ -1029,6 +1029,217 @@ not a published method (Rule #7).
 
 ---
 
+## DECISION-024: a Population records its pedigree
+
+**Context:** `docs/SPEC-block3b.md` F1. Parentage survived only as a batch `origin`
+string and as id prefixes that `c()` may rename, so full-sib / half-sib families,
+breed composition and a relationship matrix could not be recovered. Block 3B items
+(combining ability, progeny testing, BLUP, crossbreeding) all need them.
+
+**Decision:** every `Population` carries `keys` (one per individual) and a `pedigree`
+frame (`key`, `id`, `mother`, `father`, `generation`, `pool`, `design`), maintained by
+`as_population()` (founders; new optional `pool =` label), `.mate()` (every
+`cross()` / `selfcross()` / `double_haploid()` progeny), `[` (keeps the ancestors of
+the individuals kept) and `c()` (union by key). **Links are keys, not display ids**
+(maintainer decision on SPEC D2, replacing the SPEC's "c() errors on collisions",
+which would have broken pooling crosses whose progeny all start at `prog_1`): `c()`
+still renames colliding display ids and the links are untouched. Keys are
+deterministic — a founder's is a hash of its pool, id and haplotypes, a progeny's a
+hash of the mating (design, parent keys, the RNG generator's state words before and
+after the draws — not its kind header, which `RNGversion()` changes; the state after
+separates matings when no state existed before — and the drawn meiosis events, doubles
+by their exact bits, so keys do not depend on the numeric locale)
+plus its index — so seeded runs reproduce them, an exact re-run (same parents, same
+seed) reproduces the same individuals under the same keys, and matings whose draws
+merely coincide (e.g. on a 0 cM map) stay distinct. The hash is FNV-1a-128 in the
+Rust core (`stable_hash_core()`, a deterministic kernel) over a canonical text
+encoding, so for the same parents and random stream the keys do not change with R,
+package or dependency versions (the first draft used `rlang::hash()`, whose values
+rlang 1.3.0 changed). Founder ids must be unique; a missing pool (any `NA`/`NaN` label, normalized to one) is
+encoded apart from any pool string; the bookkeeping draws nothing, so every genotype and the RNG
+stream are unchanged (isqg parity and golden snapshots bit-identical). A `Population`
+without a pedigree (an object from an older version) is treated as founders.
+Accessors: `parentage(x, ancestors = FALSE)` (the SPEC's `pedigree()` name is taken
+by the pedigree-selection scheme; it returns `key` / `mother_key` / `father_key`
+beside the display ids, which need not be unique) and `families(x, by = c("full_sib",
+"maternal_half_sib", "paternal_half_sib", "selfed"))`, a factor for
+`select_ind(family =)`. The canonical encoding is length-prefixed (no value can
+imitate a separator) and in UTF-8 (ids R treats as identical hash identically, whatever
+their declared encoding). `mating_design()`, `mate()` and `cross()` treat the same individual (same
+key) in two positions as a self (`cross(x, x)` draws what `selfcross(x)` draws and is
+recorded and keyed as one), whatever its display ids; `"nested"` assigns mothers
+by bipartite matching, so a feasible no-self assignment is always found.
+
+**Date:** 2026-09-27
+
+---
+
+## DECISION-025: mating plans — `mating_design()` and `mate()`
+
+**Context:** `docs/SPEC-block3b.md` F2 / item 6. The engine (`.intermate()`,
+`.make_family()`) and breedingDesigner (`.rrs_intermate()`, `.rrs_hybrid_pop()`) each
+hand-rolled "loop over pairs, `cross()`, relabel, `c()`"; BD SPEC-0007 outputs a
+`{mother, father, n}` plan with no engine executor.
+
+**Decision:** `mating_design(mothers, fathers, design = c("random", "factorial",
+"nested", "diallel", "half_diallel"), ...)` writes a plan; `mate(plan, ..., seed,
+prefix)` runs it — rows in plan order after one `set.seed()`, `cross()` per row, a
+self when mother and father are the same individual, a doubled haploid for
+`design = "dh"` — across one or several named pools sharing a map (plan columns
+`mother_pool` / `father_pool`), and names progeny `<prefix>_<k>` (default the pool
+names joined by `x`, SPEC D20). A one-row plan draws the same random numbers and
+gives the same progeny genotypes as the equivalent `cross()`, `selfcross()` or
+`double_haploid()` call (the object differs in ids, `origin` and the `plan`
+attribute). Identity is the pedigree key, not the pool names given to
+`mate()` (those only locate each parent): equal ids in founder pools imported with
+different `as_population(pool =)` labels are different individuals, never a self, while
+the same genotypes imported twice under one label (or none) are the same individuals,
+as are those of `pop[1:3]` and `pop[2:4]`; `"nested"` gives each father exactly its mothers, skipping itself within
+one pool. `mating_design(seed =)` seeds only `"random"`: the other designs draw nothing
+and leave the RNG stream untouched. An `NA` in a plan's `design` column takes that
+row's default. Each individual enters a parent set once (a second id of the same
+individual is dropped), so no identity pair is listed twice; with character ids on
+either side individuals are compared by id; `"random"` draws a mother among those with
+an admissible father.
+`recurrent_selection()` keeps its own `.intermate()`: it draws each random pair
+between meioses, and moving it onto a pre-drawn plan would change the RNG stream,
+so the SPEC's "refactor, bit-identical" was not attainable; it is not refactored.
+
+**Date:** 2026-09-27
+
+---
+
+## DECISION-026: combining ability on a frozen A + D architecture
+
+**Context:** `docs/SPEC-block3b.md` item 1 (BD catalog: half-sib RS with a tester,
+hybrid development, RRS-1b). BD composed an additive-only GCA from `cross()` +
+`additive_value()`; no engine scorer existed.
+
+**Decision:** `combining_ability(candidates, testers, qtn, a, d, design =
+c("topcross", "factorial", "diallel"), method = c("expected", "simulated"), ...)`
+(SPEC D3: frozen `(qtn, a, d)` as `genotypic_value()`; D4: both methods together).
+`"expected"` is the conditional expectation of every cross given the parents'
+genotypes, `E[G_ik] = -2 d g_i g_k + (g_i + g_k)(a + d) - a` per locus with
+`g = x/2` (package derivation), no RNG; `"simulated"` realizes `n_progeny` per cross
+with `mate()`, scores `genotypic_value()`, optional residual via `phenotype_value()`
+(D6: `phenotype_value()` gains `d =`, the fixed-scale `A + D` phenotype with a
+broad-sense `h2`). Centering: factorial / topcross GCA = row (column) mean − μ; diallel
+(Griffing's method-4 layout) `g_i = (m_i − μ)(p − 1)/(p − 2)`; `SCA = Y − μ − g_i − g_k`,
+GCAs and each candidate's SCAs sum to zero. Candidates and testers must each list an
+individual once (by pedigree key), so both methods score the same crosses. With testers = the candidates' own
+population GCA equals half the DECISION-019 breeding value exactly; with `d = 0` every
+SCA is zero. Epistasis is outside the model. `template_effects(sim, trait, rep)` (D5)
+exports the realized-scale `a`, `d` a simulation uses (the `.layer_scaled_effects()`
+reconstruction behind `on = "bv"`), refusing epistasis / `"complex"`.
+
+**Date:** 2026-09-28
+
+---
+
+## DECISION-027: progeny testing
+
+**Decision:** `progeny_test(parents, mates, qtn, a, d, n_progeny, h2 | var_e, ref,
+seed)` (SPEC D15: its own export) mates each parent to `n_progeny` distinct random
+mates, one progeny each — a genuine half-sib family: never the parent itself, each
+individual of `mates` once (by pedigree key), and an error when fewer distinct mates
+exist — scores on the frozen architecture with an optional residual and returns each
+parent's progeny mean with the progeny `Population` (pedigree recorded). With mates drawn
+from one population separate from the parents, the expected progeny mean is half the
+breeding value in the mates' population plus a common constant, the breeding value using the average effects `α = a + d(q − p)` at
+the mates' frequencies (so dominance enters through them, not as a parental dominance
+deviation); each parent is listed once (by pedigree key); the accuracy on `n` half-sib
+records of an additive trait, under the classical half-sib assumptions (large
+random-mating, non-inbred mate population; a different, independent mate per
+progeny), is `sqrt(n h² / (4 + (n − 1) h²))` (package derivation),
+validated by simulation.
+
+**Date:** 2026-09-28
+
+---
+
+## DECISION-028: independent culling and tandem selection
+
+**Decision:** `select_ind(method = "culling", culling = <per-trait proportions>,
+sequential = FALSE)` keeps individuals in the top `culling[t]` of every trait
+(simultaneous; `sequential = TRUE` culls traits in order among survivors, SPEC D17);
+the count kept is emergent (`n` / `prop` / `intensity` must be `NULL`), `direction` may
+be per trait, and `on` may be an individuals × traits matrix of external predictions
+(D18). Tandem selection is a `trait` vector on `pedigree()` / `recurrent_selection()`,
+recycled over generations (a scalar `trait` is unchanged, bit-identical). Under Hazel &
+Lush's (1942) idealized conditions the package derivation gives index : culling :
+tandem = `sqrt(T) i(p)` : `T i(p^{1/T})` : `i(p)`, i.e. 1 : 0.907 : 0.707 at `T = 2`,
+`p = 0.1`, reproduced by simulation.
+
+**Date:** 2026-09-28
+
+---
+
+## DECISION-029: marker-assisted selection and gene pyramiding
+
+**Decision:** `marker_select(pop, markers, favorable, requirement = c("carrier",
+"homozygote"), min_markers, n | prop, rank_on, direction, seed)`: a founder-free
+foreground filter (the favourable allele given per marker), staged pyramiding
+(`min_markers`, D7), ranking of feasible candidates on any score, seeded tie-break.
+`additive_value()` is documented as the MARS marker index (D8: no alias); an index on
+the simulation's own causal loci weighted by their average effects (`a` for an additive
+architecture, `a + d(q − p)` with dominance) is labelled an oracle and keeps the
+individuals `on = "bv"` keeps, up to ties at the cut-off (random vs input-order
+tie-breaks). Validated against Mendelian
+F2 ratios (1/16, 9/16), Haldane's map function for linked targets, `mabc_select()`'s
+foreground, and `on = "bv"` for the oracle index.
+
+**Date:** 2026-09-28
+
+---
+
+## DECISION-030: known-variance BLUP, the A matrix and a methods manifest
+
+**Decision (SPEC D12, D13, D14):** `predict_ebv(x, pheno, method = c("gblup",
+"pedigree"), h2 | var_a + var_e, ref, K, base_freq, ridge)` — BLUP with the variance
+components known (a simulation knows them; no REML, no new dependency), in the GLS form
+`û = K Z'(Z K Z' + λI)⁻¹(y − 1μ̂)` (no `K⁻¹`, so singular `G` is fine), equal to
+Henderson's MME to 1e-10; reliability `1 − PEV/(K_ii σ²_A)`; GBLUP marker effects
+back-solved on `g_matrix()`'s scale when `G` is built internally (`ridge = 0`); a
+supplied `K` must be finite, symmetric (used in its symmetric form) and positive
+semidefinite up to floating-point rounding only (`n ε` times the largest eigenvalue on
+the correlation scale), with `K + λI` over the phenotyped individuals positive
+definite (its Cholesky factor) and every reliability in [0, 1]; it must name its
+individuals identically on both axes (reordered to `x`), and carries no marker
+scale; an unrepresentable `var_e / var_a` or a non-finite solution is an error, never
+`NaN` EBVs. `a_matrix(pop)` by the tabular method from the
+recorded pedigree (selfs `F = (1 + F_P)/2`, doubled haploids `A_ii = 2`).
+`prediction_accuracy(ebv, truth)` reports `cor` and the regression slope.
+`selection_methods()` lists the engine's selection operators (tandem included) for BD's
+SPEC-0006. The
+EBV is an estimate from observable phenotypes; multi-trait and single-step BLUP are
+deferred (D14, kept in TODO).
+
+**Date:** 2026-09-28
+
+---
+
+## DECISION-031: crossbreeding
+
+**Decision (SPEC D19–D21):** `breed_composition(pop)` — expected breed fractions from
+the pedigree (founder pools; mean of parents); `heterosis(pop, breeds, qtn, a, d)` —
+realized heterosis (mean minus the composition-weighted breed means) and the expected
+pairwise F1 heterosis computed from the breeds' own genotypes, which equals
+`Σ d (p_A − p_B)²` under within-breed HWE and `Σ d (p_A + p_B − 2 p_A p_B)` for
+inbred-line breeds (package derivation; the SPEC's HWE-only form generalized);
+`crossbreed(breeds, system = c("two_way", "backcross", "three_way", "terminal",
+"rotational"), n_progeny, generations, sire_breed, seed)` as a scheme wrapper over
+`mate()`. Each name in `breeds` must be the founder pool (`as_population(pool =)`) its
+population traces to, checked, so compositions and breed means cannot be attributed
+to the wrong breed. `expected_f1` covers distinct pairs (`NA` diagonal). The empty string and
+`"<unassigned>"` (the composition column for unlabelled founders) are reserved pool
+labels in `as_population()`, so an unlabelled founder cannot be read as a breed. The HWE case is Falconer & Mackay's `H_F1 = Σ d y²`; the general
+form `d [h_AB − (h_A + h_B)/2]` is derived in the help. Validated: compositions ½:½, ¾:¼, ¼:¼:½, rotation → 2/3 : 1/3; F2 keeps ½ and
+a two-breed rotation ≈ 2/3 of the F1 heterosis; additive architectures give 0.
+
+**Date:** 2026-09-28
+
+---
+
 ## Decision Log Summary
 
 | ID | Decision | Status |
@@ -1055,3 +1266,11 @@ not a published method (Rule #7).
 | 020 | orthogonal genotypic model as `additive(orthogonal = TRUE, a =, d =)` (orthogonal in expectation under random mating → per-locus HWE, e.g. F2; LD is fine, but nonrandom multilocus association breaks it; A is the transmitting average effect, Falconer 1985): per-locus a/d, whole value scaled to `prop`; budget reports realized Var(A)/Var(g), Var(D)/Var(g) + an `add_dom_cov` row 2Cov(A,D)/Var(g) (=0 in expectation under random mating; nonzero for structured / finite samples) closing to `prop`; degree of dominance d/abs(a) meaningful; d!=0 requires a het per locus (checked per-locus); `qtn_table()` gains a `d` column; new args appended to the signature (positional compat kept); incompatible with vary_qtn / dominance() / pleiotropy(multi) / ld | locked (2026-09-13) |
 | 021 | `phenotype_value(x, qtn, effect, h2/var_e, ref, seed)` = fixed additive value (`additive_value()`) + independent residual on a **frozen** variance (no per-population rescale), so the parametric h²=Var(g)/(Var(g)+var_e) declines as variance is exhausted (faithful cross-gen `on="pheno"`); exactly one of h2/var_e (h2 → var_e=Var(g_ref)(1−h2)/h2); RNG in R; version bump 1.4.0-9002 so downstream can pin | locked (2026-09-14) |
 | 023 | `cor` control extends to dominance + epistasis under "pleiotropy": per-component PleioArch covariance (shared units MVN-correlated, trait-specific independent, split by `pi`), each unit scaled by its realized design-column sd, constant units left out of the allocation; every component targets `cor` (realized correlation converges as units and individuals grow under approximate linkage equilibrium; attenuated on average with few units; strong LD can prevent convergence), and the total targets `cor` when layers' per-trait `prop` profiles are proportional (scalar `prop`), else attenuated with a warning giving its large-sample target; fixed `qtn=` rejected under pleiotropy/ld and `effect=`/`dist` under pleiotropy; under "ld" dominance must reuse the additive linked loci (`same_as_add = TRUE`), epistasis and a second additive layer are rejected (SPEC §5.3 restriction); a derived `transcriptome()` layer's genome-mediated signal is outside `cor` (warned under pleiotropy); additive draw unchanged (bit-identical) | locked (2026-09-25) |
+| 024 | A `Population` records its pedigree (`keys` + `pedigree` frame; founders from `as_population(pool =)`, progeny from every mating, ancestors kept by `[`, pooled by key in `c()`); links are deterministic keys, not display ids, so colliding ids stay safe; bookkeeping draws nothing (genotypes / RNG bit-identical); accessors `parentage()`, `families()` | locked (2026-09-27) |
+| 025 | `mating_design()` writes random / factorial / nested / diallel / half-diallel plans; `mate()` runs `{mother, father, n}` plans across named pools (one seed, plan order; self / DH rows; ids `<prefix>_<k>`); a one-row plan equals the equivalent `cross()` / `selfcross()` / `double_haploid()`; `recurrent_selection()` keeps `.intermate()` (RNG order) | locked (2026-09-27) |
+| 026 | `combining_ability()` (topcross / factorial / diallel; `"expected"` = exact conditional cross means on a frozen `(qtn, a, d)`, `"simulated"` via `mate()`), GCA/SCA centred to sum zero, Griffing method-4 diallel GCA; `template_effects()` exports a simulation's realized `a`, `d`; `phenotype_value(d =)` scores `A + D` with a broad-sense `h2` | locked (2026-09-28) |
+| 027 | `progeny_test()`: half-sib progeny of each parent on random mates, scored on the frozen architecture; accuracy √(n h² / (4 + (n − 1) h²)) | locked (2026-09-28) |
+| 028 | `select_ind(method = "culling")` (simultaneous or sequential per-trait proportions; emergent count; external prediction matrix via `on`); tandem = `trait` vector on `pedigree()` / `recurrent_selection()` (scalar unchanged) | locked (2026-09-28) |
+| 029 | `marker_select()`: foreground carrier / homozygote filter, staged pyramiding (`min_markers`), ranking on any score, seeded tie-break; `additive_value()` documented as the MARS index | locked (2026-09-28) |
+| 030 | `predict_ebv()` known-variance BLUP (GBLUP / pedigree, GLS form = MME), `a_matrix()` tabular method, `prediction_accuracy()`, `selection_methods()` manifest; multi-trait / single-step deferred (D14, TODO) | locked (2026-09-28) |
+| 031 | `breed_composition()`, `heterosis()` (realized; exact expected F1 from the breeds' genotypes), `crossbreed()` two-way / backcross / three-way / terminal / rotational over `mate()` | locked (2026-09-28) |

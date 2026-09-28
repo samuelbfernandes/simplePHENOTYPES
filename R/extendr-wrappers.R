@@ -89,5 +89,12 @@ mate_haplotypes_core <- function(loci_per_chr, positions, p1_cis, p1_trans, p2_c
 #' @noRd
 gamete_masks_core <- function(loci_per_chr, positions, chiasmata, counts, flips) .Call(wrap__gamete_masks_core, loci_per_chr, positions, chiasmata, counts, flips)
 
+#' Hex FNV-1a-128 of each input string (pedigree keys, DECISION-024).
+#' @param x Character vector.
+#' @return Character vector of 32-digit lower-case hex hashes.
+#' @noRd
+stable_hash_core <- function(x) .Call(wrap__stable_hash_core, x)
+
+
 
 # nolint end

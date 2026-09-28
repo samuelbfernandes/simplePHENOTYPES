@@ -104,7 +104,12 @@
   if (!is.null(seed)) {
     set.seed(seed)
   }
+  # The RNG state the meioses are drawn from identifies this mating in the
+  # pedigree keys (two matings whose draws happen to coincide, e.g. on a 0 cM
+  # map, still get distinct keys); reading it draws nothing.
+  rng_state <- .Random.seed_safe()
   draws <- .draw_meiosis(by_chr, n * events_per)
+  rng_after <- .Random.seed_safe()
 
   bits <- function(v) paste(as.integer(v), collapse = "")
   # Ask for haplotypes, not genotypes. A -1/0/1 genotype cannot express the
@@ -138,7 +143,12 @@
   trans <- unpack(strands[seq(2, length(strands), by = 2)])
   dimnames(cis) <- dimnames(trans) <- list(map$snp, ids)
 
-  .new_population(map, cis, trans, ids, origin)
+  # Pedigree bookkeeping only; it draws nothing, so the RNG stream is unchanged.
+  mp <- .mating_pedigree(p1, p2, design,
+                         list(rng_state = rng_state, rng_after = rng_after,
+                              draws = draws), ids)
+  .new_population(map, cis, trans, ids, origin, keys = mp$keys,
+                  pedigree = mp$pedigree)
 }
 
 #' Cross two individuals
@@ -156,7 +166,9 @@
 #'
 #' @param mother,father single-individual `Population`s (use `[` to select one).
 #'   Their roles are symmetric apart from which homologue a progeny inherits
-#'   first; there is no sex-specific recombination.
+#'   first; there is no sex-specific recombination. Crossing an individual with
+#'   itself is a self: it draws what [selfcross()] draws and the pedigree records
+#'   it as one (`design = "self"`, see [parentage()]).
 #' @param n number of progeny.
 #' @param seed optional RNG seed. All randomness is drawn in R, so `set.seed()`
 #'   before the call works equally well.

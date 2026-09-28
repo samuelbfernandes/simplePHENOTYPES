@@ -87,7 +87,21 @@
 #' the nonlinear genomic selection index of Ceron-Rojas et al. (2026),
 #' \eqn{\hat I = w'y + y'Wy} (`weights` = linear `w`, `quad_weights` = the
 #' symmetric quadratic/cross-product matrix `W`), which captures trait interactions
-#' and intermediate optima. `"random"` draws at random (a drift control). Family
+#' and intermediate optima. `"random"` draws at random (a drift control).
+#' `"culling"` is independent culling levels: `culling` gives one proportion per
+#' trait (traits in `trait`, default the first `length(culling)`), and an individual
+#' is kept iff it is in the top `culling[t]` fraction of every trait (simultaneous;
+#' `sequential = TRUE` culls trait 1, then trait 2 among the survivors, and so on).
+#' The number kept then follows from the proportions, so `n` / `prop` /
+#' `intensity` must be left `NULL`; `direction` may be one value per trait, and `on`
+#' may be an individuals x traits matrix of external per-trait predictions. Under
+#' Hazel & Lush's (1942) idealized conditions -- `T` uncorrelated traits of equal
+#' variance and heritability, equal weights -- this package's derivation gives the
+#' per-generation aggregate responses \eqn{i(p)\sqrt{T} h\sigma_A} (index),
+#' \eqn{T\,i(p^{1/T}) h\sigma_A} (simultaneous culling at \eqn{p^{1/T}} per trait) and
+#' \eqn{i(p) h\sigma_A} (tandem: one trait per generation, via the scheme
+#' wrappers' `trait` vector), so index \eqn{\ge} culling \eqn{\ge} tandem; at
+#' `T = 2`, `p = 0.1` culling and tandem reach 0.907 and 0.707 of the index. Family
 #' methods need a `family` grouping; `"combined"` additionally needs `h2`.
 #'
 #' @param sim a realized `phenotype_sim`, ideally built on a `Population` so the
@@ -117,6 +131,10 @@
 #'   haploids and 2/3 for S1 sibs. Inbred or related parents change these -- see
 #'   Details.
 #' @param rep replication to select on when several were simulated (default 1).
+#' @param culling per-trait kept proportions in (0, 1] for `method = "culling"`.
+#' @param sequential for `method = "culling"`: `FALSE` (default) culls every trait
+#'   on the whole population at once; `TRUE` culls the traits in order, each among
+#'   the survivors of the previous ones.
 #' @return the selected individuals as a `Population` (when `sim` is
 #'   Population-backed) or their ids, carrying attributes `selected` (ids),
 #'   `differential` (selection differential S on the criterion), `intensity`
@@ -135,6 +153,10 @@
 #'   \doi{10.1111/j.1469-1809.1936.tb02143.x}; Hazel LN (1943) The genetic basis
 #'   for constructing selection indexes. \emph{Genetics} 28(6):476--490.
 #'   \doi{10.1093/genetics/28.6.476}
+#' Index vs independent culling vs tandem selection (`"culling"`, tandem in
+#'   [pedigree()] / [recurrent_selection()]): Hazel LN, Lush JL (1942) The
+#'   efficiency of three methods of selection. \emph{Journal of Heredity}
+#'   33:393--399. \doi{10.1093/oxfordjournals.jhered.a105102}
 #' Quadratic (nonlinear) genomic selection index: Ceron-Rojas JJ,
 #'   Montesinos-Lopez OA, Montesinos-Lopez A, et al. (2026) Nonlinear genomic
 #'   selection index accelerates multi-trait crop improvement. \emph{Nature
@@ -166,9 +188,10 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
                        direction = c("high", "low"),
                        method = c("mass", "within_family", "among_family",
                                   "combined", "index", "quadratic_index",
-                                  "random"),
+                                  "random", "culling"),
                        family = NULL, weights = NULL, quad_weights = NULL,
-                       h2 = NULL, family_relationship = 0.25, rep = 1L) {
+                       h2 = NULL, family_relationship = 0.25, rep = 1L,
+                       culling = NULL, sequential = FALSE) {
   .check_sim(sim)
   # Selecting on a phenotype whose requested h2 was never fully allocated would
   # silently select at the wrong heritability; enforce the same completeness
@@ -182,8 +205,17 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
   # Reject an out-of-range replication up front; otherwise a nonexistent rep
   # yields an all-NA criterion and silently "selects" arbitrary individuals.
   rep <- .validate_rep(sim, rep)
-  direction <- match.arg(direction)
   method <- match.arg(method)
+  if (method == "culling") {
+    return(.select_culling(sim, n, prop, intensity, on, trait,
+                           if (missing(direction)) "high" else direction,
+                           culling, sequential, rep))
+  }
+  if (!is.null(culling) || !identical(sequential, FALSE)) {
+    stop("`culling` and `sequential` apply to method = \"culling\" only.",
+         call. = FALSE)
+  }
+  direction <- match.arg(direction)
   ids <- sim$ids
   n_ind <- sim$n_ind
 
@@ -609,4 +641,107 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
           "the population with cross()/selfcross()/double_haploid() to advance ",
           "generations.")
   ids[sel_idx]
+}
+
+#' Independent culling levels (method = "culling")
+#' @keywords internal
+#' @noRd
+.select_culling <- function(sim, n, prop, intensity, on, trait, direction,
+                            culling, sequential, rep) {
+  if (!is.null(n) || !is.null(prop) || !is.null(intensity)) {
+    stop("method = \"culling\": the number kept follows from `culling`; leave ",
+         "`n`, `prop` and `intensity` NULL.", call. = FALSE)
+  }
+  if (is.null(culling) || !is.numeric(culling) || !length(culling) ||
+      any(!is.finite(culling)) || any(culling <= 0 | culling > 1)) {
+    stop("method = \"culling\" needs `culling`: one kept proportion in (0, 1] per ",
+         "trait.", call. = FALSE)
+  }
+  .validate_flag(sequential, "sequential")
+  nt <- length(culling)
+  traits <- if (length(trait) == nt) {
+    trait
+  } else if (length(trait) == 1L && identical(as.numeric(trait), 1)) {
+    seq_len(nt)
+  } else {
+    stop("`trait` must list one trait per `culling` proportion (", nt, ").",
+         call. = FALSE)
+  }
+  if (!is.numeric(traits) || any(!is.finite(traits)) ||
+      any(traits != floor(traits)) || any(traits < 1) ||
+      any(traits > sim$n_traits) || anyDuplicated(traits)) {
+    stop("`trait` must be distinct trait indices in 1..", sim$n_traits, ".",
+         call. = FALSE)
+  }
+  if (!is.character(direction) || !length(direction) ||
+      !all(direction %in% c("high", "low")) ||
+      !(length(direction) %in% c(1L, nt))) {
+    stop("`direction` must be \"high\" or \"low\", one value or one per trait.",
+         call. = FALSE)
+  }
+  direction <- rep_len(direction, nt)
+  ids <- sim$ids
+  n_ind <- sim$n_ind
+  crit <- if (is.matrix(on)) {
+    if (!is.numeric(on) || nrow(on) != n_ind || ncol(on) != nt) {
+      stop("A matrix `on` for culling must be numeric, individuals x traits (",
+           n_ind, " x ", nt, ").", call. = FALSE)
+    }
+    if (!is.null(rownames(on))) {
+      if (!all(ids %in% rownames(on))) {
+        stop("The row names of the `on` matrix must include every individual.",
+             call. = FALSE)
+      }
+      on <- on[ids, , drop = FALSE]
+    }
+    if (any(!is.finite(on))) {
+      stop("The `on` matrix has non-finite values.", call. = FALSE)
+    }
+    lapply(seq_len(nt), function(k) as.numeric(on[, k]))
+  } else {
+    if (nt > 1L && (is.numeric(on) || is.function(on))) {
+      stop("With several culling traits, pass external predictions as an ",
+           "individuals x traits matrix `on`.", call. = FALSE)
+    }
+    lapply(seq_len(nt), function(k) .criterion_values(sim, on, traits[k], rep))
+  }
+  score <- lapply(seq_len(nt), function(k) {
+    if (direction[k] == "low") -crit[[k]] else crit[[k]]
+  })
+  kept_at <- integer(nt)
+  if (sequential) {
+    alive <- seq_len(n_ind)
+    for (k in seq_len(nt)) {
+      keep <- max(1L, round(culling[k] * length(alive)))
+      alive <- alive[order(score[[k]][alive], decreasing = TRUE)[seq_len(keep)]]
+      kept_at[k] <- length(alive)
+    }
+    sel_idx <- sort(alive)
+  } else {
+    tops <- lapply(seq_len(nt), function(k) {
+      .sel_top(score[[k]], max(1L, round(culling[k] * n_ind)))
+    })
+    sel_idx <- sort(Reduce(intersect, tops))
+    kept_at <- vapply(tops, length, integer(1))
+  }
+  if (!length(sel_idx)) {
+    stop("method = \"culling\": no individual passes every culling level; ",
+         "raise the `culling` proportions.", call. = FALSE)
+  }
+  diff <- vapply(seq_len(nt), function(k) {
+    mean(crit[[k]][sel_idx]) - mean(crit[[k]])
+  }, numeric(1))
+  sds <- vapply(crit, stats::sd, numeric(1))
+  intens <- ifelse(is.finite(sds) & sds > 0, abs(diff) / sds, 0)
+  names(diff) <- names(intens) <- paste0("Trait_", traits)
+  out <- .selection_result(sim, sel_idx, ids)
+  attr(out, "selected") <- ids[sel_idx]
+  attr(out, "differential") <- diff
+  attr(out, "intensity") <- intens
+  attr(out, "criterion") <- if (is.matrix(on) || is.numeric(on) ||
+                                is.function(on)) "custom" else on
+  attr(out, "method") <- "culling"
+  attr(out, "culling") <- list(proportion = culling, traits = traits,
+                               sequential = sequential, kept = kept_at)
+  out
 }

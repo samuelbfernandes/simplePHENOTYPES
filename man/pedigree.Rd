@@ -35,7 +35,9 @@ size). Each selected line is selfed into an equal-sized family and the
 families are pooled to this size, so the population does not drift down as
 it inbreeds.}
 
-\item{on, trait, direction}{passed to \code{\link[=select_ind]{select_ind()}}.}
+\item{on, trait, direction}{passed to \code{\link[=select_ind]{select_ind()}}. \code{trait} may be a vector
+of traits, one per generation (recycled): \strong{tandem selection}, improving one
+trait at a time; the history then records the trait selected on.}
 
 \item{seed}{optional RNG seed for the whole scheme.}
 }

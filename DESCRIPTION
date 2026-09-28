@@ -1,7 +1,7 @@
 Package: simplePHENOTYPES
 Date: 2021-01-19
 Type: Package
-Version: 2.0.0.9000
+Version: 2.0.0.9001
 Title: Simulation of Pleiotropic, Linked and Epistatic Phenotypes
 Description: The number of studies involving correlated traits and the availability of tools to handle this type of data has increased considerably in the last decade. With such a demand, we need tools for testing hypotheses related to single and multi-trait (correlated) phenotypes based on many genetic settings. Thus, we implemented various options for simulation of pleiotropy and Linkage Disequilibrium under additive, dominance and epistatic models. The simulation currently takes a marker data set as an input and then uses it for simulating multiple traits as described in Fernandes and Lipka (2020) <doi:10.1186/s12859-020-03804-y>.
 Authors@R: c(
@@ -36,6 +36,6 @@ VignetteBuilder: knitr
 URL: https://github.com/samuelbfernandes/simplePHENOTYPES
 BugReports: https://github.com/samuelbfernandes/simplePHENOTYPES/issues
 NeedsCompilation: yes
-Config/rextendr/version: 0.4.2
+Config/rextendr/version: 0.5.0
 SystemRequirements: Cargo (Rust's package manager), rustc >= 1.65.0, xz
 Config/roxygen2/version: 8.1.0

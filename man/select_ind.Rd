@@ -13,13 +13,15 @@ select_ind(
   trait = 1L,
   direction = c("high", "low"),
   method = c("mass", "within_family", "among_family", "combined", "index",
-    "quadratic_index", "random"),
+    "quadratic_index", "random", "culling"),
   family = NULL,
   weights = NULL,
   quad_weights = NULL,
   h2 = NULL,
   family_relationship = 0.25,
-  rep = 1L
+  rep = 1L,
+  culling = NULL,
+  sequential = FALSE
 )
 }
 \arguments{
@@ -62,6 +64,12 @@ haploids and 2/3 for S1 sibs. Inbred or related parents change these -- see
 Details.}
 
 \item{rep}{replication to select on when several were simulated (default 1).}
+
+\item{culling}{per-trait kept proportions in (0, 1] for \code{method = "culling"}.}
+
+\item{sequential}{for \code{method = "culling"}: \code{FALSE} (default) culls every trait
+on the whole population at once; \code{TRUE} culls the traits in order, each among
+the survivors of the previous ones.}
 }
 \value{
 the selected individuals as a \code{Population} (when \code{sim} is
@@ -155,7 +163,21 @@ per trait): \eqn{b = P^{-1} G a}, selecting on \eqn{b'y}. \code{"quadratic_index
 the nonlinear genomic selection index of Ceron-Rojas et al. (2026),
 \eqn{\hat I = w'y + y'Wy} (\code{weights} = linear \code{w}, \code{quad_weights} = the
 symmetric quadratic/cross-product matrix \code{W}), which captures trait interactions
-and intermediate optima. \code{"random"} draws at random (a drift control). Family
+and intermediate optima. \code{"random"} draws at random (a drift control).
+\code{"culling"} is independent culling levels: \code{culling} gives one proportion per
+trait (traits in \code{trait}, default the first \code{length(culling)}), and an individual
+is kept iff it is in the top \code{culling[t]} fraction of every trait (simultaneous;
+\code{sequential = TRUE} culls trait 1, then trait 2 among the survivors, and so on).
+The number kept then follows from the proportions, so \code{n} / \code{prop} /
+\code{intensity} must be left \code{NULL}; \code{direction} may be one value per trait, and \code{on}
+may be an individuals x traits matrix of external per-trait predictions. Under
+Hazel & Lush's (1942) idealized conditions -- \code{T} uncorrelated traits of equal
+variance and heritability, equal weights -- this package's derivation gives the
+per-generation aggregate responses \eqn{i(p)\sqrt{T} h\sigma_A} (index),
+\eqn{T\,i(p^{1/T}) h\sigma_A} (simultaneous culling at \eqn{p^{1/T}} per trait) and
+\eqn{i(p) h\sigma_A} (tandem: one trait per generation, via the scheme
+wrappers' \code{trait} vector), so index \eqn{\ge} culling \eqn{\ge} tandem; at
+\code{T = 2}, \code{p = 0.1} culling and tandem reach 0.907 and 0.707 of the index. Family
 methods need a \code{family} grouping; \code{"combined"} additionally needs \code{h2}.
 }
 
@@ -183,6 +205,10 @@ function for plant selection. \emph{Annals of Eugenics} 7(3):240--250.
 \doi{10.1111/j.1469-1809.1936.tb02143.x}; Hazel LN (1943) The genetic basis
 for constructing selection indexes. \emph{Genetics} 28(6):476--490.
 \doi{10.1093/genetics/28.6.476}
+Index vs independent culling vs tandem selection (\code{"culling"}, tandem in
+\code{\link[=pedigree]{pedigree()}} / \code{\link[=recurrent_selection]{recurrent_selection()}}): Hazel LN, Lush JL (1942) The
+efficiency of three methods of selection. \emph{Journal of Heredity}
+33:393--399. \doi{10.1093/oxfordjournals.jhered.a105102}
 Quadratic (nonlinear) genomic selection index: Ceron-Rojas JJ,
 Montesinos-Lopez OA, Montesinos-Lopez A, et al. (2026) Nonlinear genomic
 selection index accelerates multi-trait crop improvement. \emph{Nature

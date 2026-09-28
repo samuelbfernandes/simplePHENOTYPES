@@ -24,14 +24,33 @@
 #'   with the remaining columns individuals coded -1/0/1.
 #' @param individuals optional character or numeric vector selecting which
 #'   individuals to keep, in the order given. Defaults to all of them.
-#' @return A `Population`.
+#' @param pool optional label for the founder pool these individuals come from
+#'   (e.g. a breed or heterotic group), recorded in the pedigree so progeny can
+#'   be traced to it (see [parentage()]). Default `NA`. A founder is identified
+#'   by its pool label, id and haplotypes, so the same genotypes imported twice
+#'   under the same label (or none) are the same individuals; give each breed or
+#'   pool its own label when individuals in different pools may share an id and
+#'   genotype. The empty string and `"<unassigned>"` (the column
+#'   [breed_composition()] uses for founders without a label) are reserved.
+#' @return A `Population`. Its individuals are recorded as pedigree founders.
 #' @seealso [cross()], [selfcross()], [double_haploid()], [synthetic_map()]
 #' @export
 #' @examples
 #' data("SNP55K_maize282_maf04")
 #' pop <- as_population(SNP55K_maize282_maf04, individuals = c("33-16", "38-11"))
 #' pop
-as_population <- function(geno, individuals = NULL) {
+as_population <- function(geno, individuals = NULL, pool = NA_character_) {
+  if (length(pool) != 1L || !is.atomic(pool) ||
+      !(is.na(pool) || is.character(pool))) {
+    stop("`pool` must be a single character label (or NA).", call. = FALSE)
+  }
+  # every missing label (NA of any type, NaN) is the same "no pool"
+  if (is.na(pool)) pool <- NA_character_
+  if (!is.na(pool) && (!nzchar(pool) || pool == "<unassigned>")) {
+    stop("`pool` must be a non-empty label other than \"<unassigned>\" ",
+         "(reserved for founders without a label); use NA for none.",
+         call. = FALSE)
+  }
   meta <- c("snp", "allele", "chr", "pos", "cm")
   if (!is.data.frame(geno) || ncol(geno) < 6 ||
       any(colnames(geno)[1:5] != meta)) {
@@ -57,6 +76,12 @@ as_population <- function(geno, individuals = NULL) {
   dose <- as.matrix(geno_values)   # markers x individuals
   storage.mode(dose) <- "double"
   colnames(dose) <- colnames(geno)[-(1:5)]
+  # Individual ids identify individuals in mating plans and the pedigree.
+  if (anyNA(colnames(dose)) || any(!nzchar(colnames(dose))) ||
+      anyDuplicated(colnames(dose))) {
+    stop("`geno` individual (column) names must be present and unique.",
+         call. = FALSE)
+  }
 
   if (!is.null(individuals)) {
     if (!length(individuals) || anyNA(individuals) ||
@@ -94,17 +119,26 @@ as_population <- function(geno, individuals = NULL) {
   trans <- matrix(as.integer(dose > 0), nrow = nrow(dose))
   dimnames(cis) <- dimnames(trans) <- dimnames(dose)
 
-  .new_population(map, cis, trans, colnames(dose), "founder")
+  fp <- .founder_pedigree(colnames(dose), cis, trans, pool)
+  .new_population(map, cis, trans, colnames(dose), "founder",
+                  keys = fp$keys, pedigree = fp$pedigree)
 }
 
 #' Construct a Population
+#'
+#' `keys` (one per individual) and `pedigree` are the pedigree bookkeeping of
+#' R/pedigree.R; both NULL gives a Population without a recorded pedigree, which
+#' every pedigree accessor treats as a set of founders.
 #' @keywords internal
 #' @noRd
-.new_population <- function(map, cis, trans, ids, origin) {
-  structure(
-    list(map = map, cis = cis, trans = trans, ids = ids, origin = origin),
-    class = "Population"
-  )
+.new_population <- function(map, cis, trans, ids, origin, keys = NULL,
+                            pedigree = NULL) {
+  out <- list(map = map, cis = cis, trans = trans, ids = ids, origin = origin)
+  if (!is.null(keys)) {
+    out$keys <- keys
+    out$pedigree <- pedigree
+  }
+  structure(out, class = "Population")
 }
 
 #' Validate a genetic map for meiosis
@@ -171,9 +205,18 @@ n_individuals <- function(x) {
 #' pop <- as_population(SNP55K_maize282_maf04)
 #' pop[1:2]
 `[.Population` <- function(x, i) {
-  cis <- x$cis[, i, drop = FALSE]
-  trans <- x$trans[, i, drop = FALSE]
-  .new_population(x$map, cis, trans, colnames(cis), x$origin)
+  pos <- stats::setNames(seq_len(ncol(x$cis)), colnames(x$cis))[i]
+  if (anyNA(pos)) {
+    stop("Population subscript out of bounds.", call. = FALSE)
+  }
+  cis <- x$cis[, pos, drop = FALSE]
+  trans <- x$trans[, pos, drop = FALSE]
+  if (is.null(x$keys)) {
+    return(.new_population(x$map, cis, trans, colnames(cis), x$origin))
+  }
+  keys <- x$keys[pos]
+  .new_population(x$map, cis, trans, colnames(cis), x$origin, keys = keys,
+                  pedigree = .pedigree_ancestors(x$pedigree, keys))
 }
 
 #' Dosage matrix of a Population
@@ -393,7 +436,8 @@ genotypic_value <- function(x, qtn, a, d) {
 #'
 #' The phenotypic counterpart of [additive_value()]: each individual's phenotype is
 #' its **fixed** additive genetic value (frozen loci `qtn` and their `effect`s, on
-#' the -1/0/1 dosage scale, with no per-population rescaling) plus an independent
+#' the -1/0/1 dosage scale, with no per-population rescaling; with `d`, its total
+#' genotypic value `A + D`, see [genotypic_value()]) plus an independent
 #' residual `e ~ N(0, var_e)` on a **fixed** residual-variance parameter `var_e`.
 #' Because neither the genetic scale nor `var_e` is re-fit to the scored population,
 #' the **parametric (population) heritability** `Var(g) / (Var(g) + var_e)` *declines*
@@ -421,8 +465,10 @@ genotypic_value <- function(x, qtn, a, d) {
 #' }
 #'
 #' @inheritParams additive_value
-#' @param h2 target narrow-sense heritability in `(0, 1]`, used with `ref` to set a
-#'   fixed residual variance. Give exactly one of `h2` or `var_e`.
+#' @param h2 target heritability in `(0, 1]`, used with `ref` to set a fixed
+#'   residual variance: of the additive value (narrow-sense) by default, or of
+#'   the total genotypic value `A + D` when `d` is given (broad-sense, see `d`).
+#'   Give exactly one of `h2` or `var_e`.
 #' @param var_e fixed residual variance (a single non-negative number), on the same
 #'   scale as `Var(additive_value(x, qtn, effect))`. Give exactly one of `h2` or
 #'   `var_e`.
@@ -432,14 +478,20 @@ genotypic_value <- function(x, qtn, a, d) {
 #' @param seed optional seed for the residual draw -- `NULL` or one non-negative
 #'   whole number (the RNG state is restored afterwards), for reproducible
 #'   phenotypes.
+#' @param d optional dominance deviations of the loci (one value, or one per
+#'   locus): the genetic part is then the fixed total genotypic value `A + D` of
+#'   [genotypic_value()] (with `effect` as its `a`), and `h2` is the heritability
+#'   of that total value in `ref` -- a broad-sense heritability. Default `NULL`:
+#'   additive only.
 #' @return a named numeric vector of phenotypes, one per individual, with
 #'   attributes `var_e` (the fixed residual variance used) and `genetic_value` (the
-#'   fixed additive values).
+#'   fixed additive -- or, with `d`, total genotypic -- values).
 #' @seealso [additive_value()], [genetic_values()], [select_ind()],
 #'   [simulate_phenotype()].
 #' @references
 #'   Falconer DS, Mackay TFC (1996) \emph{Introduction to Quantitative Genetics},
-#'   4th ed. Longman, Harlow (heritability \eqn{h^2 = V_A / (V_A + V_E)}); Lynch M,
+#'   4th ed. Longman, Harlow (heritability \eqn{h^2 = V_A / (V_A + V_E)}; with `d`,
+#'   the broad-sense \eqn{H^2 = V_G / (V_G + V_E)}); Lynch M,
 #'   Walsh B (1998) \emph{Genetics and Analysis of Quantitative Traits}. Sinauer,
 #'   Sunderland, MA.
 #' @export
@@ -456,7 +508,7 @@ genotypic_value <- function(x, qtn, a, d) {
 #' #                 var_e = ve, seed = 2)
 #' head(y0)
 phenotype_value <- function(x, qtn, effect, h2 = NULL, var_e = NULL,
-                            ref = NULL, seed = NULL) {
+                            ref = NULL, seed = NULL, d = NULL) {
   has_h2 <- !is.null(h2)
   has_ve <- !is.null(var_e)
   if (has_h2 == has_ve) {
@@ -465,8 +517,17 @@ phenotype_value <- function(x, qtn, effect, h2 = NULL, var_e = NULL,
          "directly).", call. = FALSE)
   }
   seed <- .validate_seed(seed)
-  # Fixed-scale genetic value (this also validates x, qtn, and effect).
-  g <- additive_value(x, qtn, effect)
+  # Fixed-scale genetic value (this also validates x, qtn, effect and d): the
+  # additive value, or with `d` the total genotypic value A + D.
+  gv_of <- if (is.null(d)) {
+    function(z) additive_value(z, qtn, effect)
+  } else {
+    function(z) {
+      dd <- if (length(d) == 1L) rep(d, length(effect)) else d
+      genotypic_value(z, qtn, effect, dd)
+    }
+  }
+  g <- gv_of(x)
   if (has_ve) {
     if (!is.numeric(var_e) || length(var_e) != 1L || !is.finite(var_e) ||
         var_e < 0) {
@@ -480,7 +541,7 @@ phenotype_value <- function(x, qtn, effect, h2 = NULL, var_e = NULL,
       stop("phenotype_value(): `h2` must be a single number in (0, 1].",
            call. = FALSE)
     }
-    ref_g <- if (is.null(ref)) g else additive_value(ref, qtn, effect)
+    ref_g <- if (is.null(ref)) g else gv_of(ref)
     vg_ref <- stats::var(ref_g)
     if (!is.finite(vg_ref) || vg_ref <= 0) {
       stop("phenotype_value(): the reference genetic values have zero variance, ",
@@ -528,6 +589,12 @@ print.Population <- function(x, ...) {
   cat(sprintf("  Genetic map: %.0f cM total (%.0f-%.0f cM per chromosome)\n",
               sum(len), min(len), max(len)))
   cat(sprintf("  Origin: %s\n", x$origin))
+  if (!is.null(x$pedigree)) {
+    g <- x$pedigree$generation[match(x$keys, x$pedigree$key)]
+    cat(sprintf("  Pedigree: %d recorded individuals; generation %s\n",
+                nrow(x$pedigree),
+                if (min(g) == max(g)) min(g) else paste0(min(g), "-", max(g))))
+  }
   ids <- x$ids
   shown <- if (length(ids) > 6) {
     paste0(paste(utils::head(ids, 6), collapse = ", "), ", ... (",
