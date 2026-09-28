@@ -52,7 +52,13 @@ c.Population <- function(...) {
                      sep = "_")
   colnames(cis) <- ids
   colnames(trans) <- ids
-  .new_population(pops[[1]]$map, cis, trans, ids, "pool")
+  # Pedigrees are pooled by key, so renaming colliding display ids above does not
+  # break any parent link.
+  pops <- lapply(pops, .ensure_pedigree)
+  keys <- unlist(lapply(pops, function(p) p$keys), use.names = FALSE)
+  ped <- do.call(.pedigree_union, lapply(pops, function(p) p$pedigree))
+  .new_population(pops[[1]]$map, cis, trans, ids, "pool", keys = keys,
+                  pedigree = .pedigree_relabel(ped, keys, ids))
 }
 
 #' Single seed descent
@@ -349,5 +355,6 @@ recurrent_selection <- function(x, phenotype, cycles = 3L, n_parents = 10L,
 .relabel <- function(pop, ids) {
   colnames(pop$cis) <- ids
   colnames(pop$trans) <- ids
-  .new_population(pop$map, pop$cis, pop$trans, ids, pop$origin)
+  .new_population(pop$map, pop$cis, pop$trans, ids, pop$origin, keys = pop$keys,
+                  pedigree = .pedigree_relabel(pop$pedigree, pop$keys, ids))
 }

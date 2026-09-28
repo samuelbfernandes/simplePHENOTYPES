@@ -1029,6 +1029,86 @@ not a published method (Rule #7).
 
 ---
 
+## DECISION-024: a Population records its pedigree
+
+**Context:** `docs/SPEC-block3b.md` F1. Parentage survived only as a batch `origin`
+string and as id prefixes that `c()` may rename, so full-sib / half-sib families,
+breed composition and a relationship matrix could not be recovered. Block 3B items
+(combining ability, progeny testing, BLUP, crossbreeding) all need them.
+
+**Decision:** every `Population` carries `keys` (one per individual) and a `pedigree`
+frame (`key`, `id`, `mother`, `father`, `generation`, `pool`, `design`), maintained by
+`as_population()` (founders; new optional `pool =` label), `.mate()` (every
+`cross()` / `selfcross()` / `double_haploid()` progeny), `[` (keeps the ancestors of
+the individuals kept) and `c()` (union by key). **Links are keys, not display ids**
+(maintainer decision on SPEC D2, replacing the SPEC's "c() errors on collisions",
+which would have broken pooling crosses whose progeny all start at `prog_1`): `c()`
+still renames colliding display ids and the links are untouched. Keys are
+deterministic — a founder's is a hash of its pool, id and haplotypes, a progeny's a
+hash of the mating (design, parent keys, the RNG generator's state words before and
+after the draws — not its kind header, which `RNGversion()` changes; the state after
+separates matings when no state existed before — and the drawn meiosis events, doubles
+by their exact bits, so keys do not depend on the numeric locale)
+plus its index — so seeded runs reproduce them, an exact re-run (same parents, same
+seed) reproduces the same individuals under the same keys, and matings whose draws
+merely coincide (e.g. on a 0 cM map) stay distinct. The hash is FNV-1a-128 in the
+Rust core (`stable_hash_core()`, a deterministic kernel) over a canonical text
+encoding, so for the same parents and random stream the keys do not change with R,
+package or dependency versions (the first draft used `rlang::hash()`, whose values
+rlang 1.3.0 changed). Founder ids must be unique; a missing pool is encoded apart from
+any pool string; the bookkeeping draws nothing, so every genotype and the RNG
+stream are unchanged (isqg parity and golden snapshots bit-identical). A `Population`
+without a pedigree (an object from an older version) is treated as founders.
+Accessors: `parentage(x, ancestors = FALSE)` (the SPEC's `pedigree()` name is taken
+by the pedigree-selection scheme; it returns `key` / `mother_key` / `father_key`
+beside the display ids, which need not be unique) and `families(x, by = c("full_sib",
+"maternal_half_sib", "paternal_half_sib", "selfed"))`, a factor for
+`select_ind(family =)`. The canonical encoding is length-prefixed (no value can
+imitate a separator) and in UTF-8 (ids R treats as identical hash identically, whatever
+their declared encoding). `mating_design()`, `mate()` and `cross()` treat the same individual (same
+key) in two positions as a self (`cross(x, x)` draws what `selfcross(x)` draws and is
+recorded and keyed as one), whatever its display ids; `"nested"` assigns mothers
+by bipartite matching, so a feasible no-self assignment is always found.
+
+**Date:** 2026-09-27
+
+---
+
+## DECISION-025: mating plans — `mating_design()` and `mate()`
+
+**Context:** `docs/SPEC-block3b.md` F2 / item 6. The engine (`.intermate()`,
+`.make_family()`) and breedingDesigner (`.rrs_intermate()`, `.rrs_hybrid_pop()`) each
+hand-rolled "loop over pairs, `cross()`, relabel, `c()`"; BD SPEC-0007 outputs a
+`{mother, father, n}` plan with no engine executor.
+
+**Decision:** `mating_design(mothers, fathers, design = c("random", "factorial",
+"nested", "diallel", "half_diallel"), ...)` writes a plan; `mate(plan, ..., seed,
+prefix)` runs it — rows in plan order after one `set.seed()`, `cross()` per row, a
+self when mother and father are the same individual, a doubled haploid for
+`design = "dh"` — across one or several named pools sharing a map (plan columns
+`mother_pool` / `father_pool`), and names progeny `<prefix>_<k>` (default the pool
+names joined by `x`, SPEC D20). A one-row plan draws the same random numbers and
+gives the same progeny genotypes as the equivalent `cross()`, `selfcross()` or
+`double_haploid()` call (the object differs in ids, `origin` and the `plan`
+attribute). Identity is the pedigree key, not the pool names given to
+`mate()` (those only locate each parent): equal ids in founder pools imported with
+different `as_population(pool =)` labels are different individuals, never a self, while
+the same genotypes imported twice under one label (or none) are the same individuals,
+as are those of `pop[1:3]` and `pop[2:4]`; `"nested"` gives each father exactly its mothers, skipping itself within
+one pool. `mating_design(seed =)` seeds only `"random"`: the other designs draw nothing
+and leave the RNG stream untouched. An `NA` in a plan's `design` column takes that
+row's default. Each individual enters a parent set once (a second id of the same
+individual is dropped), so no identity pair is listed twice; with character ids on
+either side individuals are compared by id; `"random"` draws a mother among those with
+an admissible father.
+`recurrent_selection()` keeps its own `.intermate()`: it draws each random pair
+between meioses, and moving it onto a pre-drawn plan would change the RNG stream,
+so the SPEC's "refactor, bit-identical" was not attainable; it is not refactored.
+
+**Date:** 2026-09-27
+
+---
+
 ## Decision Log Summary
 
 | ID | Decision | Status |
@@ -1055,3 +1135,5 @@ not a published method (Rule #7).
 | 020 | orthogonal genotypic model as `additive(orthogonal = TRUE, a =, d =)` (orthogonal in expectation under random mating → per-locus HWE, e.g. F2; LD is fine, but nonrandom multilocus association breaks it; A is the transmitting average effect, Falconer 1985): per-locus a/d, whole value scaled to `prop`; budget reports realized Var(A)/Var(g), Var(D)/Var(g) + an `add_dom_cov` row 2Cov(A,D)/Var(g) (=0 in expectation under random mating; nonzero for structured / finite samples) closing to `prop`; degree of dominance d/abs(a) meaningful; d!=0 requires a het per locus (checked per-locus); `qtn_table()` gains a `d` column; new args appended to the signature (positional compat kept); incompatible with vary_qtn / dominance() / pleiotropy(multi) / ld | locked (2026-09-13) |
 | 021 | `phenotype_value(x, qtn, effect, h2/var_e, ref, seed)` = fixed additive value (`additive_value()`) + independent residual on a **frozen** variance (no per-population rescale), so the parametric h²=Var(g)/(Var(g)+var_e) declines as variance is exhausted (faithful cross-gen `on="pheno"`); exactly one of h2/var_e (h2 → var_e=Var(g_ref)(1−h2)/h2); RNG in R; version bump 1.4.0-9002 so downstream can pin | locked (2026-09-14) |
 | 023 | `cor` control extends to dominance + epistasis under "pleiotropy": per-component PleioArch covariance (shared units MVN-correlated, trait-specific independent, split by `pi`), each unit scaled by its realized design-column sd, constant units left out of the allocation; every component targets `cor` (realized correlation converges as units and individuals grow under approximate linkage equilibrium; attenuated on average with few units; strong LD can prevent convergence), and the total targets `cor` when layers' per-trait `prop` profiles are proportional (scalar `prop`), else attenuated with a warning giving its large-sample target; fixed `qtn=` rejected under pleiotropy/ld and `effect=`/`dist` under pleiotropy; under "ld" dominance must reuse the additive linked loci (`same_as_add = TRUE`), epistasis and a second additive layer are rejected (SPEC §5.3 restriction); a derived `transcriptome()` layer's genome-mediated signal is outside `cor` (warned under pleiotropy); additive draw unchanged (bit-identical) | locked (2026-09-25) |
+| 024 | A `Population` records its pedigree (`keys` + `pedigree` frame; founders from `as_population(pool =)`, progeny from every mating, ancestors kept by `[`, pooled by key in `c()`); links are deterministic keys, not display ids, so colliding ids stay safe; bookkeeping draws nothing (genotypes / RNG bit-identical); accessors `parentage()`, `families()` | locked (2026-09-27) |
+| 025 | `mating_design()` writes random / factorial / nested / diallel / half-diallel plans; `mate()` runs `{mother, father, n}` plans across named pools (one seed, plan order; self / DH rows; ids `<prefix>_<k>`); a one-row plan equals the equivalent `cross()` / `selfcross()` / `double_haploid()`; `recurrent_selection()` keeps `.intermate()` (RNG order) | locked (2026-09-27) |

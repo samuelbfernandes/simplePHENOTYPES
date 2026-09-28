@@ -1,6 +1,10 @@
 # simplePHENOTYPES (development version)
 
 ## New features
+* Every `Population` now records its pedigree (`parentage()`, `families()`), kept
+  through subsetting and pooling; `as_population()` gains `pool =`.
+* `mating_design()` (random, factorial, nested, diallel, half-diallel) and `mate()`
+  run mating plans across one or several populations.
 * `mabc_select()` and `recurrent_parent_recovery()`: marker-assisted
   backcross selection (foreground filter, flanking-marker recombinant
   selection, background recovery of the recurrent-parent genome; Frisch &

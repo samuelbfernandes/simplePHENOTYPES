@@ -24,14 +24,24 @@
 #'   with the remaining columns individuals coded -1/0/1.
 #' @param individuals optional character or numeric vector selecting which
 #'   individuals to keep, in the order given. Defaults to all of them.
-#' @return A `Population`.
+#' @param pool optional label for the founder pool these individuals come from
+#'   (e.g. a breed or heterotic group), recorded in the pedigree so progeny can
+#'   be traced to it (see [parentage()]). Default `NA`. A founder is identified
+#'   by its pool label, id and haplotypes, so the same genotypes imported twice
+#'   under the same label (or none) are the same individuals; give each breed or
+#'   pool its own label when individuals in different pools may share an id and
+#'   genotype.
+#' @return A `Population`. Its individuals are recorded as pedigree founders.
 #' @seealso [cross()], [selfcross()], [double_haploid()], [synthetic_map()]
 #' @export
 #' @examples
 #' data("SNP55K_maize282_maf04")
 #' pop <- as_population(SNP55K_maize282_maf04, individuals = c("33-16", "38-11"))
 #' pop
-as_population <- function(geno, individuals = NULL) {
+as_population <- function(geno, individuals = NULL, pool = NA_character_) {
+  if (length(pool) != 1L || !(is.na(pool) || is.character(pool))) {
+    stop("`pool` must be a single character label (or NA).", call. = FALSE)
+  }
   meta <- c("snp", "allele", "chr", "pos", "cm")
   if (!is.data.frame(geno) || ncol(geno) < 6 ||
       any(colnames(geno)[1:5] != meta)) {
@@ -57,6 +67,12 @@ as_population <- function(geno, individuals = NULL) {
   dose <- as.matrix(geno_values)   # markers x individuals
   storage.mode(dose) <- "double"
   colnames(dose) <- colnames(geno)[-(1:5)]
+  # Individual ids identify individuals in mating plans and the pedigree.
+  if (anyNA(colnames(dose)) || any(!nzchar(colnames(dose))) ||
+      anyDuplicated(colnames(dose))) {
+    stop("`geno` individual (column) names must be present and unique.",
+         call. = FALSE)
+  }
 
   if (!is.null(individuals)) {
     if (!length(individuals) || anyNA(individuals) ||
@@ -94,17 +110,26 @@ as_population <- function(geno, individuals = NULL) {
   trans <- matrix(as.integer(dose > 0), nrow = nrow(dose))
   dimnames(cis) <- dimnames(trans) <- dimnames(dose)
 
-  .new_population(map, cis, trans, colnames(dose), "founder")
+  fp <- .founder_pedigree(colnames(dose), cis, trans, pool)
+  .new_population(map, cis, trans, colnames(dose), "founder",
+                  keys = fp$keys, pedigree = fp$pedigree)
 }
 
 #' Construct a Population
+#'
+#' `keys` (one per individual) and `pedigree` are the pedigree bookkeeping of
+#' R/pedigree.R; both NULL gives a Population without a recorded pedigree, which
+#' every pedigree accessor treats as a set of founders.
 #' @keywords internal
 #' @noRd
-.new_population <- function(map, cis, trans, ids, origin) {
-  structure(
-    list(map = map, cis = cis, trans = trans, ids = ids, origin = origin),
-    class = "Population"
-  )
+.new_population <- function(map, cis, trans, ids, origin, keys = NULL,
+                            pedigree = NULL) {
+  out <- list(map = map, cis = cis, trans = trans, ids = ids, origin = origin)
+  if (!is.null(keys)) {
+    out$keys <- keys
+    out$pedigree <- pedigree
+  }
+  structure(out, class = "Population")
 }
 
 #' Validate a genetic map for meiosis
@@ -171,9 +196,18 @@ n_individuals <- function(x) {
 #' pop <- as_population(SNP55K_maize282_maf04)
 #' pop[1:2]
 `[.Population` <- function(x, i) {
-  cis <- x$cis[, i, drop = FALSE]
-  trans <- x$trans[, i, drop = FALSE]
-  .new_population(x$map, cis, trans, colnames(cis), x$origin)
+  pos <- stats::setNames(seq_len(ncol(x$cis)), colnames(x$cis))[i]
+  if (anyNA(pos)) {
+    stop("Population subscript out of bounds.", call. = FALSE)
+  }
+  cis <- x$cis[, pos, drop = FALSE]
+  trans <- x$trans[, pos, drop = FALSE]
+  if (is.null(x$keys)) {
+    return(.new_population(x$map, cis, trans, colnames(cis), x$origin))
+  }
+  keys <- x$keys[pos]
+  .new_population(x$map, cis, trans, colnames(cis), x$origin, keys = keys,
+                  pedigree = .pedigree_ancestors(x$pedigree, keys))
 }
 
 #' Dosage matrix of a Population
@@ -528,6 +562,12 @@ print.Population <- function(x, ...) {
   cat(sprintf("  Genetic map: %.0f cM total (%.0f-%.0f cM per chromosome)\n",
               sum(len), min(len), max(len)))
   cat(sprintf("  Origin: %s\n", x$origin))
+  if (!is.null(x$pedigree)) {
+    g <- x$pedigree$generation[match(x$keys, x$pedigree$key)]
+    cat(sprintf("  Pedigree: %d recorded individuals; generation %s\n",
+                nrow(x$pedigree),
+                if (min(g) == max(g)) min(g) else paste0(min(g), "-", max(g))))
+  }
   ids <- x$ids
   shown <- if (length(ids) > 6) {
     paste0(paste(utils::head(ids, 6), collapse = ", "), ", ... (",

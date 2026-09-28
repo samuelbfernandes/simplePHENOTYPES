@@ -313,6 +313,9 @@ Source: BD `docs/BREEDING_METHODS_CATALOG.md` ("Engine:" notes).
 - [ ] Marker-based selection for MAS / gene pyramiding, and a marker index for MARS.
 - [ ] BLUP / EBV prediction verb (pedigree + own + relatives); GS accuracy is currently
   approximated.
+- [ ] Multi-trait BLUP and single-step (pedigree + genomic, `H`) BLUP — deferred by
+  maintainer decision D14 (`docs/SPEC-block3b.md`); single-trait known-variance BLUP
+  comes first.
 - [ ] Progeny-mean scorer (progeny testing), and family-structured phenotyping for
   between-family selection (`select_ind()` already has `within_family` /
   `among_family` / `combined` methods; the gap is building families in a design).
@@ -322,6 +325,9 @@ Source: BD `docs/BREEDING_METHODS_CATALOG.md` ("Engine:" notes).
   terminal sire); ties to BD SPEC-0007 (mate allocation).
 - [ ] Polyploid (tetrasomic) model — BD's `Wheat_div` is allotetraploid coded diploid
   per subgenome as an approximation (already `docs/ROADMAP.md` → "Polyploids").
+  Maintainer decisions D22/D23: deferred to v3; the concrete autotetraploid driver is
+  **potato**. (Disomic allotetraploids such as wheat are already modelled correctly
+  by the diploid-per-subgenome coding.)
 - [ ] Python package — BD's canvas already generates Python for the planned
   `simplephenotypes` API (already `docs/ROADMAP.md` §8b).
 

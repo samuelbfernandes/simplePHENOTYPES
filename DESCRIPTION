@@ -36,6 +36,6 @@ VignetteBuilder: knitr
 URL: https://github.com/samuelbfernandes/simplePHENOTYPES
 BugReports: https://github.com/samuelbfernandes/simplePHENOTYPES/issues
 NeedsCompilation: yes
-Config/rextendr/version: 0.4.2
+Config/rextendr/version: 0.5.0
 SystemRequirements: Cargo (Rust's package manager), rustc >= 1.65.0, xz
 Config/roxygen2/version: 8.1.0
