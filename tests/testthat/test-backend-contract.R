@@ -20,6 +20,8 @@ backend_contract <- c(
   "mabc_select", "recurrent_parent_recovery",
   # Pedigree and mating plans (DECISION-024/025)
   "parentage", "families", "mate", "mating_design",
+  # Block 3B items (DECISION-026..031)
+  "combining_ability", "template_effects", "progeny_test",
   # Fixed-scale accessors
   "additive_value", "genotypic_value", "phenotype_value",
   # Genotype ingestion / QC

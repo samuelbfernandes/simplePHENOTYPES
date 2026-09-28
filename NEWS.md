@@ -5,6 +5,12 @@
   through subsetting and pooling; `as_population()` gains `pool =`.
 * `mating_design()` (random, factorial, nested, diallel, half-diallel) and `mate()`
   run mating plans across one or several populations.
+* `combining_ability()`: GCA / SCA / testcross merit of candidates against
+  testers (topcross, factorial, diallel), as exact expected cross means on a
+  frozen architecture or from simulated progeny; `template_effects()` exports a
+  simulation's realized per-locus `a` and `d`; `phenotype_value(d =)` scores the
+  total genotypic value with a broad-sense `h2`.
+* `progeny_test()`: half-sib progeny testing of parents on random mates.
 * `mabc_select()` and `recurrent_parent_recovery()`: marker-assisted
   backcross selection (foreground filter, flanking-marker recombinant
   selection, background recovery of the recurrent-parent genome; Frisch &

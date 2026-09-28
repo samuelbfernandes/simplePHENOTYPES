@@ -211,3 +211,15 @@ test_that("keys ignore the numeric locale; an unseeded RNG still separates matin
   if (!is.null(saved)) assign(".Random.seed", saved, envir = globalenv())
   expect_equal(anyDuplicated(keys), 0L)
 })
+
+test_that("every missing pool label is the same no-pool founder (review A r5)", {
+  g <- data.frame(snp = c("a", "b"), allele = "A/G", chr = 1, pos = 1:2, cm = 0,
+                  I1 = c(1L, -1L), stringsAsFactors = FALSE)
+  k <- as_population(g)$keys
+  for (na in list(NA, NA_real_, NA_integer_, NaN)) {
+    p <- as_population(g, pool = na)
+    expect_identical(p$keys, k)
+    expect_true(is.na(parentage(p)$pool))
+  }
+  expect_error(as_population(g, pool = list(NA)), "single character label")
+})

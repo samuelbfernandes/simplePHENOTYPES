@@ -39,9 +39,12 @@
 #' pop <- as_population(SNP55K_maize282_maf04, individuals = c("33-16", "38-11"))
 #' pop
 as_population <- function(geno, individuals = NULL, pool = NA_character_) {
-  if (length(pool) != 1L || !(is.na(pool) || is.character(pool))) {
+  if (length(pool) != 1L || !is.atomic(pool) ||
+      !(is.na(pool) || is.character(pool))) {
     stop("`pool` must be a single character label (or NA).", call. = FALSE)
   }
+  # every missing label (NA of any type, NaN) is the same "no pool"
+  if (is.na(pool)) pool <- NA_character_
   meta <- c("snp", "allele", "chr", "pos", "cm")
   if (!is.data.frame(geno) || ncol(geno) < 6 ||
       any(colnames(geno)[1:5] != meta)) {
@@ -427,7 +430,8 @@ genotypic_value <- function(x, qtn, a, d) {
 #'
 #' The phenotypic counterpart of [additive_value()]: each individual's phenotype is
 #' its **fixed** additive genetic value (frozen loci `qtn` and their `effect`s, on
-#' the -1/0/1 dosage scale, with no per-population rescaling) plus an independent
+#' the -1/0/1 dosage scale, with no per-population rescaling; with `d`, its total
+#' genotypic value `A + D`, see [genotypic_value()]) plus an independent
 #' residual `e ~ N(0, var_e)` on a **fixed** residual-variance parameter `var_e`.
 #' Because neither the genetic scale nor `var_e` is re-fit to the scored population,
 #' the **parametric (population) heritability** `Var(g) / (Var(g) + var_e)` *declines*
@@ -455,8 +459,10 @@ genotypic_value <- function(x, qtn, a, d) {
 #' }
 #'
 #' @inheritParams additive_value
-#' @param h2 target narrow-sense heritability in `(0, 1]`, used with `ref` to set a
-#'   fixed residual variance. Give exactly one of `h2` or `var_e`.
+#' @param h2 target heritability in `(0, 1]`, used with `ref` to set a fixed
+#'   residual variance: of the additive value (narrow-sense) by default, or of
+#'   the total genotypic value `A + D` when `d` is given (broad-sense, see `d`).
+#'   Give exactly one of `h2` or `var_e`.
 #' @param var_e fixed residual variance (a single non-negative number), on the same
 #'   scale as `Var(additive_value(x, qtn, effect))`. Give exactly one of `h2` or
 #'   `var_e`.
@@ -466,14 +472,20 @@ genotypic_value <- function(x, qtn, a, d) {
 #' @param seed optional seed for the residual draw -- `NULL` or one non-negative
 #'   whole number (the RNG state is restored afterwards), for reproducible
 #'   phenotypes.
+#' @param d optional dominance deviations of the loci (one value, or one per
+#'   locus): the genetic part is then the fixed total genotypic value `A + D` of
+#'   [genotypic_value()] (with `effect` as its `a`), and `h2` is the heritability
+#'   of that total value in `ref` -- a broad-sense heritability. Default `NULL`:
+#'   additive only.
 #' @return a named numeric vector of phenotypes, one per individual, with
 #'   attributes `var_e` (the fixed residual variance used) and `genetic_value` (the
-#'   fixed additive values).
+#'   fixed additive -- or, with `d`, total genotypic -- values).
 #' @seealso [additive_value()], [genetic_values()], [select_ind()],
 #'   [simulate_phenotype()].
 #' @references
 #'   Falconer DS, Mackay TFC (1996) \emph{Introduction to Quantitative Genetics},
-#'   4th ed. Longman, Harlow (heritability \eqn{h^2 = V_A / (V_A + V_E)}); Lynch M,
+#'   4th ed. Longman, Harlow (heritability \eqn{h^2 = V_A / (V_A + V_E)}; with `d`,
+#'   the broad-sense \eqn{H^2 = V_G / (V_G + V_E)}); Lynch M,
 #'   Walsh B (1998) \emph{Genetics and Analysis of Quantitative Traits}. Sinauer,
 #'   Sunderland, MA.
 #' @export
@@ -490,7 +502,7 @@ genotypic_value <- function(x, qtn, a, d) {
 #' #                 var_e = ve, seed = 2)
 #' head(y0)
 phenotype_value <- function(x, qtn, effect, h2 = NULL, var_e = NULL,
-                            ref = NULL, seed = NULL) {
+                            ref = NULL, seed = NULL, d = NULL) {
   has_h2 <- !is.null(h2)
   has_ve <- !is.null(var_e)
   if (has_h2 == has_ve) {
@@ -499,8 +511,17 @@ phenotype_value <- function(x, qtn, effect, h2 = NULL, var_e = NULL,
          "directly).", call. = FALSE)
   }
   seed <- .validate_seed(seed)
-  # Fixed-scale genetic value (this also validates x, qtn, and effect).
-  g <- additive_value(x, qtn, effect)
+  # Fixed-scale genetic value (this also validates x, qtn, effect and d): the
+  # additive value, or with `d` the total genotypic value A + D.
+  gv_of <- if (is.null(d)) {
+    function(z) additive_value(z, qtn, effect)
+  } else {
+    function(z) {
+      dd <- if (length(d) == 1L) rep(d, length(effect)) else d
+      genotypic_value(z, qtn, effect, dd)
+    }
+  }
+  g <- gv_of(x)
   if (has_ve) {
     if (!is.numeric(var_e) || length(var_e) != 1L || !is.finite(var_e) ||
         var_e < 0) {
@@ -514,7 +535,7 @@ phenotype_value <- function(x, qtn, effect, h2 = NULL, var_e = NULL,
       stop("phenotype_value(): `h2` must be a single number in (0, 1].",
            call. = FALSE)
     }
-    ref_g <- if (is.null(ref)) g else additive_value(ref, qtn, effect)
+    ref_g <- if (is.null(ref)) g else gv_of(ref)
     vg_ref <- stats::var(ref_g)
     if (!is.finite(vg_ref) || vg_ref <= 0) {
       stop("phenotype_value(): the reference genetic values have zero variance, ",

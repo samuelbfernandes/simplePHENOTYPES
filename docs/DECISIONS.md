@@ -1055,8 +1055,8 @@ merely coincide (e.g. on a 0 cM map) stay distinct. The hash is FNV-1a-128 in th
 Rust core (`stable_hash_core()`, a deterministic kernel) over a canonical text
 encoding, so for the same parents and random stream the keys do not change with R,
 package or dependency versions (the first draft used `rlang::hash()`, whose values
-rlang 1.3.0 changed). Founder ids must be unique; a missing pool is encoded apart from
-any pool string; the bookkeeping draws nothing, so every genotype and the RNG
+rlang 1.3.0 changed). Founder ids must be unique; a missing pool (any `NA`/`NaN` label, normalized to one) is
+encoded apart from any pool string; the bookkeeping draws nothing, so every genotype and the RNG
 stream are unchanged (isqg parity and golden snapshots bit-identical). A `Population`
 without a pedigree (an object from an older version) is treated as founders.
 Accessors: `parentage(x, ancestors = FALSE)` (the SPEC's `pedigree()` name is taken
@@ -1109,6 +1109,54 @@ so the SPEC's "refactor, bit-identical" was not attainable; it is not refactored
 
 ---
 
+## DECISION-026: combining ability on a frozen A + D architecture
+
+**Context:** `docs/SPEC-block3b.md` item 1 (BD catalog: half-sib RS with a tester,
+hybrid development, RRS-1b). BD composed an additive-only GCA from `cross()` +
+`additive_value()`; no engine scorer existed.
+
+**Decision:** `combining_ability(candidates, testers, qtn, a, d, design =
+c("topcross", "factorial", "diallel"), method = c("expected", "simulated"), ...)`
+(SPEC D3: frozen `(qtn, a, d)` as `genotypic_value()`; D4: both methods together).
+`"expected"` is the conditional expectation of every cross given the parents'
+genotypes, `E[G_ik] = -2 d g_i g_k + (g_i + g_k)(a + d) - a` per locus with
+`g = x/2` (package derivation), no RNG; `"simulated"` realizes `n_progeny` per cross
+with `mate()`, scores `genotypic_value()`, optional residual via `phenotype_value()`
+(D6: `phenotype_value()` gains `d =`, the fixed-scale `A + D` phenotype with a
+broad-sense `h2`). Centering: factorial / topcross GCA = row (column) mean − μ; diallel
+(Griffing's method-4 layout) `g_i = (m_i − μ)(p − 1)/(p − 2)`; `SCA = Y − μ − g_i − g_k`,
+GCAs and each candidate's SCAs sum to zero. Candidates and testers must each list an
+individual once (by pedigree key), so both methods score the same crosses. With testers = the candidates' own
+population GCA equals half the DECISION-019 breeding value exactly; with `d = 0` every
+SCA is zero. Epistasis is outside the model. `template_effects(sim, trait, rep)` (D5)
+exports the realized-scale `a`, `d` a simulation uses (the `.layer_scaled_effects()`
+reconstruction behind `on = "bv"`), refusing epistasis / `"complex"`.
+
+**Date:** 2026-09-28
+
+---
+
+## DECISION-027: progeny testing
+
+**Decision:** `progeny_test(parents, mates, qtn, a, d, n_progeny, h2 | var_e, ref,
+seed)` (SPEC D15: its own export) mates each parent to `n_progeny` distinct random
+mates, one progeny each — a genuine half-sib family: never the parent itself, each
+individual of `mates` once (by pedigree key), and an error when fewer distinct mates
+exist — scores on the frozen architecture with an optional residual and returns each
+parent's progeny mean with the progeny `Population` (pedigree recorded). With mates drawn
+from one population separate from the parents, the expected progeny mean is half the
+breeding value in the mates' population plus a common constant, the breeding value using the average effects `α = a + d(q − p)` at
+the mates' frequencies (so dominance enters through them, not as a parental dominance
+deviation); each parent is listed once (by pedigree key); the accuracy on `n` half-sib
+records of an additive trait, under the classical half-sib assumptions (large
+random-mating, non-inbred mate population; a different, independent mate per
+progeny), is `sqrt(n h² / (4 + (n − 1) h²))` (package derivation),
+validated by simulation.
+
+**Date:** 2026-09-28
+
+---
+
 ## Decision Log Summary
 
 | ID | Decision | Status |
@@ -1137,3 +1185,5 @@ so the SPEC's "refactor, bit-identical" was not attainable; it is not refactored
 | 023 | `cor` control extends to dominance + epistasis under "pleiotropy": per-component PleioArch covariance (shared units MVN-correlated, trait-specific independent, split by `pi`), each unit scaled by its realized design-column sd, constant units left out of the allocation; every component targets `cor` (realized correlation converges as units and individuals grow under approximate linkage equilibrium; attenuated on average with few units; strong LD can prevent convergence), and the total targets `cor` when layers' per-trait `prop` profiles are proportional (scalar `prop`), else attenuated with a warning giving its large-sample target; fixed `qtn=` rejected under pleiotropy/ld and `effect=`/`dist` under pleiotropy; under "ld" dominance must reuse the additive linked loci (`same_as_add = TRUE`), epistasis and a second additive layer are rejected (SPEC §5.3 restriction); a derived `transcriptome()` layer's genome-mediated signal is outside `cor` (warned under pleiotropy); additive draw unchanged (bit-identical) | locked (2026-09-25) |
 | 024 | A `Population` records its pedigree (`keys` + `pedigree` frame; founders from `as_population(pool =)`, progeny from every mating, ancestors kept by `[`, pooled by key in `c()`); links are deterministic keys, not display ids, so colliding ids stay safe; bookkeeping draws nothing (genotypes / RNG bit-identical); accessors `parentage()`, `families()` | locked (2026-09-27) |
 | 025 | `mating_design()` writes random / factorial / nested / diallel / half-diallel plans; `mate()` runs `{mother, father, n}` plans across named pools (one seed, plan order; self / DH rows; ids `<prefix>_<k>`); a one-row plan equals the equivalent `cross()` / `selfcross()` / `double_haploid()`; `recurrent_selection()` keeps `.intermate()` (RNG order) | locked (2026-09-27) |
+| 026 | `combining_ability()` (topcross / factorial / diallel; `"expected"` = exact conditional cross means on a frozen `(qtn, a, d)`, `"simulated"` via `mate()`), GCA/SCA centred to sum zero, Griffing method-4 diallel GCA; `template_effects()` exports a simulation's realized `a`, `d`; `phenotype_value(d =)` scores `A + D` with a broad-sense `h2` | locked (2026-09-28) |
+| 027 | `progeny_test()`: half-sib progeny of each parent on random mates, scored on the frozen architecture; accuracy √(n h² / (4 + (n − 1) h²)) | locked (2026-09-28) |
