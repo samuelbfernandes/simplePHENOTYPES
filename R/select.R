@@ -56,11 +56,31 @@
 #' @section Method:
 #' `"mass"` truncates on the individual criterion. `"within_family"` keeps the top
 #' fraction inside each family, `"among_family"` keeps whole top-ranked families,
-#' and `"combined"` ranks on the Lush combined index that optimally weights an
+#' and `"combined"` ranks on the Lush combined index that weights an
 #' individual's own record and its family mean to predict breeding value; the
 #' weights are the selection-index solution \eqn{b = V^{-1} c} built from `h2` and
-#' the within-family additive relationship `family_relationship` (0.25 half-sibs,
-#' 0.5 full-sibs), following Falconer & Mackay (1996) and Lynch & Walsh (1998).
+#' `family_relationship`, following Falconer & Mackay (1996) and Lynch & Walsh
+#' (1998). `h2` is the candidates' own heritability, so `family_relationship` is
+#' the **correlation of breeding values** between two members of a family,
+#' \eqn{A_{ij} / \sqrt{A_{ii} A_{jj}}} (\eqn{A} the additive relationship
+#' matrix), not \eqn{A_{ij}} alone; the index uses one such value for every
+#' family. For families of non-inbred, unrelated parents it is 1/4 for half-sibs,
+#' 1/2 for full-sibs, 1/2 for doubled haploids and 2/3 for S1 sibs (for which
+#' \eqn{A_{ij} = 1}, \eqn{A_{ii} = 1.5}). Inbred or related parents change
+#' these: this package's derivation from the tabular \eqn{A} gives
+#' \eqn{2(1 + F) / (3 + F)} for S1 sibs and \eqn{(1 + F) / 2} for doubled
+#' haploids of a parent with inbreeding \eqn{F}; for other families compute
+#' \eqn{A_{ij} / \sqrt{A_{ii} A_{jj}}} from the pedigree. The index uses one `h2`
+#' and one `family_relationship` for every family, so it assumes families of one
+#' type from comparable parents; mixing family types (e.g. S1 with full-sib
+#' families) is outside this model. The weights are optimal under an **additive**
+#' model, in which family members covary only through breeding values
+#' (\eqn{t = r h^2}). Dominance, epistasis or a shared family environment add to
+#' the covariance of full-sib or selfed family members (e.g. \eqn{V_D / 4} for
+#' full sibs), so with those in the phenotype the index is a reasonable but not an
+#' optimal predictor. Scores are predictions from deviations of the
+#' records from their mean (so families of different sizes are ranked on one
+#' scale); a family of one is scored by its own record, `h2` times its deviation.
 #' `"index"` is
 #' the Smith--Hazel multi-trait economic index (`weights` = economic weights, one
 #' per trait): \eqn{b = P^{-1} G a}, selecting on \eqn{b'y}. `"quadratic_index"` is
@@ -91,9 +111,11 @@
 #'   `method = "quadratic_index"` (default: zero, i.e. a linear index).
 #' @param h2 narrow-sense heritability of the selection trait, required by
 #'   `method = "combined"` to weight family versus individual information.
-#' @param family_relationship additive relationship among family members for
-#'   `method = "combined"` (default 0.25 = half-sibs; use 0.5 for full-sibs or
-#'   selfed families).
+#' @param family_relationship correlation of breeding values among family members
+#'   for `method = "combined"`. The default 0.25 is for half-sibs of non-inbred,
+#'   unrelated parents; with such parents use 0.5 for full-sibs or doubled
+#'   haploids and 2/3 for S1 sibs. Inbred or related parents change these -- see
+#'   Details.
 #' @param rep replication to select on when several were simulated (default 1).
 #' @return the selected individuals as a `Population` (when `sim` is
 #'   Population-backed) or their ids, carrying attributes `selected` (ids),
@@ -106,7 +128,8 @@
 #'   Associates, Sunderland, Massachusetts.
 #' Combined (family + individual) selection: Lush JL (1947) Family merit and
 #'   individual merit as bases for selection. \emph{The American Naturalist}
-#'   81:241--261 (Part I) and 362--379 (Part II). \doi{10.1086/281520}
+#'   81:241--261 (Part I, \doi{10.1086/281520}) and 362--379 (Part II,
+#'   \doi{10.1086/281532}).
 #' Multi-trait selection index \eqn{b = P^{-1} G a}: Smith HF (1936) A discriminant
 #'   function for plant selection. \emph{Annals of Eugenics} 7(3):240--250.
 #'   \doi{10.1111/j.1469-1809.1936.tb02143.x}; Hazel LN (1943) The genetic basis
@@ -478,34 +501,39 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
     stop("`family_relationship` must be a single value in [0, 1].",
          call. = FALSE)
   }
-  vP <- stats::var(values)
-  vA <- h2 * vP
-  t  <- r * h2
-  fam_mean <- tapply(values, fam, mean)
-  fam_n    <- tapply(values, fam, length)
+  t <- r * h2
+  # The index predicts A - E[A] from deviations of the observations from their
+  # means (Hazel 1943). With unequal family sizes the weights differ between
+  # families, so raw values would make the ranking depend on the arbitrary
+  # phenotype origin; centre on the candidate mean.
+  mu <- mean(values)
+  dev <- values - mu
+  fam_mean <- tapply(dev, fam, mean)
+  fam_n    <- tapply(dev, fam, length)
   score <- numeric(length(values))
   for (i in seq_along(values)) {
     f <- fam[i]
     n <- fam_n[[f]]
-    if (n == 1L) {                       # singleton family: own record only
-      score[i] <- values[i]
+    # 1 - t written as (1 - r) + r (1 - h2): exact near t = 1 (both differences
+    # are exact there), so the weights below stay accurate and bounded
+    # (b1 <= h2, and b2 finite) arbitrarily close to it. Only t = 1 exactly
+    # (r = h2 = 1: the own record and the family mean both equal the breeding
+    # value) is singular; there, and for a family of one, use the own record,
+    # b = Cov(A, P) / Var(P) = h2.
+    one_minus_t <- (1 - r) + r * (1 - h2)
+    if (n == 1L || one_minus_t <= 0) {
+      score[i] <- h2 * dev[i]
       next
     }
-    Vx2 <- vP * (1 + (n - 1) * t) / n    # = Cov(own, fam mean) too
-    c1 <- vA
-    c2 <- vA * (1 + (n - 1) * r) / n
-    denom <- vP - Vx2                    # = vP (n-1)(1-t)/n
-    # denom -> 0 when t = r*h2 -> 1 (the covariance matrix becomes singular) or when
-    # vP = 0. There the own record already equals the breeding value and the family
-    # mean adds nothing, so rank on the own record rather than dividing by ~0 (NaN).
-    if (!is.finite(denom) || abs(denom) <= .Machine$double.eps * max(1, vP) ||
-        Vx2 <= 0) {
-      score[i] <- values[i]
-      next
-    }
-    b1 <- (c1 - c2) / denom
-    b2 <- (vP * c2 - Vx2 * c1) / (Vx2 * denom)
-    score[i] <- b1 * values[i] + b2 * fam_mean[[f]]
+    # b = V^{-1} c for (own record, family mean) with Var(P) = vP, t = r*h2,
+    # Cov(own, family mean) = Var(family mean) = vP (1 + (n-1) t) / n,
+    # Cov(A, own) = h2 vP and Cov(A, family mean) = h2 vP (1 + (n-1) r) / n.
+    # vP cancels, leaving dimensionless weights -- computed directly so that
+    # rescaling the records only rescales the scores (products of vP^2 would
+    # under/overflow at extreme scales):
+    b1 <- h2 * (1 - r) / one_minus_t
+    b2 <- h2 * n * r * (1 - h2) / ((1 + (n - 1) * t) * one_minus_t)
+    score[i] <- b1 * dev[i] + b2 * fam_mean[[f]]
   }
   stats::setNames(score, names(values))
 }
