@@ -22,6 +22,7 @@ backend_contract <- c(
   "parentage", "families", "mate", "mating_design",
   # Block 3B items (DECISION-026..031)
   "combining_ability", "template_effects", "progeny_test",
+  "marker_select",
   # Fixed-scale accessors
   "additive_value", "genotypic_value", "phenotype_value",
   # Genotype ingestion / QC

@@ -157,7 +157,9 @@ bulk <- function(x, generations = 5L, n = NULL, seed = NULL) {
 #'   size). Each selected line is selfed into an equal-sized family and the
 #'   families are pooled to this size, so the population does not drift down as
 #'   it inbreeds.
-#' @param on,trait,direction passed to [select_ind()].
+#' @param on,trait,direction passed to [select_ind()]. `trait` may be a vector
+#'   of traits, one per generation (recycled): **tandem selection**, improving one
+#'   trait at a time; the history then records the trait selected on.
 #' @return a `Population`, carrying attribute `history`: a data frame with one
 #'   row per generation and columns `generation`, `n_selected`, `differential`
 #'   (the selection differential S) and `intensity` (the standardized selection
@@ -187,13 +189,15 @@ pedigree <- function(x, phenotype, generations = 5L, prop = 0.1,
   size <- if (is.null(pop_size)) n_individuals(pop) else
     .validate_count(pop_size, "pop_size", minimum = 1L)
   if (!is.null(seed)) set.seed(seed)
+  .check_tandem(trait)
   history <- vector("list", generations)
   for (g in seq_len(generations)) {
     sim <- phenotype(pop)
     .check_sim(sim)
+    tr <- trait[((g - 1L) %% length(trait)) + 1L]
     sel <- select_ind(sim, n = n_select,
                       prop = if (is.null(n_select)) prop else NULL,
-                      on = on, trait = trait, direction = direction)
+                      on = on, trait = tr, direction = direction)
     ns <- n_individuals(sel)
     history[[g]] <- data.frame(
       generation = g,
@@ -201,6 +205,7 @@ pedigree <- function(x, phenotype, generations = 5L, prop = 0.1,
       differential = attr(sel, "differential"),
       intensity = attr(sel, "intensity")
     )
+    if (length(trait) > 1L) history[[g]]$trait <- tr
     # each selected line -> an equal family; pool and trim to the grown size
     prog <- .self_each(sel, n_each = max(1L, ceiling(size / ns)),
                        tag = paste0("ped_g", g))
@@ -255,11 +260,13 @@ recurrent_selection <- function(x, phenotype, cycles = 3L, n_parents = 10L,
     .validate_count(n_crosses, "n_crosses", minimum = 1L)
   if (!is.null(seed)) set.seed(seed)
   history <- vector("list", cycles)
+  .check_tandem(trait)
   for (cy in seq_len(cycles)) {
     sim <- phenotype(pop)
     .check_sim(sim)
     keep <- min(n_parents, sim$n_ind)
-    parents <- select_ind(sim, n = keep, on = on, trait = trait,
+    tr <- trait[((cy - 1L) %% length(trait)) + 1L]
+    parents <- select_ind(sim, n = keep, on = on, trait = tr,
                           direction = direction)
     history[[cy]] <- data.frame(
       cycle = cy,
@@ -267,6 +274,7 @@ recurrent_selection <- function(x, phenotype, cycles = 3L, n_parents = 10L,
       differential = attr(parents, "differential"),
       intensity = attr(parents, "intensity")
     )
+    if (length(trait) > 1L) history[[cy]]$trait <- tr
     pop <- .intermate(parents, n_crosses, progeny_per_cross,
                       tag = paste0("cyc", cy))
   }
@@ -275,6 +283,18 @@ recurrent_selection <- function(x, phenotype, cycles = 3L, n_parents = 10L,
 }
 
 # ---- internal helpers -------------------------------------------------------
+
+#' Validate a (possibly tandem) trait schedule
+#' @keywords internal
+#' @noRd
+.check_tandem <- function(trait) {
+  if (!is.numeric(trait) || !length(trait) || any(!is.finite(trait)) ||
+      any(trait != floor(trait)) || any(trait < 1)) {
+    stop("`trait` must be a trait index, or a vector of them (one per ",
+         "generation, recycled) for tandem selection.", call. = FALSE)
+  }
+  invisible()
+}
 
 #' Accept a Population or a Population-backed phenotype_sim; return a Population
 #' @keywords internal

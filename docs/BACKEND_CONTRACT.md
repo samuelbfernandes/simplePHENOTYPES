@@ -57,8 +57,10 @@ per-trait list, added in 2.0.0.9000), `dominance`, `epistasis`, `vqtl`,
 ### Selection engine
 `select_ind` and the named schemes `single_seed_descent`, `bulk`, `pedigree`,
 `recurrent_selection`. Added in 2.0.0.9000:
-`combining_ability`, `template_effects` (DECISION-026); `progeny_test`
-(DECISION-027).
+`select_ind(method = "culling")` and tandem selection (a `trait` vector on
+`pedigree` / `recurrent_selection`, DECISION-028); `combining_ability`,
+`template_effects` (DECISION-026); `progeny_test` (DECISION-027);
+`marker_select` (DECISION-029).
 
 ### Modern methods
 `g_matrix` (VanRaden), `optimum_contribution` + `sample_parents` (Meuwissen

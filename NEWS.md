@@ -11,6 +11,10 @@
   simulation's realized per-locus `a` and `d`; `phenotype_value(d =)` scores the
   total genotypic value with a broad-sense `h2`.
 * `progeny_test()`: half-sib progeny testing of parents on random mates.
+* `select_ind(method = "culling")`: independent culling levels (simultaneous or
+  sequential); tandem selection through a `trait` vector in `pedigree()` and
+  `recurrent_selection()`.
+* `marker_select()`: marker-assisted selection and staged gene pyramiding.
 * `mabc_select()` and `recurrent_parent_recovery()`: marker-assisted
   backcross selection (foreground filter, flanking-marker recombinant
   selection, background recovery of the recurrent-parent genome; Frisch &

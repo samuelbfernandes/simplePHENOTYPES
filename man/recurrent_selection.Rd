@@ -37,7 +37,9 @@ crosses some selected parents may not be sampled.}
 
 \item{progeny_per_cross}{progeny produced per cross.}
 
-\item{on, trait, direction}{passed to \code{\link[=select_ind]{select_ind()}}.}
+\item{on, trait, direction}{passed to \code{\link[=select_ind]{select_ind()}}. \code{trait} may be a vector
+of traits, one per generation (recycled): \strong{tandem selection}, improving one
+trait at a time; the history then records the trait selected on.}
 
 \item{seed}{optional RNG seed for the whole scheme.}
 }

@@ -1157,6 +1157,41 @@ validated by simulation.
 
 ---
 
+## DECISION-028: independent culling and tandem selection
+
+**Decision:** `select_ind(method = "culling", culling = <per-trait proportions>,
+sequential = FALSE)` keeps individuals in the top `culling[t]` of every trait
+(simultaneous; `sequential = TRUE` culls traits in order among survivors, SPEC D17);
+the count kept is emergent (`n` / `prop` / `intensity` must be `NULL`), `direction` may
+be per trait, and `on` may be an individuals × traits matrix of external predictions
+(D18). Tandem selection is a `trait` vector on `pedigree()` / `recurrent_selection()`,
+recycled over generations (a scalar `trait` is unchanged, bit-identical). Under Hazel &
+Lush's (1942) idealized conditions the package derivation gives index : culling :
+tandem = `sqrt(T) i(p)` : `T i(p^{1/T})` : `i(p)`, i.e. 1 : 0.907 : 0.707 at `T = 2`,
+`p = 0.1`, reproduced by simulation.
+
+**Date:** 2026-09-28
+
+---
+
+## DECISION-029: marker-assisted selection and gene pyramiding
+
+**Decision:** `marker_select(pop, markers, favorable, requirement = c("carrier",
+"homozygote"), min_markers, n | prop, rank_on, direction, seed)`: a founder-free
+foreground filter (the favourable allele given per marker), staged pyramiding
+(`min_markers`, D7), ranking of feasible candidates on any score, seeded tie-break.
+`additive_value()` is documented as the MARS marker index (D8: no alias); an index on
+the simulation's own causal loci weighted by their average effects (`a` for an additive
+architecture, `a + d(q − p)` with dominance) is labelled an oracle and keeps the
+individuals `on = "bv"` keeps, up to ties at the cut-off (random vs input-order
+tie-breaks). Validated against Mendelian
+F2 ratios (1/16, 9/16), Haldane's map function for linked targets, `mabc_select()`'s
+foreground, and `on = "bv"` for the oracle index.
+
+**Date:** 2026-09-28
+
+---
+
 ## Decision Log Summary
 
 | ID | Decision | Status |
@@ -1187,3 +1222,5 @@ validated by simulation.
 | 025 | `mating_design()` writes random / factorial / nested / diallel / half-diallel plans; `mate()` runs `{mother, father, n}` plans across named pools (one seed, plan order; self / DH rows; ids `<prefix>_<k>`); a one-row plan equals the equivalent `cross()` / `selfcross()` / `double_haploid()`; `recurrent_selection()` keeps `.intermate()` (RNG order) | locked (2026-09-27) |
 | 026 | `combining_ability()` (topcross / factorial / diallel; `"expected"` = exact conditional cross means on a frozen `(qtn, a, d)`, `"simulated"` via `mate()`), GCA/SCA centred to sum zero, Griffing method-4 diallel GCA; `template_effects()` exports a simulation's realized `a`, `d`; `phenotype_value(d =)` scores `A + D` with a broad-sense `h2` | locked (2026-09-28) |
 | 027 | `progeny_test()`: half-sib progeny of each parent on random mates, scored on the frozen architecture; accuracy √(n h² / (4 + (n − 1) h²)) | locked (2026-09-28) |
+| 028 | `select_ind(method = "culling")` (simultaneous or sequential per-trait proportions; emergent count; external prediction matrix via `on`); tandem = `trait` vector on `pedigree()` / `recurrent_selection()` (scalar unchanged) | locked (2026-09-28) |
+| 029 | `marker_select()`: foreground carrier / homozygote filter, staged pyramiding (`min_markers`), ranking on any score, seeded tie-break; `additive_value()` documented as the MARS index | locked (2026-09-28) |
