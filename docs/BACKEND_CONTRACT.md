@@ -46,6 +46,8 @@ consumer.
 `n_individuals`, `synthetic_map`, and the `Population` methods `[`, `c`, `print`.
 Pedigree and mating plans (2.0.0.9000): `parentage`, `families`, `mating_design`,
 `mate` (DECISION-024/025).
+Crossbreeding (2.0.0.9000): `crossbreed`, `breed_composition`, `heterosis`
+(DECISION-031).
 
 ### Phenotype grammar
 `simulate_phenotype`, the layers `additive` (whose `effect` also takes a

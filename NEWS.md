@@ -15,6 +15,8 @@
   sequential); tandem selection through a `trait` vector in `pedigree()` and
   `recurrent_selection()`.
 * `marker_select()`: marker-assisted selection and staged gene pyramiding.
+* `crossbreed()` (two-way, backcross, three-way, terminal, rotational),
+  `breed_composition()` and `heterosis()`.
 * `mabc_select()` and `recurrent_parent_recovery()`: marker-assisted
   backcross selection (foreground filter, flanking-marker recombinant
   selection, background recovery of the recurrent-parent genome; Frisch &

@@ -30,7 +30,8 @@
 #'   by its pool label, id and haplotypes, so the same genotypes imported twice
 #'   under the same label (or none) are the same individuals; give each breed or
 #'   pool its own label when individuals in different pools may share an id and
-#'   genotype.
+#'   genotype. The empty string and `"<unassigned>"` (the column
+#'   [breed_composition()] uses for founders without a label) are reserved.
 #' @return A `Population`. Its individuals are recorded as pedigree founders.
 #' @seealso [cross()], [selfcross()], [double_haploid()], [synthetic_map()]
 #' @export
@@ -45,6 +46,11 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
   }
   # every missing label (NA of any type, NaN) is the same "no pool"
   if (is.na(pool)) pool <- NA_character_
+  if (!is.na(pool) && (!nzchar(pool) || pool == "<unassigned>")) {
+    stop("`pool` must be a non-empty label other than \"<unassigned>\" ",
+         "(reserved for founders without a label); use NA for none.",
+         call. = FALSE)
+  }
   meta <- c("snp", "allele", "chr", "pos", "cm")
   if (!is.data.frame(geno) || ncol(geno) < 6 ||
       any(colnames(geno)[1:5] != meta)) {

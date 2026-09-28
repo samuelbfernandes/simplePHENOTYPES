@@ -1192,6 +1192,28 @@ foreground, and `on = "bv"` for the oracle index.
 
 ---
 
+## DECISION-031: crossbreeding
+
+**Decision (SPEC D19–D21):** `breed_composition(pop)` — expected breed fractions from
+the pedigree (founder pools; mean of parents); `heterosis(pop, breeds, qtn, a, d)` —
+realized heterosis (mean minus the composition-weighted breed means) and the expected
+pairwise F1 heterosis computed from the breeds' own genotypes, which equals
+`Σ d (p_A − p_B)²` under within-breed HWE and `Σ d (p_A + p_B − 2 p_A p_B)` for
+inbred-line breeds (package derivation; the SPEC's HWE-only form generalized);
+`crossbreed(breeds, system = c("two_way", "backcross", "three_way", "terminal",
+"rotational"), n_progeny, generations, sire_breed, seed)` as a scheme wrapper over
+`mate()`. Each name in `breeds` must be the founder pool (`as_population(pool =)`) its
+population traces to, checked, so compositions and breed means cannot be attributed
+to the wrong breed. `expected_f1` covers distinct pairs (`NA` diagonal). The empty string and
+`"<unassigned>"` (the composition column for unlabelled founders) are reserved pool
+labels in `as_population()`, so an unlabelled founder cannot be read as a breed. The HWE case is Falconer & Mackay's `H_F1 = Σ d y²`; the general
+form `d [h_AB − (h_A + h_B)/2]` is derived in the help. Validated: compositions ½:½, ¾:¼, ¼:¼:½, rotation → 2/3 : 1/3; F2 keeps ½ and
+a two-breed rotation ≈ 2/3 of the F1 heterosis; additive architectures give 0.
+
+**Date:** 2026-09-28
+
+---
+
 ## Decision Log Summary
 
 | ID | Decision | Status |
@@ -1224,3 +1246,4 @@ foreground, and `on = "bv"` for the oracle index.
 | 027 | `progeny_test()`: half-sib progeny of each parent on random mates, scored on the frozen architecture; accuracy √(n h² / (4 + (n − 1) h²)) | locked (2026-09-28) |
 | 028 | `select_ind(method = "culling")` (simultaneous or sequential per-trait proportions; emergent count; external prediction matrix via `on`); tandem = `trait` vector on `pedigree()` / `recurrent_selection()` (scalar unchanged) | locked (2026-09-28) |
 | 029 | `marker_select()`: foreground carrier / homozygote filter, staged pyramiding (`min_markers`), ranking on any score, seeded tie-break; `additive_value()` documented as the MARS index | locked (2026-09-28) |
+| 031 | `breed_composition()`, `heterosis()` (realized; exact expected F1 from the breeds' genotypes), `crossbreed()` two-way / backcross / three-way / terminal / rotational over `mate()` | locked (2026-09-28) |

@@ -20,7 +20,8 @@ be traced to it (see \code{\link[=parentage]{parentage()}}). Default \code{NA}. 
 by its pool label, id and haplotypes, so the same genotypes imported twice
 under the same label (or none) are the same individuals; give each breed or
 pool its own label when individuals in different pools may share an id and
-genotype.}
+genotype. The empty string and \code{"<unassigned>"} (the column
+\code{\link[=breed_composition]{breed_composition()}} uses for founders without a label) are reserved.}
 }
 \value{
 A \code{Population}. Its individuals are recorded as pedigree founders.
