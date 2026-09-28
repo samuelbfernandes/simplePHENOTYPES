@@ -23,6 +23,7 @@ backend_contract <- c(
   # Block 3B items (DECISION-026..031)
   "combining_ability", "template_effects", "progeny_test",
   "marker_select",
+  "predict_ebv", "a_matrix", "prediction_accuracy", "selection_methods",
   "crossbreed", "breed_composition", "heterosis",
   # Fixed-scale accessors
   "additive_value", "genotypic_value", "phenotype_value",

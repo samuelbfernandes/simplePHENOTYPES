@@ -15,6 +15,10 @@
   sequential); tandem selection through a `trait` vector in `pedigree()` and
   `recurrent_selection()`.
 * `marker_select()`: marker-assisted selection and staged gene pyramiding.
+* `predict_ebv()`: known-variance BLUP breeding values (GBLUP or pedigree),
+  with `a_matrix()` (numerator relationship matrix from the recorded pedigree)
+  and `prediction_accuracy()`; `selection_methods()` lists the selection
+  operators for front ends.
 * `crossbreed()` (two-way, backcross, three-way, terminal, rotational),
   `breed_composition()` and `heterosis()`.
 * `mabc_select()` and `recurrent_parent_recovery()`: marker-assisted

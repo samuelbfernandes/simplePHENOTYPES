@@ -1192,6 +1192,32 @@ foreground, and `on = "bv"` for the oracle index.
 
 ---
 
+## DECISION-030: known-variance BLUP, the A matrix and a methods manifest
+
+**Decision (SPEC D12, D13, D14):** `predict_ebv(x, pheno, method = c("gblup",
+"pedigree"), h2 | var_a + var_e, ref, K, base_freq, ridge)` — BLUP with the variance
+components known (a simulation knows them; no REML, no new dependency), in the GLS form
+`û = K Z'(Z K Z' + λI)⁻¹(y − 1μ̂)` (no `K⁻¹`, so singular `G` is fine), equal to
+Henderson's MME to 1e-10; reliability `1 − PEV/(K_ii σ²_A)`; GBLUP marker effects
+back-solved on `g_matrix()`'s scale when `G` is built internally (`ridge = 0`); a
+supplied `K` must be finite, symmetric (used in its symmetric form) and positive
+semidefinite up to floating-point rounding only (`n ε` times the largest eigenvalue on
+the correlation scale), with `K + λI` over the phenotyped individuals positive
+definite (its Cholesky factor) and every reliability in [0, 1]; it must name its
+individuals identically on both axes (reordered to `x`), and carries no marker
+scale; an unrepresentable `var_e / var_a` or a non-finite solution is an error, never
+`NaN` EBVs. `a_matrix(pop)` by the tabular method from the
+recorded pedigree (selfs `F = (1 + F_P)/2`, doubled haploids `A_ii = 2`).
+`prediction_accuracy(ebv, truth)` reports `cor` and the regression slope.
+`selection_methods()` lists the engine's selection operators (tandem included) for BD's
+SPEC-0006. The
+EBV is an estimate from observable phenotypes; multi-trait and single-step BLUP are
+deferred (D14, kept in TODO).
+
+**Date:** 2026-09-28
+
+---
+
 ## DECISION-031: crossbreeding
 
 **Decision (SPEC D19–D21):** `breed_composition(pop)` — expected breed fractions from
@@ -1246,4 +1272,5 @@ a two-breed rotation ≈ 2/3 of the F1 heterosis; additive architectures give 0.
 | 027 | `progeny_test()`: half-sib progeny of each parent on random mates, scored on the frozen architecture; accuracy √(n h² / (4 + (n − 1) h²)) | locked (2026-09-28) |
 | 028 | `select_ind(method = "culling")` (simultaneous or sequential per-trait proportions; emergent count; external prediction matrix via `on`); tandem = `trait` vector on `pedigree()` / `recurrent_selection()` (scalar unchanged) | locked (2026-09-28) |
 | 029 | `marker_select()`: foreground carrier / homozygote filter, staged pyramiding (`min_markers`), ranking on any score, seeded tie-break; `additive_value()` documented as the MARS index | locked (2026-09-28) |
+| 030 | `predict_ebv()` known-variance BLUP (GBLUP / pedigree, GLS form = MME), `a_matrix()` tabular method, `prediction_accuracy()`, `selection_methods()` manifest; multi-trait / single-step deferred (D14, TODO) | locked (2026-09-28) |
 | 031 | `breed_composition()`, `heterosis()` (realized; exact expected F1 from the breeds' genotypes), `crossbreed()` two-way / backcross / three-way / terminal / rotational over `mate()` | locked (2026-09-28) |
