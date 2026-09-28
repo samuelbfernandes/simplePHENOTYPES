@@ -20,11 +20,11 @@ runs the reviewer, parses its **JSON verdict**, and records each result to `dev/
 
 | id | file | breaks | rubric |
 |----|------|--------|--------|
-| O1-vanraden-denominator | R/ocs.R | drops the 2 in VanRaden `2·Σp(1−p)` | O1 |
-| O2-coancestry-half | R/ocs.R | drops the ½ in group coancestry `½c'Gc` | O2 |
-| S1-intensity-divide-p | R/select.R | drops `/p` in `i(p)=φ(Φ⁻¹(1−p))/p` | S1 |
-| S2-smith-hazel-swap | R/select.R | swaps P,G in `b=P⁻¹Ga` | S2 |
-| U1-usefulness-intensity | R/usefulness.R | drops `i` in `U=μ+iσ` | U1 |
+| O1-vanraden-denominator | R/select_ocs.R | drops the 2 in VanRaden `2·Σp(1−p)` | O1 |
+| O2-coancestry-half | R/select_ocs.R | drops the ½ in group coancestry `½c'Gc` | O2 |
+| S1-intensity-divide-p | R/select_ind.R | drops `/p` in `i(p)=φ(Φ⁻¹(1−p))/p` | S1 |
+| S2-smith-hazel-swap | R/select_ind.R | swaps P,G in `b=P⁻¹Ga` | S2 |
+| U1-usefulness-intensity | R/select_usefulness.R | drops `i` in `U=μ+iσ` | U1 |
 
 ## Adding a bug
 Append to `mutations.json`: a unique `find` substring from the source, the wrong

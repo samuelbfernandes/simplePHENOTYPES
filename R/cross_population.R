@@ -127,7 +127,7 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
 #' Construct a Population
 #'
 #' `keys` (one per individual) and `pedigree` are the pedigree bookkeeping of
-#' R/pedigree.R; both NULL gives a Population without a recorded pedigree, which
+#' R/cross_pedigree.R; both NULL gives a Population without a recorded pedigree, which
 #' every pedigree accessor treats as a set of founders.
 #' @keywords internal
 #' @noRd

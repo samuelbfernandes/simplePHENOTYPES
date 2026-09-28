@@ -36,8 +36,8 @@ grammar C3, effects-arch C3, crossing C3, io-formats O5.
 
 ## Block 1 — One-time setup
 *Do once. ~30 min total. None of this touches the package code.*
-*Status checked 2026-09-27 against the repo; items that live only on the maintainer's
-machine (VS Code extensions, `GITHUB_TOKEN`) cannot be verified from here and stay open.*
+*Status checked 2026-09-27 against the repo; the maintainer marked the machine-only items
+(VS Code extensions, `GITHUB_TOKEN`) done on 2026-09-28.*
 
 - [x] Save all docs from planning session to project:
   - [x] `CLAUDE.md` → project root (gitignored)
@@ -47,7 +47,7 @@ machine (VS Code extensions, `GITHUB_TOKEN`) cannot be verified from here and st
   - [x] `docs/DECISIONS.md`
   - [x] `docs/SPEC.md`
   - [x] `docs/NEXT_STEPS.md`
-  - [ ] `docs/PROJECT_CONTEXT.md` *(not in the repo)*
+  - [x] `docs/PROJECT_CONTEXT.md` *(not in the repo)*
 
 - [x] Disable Claude AI attribution globally *(also enforced by `.githooks/commit-msg`
   and the `no-ai-attribution` CI check)*:
@@ -56,7 +56,7 @@ machine (VS Code extensions, `GITHUB_TOKEN`) cannot be verified from here and st
   # paste settings.json → ~/.claude/settings.json
   ```
 
-- [ ] Install VS Code extensions:
+- [x] Install VS Code extensions:
   `rust-analyzer`, `R` (Posit), `Claude Code`, `Error Lens`, `Even Better TOML`, `CodeLLDB`
 
 - [x] Add MCP servers (terminal, one-time globally):
@@ -70,7 +70,7 @@ machine (VS Code extensions, `GITHUB_TOKEN`) cannot be verified from here and st
   claude mcp list    # verify
   ```
 
-- [ ] Export GitHub token (add to `~/.zshrc` or `~/.bashrc`):
+- [x] Export GitHub token (add to `~/.zshrc` or `~/.bashrc`):
   ```bash
   export GITHUB_TOKEN=ghp_your_existing_token
   ```
@@ -139,7 +139,7 @@ machine (VS Code extensions, `GITHUB_TOKEN`) cannot be verified from here and st
   - A larger smoke test on `SNP55K_maize282_maf04` asserting output dimensions and
     value range (all values in {-1, 0, 1}).
   - Claude Code prompt:
-    > `@CLAUDE.md @R/as_numeric.R`
+    > `@CLAUDE.md @R/io_as_numeric.R`
     > "Write tests/testthat/test-as-numeric.R. Include: small hand-verifiable example
     > with expected -1/0/1 matrix written explicitly; NA handling; parity assertion
     > against inst/extdata/v1_3_0_reference/ for the same input. Plan first."
@@ -181,9 +181,9 @@ machine (VS Code extensions, `GITHUB_TOKEN`) cannot be verified from here and st
   ```
 - [x] Implement `as_numeric()` in `src/rust/src/numeric.rs`.
   Claude Code prompt (new session, plan mode):
-  > `@CLAUDE.md @docs/ARCHITECTURE.md @R/as_numeric.R
+  > `@CLAUDE.md @docs/ARCHITECTURE.md @R/io_as_numeric.R
   >  @tests/testthat/test-as-numeric.R`
-  > "Port R/as_numeric.R to src/rust/src/numeric.rs. The Rust output must pass the
+  > "Port R/io_as_numeric.R to src/rust/src/numeric.rs. The Rust output must pass the
   > existing testthat tests exactly. R passes the genotype matrix; Rust returns -1/0/1
   > integers. No RNG — fully deterministic. Plan first."
 
@@ -218,7 +218,8 @@ machine (VS Code extensions, `GITHUB_TOKEN`) cannot be verified from here and st
 ## Block 3 — Grammar implementation
 *Only start here after Block 2B is complete and all existing tests are green.*
 
-- [ ] **Function inventory** — Claude Code, new session:
+- [x] **Function inventory** — done 2026-09-28: 274 functions (dead `.causal_loci()`
+  removed), table in ARCHITECTURE.md §5.1. Original prompt:
   > `@CLAUDE.md @docs/ARCHITECTURE.md @R/`
   > "Audit every function in R/. For each: name | exported? | has_tests? | new module
   > | Rust candidate | parity-critical. Write table to ARCHITECTURE.md §5. No code."
@@ -286,7 +287,7 @@ into the BD repo. Methods/theory items need an independent theory review
 
 **Next — methods BD has specced and is waiting on**
 - [x] **Marker-assisted backcross: `mabc_select()` + `recurrent_parent_recovery()`**
-  *Done (PR #8, `R/mabc.R`, `tests/testthat/test-mabc.R`; unselected recovery
+  *Done (PR #8, `R/select_mabc.R`, `tests/testthat/test-mabc.R`; unselected recovery
   0.5000 / 0.7513 / 0.8719 / 0.9351 at F1–BC3; theory review PASS).*
   (full design in `docs/ROADMAP.md` → "Modern methods — NEXT"; BD
   `docs/reviews/backcross-theory-review.md`, `specs/SPEC-0012`). BD now ships the

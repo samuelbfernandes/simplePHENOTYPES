@@ -19,7 +19,7 @@ the CLI).
 ```bash
 # Independent genetic-theory review of what you're about to commit:
 dev/dual.sh review --staged
-dev/dual.sh review R/select.R R/ocs.R      # or specific files
+dev/dual.sh review R/select_ind.R R/select_ocs.R      # or specific files
 
 # Let one model implement and the other review+critique, iterating to green:
 dev/dual.sh loop "add rrBLUP GEBV as an `on` criterion, per docs/THEORY_REVIEW.md S5"
@@ -36,7 +36,7 @@ fix or rebut each objection **with an executed run** (rhetoric loses to a failin
 is green; on deadlock it **escalates to you** and never auto-proceeds or commits.
 
 ```bash
-dev/debate.sh R/select.R              # debate the correctness of a file
+dev/debate.sh R/select_ind.R              # debate the correctness of a file
 dev/debate.sh --staged               # debate the staged diff
 dev/debate.sh --task "add rrBLUP GEBV criterion per docs/THEORY_REVIEW.md M1"
 ```

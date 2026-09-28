@@ -156,6 +156,76 @@ test_that("Rust reproduces isqg dh() genotypes exactly", {
 })
 
 # ---------------------------------------------------------------------------
+# 2b. The production path: R's draw order and the haplotype kernel
+# ---------------------------------------------------------------------------
+# The tests above feed isqg's recorded draws into meiosis_core(), so they pin
+# the Rust consumption of the draws but not the other half of DECISION-012:
+# that R draws them in isqg's order. And cross()/selfcross()/double_haploid()
+# run mate_haplotypes_core(), not meiosis_core(). These two tests pin both.
+
+test_that(".draw_meiosis() reproduces isqg's draws under the fixture seed", {
+  for (scenario in c("gamete_masks", "cross", "cross_swapped", "selfcross",
+                     "dh")) {
+    skip_if_not(.have(scenario), paste0("isqg fixture '", scenario,
+                                        "' not captured"))
+    ref <- .isqg_ref(scenario)
+    lay <- .layout(ref)
+    by_chr <- split(lay$positions, rep(seq_along(lay$loci_per_chr),
+                                       lay$loci_per_chr))
+    obs <- withr::with_seed(ref$seed, simplePHENOTYPES:::.draw_meiosis(
+      unname(by_chr), length(ref$draws)))
+    exp <- .flatten_draws(ref$draws)
+    expect_identical(obs$counts, exp$counts, info = scenario)
+    expect_identical(obs$flips, exp$flips, info = scenario)
+    expect_identical(obs$chiasmata, exp$chiasmata, info = scenario)
+  }
+})
+
+test_that("mate_haplotypes_core() reproduces isqg's phased progeny exactly", {
+  designs <- list(cross = c("cross", "P1", "P2"),
+                  cross_swapped = c("cross", "P2", "P1"),
+                  selfcross = c("selfcross", "P1", "P1"),
+                  dh = c("dh", "P1", "P1"))
+  for (scenario in names(designs)) {
+    skip_if_not(.have(scenario), paste0("isqg fixture '", scenario,
+                                        "' not captured"))
+    ref <- .isqg_ref(scenario)
+    d <- designs[[scenario]]
+    p1 <- ref$founders[[d[2]]]
+    p2 <- ref$founders[[d[3]]]
+    lay <- .layout(ref)
+    dr <- .flatten_draws(ref$draws)
+    strands <- simplePHENOTYPES:::mate_haplotypes_core(
+      loci_per_chr = lay$loci_per_chr,
+      positions    = lay$positions,
+      p1_cis       = .bits(p1$cis),
+      p1_trans     = .bits(p1$trans),
+      p2_cis       = .bits(p2$cis),
+      p2_trans     = .bits(p2$trans),
+      chiasmata    = dr$chiasmata,
+      counts       = dr$counts,
+      flips        = dr$flips,
+      design       = d[1],
+      n_prog       = as.integer(ref$n_prog)
+    )
+    # Element 2i-1 is progeny i's cis strand, 2i its trans strand.
+    unpack <- function(codes) {
+      matrix(as.integer(unlist(strsplit(codes, "", fixed = TRUE))),
+             nrow = length(lay$positions))
+    }
+    cis <- unpack(strands[seq(1, length(strands), by = 2)])
+    trans <- unpack(strands[seq(2, length(strands), by = 2)])
+    geno <- ifelse(cis & trans, 1L, ifelse(xor(cis, trans), 0L, -1L))
+    # isqg's phased code is "<cis> <trans>", allele 1 for bit 1: unlike the
+    # -1/0/1 genotype, it tells a cis/trans swap apart.
+    phased <- ifelse(cis & trans, "1 1", ifelse(!cis & !trans, "2 2",
+                     ifelse(cis == 1L, "1 2", "2 1")))
+    expect_identical(geno, unname(ref$genotype), info = scenario)
+    expect_identical(phased, unname(ref$genotype_phased), info = scenario)
+  }
+})
+
+# ---------------------------------------------------------------------------
 # 3. Structural guards
 # ---------------------------------------------------------------------------
 # Commit 4167402 was a row/column-major mixup masked by uniform test values.

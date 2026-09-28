@@ -8,8 +8,8 @@
 #   dev/audit-all.sh legacy     # only the legacy groups
 #
 # One `dual.sh review` (independent reviewer = codex) per group — fewer calls than
-# per-file, coherent context. Selection (select/ocs/usefulness) is OMITTED (audit it
-# separately with dev/dual.sh review). Designer files are OMITTED (migrating to BD).
+# per-file, coherent context. Groups follow the R/ filename prefixes (ARCHITECTURE.md
+# §4) and cover every live v2 file. Designer files are OMITTED (moved to BD).
 # Each group's transcript is saved under dev/.audit/transcripts/.
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,11 +21,14 @@ TS="$(date +%Y%m%d-%H%M%S)"; audit_init; ADIR="$(audit_dir)/transcripts"
 # tier|label|paths (most theory-critical first)
 # NB: not named GROUPS — that is a reserved bash array (the caller's group IDs).
 AUDIT_GROUPS=(
-"high|grammar|R/grammar_simulate_phenotype.R R/grammar_layers.R R/grammar_realize.R R/grammar_complex.R"
-"high|effects-arch|R/effects_pleioarch.R R/effects_series.R R/arch_independent.R R/arch_ld.R R/ld_methods.R"
-"high|crossing-schemes|R/cross_population.R R/cross_mating.R R/cross_map.R R/schemes.R"
-"high|rust-core|src/rust/src/meiosis.rs src/rust/src/genome.rs src/rust/src/numeric.rs src/rust/src/lib.rs R/extendr-wrappers.R R/as_numeric.R R/numericalization.R R/table_to_numeric.R"
-"med|io-formats|R/handling_input_formats.R R/file_loader.R R/detect_format.R R/format_conversion.R R/io_write.R R/filter_geno.R"
+"high|grammar|R/grammar_simulate_phenotype.R R/grammar_layers.R R/grammar_realize.R R/grammar_complex.R R/grammar_plot.R"
+"high|effects-arch|R/effects_pleioarch.R R/effects_series.R R/arch_independent.R R/arch_ld.R R/qc_ld_methods.R"
+"high|crossing-schemes|R/cross_population.R R/cross_mating.R R/cross_map.R R/cross_pedigree.R R/cross_mate.R R/cross_breed.R R/select_schemes.R"
+"high|selection|R/select_ind.R R/select_ocs.R R/select_usefulness.R R/select_marker.R R/select_mabc.R"
+"high|prediction|R/select_blup.R R/select_combining.R R/select_progeny.R"
+"high|transcriptome|R/transcriptome_simulate.R R/transcriptome_layer.R R/transcriptome_counts.R R/transcriptome_mimic.R"
+"high|rust-core|src/rust/src/meiosis.rs src/rust/src/genome.rs src/rust/src/numeric.rs src/rust/src/lib.rs R/extendr-wrappers.R R/io_as_numeric.R"
+"med|io-formats|R/io_read_formats.R R/io_detect_format.R R/io_format_conversion.R R/io_write.R R/qc_filter_geno.R"
 "legacy|legacy-core|R/legacy_create_phenotypes.R R/legacy_Phenotypes.R R/legacy_check_in.R R/legacy_constraint.R"
 "legacy|legacy-qtn|R/legacy_QTN_linkage.R R/legacy_QTN_pleiotropic.R R/legacy_QTN_partially_pleiotropic.R R/legacy_qtn_from_user.R R/legacy_genetic_effect.R R/legacy_vQTL.R"
 "legacy|legacy-baseline|R/legacy_Base_line_multi_traits.R R/legacy_Base_line_single_trait.R R/legacy_Genotypes.R R/legacy_make_pd.R"

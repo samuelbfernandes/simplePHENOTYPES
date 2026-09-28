@@ -70,7 +70,7 @@ THEORY: PASS | FAIL (n)
 - **V4** `d`-type epistasis / dominance degenerate on hetless (inbred) loci is handled
   (errors or warns), not silently NaN.
 
-### S. Selection engine (`select.R`, DECISION-015)
+### S. Selection engine (`select_ind.R`, DECISION-015)
 - **S1** Truncation response tracks **R = i·h²·σ_P**; realized intensity
   **i(p) = φ(Φ⁻¹(1−p))/p**; both `direction`s handled; ties/edge p→0,1 sane.
 - **S2** Smith–Hazel index weights **b = P⁻¹ G a** (P phenotypic, G genetic covariance,
@@ -91,7 +91,7 @@ THEORY: PASS | FAIL (n)
   breeding value. `method = "combined"` requires `on = "pheno"`; the multi-trait index
   methods score on true breeding values and ignore `on`.
 
-### O. Relationship & optimum contribution (`ocs.R`, `g_matrix`, DECISION-016)
+### O. Relationship & optimum contribution (`select_ocs.R`, `g_matrix`, DECISION-016)
 - **O1** G = **ZZ′ / (2 Σ pⱼ(1−pⱼ))** (VanRaden 2008 method 1); monomorphic markers
   dropped; genomic inbreeding **Fᵢ = Gᵢᵢ − 1**; Z centered by 2pⱼ.
 - **O2** OCS maximizes **c′g − (λ/2) c′Gc** on the simplex (c ≥ 0, 1′c = 1); group
@@ -100,7 +100,7 @@ THEORY: PASS | FAIL (n)
 - **O3** `sample_parents()` turns contributions into an integer parent set without
   distorting the intended contribution proportions.
 
-### U. Cross usefulness (`usefulness.R`, DECISION-016)
+### U. Cross usefulness (`select_usefulness.R`, DECISION-016)
 - **U1** **U = μ + i·σ** over the selected fraction; family **simulated** with the
   crossing engine (linkage enters σ), scored on the template's **fixed additive effects**
   via dosage×effect — **not** re-`simulate_phenotype()` (which rescales variance and
@@ -156,6 +156,6 @@ THEORY: PASS | FAIL (n)
 ---
 
 ## Anchors
-Functions: `R/grammar_*.R`, `R/arch_*.R`, `R/effects_*.R`, `R/select.R`, `R/ocs.R`,
-`R/usefulness.R`, `R/schemes.R`, `src/rust/src/{numeric,genome,meiosis}.rs`.
+Functions: `R/grammar_*.R`, `R/arch_*.R`, `R/effects_*.R`, `R/select_ind.R`, `R/select_ocs.R`,
+`R/select_usefulness.R`, `R/select_schemes.R`, `src/rust/src/{numeric,genome,meiosis}.rs`.
 Specs: `docs/SPEC.md` (§2 variance, §4 API, §13 PleioArch), `docs/DECISIONS.md`.

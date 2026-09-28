@@ -1,7 +1,7 @@
 [
   {
     "id": "O1-vanraden-denominator",
-    "file": "R/ocs.R",
+    "file": "R/select_ocs.R",
     "rubric": "O1",
     "find": "2 * sum(p * (1 - p))",
     "replace": "sum(p * (1 - p))",
@@ -10,7 +10,7 @@
   },
   {
     "id": "O2-coancestry-half",
-    "file": "R/ocs.R",
+    "file": "R/select_ocs.R",
     "rubric": "O2",
     "find": "0.5 * crossprod(c_opt, G %*% c_opt)",
     "replace": "crossprod(c_opt, G %*% c_opt)",
@@ -19,7 +19,7 @@
   },
   {
     "id": "S1-intensity-divide-p",
-    "file": "R/select.R",
+    "file": "R/select_ind.R",
     "rubric": "S1",
     "find": "stats::dnorm(stats::qnorm(1 - p)) / p",
     "replace": "stats::dnorm(stats::qnorm(1 - p))",
@@ -28,7 +28,7 @@
   },
   {
     "id": "S2-smith-hazel-swap",
-    "file": "R/select.R",
+    "file": "R/select_ind.R",
     "rubric": "S2",
     "find": ".index_weights(Pcov, Gcov %*% weights)",
     "replace": ".index_weights(Gcov, Pcov %*% weights)",
@@ -37,7 +37,7 @@
   },
   {
     "id": "U1-usefulness-intensity",
-    "file": "R/usefulness.R",
+    "file": "R/select_usefulness.R",
     "rubric": "U1",
     "find": "mu + i_val * sdev",
     "replace": "mu + sdev",

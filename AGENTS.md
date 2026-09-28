@@ -41,7 +41,7 @@ they land. The protocol:
   writes the change; the *other* reviews it independently.
 - **Every change touching genetics/quantitative-genetics gets a theory review** against
   `docs/THEORY_REVIEW.md` before commit. Genetics = the grammar, PleioArch, effects,
-  selection engine (`select.R`, `ocs.R`, `usefulness.R`, `schemes.R`), meiosis/isqg,
+  selection engine (`select_ind.R`, `select_ocs.R`, `select_usefulness.R`, `select_schemes.R`), meiosis/isqg,
   variance partitioning, any cited equation.
 - **The reviewer is read-only.** It reports PASS / FAIL / UNVERIFIABLE per rubric item
   with file:line evidence and the primary source; it does not edit code.

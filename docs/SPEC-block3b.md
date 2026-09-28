@@ -48,7 +48,7 @@ user-facing release stays `2.0`, and Block 3B ships in the development version
 **Gap.** `Population` holds `map`, `cis`/`trans`, `ids`, `origin` (SPEC §5;
 `R/cross_population.R:103`). Parentage survives only as a batch-level `origin` string
 (`"cross(A x B)"`) and as id prefixes the scheme wrappers embed (`"P1_ped_g1_3"`,
-`"cyc1_x2_5"`, `R/schemes.R:312-344`), which `c.Population()` may rename
+`"cyc1_x2_5"`, `R/select_schemes.R:312-344`), which `c.Population()` may rename
 (`make.unique`). So there is no reliable way to recover which individuals are full sibs,
 which sire a half-sib family shares, an individual's breed composition, or a numerator
 relationship matrix. Items 3, 4 and 6 all need one of those; BD's `R/rrs.R` tracks
@@ -92,7 +92,7 @@ collision policy).
 
 ### F2. One mating executor — new (specified under item 6, used by items 1, 4, 6)
 
-`.intermate()` (`R/schemes.R:328`), `cross_usefulness()`'s `.make_family()`, BD's
+`.intermate()` (`R/select_schemes.R:328`), `cross_usefulness()`'s `.make_family()`, BD's
 `.rrs_intermate()`, `.rrs_hybrid_pop()` and `.rrs_gca_select()` all hand-roll "loop over
 pairs, `cross()`, relabel, `c()`". A single exported `mate(plan, ...)` that executes a
 `{mother, father, n}` plan (BD SPEC-0007's output shape) over one or several
@@ -158,7 +158,7 @@ combining_ability(candidates, testers, qtn, a, d,
   `ca$gca` feeds `select_ind(sim, on = ca$gca)` / `optimum_contribution(merit =
   ca$gca)`; the hybrid `Population`s (with pedigree) are returned for `"simulated"` so
   `rrs_metrics()`-style heterosis series can score them.
-- Lives in a new `R/combining.R`; contract addition under "Modern methods".
+- Lives in a new `R/select_combining.R`; contract addition under "Modern methods".
 - Optional companion (**D5**): `template_effects(sim, trait = 1)` → `data.frame(snp, a,
   d)` on the realized scale (a thin export over `.layer_scaled_effects()`), so BD's
   `.freeze_from_template()` stops re-deriving effects from `qtn_table()`.
@@ -343,7 +343,7 @@ reported as a staged pyramid, not a full one.
    labelling.
 
 ### Dependencies / risks / effort
-None hard; shares helpers with `mabc.R`. **Effort S–M.**
+None hard; shares helpers with `select_mabc.R`. **Effort S–M.**
 
 ### Decisions needed
 - **D7** Include staged pyramiding (`min_markers`) now or later.
@@ -414,7 +414,7 @@ prediction_accuracy(ebv, truth)                             # cor(), with a bias
   `optimum_contribution(pop, merit = ebv)`, `marker_select(rank_on = ebv)`.
 - `selection_methods()` — a small manifest (`id`, `label`, `params`, `citation`) of the
   engine's selection operators for BD's SPEC-0006 UI generation (**D13**).
-- Lives in a new `R/blup.R`; `a_matrix()` in `R/pedigree.R` (F1).
+- Lives in a new `R/select_blup.R`; `a_matrix()` in `R/cross_pedigree.R` (F1).
 
 ### Genetic theory
 *Model.* `y = Xb + Zu + e`, `u ~ N(0, K σ²_A)`, `e ~ N(0, I σ²_e)`; Henderson's mixed-
@@ -514,7 +514,7 @@ families in a design". BD's designer and canvas use no family method at all toda
 ### What already exists
 - **Exists:** `select_ind(method = "within_family" | "among_family" | "combined",
   family = <vector>, h2 =, family_relationship =)` with the Lush index weights
-  (`R/select.R:472`); `.self_each()`/`.intermate()` produce family-structured progeny
+  (`R/select_ind.R:472`); `.self_each()`/`.intermate()` produce family-structured progeny
   (but only as id strings); `cross()` for any mating; `genotypic_value()`/
   `phenotype_value()` for fixed-scale scoring.
 - **New:** `families()` (F1); an explicit mating design that *creates* half-/full-sib
@@ -905,7 +905,7 @@ second implementation and a second theory review.
 | 3 | **`combining_ability()`** (item 1) | M | Highest BD value (RRS-1b heterosis RRS and hybrid schemes are waiting); reuses `genotypic_value()`, `.avg_effect()`, `cross()`; the expected method is deterministic and small; the simulated method is what BD already does, now exported. |
 | 4 | **`progeny_test()` + family phenotyping** (item 4) | S–M | Falls out of 1–3; opens the animal-breeding rows of the catalog (family, sib, progeny testing). |
 | 5 | **Tandem + culling** (item 5) | S + S/M | Self-contained; can be slotted anywhere (first, if a quick win is wanted). |
-| 6 | **`marker_select()`** (item 2) | S–M | Refactor of `mabc.R` helpers; MARS index already covered by `additive_value()`; estimated weights wait for 7. |
+| 6 | **`marker_select()`** (item 2) | S–M | Refactor of `select_mabc.R` helpers; MARS index already covered by `additive_value()`; estimated weights wait for 7. |
 | 7 | **`predict_ebv()` + `a_matrix()` + `selection_methods()`** (item 3) | M + M | Largest scope decision (D12); GBLUP can start any time, pedigree BLUP after 1; replaces BD's constant accuracy with a realized one. |
 | 8 | **`crossbreed()` + `breed_composition()` + `heterosis()`** (item 6b) | M | After 1–3; mostly bookkeeping over `mate()` and `genotypic_value()`. |
 

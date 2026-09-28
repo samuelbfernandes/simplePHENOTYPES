@@ -1,6 +1,6 @@
 # Gabriel haplotype blocks, byte-exact to PLINK 1.9's Haploview --blocks. The
 # block detection lives in .plink_blocks_chrom()/.plink_blocks_classify()
-# (R/filter_geno.R, sharing the two-locus ML EM); this file turns those block
+# (R/qc_filter_geno.R, sharing the two-locus ML EM); this file turns those block
 # definitions into a filter_geno() marker filter.
 
 #' Gabriel et al. (2002) haplotype blocks, keeping one tag marker per block

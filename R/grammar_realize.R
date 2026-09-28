@@ -107,27 +107,6 @@
   Gen
 }
 
-#' Causal-locus indices for one trait (union across mean-effect layers)
-#'
-#' The distinct marker indices that carry any additive/dominance/epistasis
-#' effect for trait `t` in replication `rep`. Epistatic sets contribute all of
-#' their member loci.
-#' @keywords internal
-#' @noRd
-.causal_loci <- function(sim, t, rep = 1L) {
-  idx <- integer(0)
-  for (ly in sim$layers) {
-    if (!ly$type %in% c("additive", "dominance", "epistasis")) {
-      next
-    }
-    q <- .layer_qtn_effect(ly, t, rep)$qtn
-    if (!is.null(q)) {
-      idx <- c(idx, as.integer(q))   # epistasis q is a matrix; as.integer flattens
-    }
-  }
-  unique(idx)
-}
-
 #' Average effect of a gene substitution, alpha = a + d(q - p)
 #'
 #' The classical average effect of an allele substitution at one locus (Falconer &
