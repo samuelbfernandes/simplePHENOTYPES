@@ -19,6 +19,10 @@
   with `a_matrix()` (numerator relationship matrix from the recorded pedigree)
   and `prediction_accuracy()`; `selection_methods()` lists the selection
   operators for front ends.
+* `predict_ebv()` multi-trait BLUP: an individuals x traits `pheno` matrix (`NA`
+  for missing records) with known genetic (`var_a`) and residual (`var_e`)
+  covariance matrices predicts every trait for every individual, including traits
+  an individual was not recorded on (Henderson & Quaas 1976).
 * `crossbreed()` (two-way, backcross, three-way, terminal, rotational),
   `breed_composition()` and `heterosis()`.
 * `mabc_select()` and `recurrent_parent_recovery()`: marker-assisted
