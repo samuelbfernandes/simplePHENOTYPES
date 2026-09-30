@@ -186,6 +186,34 @@ test_that("write_phenotypes round-trips long and wide tables", {
   expect_equal(nrow(back_w), n_ind)
 })
 
+test_that("write_phenotypes(file_type = \"json\") round-trips exactly", {
+  skip_if_not_installed("jsonlite")
+  ph <- additive(simulate_phenotype(G, n_traits = 2, n_reps = 2, seed = 3),
+                 prop = 0.4, n_qtn = 3)
+  fl <- tempfile(fileext = ".json")
+  fw <- tempfile(fileext = ".json")
+  on.exit(unlink(c(fl, fw)), add = TRUE)
+  expect_identical(write_phenotypes(ph, fl, file_type = "json"), fl)
+  write_phenotypes(ph, fw, format = "wide", file_type = "json", sep = ",")
+  long <- phenotypes_long(ph)
+  wide <- phenotypes_wide(ph)
+  # an array of one object per row
+  raw <- jsonlite::read_json(fl)
+  expect_length(raw, nrow(long))
+  expect_identical(names(raw[[1]]), names(long))
+  back_l <- jsonlite::read_json(fl, simplifyVector = TRUE)
+  back_w <- jsonlite::read_json(fw, simplifyVector = TRUE)
+  # every value reads back bit-for-bit (17 significant digits)
+  expect_identical(back_l$value, long$value)
+  expect_identical(back_l$id, as.character(long$id))
+  expect_identical(back_l$trait, as.character(long$trait))
+  expect_equal(back_l$rep, long$rep)
+  expect_identical(back_w$Trait_1, wide$Trait_1)
+  expect_identical(back_w$Trait_2, wide$Trait_2)
+  expect_identical(names(back_w), names(wide))
+  expect_error(write_phenotypes(ph, fl, file_type = "xml"), "arg")
+})
+
 test_that("print.phenotype_sim reports the variance budget", {
   ph <- additive(simulate_phenotype(G, seed = 1), prop = 0.5, n_qtn = 3)
   out <- utils::capture.output(print(ph))

@@ -21,13 +21,20 @@ predict_ebv(
 \item{x}{a \code{Population} holding every individual to predict (phenotyped and
 not).}
 
-\item{pheno}{a numeric vector of phenotypes named by id (a subset of \code{x}).}
+\item{pheno}{a numeric vector of phenotypes named by id (a subset of \code{x}), or,
+for multi-trait BLUP, a numeric individuals x traits matrix (or data frame)
+with row names ids of \code{x}, column names the traits and \code{NA} for a missing
+record.}
 
 \item{method}{\code{"gblup"} or \code{"pedigree"}.}
 
 \item{h2, var_a, var_e}{the variance components: either \code{h2} (then
 \eqn{\sigma^2_A = h^2 \sigma^2_P}, \eqn{\sigma^2_P} the variance of \code{ref}, default
-\code{pheno}) or both \code{var_a} (base additive variance) and \code{var_e}.}
+\code{pheno}) or both \code{var_a} (base additive variance) and \code{var_e}. For
+multi-trait BLUP, \code{var_a} and \code{var_e} are required: the traits x traits base
+additive genetic and residual covariance matrices (named by trait, or in
+\code{pheno}'s column order), each positive semidefinite with positive variances;
+\code{h2} and \code{ref} are not used.}
 
 \item{ref}{optional numeric vector of base-population phenotypes setting
 \eqn{\sigma^2_P} for \code{h2}.}
@@ -50,7 +57,10 @@ attributes \code{reliability}, \code{mu} (the estimated mean), \code{lambda}, \c
 \code{var_e}, \code{method} and, for \code{"gblup"} with the genomic matrix built here (no
 \code{K} supplied) and \code{ridge = 0}, \code{marker_effects} (back-solved, on the
 \eqn{M - 2p} gene-content scale of \code{\link[=g_matrix]{g_matrix()}}; a supplied \code{K} carries no
-marker scale, so none are returned).
+marker scale, so none are returned). For multi-trait BLUP, an individuals x
+traits matrix, with \code{reliability} the matching matrix, \code{mu} a vector named by
+trait, \code{var_a} and \code{var_e} the covariance matrices used, \code{method}, and
+\code{marker_effects} (markers x traits) under the same condition; no \code{lambda}.
 }
 \description{
 Best linear unbiased prediction (Henderson 1975) of every individual's
@@ -78,6 +88,26 @@ base allele frequencies (\code{base_freq}) fixed at the base population's; per-c
 values inflate the apparent accuracy. Records of every individual that
 selection was based on should be included, or predictions are biased
 (Henderson 1975).
+
+\strong{Multi-trait BLUP.} Give \code{pheno} as an individuals x traits matrix (row names
+ids, column names traits, \code{NA} for a trait an individual was not recorded on)
+and \code{var_a}, \code{var_e} as the known traits x traits base additive genetic
+covariance matrix \eqn{G_0} and residual covariance matrix \eqn{R_0}. The model
+(Henderson & Quaas 1976) is \eqn{y_t = 1\mu_t + Z_t u_t + e_t} for every trait
+\eqn{t}, with \eqn{Var(u) = G_0 \otimes K} and residuals correlated only within
+an individual, \eqn{Cov(e_{it}, e_{js}) = R_{0,ts}} if \eqn{i = j} and 0
+otherwise. It is solved in the same generalized least-squares form over the
+stacked records, \eqn{\hat u = Cov(u, y) V^{-1} (y - X\hat\mu)} with
+\eqn{V = Var(y)}, so \code{K} and \eqn{G_0} may be singular (e.g. a genetic
+correlation of 1). A trait is predicted for every individual, including those
+not recorded on it, through the genetic covariances with the traits that were
+recorded; an individual's own record on a correlated trait also enters through
+the residual covariance. The records need not be complete, but every trait needs
+at least one. With uncorrelated traits (diagonal \eqn{G_0} and \eqn{R_0}) the
+result is single-trait BLUP of each trait. The BLUP of an aggregate genotype
+\eqn{H = a'u} is \eqn{a'\hat u}, so rank on \code{ebv \%*\% a} (e.g.
+\code{select_ind(method = "mass", on = ...)}), or pass the matrix to
+\code{select_ind(method = "culling", on = ...)}.
 }
 \examples{
 data("SNP55K_maize282_maf04")
@@ -86,8 +116,23 @@ q <- c("ss196442916", "ss196439337", "ss196480535")
 y <- phenotype_value(pop, q, c(1, 0.5, 0.25), h2 = 0.5, seed = 1)
 ebv <- predict_ebv(pop, y[1:40], h2 = 0.5)      # 20 unphenotyped candidates
 head(ebv)
+
+# multi-trait (illustrative covariances): a second, correlated trait recorded
+# on every individual, the first unrecorded on the 20 candidates
+y2 <- phenotype_value(pop, q, c(0.8, 0.6, 0), h2 = 0.5, seed = 2)
+Y <- cbind(t1 = y, t2 = y2)
+Y[41:60, "t1"] <- NA
+tr <- c("t1", "t2")
+G0 <- matrix(c(1, 0.6, 0.6, 1), 2, dimnames = list(tr, tr))
+R0 <- diag(2); dimnames(R0) <- list(tr, tr)
+ebv2 <- predict_ebv(pop, Y, var_a = G0, var_e = R0)
+head(ebv2)
 }
 \references{
+Henderson CR, Quaas RL (1976) Multiple trait evaluation using relatives'
+records. \emph{Journal of Animal Science} 43:1188--1197.
+\doi{10.2527/jas1976.4361188x}
+
 Henderson CR (1975) Best linear unbiased estimation and prediction under a
 selection model. \emph{Biometrics} 31:423--447. \doi{10.2307/2529430}
 

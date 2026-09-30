@@ -57,13 +57,21 @@ phenotypes_wide <- function(sim) {
 
 #' Write realized phenotypes to disk
 #'
-#' Writes the long (default) or wide table as a delimited file. Specialized
-#' exporters (gemma / plink / multi-file) are out of scope for the grammar core.
+#' Writes the long (default) or wide table as a delimited text file or as JSON.
+#' Specialized exporters (gemma / plink / multi-file) are out of scope for the
+#' grammar core.
+#'
+#' JSON (`file_type = "json"`) is an array with one object per row of the chosen
+#' layout, e.g. `[{"id": "33-16", "trait": "Trait_1", "rep": 1, "value": 0.52}, ...]`
+#' for `"long"`, written as UTF-8 with 17 significant digits so every value reads
+#' back exactly (e.g. `jsonlite::read_json(file, simplifyVector = TRUE)`, or
+#' `pandas.read_json()` in Python). It needs the \pkg{jsonlite} package.
 #'
 #' @param sim a `phenotype_sim`.
 #' @param file output path.
 #' @param format "long" (default) or "wide".
-#' @param sep field separator (default tab).
+#' @param sep field separator (default tab); text files only.
+#' @param file_type `"text"` (default, a delimited file) or `"json"`.
 #' @return `file`, invisibly.
 #' @seealso [phenotypes_long()], [phenotypes_wide()].
 #' @export
@@ -82,13 +90,34 @@ phenotypes_wide <- function(sim) {
 #' write_phenotypes(ph, file = out_wide, format = "wide", sep = ",")
 #' head(read.csv(out_wide))
 #'
+#' # JSON, one object per row (needs the jsonlite package).
+#' if (requireNamespace("jsonlite", quietly = TRUE)) {
+#'   out_json <- file.path(tempdir(), "phenotypes.json")
+#'   write_phenotypes(ph, file = out_json, file_type = "json")
+#'   head(jsonlite::read_json(out_json, simplifyVector = TRUE))
+#'   unlink(out_json)
+#' }
+#'
 #' unlink(c(out, out_wide))
 write_phenotypes <- function(sim, file, format = c("long", "wide"),
-                             sep = "\t") {
+                             sep = "\t", file_type = c("text", "json")) {
   .check_sim(sim)
   format <- match.arg(format)
+  file_type <- match.arg(file_type)
   tab <- if (format == "long") phenotypes_long(sim) else phenotypes_wide(sim)
-  data.table::fwrite(tab, file = file, sep = sep)
+  if (file_type == "json") {
+    if (!requireNamespace("jsonlite", quietly = TRUE)) {
+      stop("write_phenotypes(): `file_type = \"json\"` needs the jsonlite ",
+           "package; install it with install.packages(\"jsonlite\").",
+           call. = FALSE)
+    }
+    # 17 significant digits round-trip every double exactly; a missing value
+    # is JSON null
+    jsonlite::write_json(tab, path = file, dataframe = "rows",
+                         digits = I(17), na = "null", auto_unbox = TRUE)
+  } else {
+    data.table::fwrite(tab, file = file, sep = sep)
+  }
   invisible(file)
 }
 

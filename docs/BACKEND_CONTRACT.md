@@ -63,7 +63,9 @@ tandem selection (a `trait` vector on `pedigree` / `recurrent_selection`,
 DECISION-028); `combining_ability`, `template_effects` (DECISION-026);
 `progeny_test` (DECISION-027); `marker_select` (DECISION-029); `predict_ebv`,
 `a_matrix`, `prediction_accuracy`, and the operator manifest `selection_methods`
-(DECISION-030).
+(DECISION-030). Added in 2.0.0.9002: multi-trait BLUP through `predict_ebv` (an
+individuals x traits `pheno` matrix with `var_a` / `var_e` covariance matrices,
+DECISION-032).
 
 ### Modern methods
 `g_matrix` (VanRaden), `optimum_contribution` + `sample_parents` (Meuwissen

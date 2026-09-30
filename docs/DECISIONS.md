@@ -1240,6 +1240,40 @@ a two-breed rotation ≈ 2/3 of the F1 heterosis; additive architectures give 0.
 
 ---
 
+## DECISION-032: multi-trait known-covariance BLUP
+
+**Decision (lifts the multi-trait half of SPEC D14; single-step `H` stays deferred):**
+`predict_ebv()` takes an individuals x traits `pheno` matrix (row names ids, column
+names traits, `NA` for a missing record) with `var_a` = `G0` and `var_e` = `R0`, the
+known traits x traits base additive genetic and residual covariance matrices, and
+returns an individuals x traits matrix of predictions. One verb, not a new export: a
+vector `pheno` is single-trait BLUP exactly as before. The model is Henderson & Quaas
+(1976): `y_t = 1 μ_t + Z_t u_t + e_t`, `Var(u) = G0 ⊗ K`, residuals correlated only
+within an individual (`R0` between one individual's records, 0 between individuals), a
+mean per trait. It is solved in the GLS form of DECISION-030 over the stacked records,
+`û = Cov(u, y) V⁻¹ (y − X μ̂)`, so a singular `K` or `G0` (genetic correlation 1) is
+fine; reliability is `1 − PEV / (G0_tt K_ii)` with PEV from
+`P = V⁻¹ − V⁻¹X (X'V⁻¹X)⁻¹ X'V⁻¹`. Missing records are allowed (every trait needs
+one). `h2` / `ref` cannot set between-trait covariances, so they are rejected for a
+matrix `pheno`; the covariance matrices are validated as symmetric and PSD (the
+DECISION-030 correlation-scale check) with positive variances, and named axes must be
+the traits (reordered to `pheno`'s). GBLUP marker effects per trait come from the same
+back-solve. The BLUP of an aggregate genotype `a'u` is `a'û`, ranked through
+`select_ind(on =)`. Validated: equals Henderson's multi-trait MME (with
+`(G0 ⊗ A)⁻¹`) to 1e-9 for `μ`, `û` and PEV with partly missing records; a one-column
+matrix equals single-trait BLUP, and diagonal `G0`, `R0` separate into per-trait BLUP;
+marker effects reproduce the GEBVs; under its own model a correlated recorded trait
+lifts the accuracy of an unrecorded one (0.67 vs 0.45 single-trait at `r_g = 0.8`),
+the slope of truth on prediction is ≈ 1, and mean reliability ≈ squared accuracy.
+Review r1: one-marker marker effects kept as a markers x traits matrix; a
+correlation-scale entry that overflows (e.g. `[[1e-320, 1e200], [1e200, 1e-320]]`) now
+fails the PSD check directly instead of making its tolerance infinite (this also closes
+the same hole for a supplied `K` in single-trait BLUP).
+
+**Date:** 2026-09-29
+
+---
+
 ## Decision Log Summary
 
 | ID | Decision | Status |
@@ -1274,3 +1308,4 @@ a two-breed rotation ≈ 2/3 of the F1 heterosis; additive architectures give 0.
 | 029 | `marker_select()`: foreground carrier / homozygote filter, staged pyramiding (`min_markers`), ranking on any score, seeded tie-break; `additive_value()` documented as the MARS index | locked (2026-09-28) |
 | 030 | `predict_ebv()` known-variance BLUP (GBLUP / pedigree, GLS form = MME), `a_matrix()` tabular method, `prediction_accuracy()`, `selection_methods()` manifest; multi-trait / single-step deferred (D14, TODO) | locked (2026-09-28) |
 | 031 | `breed_composition()`, `heterosis()` (realized; exact expected F1 from the breeds' genotypes), `crossbreed()` two-way / backcross / three-way / terminal / rotational over `mate()` | locked (2026-09-28) |
+| 032 | Multi-trait known-covariance BLUP in `predict_ebv()` (individuals x traits `pheno` with `NA` for missing records; `var_a` = G0, `var_e` = R0; Henderson & Quaas 1976, GLS form = multi-trait MME); single-step `H` still deferred | locked (2026-09-29) |
