@@ -97,7 +97,8 @@
 ^TODO\.md$
 ^TODO_newfeatures\.md$
 ^_config\.yml$
-^SP_logo\.png$
+^man/figures/SP_logo\.png$
+^man/figures/legacy_SP_logo\.png$
 ^data-raw$
 
 # Purled vignette scripts and rendered HTML: build artifacts that would
@@ -105,4 +106,3 @@
 ^vignettes/.*\.R$
 ^vignettes/.*\.html$
 ^Rplots\.pdf$
-^REVIEW_GUIDE\.md$
