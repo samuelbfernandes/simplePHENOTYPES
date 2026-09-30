@@ -27,6 +27,7 @@ Imports:
 Suggests:
     SNPRelate,
     gdsfmt,
+    jsonlite,
     knitr,
     rmarkdown,
     testthat (>= 3.0.0),

@@ -4,7 +4,13 @@
 \alias{write_phenotypes}
 \title{Write realized phenotypes to disk}
 \usage{
-write_phenotypes(sim, file, format = c("long", "wide"), sep = "\\t")
+write_phenotypes(
+  sim,
+  file,
+  format = c("long", "wide"),
+  sep = "\\t",
+  file_type = c("text", "json")
+)
 }
 \arguments{
 \item{sim}{a \code{phenotype_sim}.}
@@ -13,14 +19,24 @@ write_phenotypes(sim, file, format = c("long", "wide"), sep = "\\t")
 
 \item{format}{"long" (default) or "wide".}
 
-\item{sep}{field separator (default tab).}
+\item{sep}{field separator (default tab); text files only.}
+
+\item{file_type}{\code{"text"} (default, a delimited file) or \code{"json"}.}
 }
 \value{
 \code{file}, invisibly.
 }
 \description{
-Writes the long (default) or wide table as a delimited file. Specialized
-exporters (gemma / plink / multi-file) are out of scope for the grammar core.
+Writes the long (default) or wide table as a delimited text file or as JSON.
+Specialized exporters (gemma / plink / multi-file) are out of scope for the
+grammar core.
+}
+\details{
+JSON (\code{file_type = "json"}) is an array with one object per row of the chosen
+layout, e.g. \verb{[\{"id": "33-16", "trait": "Trait_1", "rep": 1, "value": 0.52\}, ...]}
+for \code{"long"}, written as UTF-8 with 17 significant digits so every value reads
+back exactly (e.g. \code{jsonlite::read_json(file, simplifyVector = TRUE)}, or
+\code{pandas.read_json()} in Python). It needs the \pkg{jsonlite} package.
 }
 \examples{
 data("SNP55K_maize282_maf04")
@@ -36,6 +52,14 @@ head(read.delim(out))
 out_wide <- file.path(tempdir(), "phenotypes_wide.csv")
 write_phenotypes(ph, file = out_wide, format = "wide", sep = ",")
 head(read.csv(out_wide))
+
+# JSON, one object per row (needs the jsonlite package).
+if (requireNamespace("jsonlite", quietly = TRUE)) {
+  out_json <- file.path(tempdir(), "phenotypes.json")
+  write_phenotypes(ph, file = out_json, file_type = "json")
+  head(jsonlite::read_json(out_json, simplifyVector = TRUE))
+  unlink(out_json)
+}
 
 unlink(c(out, out_wide))
 }

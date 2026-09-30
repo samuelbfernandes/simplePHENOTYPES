@@ -23,6 +23,9 @@
   for missing records) with known genetic (`var_a`) and residual (`var_e`)
   covariance matrices predicts every trait for every individual, including traits
   an individual was not recorded on (Henderson & Quaas 1976).
+* `write_phenotypes(file_type = "json")` writes the long or wide table as JSON (one
+  object per row, UTF-8, values round-trip exactly); needs the suggested package
+  jsonlite.
 * `crossbreed()` (two-way, backcross, three-way, terminal, rotational),
   `breed_composition()` and `heterosis()`.
 * `mabc_select()` and `recurrent_parent_recovery()`: marker-assisted
