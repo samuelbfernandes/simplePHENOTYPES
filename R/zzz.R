@@ -18,3 +18,23 @@ utils::globalVariables(c(
 
 # data.table NSE in handle_finalreport().
 utils::globalVariables(c(":=", "geno"))
+
+#' Unwrap a `Result` returned by the Rust kernel
+#'
+#' The kernel entry points return `list(ok, err)` (extendr feature
+#' `result_list`) instead of panicking, because a Rust panic aborts the R process
+#' on toolchains whose unwinder cannot cross R's frames (a gcc-linked macOS
+#' build). `err` becomes an ordinary R error here.
+#' @param res the value returned by `.Call()`.
+#' @param fn the kernel function name, for the message.
+#' @keywords internal
+#' @noRd
+.unwrap_extendr <- function(res, fn) {
+  if (inherits(res, "extendr_result")) {
+    if (!is.null(res$err)) {
+      stop(fn, "(): ", res$err, call. = FALSE)
+    }
+    return(res$ok)
+  }
+  res
+}

@@ -59,6 +59,9 @@ phenotypes_wide <- function(sim) {
 #'
 #' Writes the long (default) or wide table as a delimited file. Specialized
 #' exporters (gemma / plink / multi-file) are out of scope for the grammar core.
+#' Values are written with `data.table::fwrite()`'s default of up to 15
+#' significant digits, so reading the file back reproduces the phenotypes to
+#' about 1e-14 (relative), not bit-for-bit.
 #'
 #' @param sim a `phenotype_sim`.
 #' @param file output path.

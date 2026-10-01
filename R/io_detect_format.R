@@ -12,7 +12,7 @@
            "AG","CT","CG","AT","GT","AC",
            "GA","TC","GC","TA","TG","CA")
 .HOMO <- c("A","AA","T","TT","C","CC","G","GG")
-.MISS <- c("N","NN","NA","--","XX","00","+","++"," ","")
+.MISS <- c("N","NN","NA","--","XX","00","+","++"," ","","-","0",".")
 
 # IUPAC single-character ambiguity codes -> their two constituent allele letters.
 .HET_IUPAC <- c(R = "AG", Y = "CT", S = "GC", W = "AT", K = "GT", M = "AC")
@@ -103,8 +103,7 @@ detect_format <- function(file) {
       if (is.null(hdr)) return("unknown")
       nms <- names(hdr)
       if (any(tolower(nms) == "snp name")) return("finalreport")
-      if (sum(nms[seq_len(min(11L, length(nms)))] == .HMP_NAMES) > 8L)
-        return("hapmap")
+      if (.hmp_header_match(nms)) return("hapmap")
       if (length(nms) >= 5L &&
           all(tolower(nms[1:5]) == c("snp", "allele", "chr", "pos", "cm")))
         return("numeric")
@@ -140,15 +139,34 @@ detect_format <- function(file) {
   NULL
 }
 
+#' Does a header look like a HapMap header (at least 9 of the 11 standard names)?
+#'
+#' Case-insensitive. A HapMap table has the 11 standard metadata columns before
+#' its first sample, and `handle_hapmap()` drops exactly those 11, so an object
+#' with fewer than 12 columns (the 11 metadata columns plus at least one sample)
+#' cannot be a usable HapMap table however its first names read: it is refused
+#' here (rather than detected and then failing with a subscript error), from a
+#' file path and from memory alike.
+#' @noRd
+.hmp_header_match <- function(nms) {
+  n <- length(.HMP_NAMES)
+  length(nms) > n &&
+    sum(tolower(nms[seq_len(n)]) == tolower(.HMP_NAMES)) > 8L
+}
+
 .detect_df_format <- function(df) {
   nms <- names(df)
-  if (length(nms) >= 11L && sum(nms[1:11] == .HMP_NAMES) > 8L)
-    return("hapmap")
-  if (length(nms) >= 12L) {
-    vals <- unique(as.character(df[, 12]))
+  if (.hmp_header_match(nms)) return("hapmap")
+  # Header-less fallback: a nucleotide-call column in the first genotype
+  # position. A numeric column (e.g. an all-zero column of a dosage matrix) is
+  # never a column of nucleotide calls, and at least one real nucleotide letter
+  # must be present: "0" alone (a legal missing code) is not evidence.
+  if (length(nms) >= 12L && !is.numeric(df[[12L]]) && !is.logical(df[[12L]])) {
+    vals <- unique(as.character(df[[12L]]))
     chars <- unlist(strsplit(vals, ""))
     nucleotide <- c(.HETS, .HOMO, "N", "-", "+", "0")
-    if (all(chars %in% nucleotide)) return("hapmap")
+    if (all(chars %in% nucleotide) && any(chars %in% c("A", "C", "G", "T")))
+      return("hapmap")
   }
   if (length(nms) >= 5L &&
       all(tolower(nms[1:5]) == c("snp", "allele", "chr", "pos", "cm")))
@@ -172,107 +190,138 @@ detect_format <- function(file) {
 
 #' Parse a character genotype matrix to a raw 0/1/2 dosage matrix.
 #'
-#' Generalized from the HapMap parser so it also serves nucleotide tables, VCF
-#' `GT` strings, and Illumina FinalReport `AB` calls: the heterozygote,
-#' homozygote and missing code sets are all overridable.
+#' Generalized from the HapMap parser so it also serves nucleotide tables and
+#' Illumina FinalReport calls: the heterozygote, homozygote and missing code
+#' sets are all overridable. Calls and code sets are compared case-insensitively.
 #'
-#' @param geno_mat Character matrix (SNPs × samples) of genotype calls.
-#' @param allele1 optional allele-1 label per marker. When supplied, raw dosage
-#'   0 is anchored to that allele rather than to the most frequent homozygote.
-#'   Required for reference-based orientation.
+#' Orientation is derived from the **observed** calls, never trusted from a
+#' declared allele pair. When `allele1` (and optionally `allele2`) is supplied it
+#' anchors raw 0 to that allele, but only if every allele actually observed at the
+#' marker is one of the declared pair; a declaration that disagrees with the calls
+#' is ignored for that marker (orientation is derived from the calls) and the
+#' marker is reported in `attr(., "mismatch")` with a warning. With no usable
+#' declaration, allele 1 is the more frequent homozygote (ties: alphabetically
+#' first letter) or, for a heterozygote-only marker, the alphabetically first
+#' letter.
+#'
+#' @param geno_mat Character matrix (SNPs x samples) of genotype calls.
+#' @param allele1 optional declared allele-1 letter per marker (single letters
+#'   only; anything else is treated as "no usable declaration").
 #' @param hets heterozygote codes (default the IUPAC/digraph set `.HETS`).
 #' @param homo optional explicit homozygote codes. When `NULL` (default) any
 #'   present call that is neither het nor missing is treated as a homozygote
 #'   (HapMap behaviour). When supplied, a call that is neither het, homo, nor
-#'   missing is treated as missing (invalid), which is what a strict table /
-#'   FinalReport parse needs.
+#'   missing is treated as missing (invalid) and counted in a warning.
 #' @param miss missing-value codes (default `.MISS`).
-#' @return Integer matrix (SNPs × samples): 0 = hom allele-1, 1 = het,
-#'   2 = hom allele-2, NA_integer_ = missing. `attr(., "alleles")` is an
-#'   n_snp × 2 character matrix of the (allele1, allele2) labels backing the
-#'   0 / 2 codes, for building the `allele` metadata column.
+#' @param allele2 optional declared allele-2 letter per marker, used with
+#'   `allele1` to validate the calls against the declared pair.
+#' @return Integer matrix (SNPs x samples): 0 = hom allele-1, 1 = het,
+#'   2 = hom allele-2, NA_integer_ = missing. Attributes: `"alleles"`, an
+#'   n_snp x 2 character matrix of the (allele1, allele2) **letters** backing the
+#'   0 / 2 codes; `"nonbiallelic"` and `"mismatch"`, logical per-marker flags.
 #' @noRd
 parse_hapmap_chars_to_raw <- function(geno_mat, allele1 = NULL,
                                       hets = .HETS, homo = NULL,
-                                      miss = .MISS) {
+                                      miss = .MISS, allele2 = NULL) {
   n_snp  <- nrow(geno_mat)
   n_samp <- ncol(geno_mat)
   raw    <- matrix(NA_integer_, nrow = n_snp, ncol = n_samp)
   alleles <- matrix(NA_character_, nrow = n_snp, ncol = 2L)
+  nonbi    <- rep(FALSE, n_snp)
+  mismatch <- rep(FALSE, n_snp)
+  n_invalid <- 0L
+
+  hets <- toupper(hets)
+  miss <- toupper(miss)
+  if (!is.null(homo)) homo <- toupper(homo)
+  calls_up <- toupper(matrix(as.character(geno_mat), nrow = n_snp, ncol = n_samp))
+  is_letter <- function(x) !is.na(x) & grepl("^[A-Z]$", x) & x != "N"
+  a1 <- if (is.null(allele1)) NULL else toupper(as.character(allele1))
+  a2 <- if (is.null(allele2)) NULL else toupper(as.character(allele2))
 
   for (i in seq_len(n_snp)) {
-    row      <- as.character(geno_mat[i, ])
-    is_miss  <- row %in% miss | is.na(row)
-    is_het   <- row %in% hets
+    row     <- calls_up[i, ]
+    is_miss <- row %in% miss | is.na(row)
+    is_het  <- !is_miss & row %in% hets
     if (is.null(homo)) {
       is_hom <- !is_miss & !is_het
     } else {
-      is_hom <- row %in% homo
+      is_hom <- !is_miss & !is_het & row %in% homo
       # A present call that is neither het nor a recognised homozygote is not a
-      # valid biallelic genotype: record it as missing rather than a phantom
-      # third homozygote.
-      is_miss <- is_miss | (!is_het & !is_hom)
+      # valid biallelic genotype: record it as missing (and count it, so the
+      # loss is reported) rather than as a phantom third homozygote.
+      bad <- !is_miss & !is_het & !is_hom
+      n_invalid <- n_invalid + sum(bad)
+      is_miss <- is_miss | bad
+    }
+    if (all(is_miss)) next
+
+    # Alleles observed across ALL present calls: a heterozygote contributes both
+    # of its letters, so multiallelism hidden in hets (AA/AG/AT) is caught.
+    u_calls <- unique(row[!is_miss])
+    obs <- unique(unlist(lapply(u_calls, .call_to_letters)))
+    hom_letter <- ifelse(is_hom, substr(row, 1L, 1L), NA_character_)
+    hom_tab <- table(hom_letter[is_hom])
+    if (length(hom_tab) > 2L || length(obs) > 2L) {
+      nonbi[i] <- TRUE            # not biallelic: whole row stays missing
+      next
     }
 
-    hom_vals <- row[is_hom]
-    if (length(hom_vals) == 0L) {
-      # Only hets and/or missing: every present call is het -> raw dosage 1.
-      # There is no homozygote to name the alleles from, but a reference-oriented
-      # parse still needs the marker's allele letters, so recover them from the
-      # heterozygote calls themselves (IUPAC code or digraph). Leaving the allele
-      # metadata NA here made a valid het-only marker fail reference coding.
-      het_letters <- unique(unlist(lapply(row[is_het], .het_to_letters)))
-      if (length(het_letters) > 2L) {
-        # Het-only but multiallelic (e.g. AG/AT/GT -> A/G/T): not biallelic.
-        message("Non-biallelic SNP at row ", i, " set to NA.")
-        next
-      }
-      raw[i, is_het] <- 1L
-      if (length(het_letters) == 2L) {
-        if (is.null(allele1)) {
-          alleles[i, ] <- het_letters
+    # Orientation: anchor to the declared pair only when it is usable and
+    # consistent with what is actually observed at this marker.
+    pair <- NULL
+    if (!is.null(a1) && is_letter(a1[[i]])) {
+      if (!is.null(a2) && is_letter(a2[[i]]) && a1[[i]] != a2[[i]]) {
+        if (all(obs %in% c(a1[[i]], a2[[i]]))) {
+          pair <- c(a1[[i]], a2[[i]])
         } else {
-          a <- substr(as.character(allele1[[i]]), 1L, 1L)
-          alleles[i, ] <- if (a %in% het_letters) {
-            c(a, setdiff(het_letters, a))
-          } else {
-            het_letters
-          }
+          mismatch[i] <- TRUE
         }
+      } else if (a1[[i]] %in% obs) {
+        other <- setdiff(obs, a1[[i]])
+        pair <- c(a1[[i]], if (length(other)) other[[1L]] else NA_character_)
       }
-      next
+    }
+    if (is.null(pair)) {
+      first <- if (length(hom_tab)) {
+        names(hom_tab)[order(-as.integer(hom_tab), names(hom_tab))][[1L]]
+      } else {
+        sort(obs)[[1L]]
+      }
+      other <- setdiff(obs, first)
+      pair <- c(first, if (length(other)) other[[1L]] else NA_character_)
     }
 
-    counts <- sort(table(hom_vals), decreasing = TRUE)
-
-    # Multiallelism can hide in heterozygotes: AA/AG/AT has a single homozygote
-    # ("AA") but three alleles (A/G/T). Count alleles across ALL present calls,
-    # not just distinct homozygote strings, so such a marker is set to NA rather
-    # than silently coerced to a biallelic dosage.
-    present_alleles <- unique(unlist(lapply(row[!is_miss], .call_to_letters)))
-    if (length(counts) > 2L || length(present_alleles) > 2L) {
-      # Non-biallelic SNP: set entire row to NA, matching v1 behaviour.
-      message("Non-biallelic SNP at row ", i, " set to NA.")
-      next
-    }
-
-    first <- if (is.null(allele1)) {
-      names(counts)[1L]
-    } else {
-      a <- as.character(allele1[[i]])
-      candidates <- c(a, paste0(a, a))
-      hit <- candidates[candidates %in% hom_vals]
-      if (length(hit)) hit[[1L]] else candidates[[1L]]
-    }
-    second <- setdiff(names(counts), first)
-    alleles[i, ] <- c(first, if (length(second)) second[[1L]] else NA_character_)
-
-    raw[i, row == first] <- 0L
-    raw[i, is_het]         <- 1L
-    raw[i, is_hom & row != first] <- 2L
+    alleles[i, ] <- pair
+    raw[i, is_het] <- 1L
+    raw[i, is_hom & hom_letter == pair[[1L]]] <- 0L
+    raw[i, is_hom & hom_letter != pair[[1L]]] <- 2L
     # missing stays NA_integer_
   }
+
+  .rows <- function(x) {
+    w <- which(x)
+    paste0(paste(utils::head(w, 5L), collapse = ", "),
+           if (length(w) > 5L) ", ..." else "")
+  }
+  if (any(nonbi)) {
+    warning(sum(nonbi), " marker(s) are not biallelic (rows ", .rows(nonbi),
+            ") and were set to missing.", call. = FALSE)
+  }
+  if (any(mismatch)) {
+    warning(sum(mismatch), " marker(s) carry alleles that are not in the ",
+            "declared allele pair (rows ", .rows(mismatch), "); the declared ",
+            "pair was ignored for those markers and their orientation was ",
+            "derived from the observed calls.", call. = FALSE)
+  }
+  if (n_invalid > 0L) {
+    warning(n_invalid, " genotype call(s) are not among the recognised ",
+            "heterozygote, homozygote or missing codes and were set to ",
+            "missing.", call. = FALSE)
+  }
   attr(raw, "alleles") <- alleles
+  attr(raw, "nonbiallelic") <- nonbi
+  attr(raw, "mismatch") <- mismatch
   raw
 }
 
@@ -322,9 +371,50 @@ compute_flip <- function(raw, method = "frequency",
 #' @param coded_mat Integer matrix (SNPs × samples) of coded genotype values.
 #' @noRd
 assemble_output <- function(meta, sample_ids, coded_mat) {
+  .check_unique_ids(meta$snp, sample_ids)
   out <- data.frame(meta, coded_mat,
                     check.names = FALSE, fix.empty.names = FALSE,
                     stringsAsFactors = FALSE)
   colnames(out) <- c("snp", "allele", "chr", "pos", "cm", sample_ids)
   out
+}
+
+#' Refuse duplicated marker IDs and duplicated sample names.
+#'
+#' Downstream code (`qtn_table()`, `g_matrix()`, `as_population()`) indexes
+#' markers and individuals by name, so a repeated name silently addresses the
+#' wrong column. Missing marker IDs (`NA`) are not compared.
+#' @noRd
+.check_unique_ids <- function(snp, samples) {
+  snp <- snp[!is.na(snp)]
+  dup_snp <- unique(snp[duplicated(snp)])
+  if (length(dup_snp)) {
+    stop("Duplicated marker ID(s): ",
+         paste(utils::head(dup_snp, 5L), collapse = ", "),
+         if (length(dup_snp) > 5L) ", ..." else "",
+         ". Marker IDs must be unique; rename or remove the duplicates.",
+         call. = FALSE)
+  }
+  dup_smp <- unique(samples[duplicated(samples)])
+  if (length(dup_smp)) {
+    stop("Duplicated sample name(s): ",
+         paste(utils::head(dup_smp, 5L), collapse = ", "),
+         if (length(dup_smp) > 5L) ", ..." else "",
+         ". Sample names must be unique; rename or remove the duplicates.",
+         call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+#' Fill missing VCF/PLINK marker IDs ("." / "" / NA) with `chr:pos`.
+#'
+#' A VCF without an ID column value writes ".", which repeats for every such
+#' site; using it as a marker name would make all of them duplicates. The
+#' `chr:pos` convention (as bcftools uses) keeps them unique and traceable.
+#' @noRd
+.fill_missing_ids <- function(ids, chr, pos) {
+  ids <- as.character(ids)
+  bad <- is.na(ids) | !nzchar(ids) | ids == "."
+  if (any(bad)) ids[bad] <- paste0(as.character(chr)[bad], ":", as.character(pos)[bad])
+  ids
 }

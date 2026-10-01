@@ -3,15 +3,31 @@ name = 'simplephenotypes'
 publish = false
 version = '0.1.0'
 edition = '2021'
-rust-version = '1.65'
+rust-version = '1.71'
 
 [lib]
 crate-type = [ 'staticlib' ]
 name = 'simplephenotypes'
 
 [dependencies]
-extendr-api = '*'
+# Pinned (a wildcard let a fresh resolve pick any release). 0.9.0 is the version
+# vendored in vendor.tar.xz and locked in Cargo.lock; its rust-version is 1.71,
+# which is therefore the MSRV declared above, in tools/msrv.R's consistency
+# check and in DESCRIPTION (SystemRequirements).
+#
+# `result_list`: a returned `Err` is encoded as `list(ok, err)` instead of a
+# panic. Panics cannot unwind through R's frames on some toolchains (a
+# gcc-linked macOS build) and abort the R process, so the entry points return
+# `Result<_, String>` and the R wrappers (R/extendr-wrappers.R) re-raise `err`
+# as an ordinary R error.
+extendr-api = { version = '0.9.0', features = ['result_list'] }
 
+# Release note: the package's development build (`DEBUG` set at install, see
+# tools/config.R) is the debug profile, which keeps `debug_assert!` live; the CRAN
+# build is release, where they compile out. Nothing on a checked input path
+# relies on a debug assertion (validation returns errors in both profiles), and
+# tests/testthat/test-audit-rust-crossing.R runs the same probes against
+# whichever profile is loaded.
 [profile.release]
 lto = true
 codegen-units = 1

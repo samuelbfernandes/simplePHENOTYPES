@@ -1,9 +1,11 @@
 //! Stable content hash for pedigree keys (DECISION-024).
 //!
-//! FNV-1a with the 128-bit parameters of the FNV specification, over the UTF-8
-//! bytes of a canonical text encoding built in R. Deterministic and independent
-//! of R, package and dependency versions, so a pedigree key computed today is
-//! the key the same individual gets after an upgrade.
+//! FNV-1a with the 128-bit parameters of the FNV specification (RFC 9923, "The
+//! FNV Non-Cryptographic Hash Algorithm"; the 128-bit FNV prime is
+//! 2^88 + 2^8 + 0x3B), over the UTF-8 bytes of a canonical text encoding built
+//! in R. Deterministic and independent of R, package and dependency versions,
+//! so a pedigree key computed today is the key the same individual gets after
+//! an upgrade.
 
 use extendr_api::prelude::*;
 
@@ -41,6 +43,25 @@ mod tests {
     #[test]
     fn empty_input_is_the_offset_basis() {
         assert_eq!(fnv1a_128(b""), FNV128_OFFSET);
+    }
+
+    #[test]
+    fn prime_is_two_pow_88_plus_two_pow_8_plus_0x3b() {
+        assert_eq!(FNV128_PRIME, (1u128 << 88) + (1u128 << 8) + 0x3b);
+    }
+
+    #[test]
+    fn known_answer_vectors() {
+        // FNV-1a, 128 bit, from the reference test suite of the FNV
+        // specification (RFC 9923): "a" and "foobar".
+        assert_eq!(
+            format!("{:032x}", fnv1a_128(b"a")),
+            "d228cb696f1a8caf78912b704e4a8964"
+        );
+        assert_eq!(
+            format!("{:032x}", fnv1a_128(b"foobar")),
+            "343e1662793c64bf6f0d3597ba446f18"
+        );
     }
 
     #[test]

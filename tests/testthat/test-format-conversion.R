@@ -61,9 +61,9 @@ test_that("parse_hapmap_chars_to_raw() produces correct 0/1/2/NA matrix", {
 
 test_that("parse_hapmap_chars_to_raw() sets non-biallelic SNP to NA", {
   tri <- matrix(c("AA","TT","CC","AA"), nrow = 1L)  # 3 distinct homozygotes
-  expect_message(
+  expect_warning(
     raw <- simplePHENOTYPES:::parse_hapmap_chars_to_raw(tri),
-    regexp = "Non-biallelic"
+    regexp = "not biallelic"
   )
   expect_true(all(is.na(raw[1L, ])))
 })

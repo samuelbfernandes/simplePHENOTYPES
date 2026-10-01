@@ -53,8 +53,12 @@ test_that("filter_geno() LD pruning matches PLINK 1.9 marker-for-marker", {
   for (key in names(run_config)) {
     kept <- run_config[[key]](g)$snp
     golden <- fixture$kept[[key]]
-    expect_identical(sort(kept), sort(golden),
+    # Same markers in the same order as PLINK's .prune.in, and therefore the
+    # same removed set (the complement of the kept set within the panel).
+    expect_identical(kept, golden,
                      info = paste("config", key, "diverged from PLINK 1.9"))
+    expect_identical(setdiff(g$snp, kept), setdiff(g$snp, golden),
+                     info = paste("config", key, "removed set diverged"))
   }
 })
 

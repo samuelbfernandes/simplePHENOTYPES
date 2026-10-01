@@ -20,6 +20,9 @@ data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
 d <- SNP55K_maize282_maf04
 ids <- names(d)[-(1:5)]
 Dm  <- as.matrix(d[, -(1:5)])
+# A missing dosage would be written as the literal alleles `NA NA`, which PLINK
+# reads as a third allele; this script is only valid for complete-call panels.
+stopifnot(!anyNA(Dm))
 alle <- strsplit(d$allele, "/", fixed = TRUE)
 a1 <- vapply(alle, `[`, "", 1L)
 a2 <- vapply(alle, `[`, "", 2L)

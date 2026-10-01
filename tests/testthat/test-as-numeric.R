@@ -206,6 +206,14 @@ test_that("cross-format: per-SNP allele coding is orientation-consistent", {
     diffs <- diffs[!is.na(diffs)]
     expect_true(all(diffs %in% c(-2L, 0L, 2L)),
                 info = paste("orientation check failed for", label))
+    # Stronger: per marker, the whole row is either identical or exactly
+    # negated (a partial flip within one marker would be corruption).
+    row_ok <- vapply(seq_len(nrow(hmp_mat)), function(i) {
+      a <- hmp_mat[i, ]; b <- other_mat[i, ]
+      keep <- !is.na(a) & !is.na(b)
+      all(a[keep] == b[keep]) || all(a[keep] == -b[keep])
+    }, logical(1))
+    expect_true(all(row_ok), info = paste("row-level orientation:", label))
   }
   check_orientation(vcf, "VCF")
   check_orientation(bed, "BED")

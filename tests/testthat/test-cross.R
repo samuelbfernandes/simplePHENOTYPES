@@ -180,7 +180,8 @@ test_that("recombination between linked markers follows Haldane's map function",
   geno <- .toy_geno(n_mk = 41, len_cm = 200)
   pop <- as_population(geno)
   f1 <- cross(pop[1], pop[2], n = 1, seed = 11)
-  dh <- double_haploid(f1, n = 1500, seed = 12)
+  n_dh <- 20000L
+  dh <- double_haploid(f1, n = n_dh, seed = 12)
   g <- dosages(dh)
 
   d_cm <- geno$cm
@@ -188,8 +189,11 @@ test_that("recombination between linked markers follows Haldane's map function",
     d <- (d_cm[j] - d_cm[1]) / 100          # Morgans
     expected <- (1 - exp(-2 * d)) / 2
     observed <- mean(g[1, ] != g[j, ])
-    expect_equal(observed, expected, tolerance = 0.05,
-                 label = paste0("r between marker 1 and ", j))
+    # absolute bound in standard errors of a proportion (a relative tolerance is
+    # far looser than the sampling error at small r)
+    se <- sqrt(expected * (1 - expected) / n_dh)
+    expect_lt(abs(observed - expected), 4 * se,
+              label = paste0("|r - Haldane| between marker 1 and ", j))
   }
 })
 
@@ -266,6 +270,6 @@ test_that("simulate_phenotype accepts a Population", {
   expect_identical(nrow(ph$pheno), 50L)
   expect_identical(sort(unique(ph$pheno$id)), sort(f2$ids))
   # Realized heritability should land near the requested proportion.
-  expect_equal(stats::var(ph$pheno$value), stats::var(ph$pheno$value))
+  expect_equal(.realized_h2(ph), 0.6, tolerance = 0.25)
   expect_output(print(ph), "Population")
 })

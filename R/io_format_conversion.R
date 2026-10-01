@@ -21,8 +21,13 @@
 #' @param f_name Base name used to build \code{file_name} for in-memory input.
 #' @param code_as Numeric coding scheme: \code{"-101"} (major = 1, het = 0,
 #'   minor = -1; default) or \code{"012"} (major = 2, het = 1, minor = 0).
-#' @param hets Character vector of heterozygote codes for nucleotide tables.
-#' @param homo Character vector of homozygote codes for nucleotide tables.
+#' @param hets Character vector of heterozygote codes for nucleotide tables
+#'   (default: the IUPAC ambiguity codes and both orders of every digraph, the
+#'   same set HapMap input uses). Matching is case-insensitive.
+#' @param homo Character vector of homozygote codes for nucleotide tables
+#'   (default: single letters and doubled letters). Matching is
+#'   case-insensitive; a call that is in neither `hets`, `homo` nor the missing
+#'   codes is set to missing and reported in a warning.
 #' @param model Genetic model: \code{"Add"} (default), \code{"Dom"},
 #'   \code{"Left"}, or \code{"Right"}.
 #' @param impute Missing-data imputation: \code{"None"} (default),
@@ -44,9 +49,8 @@ format_conversion <- function(file,
                                file_name  = NULL,
                                f_name     = NULL,
                                code_as    = "-101",
-                               hets       = c("R","Y","S","W","K","M",
-                                              "AG","CT","CG","AT","GT","AC"),
-                               homo       = c("A","AA","T","TT","C","CC","G","GG"),
+                               hets       = .HETS,
+                               homo       = .HOMO,
                                model      = "Add",
                                impute     = "None",
                                method     = "frequency",
@@ -101,9 +105,19 @@ format_conversion <- function(file,
   # ---- auto-generate output file name -------------------------------------
   if (is.null(file_name) && to_file && to == "numeric") {
     if (all(file_class == "character")) {
-      file_name <- gsub(
-        paste0(gsub(".*[.]", ".", file), "|.HMP.TXT"),
-        "_numeric.txt", file, ignore.case = TRUE)
+      # Rewrite only the extension of the file name itself (".hmp.txt", or the
+      # last ".ext", after an optional .gz/.bz2); never the directory part, and
+      # a name without an extension simply gains the suffix.
+      dir_part <- dirname(file)
+      base <- sub("(\\.hmp\\.txt|\\.[^./\\\\]*)$", "",
+                  sub("\\.(gz|bz2)$", "", basename(file), ignore.case = TRUE),
+                  ignore.case = TRUE)
+      out_base <- paste0(base, "_numeric.txt")
+      file_name <- if (identical(dir_part, ".") && !startsWith(file, "./")) {
+        out_base
+      } else {
+        file.path(dir_part, out_base)
+      }
     } else {
       file_name <- paste0(f_name, "_numeric.txt")
     }

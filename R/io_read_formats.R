@@ -20,11 +20,29 @@
                           code_as    = "-101",
                           model      = "Add",
                           impute     = "None") {
+  # The Rust kernel trusts its inputs (a bad shape or value can abort the R
+  # process), so validate everything it relies on here, on the R side.
+  if (!is.matrix(raw_mat) || !(is.numeric(raw_mat) || all(is.na(raw_mat)))) {
+    stop("Internal error: the raw dosage must be a numeric matrix.",
+         call. = FALSE)
+  }
+  bad_raw <- !is.na(raw_mat) & !(raw_mat %in% 0:2)
+  if (any(bad_raw)) {
+    stop("Internal error: raw dosage values must be 0, 1, 2 or NA.",
+         call. = FALSE)
+  }
+  code_as <- match.arg(code_as, c("-101", "012"))
+  model   <- match.arg(model, c("Add", "Dom", "Left", "Right"))
+  impute  <- match.arg(impute, c("None", "Middle", "Minor", "Major"))
   n_snp  <- nrow(raw_mat)
   n_samp <- ncol(raw_mat)
 
   flip <- compute_flip(raw_mat, method = method,
                        allele1 = allele1, ref = ref_allele)
+  if (length(flip) != n_snp || anyNA(flip)) {
+    stop("Internal error: one non-missing orientation flag per marker is ",
+         "required.", call. = FALSE)
+  }
 
   # Rust expects row-major layout (SNP as outer dim, sample as inner).
   # R matrices are column-major, so transpose before flattening.
@@ -40,7 +58,58 @@
 
   # Rust output is row-major; read back as n_snp x n_samp with byrow = TRUE.
   coded_mat <- matrix(coded_vec, nrow = n_snp, ncol = n_samp, byrow = TRUE)
-  assemble_output(meta, sample_ids, coded_mat)
+  out <- assemble_output(meta, sample_ids, coded_mat)
+  # Record which allele is the counted (+1) one. Raw 0 is allele 1, so the
+  # counted allele is allele 1 unless the marker was flipped. Under the
+  # dominance model ("Dom") both homozygotes share a code, so no allele is
+  # counted; every other model keeps the additive homozygote coding.
+  if (!identical(model, "Dom")) {
+    attr(out, "counted_allele") <- .counted_allele(meta$allele, flip)
+  }
+  out
+}
+
+#' The allele that the numeric coding counts (+1, or 2 under `code_as = "012"`)
+#'
+#' The `allele` label is `"allele1/allele2"` in the raw orientation (raw 0 =
+#' homozygous allele 1); a flipped marker counts allele 2. A marker whose label
+#' does not name the counted allele (a single observed allele that must be
+#' flipped, a missing label) is `NA`, meaning "not recorded". At a multiallelic
+#' VCF site the label is `REF/ALT1,ALT2`; the coding only ever uses the first ALT.
+#' @param label character vector of `allele` labels.
+#' @param flip logical vector, one flag per marker (`TRUE` = allele 2 counted).
+#' @noRd
+.counted_allele <- function(label, flip) {
+  label <- as.character(label)
+  a1 <- ifelse(is.na(label), NA_character_, sub("/.*$", "", label))
+  a2 <- ifelse(is.na(label) | !grepl("/", label, fixed = TRUE), NA_character_,
+               sub(",.*$", "", sub("^[^/]*/", "", label)))
+  a1[!is.na(a1) & !nzchar(a1)] <- NA_character_
+  a2[!is.na(a2) & !nzchar(a2)] <- NA_character_
+  toupper(ifelse(flip, a2, a1))
+}
+
+#' Allele label "A1/A2" from an n x 2 letter matrix; a marker whose second
+#' allele was never observed is labelled by its single observed letter, and a
+#' marker with no usable alleles falls back to `fallback`.
+#' @noRd
+.allele_label <- function(att, fallback = NA_character_) {
+  fallback <- rep_len(as.character(fallback), nrow(att))
+  ifelse(!is.na(att[, 1L]) & !is.na(att[, 2L]),
+         paste(att[, 1L], att[, 2L], sep = "/"),
+         ifelse(!is.na(att[, 1L]), att[, 1L], fallback))
+}
+
+#' Physical positions as integer when they are whole and fit in 32 bits, else
+#' as double, so the `pos` type does not depend on the input format.
+#' @noRd
+.as_pos <- function(x) {
+  x <- suppressWarnings(as.numeric(x))
+  if (all(is.na(x) | (x == round(x) & abs(x) < .Machine$integer.max))) {
+    as.integer(x)
+  } else {
+    x
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -66,15 +135,13 @@ handle_hapmap <- function(file,
     G <- file
   }
 
+  if (is.data.frame(G) && ncol(G) < 12L) {
+    stop("A HapMap table needs the 11 metadata columns followed by at least ",
+         "one sample column; this one has ", ncol(G), " column(s).",
+         call. = FALSE)
+  }
+
   if (to == "numeric") {
-    meta <- data.frame(
-      snp    = G[[1]],
-      allele = G[[2]],
-      chr    = G[[3]],
-      pos    = G[[4]],
-      cm     = NA_real_,
-      stringsAsFactors = FALSE
-    )
     sample_ids <- colnames(G)[-(1:11)]
     geno_chars <- as.matrix(G[, -(1:11)])
 
@@ -83,24 +150,51 @@ handle_hapmap <- function(file,
            "orientation cannot be inferred safely. Supply a five-metadata-",
            "column numeric-format object instead.", call. = FALSE)
     } else {
-      ref_allele_vec <- ref_allele
-      allele1 <- gsub("/.*", "", G[[2]])
-      allele2 <- sub(".*/", "", G[[2]])
+      declared <- as.character(G[[2]])
+      allele1 <- toupper(sub("/.*", "", declared))
+      allele2 <- toupper(sub(".*/", "", declared))
+      ref_allele_vec <- if (identical(method, "reference")) {
+        toupper(as.character(ref_allele))
+      } else {
+        NULL
+      }
       if (identical(method, "reference") &&
-          (length(ref_allele_vec) != nrow(G) || anyNA(ref_allele_vec) ||
-           any(ref_allele_vec != allele1 & ref_allele_vec != allele2))) {
+          (length(ref_allele_vec) != nrow(G) || anyNA(ref_allele_vec))) {
         stop("`ref_allele` must give allele 1 or allele 2 for every HapMap ",
              "marker.", call. = FALSE)
       }
 
-      raw   <- parse_hapmap_chars_to_raw(geno_chars, allele1 = allele1)
+      # The `alleles` column is only a declaration: it is validated against the
+      # observed calls, and a marker whose calls carry other alleles is oriented
+      # from the calls themselves (with a warning), never from the column.
+      raw <- parse_hapmap_chars_to_raw(geno_chars, allele1 = allele1,
+                                       allele2 = allele2)
+      att <- attr(raw, "alleles")
+      eff1 <- ifelse(is.na(att[, 1L]), allele1, att[, 1L])
+      eff2 <- ifelse(is.na(att[, 2L]), allele2, att[, 2L])
+      if (identical(method, "reference")) {
+        ok <- (ref_allele_vec == eff1) %in% TRUE | (ref_allele_vec == eff2) %in% TRUE
+        if (!all(ok)) {
+          stop("`ref_allele` must give allele 1 or allele 2 for every HapMap ",
+               "marker (checked against the alleles observed in the calls).",
+               call. = FALSE)
+        }
+      }
+      meta <- data.frame(
+        snp    = G[[1]],
+        allele = .allele_label(att, fallback = declared),
+        chr    = as.character(G[[3]]),
+        pos    = .as_pos(G[[4]]),
+        cm     = NA_real_,
+        stringsAsFactors = FALSE
+      )
       G_out <- .apply_coding(
         raw_mat    = raw,
         meta       = meta,
         sample_ids = sample_ids,
         method     = method,
-        ref_allele = if (method == "reference") ref_allele_vec else NULL,
-        allele1    = allele1,
+        ref_allele = ref_allele_vec,
+        allele1    = eff1,
         code_as    = code_as,
         model      = model,
         impute     = impute
@@ -120,9 +214,30 @@ handle_hapmap <- function(file,
 # Already-numeric simplePHENOTYPES input
 # ---------------------------------------------------------------------------
 
+#' Give an already-numeric table the schema every reader emits.
+#' @noRd
+.normalize_numeric_schema <- function(df) {
+  for (j in c(1L, 2L, 3L)) df[[j]] <- as.character(df[[j]])
+  df[[4L]] <- .as_pos(df[[4L]])
+  df[[5L]] <- as.numeric(df[[5L]])
+  for (j in seq_along(df)[-(1:5)]) {
+    v <- df[[j]]
+    if (is.logical(v)) {
+      df[[j]] <- as.integer(v)
+    } else if (is.double(v) && all(is.na(v) | (v == round(v) &
+                                                 abs(v) < .Machine$integer.max))) {
+      # whole-number dosage codes (-1/0/1, 0/1/2, with NA) are stored integer,
+      # the same type every reader emits; values are unchanged
+      df[[j]] <- as.integer(v)
+    }
+  }
+  df
+}
+
 handle_numeric <- function(file, file_name, to_file, to_r, code_as, model,
                            impute, method, ref_allele, verbose) {
-  if (is.character(file)) {
+  from_file <- is.character(file)
+  if (from_file) {
     file <- data.table::fread(file, data.table = FALSE, showProgress = verbose)
   }
   if (!is.data.frame(file)) {
@@ -135,12 +250,20 @@ handle_numeric <- function(file, file_name, to_file, to_r, code_as, model,
     stop("Numeric-format input must start with columns snp, allele, chr, pos, ",
          "and cm.", call. = FALSE)
   }
+  # Restore the schema every reader emits (snp, allele, chr character; pos
+  # integer when whole; cm double; sample columns integer/numeric, never
+  # logical), for a file AND for an object in memory. A text round trip loses
+  # types (fread reads chromosome "1" as integer and an all-NA pos or cm column
+  # as logical), and a hand-built data frame may carry any of them, so
+  # as_numeric(write(as_numeric(x))) reproduces as_numeric(x).
+  file <- .normalize_numeric_schema(file)
   if (model != "Add" || impute != "None" || method != "frequency" ||
       !is.null(ref_allele)) {
     stop("An already-numeric input cannot be re-oriented, imputed, or changed ",
          "to another genetic model; convert from the original allele-coded ",
          "data instead.", call. = FALSE)
   }
+  .check_unique_ids(file[[1L]], names(file)[-(1:5)])
   values <- as.matrix(file[, -(1:5), drop = FALSE])
   allowed <- if (code_as == "-101") c(-1, 0, 1) else c(0, 1, 2)
   if (!is.numeric(values) || any(!is.na(values) & !values %in% allowed)) {
@@ -202,9 +325,9 @@ handle_table <- function(file,
     raw     <- parse_hapmap_chars_to_raw(geno_chars, hets = hets, homo = homo,
                                          miss = .MISS)
     alleles <- attr(raw, "alleles")
-    # The homozygote *code* ("AA") backs an allele *letter* ("A"); reference
-    # orientation compares those letters, so collapse the code to its letter.
-    allele1_letter <- substr(alleles[, 1L], 1L, 1L)
+    # The parser reports allele *letters* ("A"), derived from every call
+    # (heterozygotes included), so the metadata never carries genotype strings.
+    allele1_letter <- alleles[, 1L]
     if (identical(method, "reference")) {
       # Validate the reference against the alleles actually observed at each
       # marker, decoding every non-missing call to its component alleles (so a
@@ -212,7 +335,7 @@ handle_table <- function(file,
       # both alleles of "R" = A/G, not the letter "R"). A raw strsplit() would
       # observe "R" and reject a valid A/G reference; the homozygote-only check it
       # replaced missed het-only second alleles entirely.
-      ref_letter <- substr(ref_allele, 1L, 1L)
+      ref_letter <- toupper(substr(ref_allele, 1L, 1L))
       obs_ok <- vapply(seq_len(nrow(geno_chars)), function(i) {
         calls <- as.character(geno_chars[i, ])
         calls <- calls[!is.na(calls) & !toupper(calls) %in% toupper(.MISS)]
@@ -230,8 +353,7 @@ handle_table <- function(file,
     }
     meta <- data.frame(
       snp    = snp_ids,
-      allele = ifelse(is.na(alleles[, 1L]), NA_character_,
-                      paste(alleles[, 1L], alleles[, 2L], sep = "/")),
+      allele = .allele_label(alleles),
       chr    = NA_character_,
       pos    = NA_integer_,
       cm     = NA_real_,
@@ -243,7 +365,7 @@ handle_table <- function(file,
     # homozygote code "AA" means allele "A". Collapse it, or a two-character
     # ref_allele would never match allele1 and would flip every marker.
     ref_letter <- if (identical(method, "reference")) {
-      substr(ref_allele, 1L, 1L)
+      toupper(substr(ref_allele, 1L, 1L))
     } else {
       NULL
     }
@@ -273,9 +395,21 @@ handle_table <- function(file,
 # Shared helper: open GDS file → raw 0/1/2 matrix + metadata
 # ---------------------------------------------------------------------------
 
+#' Read a SNPRelate GDS into the package's raw contract.
+#'
+#' SNPRelate's `snpgdsGetGeno()` returns the **number of copies of the first
+#' allele** listed in `snp.allele` (2 = homozygous for the first allele). The
+#' package contract (`parse_hapmap_chars_to_raw()`, `numericalize_core()`) is the
+#' opposite: raw 0 = homozygous for allele 1, raw 2 = homozygous for allele 2, and
+#' `allele1` is the first-listed allele. The counts are therefore reflected
+#' (`2 - n`) here, at the reader, so every reader delivers the same contract and
+#' a VCF gives identical dosage columns from a file path and from a data frame,
+#' including on tied (MAF = 0.5) markers.
+#' @noRd
 .read_gds_to_raw <- function(genofile) {
   raw <- SNPRelate::snpgdsGetGeno(genofile, snpfirstdim = TRUE, verbose = FALSE)
   mode(raw) <- "integer"
+  raw <- 2L - raw
 
   sample_ids <- as.character(gdsfmt::read.gdsn(
     gdsfmt::index.gdsn(genofile, "sample.id")))
@@ -289,12 +423,125 @@ handle_table <- function(file,
     gdsfmt::index.gdsn(genofile, "snp.chromosome")))
   pos     <- gdsfmt::read.gdsn(gdsfmt::index.gdsn(genofile, "snp.position"))
 
+  snp_ids <- .fill_missing_ids(snp_ids, chr, pos)
   meta <- data.frame(snp = snp_ids, allele = alleles,
                      chr = chr, pos = pos, cm = NA_real_,
                      stringsAsFactors = FALSE)
   allele1 <- sub("/.*", "", alleles)
 
   list(raw = raw, meta = meta, sample_ids = sample_ids, allele1 = allele1)
+}
+
+# ---------------------------------------------------------------------------
+# VCF genotype-call validation (shared by the in-memory and file-path readers)
+# ---------------------------------------------------------------------------
+
+#' Classify a matrix of VCF GT calls into the package's raw 0/1/2 contract.
+#'
+#' Only complete, biallelic diploid calls are recognised: `0/0` and `0|0` are raw
+#' 0 (REF homozygote = allele 1), `0/1`, `0|1`, `1/0`, `1|0` raw 1, `1/1`, `1|1`
+#' raw 2, and the missing codes stay `NA`. Every other non-empty call is set to
+#' `NA` and reported: a call naming an allele index of 2 or more is multiallelic;
+#' a call with a missing allele on one side or a single allele (haploid) is
+#' partial. The reader used for a file path and the reader used for an in-memory
+#' table both go through this function, so both give the same result.
+#' @param gt_mat character matrix of GT strings (the `:DP:GQ...` suffix already
+#'   removed).
+#' @return a list: `raw` (integer matrix), `multi` and `partial` (logical
+#'   matrices flagging the calls that were dropped and why).
+#' @noRd
+.vcf_classify_gt <- function(gt_mat) {
+  nr <- nrow(gt_mat)
+  hets <- c("0/1", "0|1", "1/0", "1|0")
+  miss <- c("./.", ".|.", ".", "", "./", "/.")
+  is_het <- matrix(gt_mat %in% hets, nrow = nr)
+  is_ref <- matrix(gt_mat %in% c("0/0", "0|0"), nrow = nr)
+  is_alt <- matrix(gt_mat %in% c("1/1", "1|1"), nrow = nr)
+  raw <- matrix(NA_integer_, nrow = nr, ncol = ncol(gt_mat))
+  raw[is_ref] <- 0L      # REF homozygote anchors raw 0 (allele 1)
+  raw[is_het] <- 1L
+  raw[is_alt] <- 2L
+  recognized <- is_ref | is_het | is_alt | matrix(gt_mat %in% miss, nrow = nr)
+  dropped <- !recognized & !is.na(gt_mat) & nzchar(gt_mat)
+  multi <- dropped & matrix(grepl("[2-9]|[0-9]{2}", gt_mat), nrow = nr)
+  list(raw = raw, multi = multi, partial = dropped & !multi)
+}
+
+#' Warn, with counts, about the VCF calls that `.vcf_classify_gt()` dropped.
+#' @noRd
+.vcf_warn_dropped <- function(n_multi, n_partial) {
+  if (n_multi > 0) {
+    warning(n_multi, " VCF genotype call(s) reference alleles beyond the ",
+            "first ALT (multiallelic, e.g. \"0/2\" or \"2/2\"); this parser ",
+            "is biallelic, so those calls were set to missing. Split ",
+            "multiallelic sites (e.g. `bcftools norm -m -`) before import.",
+            call. = FALSE)
+  }
+  if (n_partial > 0) {
+    warning(n_partial, " VCF genotype call(s) are partially missing or ",
+            "haploid (e.g. \"./1\", \"0/.\", \"0\"); this parser needs ",
+            "complete diploid calls, so those calls were set to missing.",
+            call. = FALSE)
+  }
+  invisible(NULL)
+}
+
+#' Scan the genotype lines of a VCF file and locate every call to be dropped.
+#'
+#' SNPRelate converts a VCF file without validating the calls: haploid calls are
+#' kept as one allele copy (which reverses the coding of the valid diploids at the
+#' same marker) and calls at multiallelic sites are kept. This reads the GT field
+#' of the file in chunks (plain text, `.gz` or `.bgz`) and applies the same
+#' classification as the in-memory reader, so that the two agree.
+#' @param path VCF file path.
+#' @param chunk number of lines read at a time.
+#' @return a list: `n_snp`, `n_samp` (as seen in the text), `idx` (two-column
+#'   matrix of the row and column of every call to set to missing), `n_multi` and
+#'   `n_partial`.
+#' @noRd
+.vcf_scan_calls <- function(path, chunk = 20000L) {
+  con <- gzfile(path, "r")
+  on.exit(close(con), add = TRUE)
+  n_snp <- 0L
+  n_samp <- NA_integer_
+  header_seen <- FALSE
+  idx <- list()
+  n_multi <- 0L
+  n_partial <- 0L
+  repeat {
+    lines <- readLines(con, n = chunk, warn = FALSE)
+    if (!length(lines)) break
+    if (!header_seen) {
+      h <- grep("^#CHROM", lines)
+      if (!length(h)) next
+      header_seen <- TRUE
+      n_samp <- length(strsplit(lines[h[1L]], "\t", fixed = TRUE)[[1L]]) - 9L
+      lines <- lines[-seq_len(h[1L])]
+    }
+    lines <- lines[nzchar(lines) & !startsWith(lines, "#")]
+    if (!length(lines) || n_samp < 1L) next
+    fields <- strsplit(lines, "\t", fixed = TRUE)
+    gt <- vapply(fields, function(f) {
+      g <- rep_len(NA_character_, n_samp)
+      k <- min(length(f) - 9L, n_samp)
+      if (k > 0L) g[seq_len(k)] <- f[9L + seq_len(k)]
+      g
+    }, character(n_samp))
+    gt <- matrix(sub(":.*", "", gt), nrow = length(lines), ncol = n_samp,
+                 byrow = TRUE)
+    cl <- .vcf_classify_gt(gt)
+    bad <- which(cl$multi | cl$partial, arr.ind = TRUE)
+    if (nrow(bad)) {
+      bad[, 1L] <- bad[, 1L] + n_snp
+      idx[[length(idx) + 1L]] <- bad
+    }
+    n_multi <- n_multi + sum(cl$multi)
+    n_partial <- n_partial + sum(cl$partial)
+    n_snp <- n_snp + length(lines)
+  }
+  list(n_snp = n_snp, n_samp = n_samp,
+       idx = if (length(idx)) do.call(rbind, idx) else matrix(0L, 0L, 2L),
+       n_multi = n_multi, n_partial = n_partial)
 }
 
 # ---------------------------------------------------------------------------
@@ -327,9 +574,25 @@ handle_vcf <- function(file,
       vcf.fn = file, out.fn = temp,
       method = "copy.num.of.ref", snpfirstdim = FALSE, verbose = FALSE)
     genofile <- SNPRelate::snpgdsOpen(temp)
+    on.exit(try(SNPRelate::snpgdsClose(genofile), silent = TRUE),
+            add = TRUE, after = FALSE)
 
     if (to == "numeric") {
       parts <- .read_gds_to_raw(genofile)
+      # SNPRelate does not validate the calls, so apply the in-memory reader's
+      # complete-diploid, biallelic rule to the file's own GT text: haploid,
+      # partially missing and multiallelic calls become missing (with a counted
+      # warning), before the orientation is chosen from the remaining calls.
+      scan <- .vcf_scan_calls(file)
+      if (scan$n_snp != nrow(parts$raw) || scan$n_samp != ncol(parts$raw)) {
+        stop("The VCF file could not be read consistently (", scan$n_snp,
+             " markers x ", scan$n_samp, " samples in the text, ",
+             nrow(parts$raw), " x ", ncol(parts$raw), " after conversion); ",
+             "check the file is a well-formed, tab-delimited VCF.",
+             call. = FALSE)
+      }
+      if (nrow(scan$idx)) parts$raw[scan$idx] <- NA_integer_
+      .vcf_warn_dropped(scan$n_multi, scan$n_partial)
       G_out <- .apply_coding(
         raw_mat    = parts$raw,
         meta       = parts$meta,
@@ -394,39 +657,22 @@ handle_vcf <- function(file,
     # Keep only the GT field: strip any ":DP:GQ:..." suffix per call.
     gt_mat <- matrix(sub(":.*", "", as.character(geno_raw)),
                      nrow = nrow(geno_raw), ncol = ncol(geno_raw))
-    hets <- c("0/1", "0|1", "1/0", "1|0")
-    homo <- c("0/0", "0|0", "1/1", "1|1")
-    miss <- c("./.", ".|.", ".", "", "./", "/.")
-    ref_homo <- c("0/0", "0|0")
-    is_het  <- matrix(gt_mat %in% hets, nrow = nrow(gt_mat))
-    is_ref  <- matrix(gt_mat %in% ref_homo, nrow = nrow(gt_mat))
-    is_alt  <- matrix(gt_mat %in% c("1/1", "1|1"), nrow = nrow(gt_mat))
-    raw <- matrix(NA_integer_, nrow = nrow(gt_mat), ncol = ncol(gt_mat))
-    raw[is_ref] <- 0L      # REF homozygote anchors raw 0 (allele 1)
-    raw[is_het] <- 1L
-    raw[is_alt] <- 2L
-
-    # Multiallelic calls (allele index >= 2, e.g. "0/2", "2/2") fall outside the
-    # biallelic 0/1 contract and match none of the REF/het/ALT classes, so they
-    # would silently become missing. Warn rather than corrupt them quietly.
-    recognized <- is_ref | is_het | is_alt |
-      matrix(gt_mat %in% miss, nrow = nrow(gt_mat))
-    dropped <- !recognized & !is.na(gt_mat) & nzchar(gt_mat)
-    if (any(dropped)) {
-      warning(sum(dropped), " VCF genotype call(s) reference alleles beyond the ",
-              "first ALT (multiallelic, e.g. \"0/2\" or \"2/2\"); this parser is ",
-              "biallelic, so those calls were set to missing. Split multiallelic ",
-              "sites (e.g. `bcftools norm -m -`) before import.", call. = FALSE)
-    }
+    # Only complete, biallelic diploid calls are used; anything else that is not
+    # a missing code is set to missing and counted in a warning.
+    cl <- .vcf_classify_gt(gt_mat)
+    raw <- cl$raw
+    .vcf_warn_dropped(sum(cl$multi), sum(cl$partial))
 
     n_snp <- nrow(raw)
+    chr_out <- if (!is.null(chr_vec)) as.character(chr_vec) else rep(NA_character_, n_snp)
+    pos_out <- if (!is.null(pos_vec)) .as_pos(pos_vec) else rep(NA_integer_, n_snp)
     meta <- data.frame(
-      snp    = if (!is.null(snp_ids)) as.character(snp_ids) else
+      snp    = if (!is.null(snp_ids)) .fill_missing_ids(snp_ids, chr_out, pos_out) else
         paste0("snp", seq_len(n_snp)),
       allele = if (!is.null(ref_vec) && !is.null(alt_vec))
         paste(ref_vec, alt_vec, sep = "/") else NA_character_,
-      chr    = if (!is.null(chr_vec)) as.character(chr_vec) else NA_character_,
-      pos    = if (!is.null(pos_vec)) as.integer(pos_vec) else NA_integer_,
+      chr    = chr_out,
+      pos    = pos_out,
       cm     = NA_real_,
       stringsAsFactors = FALSE
     )
@@ -536,13 +782,9 @@ handle_bed <- function(file, file_name, to_file, to_r, to,
     parts    <- .read_gds_to_raw(genofile)
     SNPRelate::snpgdsClose(genofile)
 
-    # BED: SNPRelate stores A1/A2 where A2 is typically the major allele.
-    # Swap the allele string so allele1 in meta = A2 (more common).
-    allele_parts <- strsplit(parts$meta$allele, "/")
-    parts$meta$allele <- vapply(allele_parts,
-      function(x) if (length(x) == 2L) paste(x[2L], x[1L], sep = "/") else x[[1L]],
-      character(1L))
-    parts$allele1 <- sub("/.*", "", parts$meta$allele)
+    # BED: SNPRelate lists the .bim alleles as A1/A2 and counts copies of A1;
+    # .read_gds_to_raw() has already reflected the counts, so allele 1 = A1 (the
+    # first-listed allele), exactly as for every other reader.
     parts$meta$cm <- .plink_cm(paste0(base, ".bim"), nrow(parts$meta))
 
     G_out <- .apply_coding(
@@ -627,7 +869,7 @@ handle_finalreport <- function(file, file_name, to_file, to_r, to,
 
   # Locate [Data] section
   con   <- file(file, "r")
-  lines <- readLines(con, n = 200L, warn = FALSE)
+  lines <- readLines(con, n = 2000L, warn = FALSE)
   close(con)
   data_line  <- which(grepl("^\\[Data\\]", lines, ignore.case = TRUE))
   skip_n     <- if (length(data_line) > 0L) data_line[[1L]] else 0L
@@ -640,22 +882,33 @@ handle_finalreport <- function(file, file_name, to_file, to_r, to,
   names(long) <- tolower(gsub("[ -]", "_", orig_names))
   nms         <- names(long)
 
-  snp_col    <- nms[grep("^snp_name$|^snp$",     nms)[[1L]]]
-  sample_col <- nms[grep("^sample_id$|^sample$", nms)[[1L]]]
-  a1_col     <- nms[grep("allele1", nms)[[1L]]]
-  a2_col     <- nms[grep("allele2", nms)[[1L]]]
-
-  chr_idx <- grep("^chr$|^chromosome$", nms)
-  pos_idx <- grep("^position$|^pos$",   nms)
-  chr_col <- if (length(chr_idx) > 0L) nms[[chr_idx[[1L]]]] else NA_character_
-  pos_col <- if (length(pos_idx) > 0L) nms[[pos_idx[[1L]]]] else NA_character_
+  # First column matching `pattern`, or NA when there is none (so the required-
+  # column diagnostic below is reachable rather than a subscript error).
+  find_col <- function(pattern) {
+    i <- grep(pattern, nms)
+    if (length(i) > 0L) nms[[i[[1L]]]] else NA_character_
+  }
+  snp_col    <- find_col("^snp_name$|^snp$")
+  sample_col <- find_col("^sample_id$|^sample$")
+  a1_col     <- find_col("allele1")
+  a2_col     <- find_col("allele2")
+  chr_col    <- find_col("^chr$|^chromosome$")
+  pos_col    <- find_col("^position$|^pos$")
 
   if (any(is.na(c(snp_col, sample_col, a1_col, a2_col)))) {
-    stop("FinalReport: cannot find required columns. Found: ",
+    stop("FinalReport: cannot find required columns (a SNP name, a sample ID, ",
+         "and Allele1/Allele2 columns). Found: ",
          paste(orig_names, collapse = ", "), call. = FALSE)
   }
 
-  long[, geno := paste0(get(a1_col), get(a2_col))]
+  # An allele field that is NA (a literal "NA" in the file) or blank on either
+  # side is a no-call: concatenating would otherwise give the string "NANA",
+  # which the parser would take for a called homozygote, or turn "A" + blank
+  # into a homozygote.
+  al1 <- as.character(long[[a1_col]])
+  al2 <- as.character(long[[a2_col]])
+  no_call <- is.na(al1) | is.na(al2) | !nzchar(trimws(al1)) | !nzchar(trimws(al2))
+  long[, geno := ifelse(no_call, NA_character_, paste0(al1, al2))]
 
   wide <- data.table::dcast(
     long,
@@ -676,20 +929,20 @@ handle_finalreport <- function(file, file_name, to_file, to_r, to,
     pos_vec <- as.integer(cp[[pos_col]][idx])
   }
 
+  # FinalReport allele conventions include Illumina AB, whose heterozygote is
+  # "AB"/"BA"; add those to the IUPAC/digraph set so AB calls are not mistaken
+  # for a third homozygote and dropped as non-biallelic. Orientation is derived
+  # from the calls (a FinalReport declares no allele pair).
+  raw   <- parse_hapmap_chars_to_raw(geno_chars,
+                                     hets = c(.HETS, "AB", "BA"))
   meta <- data.frame(
     snp    = snp_ids,
-    allele = NA_character_,
+    allele = .allele_label(attr(raw, "alleles")),
     chr    = if (!is.null(chr_vec)) chr_vec else NA_character_,
     pos    = if (!is.null(pos_vec)) pos_vec else NA_integer_,
     cm     = NA_real_,
     stringsAsFactors = FALSE
   )
-
-  # FinalReport allele conventions include Illumina AB, whose heterozygote is
-  # "AB"/"BA"; add those to the IUPAC/digraph set so AB calls are not mistaken
-  # for a third homozygote and dropped as non-biallelic.
-  raw   <- parse_hapmap_chars_to_raw(geno_chars,
-                                     hets = c(.HETS, "AB", "BA"))
   G_out <- .apply_coding(
     raw_mat    = raw,
     meta       = meta,

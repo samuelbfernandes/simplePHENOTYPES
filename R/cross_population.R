@@ -15,9 +15,48 @@
 #' [SNP55K_maize282_maf04] this is nearly lossless because heterozygotes are
 #' rare, but for an outbred sample the phase of each heterozygote is a guess,
 #' and linkage between heterozygous sites in the first generation will not be
-#' realistic. The current public API does not import external haplotype phase,
+#' realistic: every heterozygous site of such a founder sits in perfect coupling
+#' on the first strand, so its first-generation gametes carry the maximum
+#' coupling-phase linkage disequilibrium. The current public API does not import external haplotype phase,
 #' so `as_population()` should not be used for multi-generation recombination
 #' studies of substantially heterozygous, unphased founders.
+#'
+#' @section Genetic map, units and chromosome order:
+#' The `cm` column must be a genetic map in **centiMorgans** (it is divided by
+#' 100 to give Morgans for meiosis). A map whose largest position is at most
+#' 5 across 20 or more markers looks like Morgans (or a proportion) and draws a
+#' warning: crossovers would be 100 times too rare. `cm` may start anywhere on a
+#' chromosome: the number of crossovers on a chromosome is Poisson with mean
+#' equal to its **last** map position in Morgans (the isqg convention, see
+#' [cross()]), which is not its span `max(cm) - min(cm)` when the first marker is
+#' not at 0. Chromosomes are processed, and their random draws are consumed, in
+#' a fixed **canonical order that does not depend on the storage type of `chr`
+#' or on the locale**: labels that are numbers first, in numeric order
+#' (`1, 2, 10`), then other labels by their non-numeric prefix in byte order
+#' (uppercase before lowercase) and then by their trailing number (`chr1, chr2,
+#' chr10, chrX`). So the
+#' same map with `chr` stored as integers or as text gives the same seeded
+#' progeny. (Text labels that used to sort as `"1", "10", "2"` are now ordered
+#' `1, 2, 10`; a seeded run on such a map draws its chromosomes in the new order.)
+#'
+#' @section Allele orientation (crossing populations built from separate files):
+#' The -1/0/1 coding is relative: `+1` is the allele that `as_numeric()`
+#' considered the reference (by default the most frequent allele *of that data
+#' set*). Two populations made from **separately** converted panels can therefore
+#' code opposite alleles as `+1` at a marker, and crossing them (or pooling them
+#' with [c.Population()]) would then silently mix up the alleles. Convert the
+#' panels **jointly**, or give each the same reference alleles with
+#' `as_numeric(method = "reference", ref_allele = )`. `as_numeric()` records the
+#' allele it counted as +1 at every marker (the `"counted_allele"` attribute of
+#' its result, see [as_numeric()]), and `as_population()` keeps it. When both
+#' populations carry that record, [cross()] and [c.Population()] compare it per
+#' marker and **stop** if the two panels count different alleles as +1. Where a
+#' record is missing on either side (numeric data read back from a text file,
+#' subsetted rows, other software), the `allele` label is compared instead: the
+#' check warns when the two panels list a marker's alleles in opposite order (a
+#' sign the orientation may differ) and stops when they share no allele. The
+#' check only sees what these records show: it cannot detect a difference that
+#' neither records.
 #'
 #' @param geno a numeric-format data frame whose first five columns are
 #'   `c("snp", "allele", "chr", "pos", "cm")`, as returned by [as_numeric()],
@@ -67,6 +106,21 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
     stringsAsFactors = FALSE
   )
   .check_map(map)
+  .check_cm_units(map)
+  # The allele column is kept (when informative) so crossing can compare the
+  # allele orientation of two populations (`.check_orientation()`). It is
+  # deliberately not part of the map identity (`.same_map()`).
+  allele <- as.character(geno$allele)
+  if (!all(is.na(allele))) map$allele <- allele
+  # The counted (+1) allele, when as_numeric() recorded it (the "counted_allele"
+  # attribute of its result), is what the orientation check compares; numeric
+  # data without it (older files, subsetted or rebuilt data frames) keeps the
+  # label-only check.
+  counted <- attr(geno, "counted_allele", exact = TRUE)
+  if (is.character(counted) && length(counted) == nrow(geno) &&
+      !all(is.na(counted))) {
+    map$counted <- toupper(counted)
+  }
 
   geno_values <- geno[, -(1:5), drop = FALSE]
   if (!all(vapply(geno_values, is.numeric, logical(1)))) {
@@ -182,6 +236,148 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
   invisible(TRUE)
 }
 
+#' Warn when the genetic map looks like Morgans rather than centiMorgans
+#'
+#' A `cm` column whose largest value is at most 5 over 20 or more markers is
+#' almost certainly in Morgans (or a proportion): meiosis divides by 100, so
+#' every chromosome would be 100 times too short and recombination 100 times too
+#' rare. A warning, not an error: a genuinely tiny dense map is legal.
+#' @keywords internal
+#' @noRd
+.check_cm_units <- function(map) {
+  if (nrow(map) >= 20L && max(map$cm) <= 5) {
+    warning("The genetic map (`cm`) runs only from ", format(min(map$cm)),
+            " to ", format(max(map$cm)), " over ", nrow(map), " markers. The ",
+            "column must be in centiMorgans (it is divided by 100 for ",
+            "meiosis): if these are Morgans (or a proportion), multiply by 100 ",
+            "or build a map with synthetic_map(); otherwise recombination is ",
+            "100 times too rare.", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+#' Do two marker maps describe the same markers, positions and distances?
+#'
+#' The single judgement of map identity, shared by `.mate()` (crossing),
+#' `.check_breeds()` and `c.Population()` (pooling): marker names, chromosome
+#' labels compared as text (so integer `1` and character `"1"` agree), and
+#' physical and genetic positions equal within an ELEMENT-WISE relative tolerance
+#' of 1e-8 (not `all.equal()`, whose mean relative difference would not trip on a
+#' single moved marker among tens of thousands). The tolerance scale is the larger
+#' of the two values (and 1), so the judgement is symmetric: `.same_map(a, b)` and
+#' `.same_map(b, a)` always agree. Extra columns (the `allele` and `counted`
+#' columns) are ignored.
+#' @keywords internal
+#' @noRd
+.same_map <- function(a, b) {
+  close_to <- function(x, y) {
+    x <- as.numeric(x)
+    y <- as.numeric(y)
+    length(x) == length(y) && !anyNA(x) && !anyNA(y) &&
+      all(abs(x - y) <= 1e-8 * pmax(1, abs(x), abs(y)))
+  }
+  identical(as.character(a$snp), as.character(b$snp)) &&
+    identical(as.character(a$chr), as.character(b$chr)) &&
+    close_to(a$pos, b$pos) && close_to(a$cm, b$cm)
+}
+
+#' Rank of each chromosome label in the canonical chromosome order
+#'
+#' Numeric-aware and locale-independent, so the order (and with it the random
+#' draws of a seeded mating) does not depend on whether `chr` is stored as
+#' numbers, text or a factor, nor on the collation locale. Labels that read as
+#' numbers come first in numeric order; the rest are ordered by their
+#' non-numeric prefix in byte (C-locale) order, then by their trailing number.
+#' Distinct labels that share every one of those keys (`"1"` and `"01"`, `"chr1"`
+#' and `"chr01"`) are finally ordered by the label itself in byte order, so the
+#' ranking is a total order that does not depend on which label occurs first.
+#' @return an integer vector, one rank per element of `chr`.
+#' @keywords internal
+#' @noRd
+.chr_rank <- function(chr) {
+  lab <- as.character(chr)
+  u <- unique(lab)
+  num <- suppressWarnings(as.numeric(u))
+  is_num <- !is.na(num) & is.finite(num)
+  trail <- suppressWarnings(as.numeric(sub("^.*?([0-9]+)$", "\\1", u, perl = TRUE)))
+  trail[!grepl("[0-9]+$", u)] <- -Inf
+  trail[is.na(trail)] <- -Inf
+  prefix <- sub("[0-9]+$", "", u)
+  group <- ifelse(is_num, 0L, 1L)
+  key1 <- ifelse(is_num, num, 0)
+  o <- order(group, key1, ifelse(is_num, "", prefix), ifelse(is_num, 0, trail),
+             u, method = "radix")
+  match(lab, u[o])
+}
+
+#' The allele orientation of two populations, compared per marker
+#'
+#' Called when two populations are crossed or pooled. Two separately converted
+#' panels may code opposite alleles as +1 at a marker, which the -1/0/1 dosages
+#' cannot reveal. Where both populations carry the counted (+1) allele that
+#' `as_numeric()` recorded (`map$counted`), it is compared directly: a marker
+#' whose two panels count different alleles stops the cross (their +1 values
+#' are not the same allele, so a heterozygote would be misread). Markers without
+#' that record on both sides fall back to the `allele` labels: opposite order (or
+#' partial overlap) warns and disjoint alleles stop. A population carrying
+#' neither is not checked.
+#' @keywords internal
+#' @noRd
+.check_orientation <- function(a, b) {
+  cx <- a$counted
+  cy <- b$counted
+  has_counted <- !is.null(cx) && !is.null(cy) && length(cx) == length(cy)
+  covered <- rep(FALSE, length(a$snp))
+  if (has_counted) {
+    cx <- toupper(as.character(cx))
+    cy <- toupper(as.character(cy))
+    covered <- !is.na(cx) & !is.na(cy)
+    opposite <- which(covered & cx != cy)
+    if (length(opposite)) {
+      stop("The two populations count different alleles as +1 at ",
+           length(opposite), " marker(s) (", paste(utils::head(a$snp[opposite], 5),
+                                                    collapse = ", "),
+           if (length(opposite) > 5) ", ..." else "", "; e.g. \"",
+           cx[opposite[1]], "\" vs \"", cy[opposite[1]], "\"), so their -1/0/1 ",
+           "genotypes are not on the same scale and a cross or pool would mix ",
+           "up the alleles (an AA x GG cross would look like +1 x +1). Convert ",
+           "the panels jointly, or give both the same reference alleles with ",
+           "as_numeric(method = \"reference\", ref_allele = ).", call. = FALSE)
+    }
+  }
+  x <- a$allele
+  y <- b$allele
+  if (is.null(x) || is.null(y) || length(x) != length(y)) {
+    return(invisible(TRUE))
+  }
+  # allele labels are compared case-insensitively ("a/g" is "A/G")
+  x <- toupper(as.character(x))
+  y <- toupper(as.character(y))
+  # markers already confirmed by the counted allele need no label comparison
+  differ <- which(!covered & !is.na(x) & !is.na(y) & x != y)
+  if (!length(differ)) {
+    return(invisible(TRUE))
+  }
+  ux <- strsplit(x[differ], "/", fixed = TRUE)
+  uy <- strsplit(y[differ], "/", fixed = TRUE)
+  disjoint <- mapply(function(u, v) !length(intersect(u, v)), ux, uy)
+  if (any(disjoint)) {
+    k <- differ[disjoint]
+    stop("The two populations record different alleles at marker(s) ",
+         paste(utils::head(a$snp[k], 5), collapse = ", "),
+         if (length(k) > 5) ", ..." else "", " (e.g. \"", x[k[1]], "\" vs \"",
+         y[k[1]], "\"), so they are not the same panel and cannot be crossed.",
+         call. = FALSE)
+  }
+  warning("The two populations list the alleles of ", length(differ),
+          " marker(s) in a different order (e.g. ", a$snp[differ[1]], ": \"",
+          x[differ[1]], "\" vs \"", y[differ[1]], "\"), so they may code ",
+          "opposite alleles as +1 and the cross would mix up the alleles. ",
+          "Convert the panels jointly, or with the same reference alleles: ",
+          "as_numeric(method = \"reference\", ref_allele = ).", call. = FALSE)
+  invisible(FALSE)
+}
+
 #' Number of individuals in a Population
 #' @param x a `Population`.
 #' @return An integer.
@@ -197,7 +393,10 @@ n_individuals <- function(x) {
 #' Subset the individuals of a Population
 #'
 #' @param x a `Population`.
-#' @param i individuals to keep, by name, position or logical mask.
+#' @param i individuals to keep, by name, position or logical mask. A repeated
+#'   subscript selects the same individual again: the copies get unique ids
+#'   (`"P1"`, `"P1_1"`, ...) and share one pedigree key (they are the same
+#'   individual). An empty subscript gives an empty `Population`.
 #' @return A `Population` with the selected individuals.
 #' @export
 #' @examples
@@ -211,6 +410,13 @@ n_individuals <- function(x) {
   }
   cis <- x$cis[, pos, drop = FALSE]
   trans <- x$trans[, pos, drop = FALSE]
+  # A repeated subscript selects the same individual again (sampling with
+  # replacement, e.g. sample_parents()); each copy gets a unique id
+  # ("P1", "P1_1", ...) exactly as c() does, so ids stay unique. The copies keep
+  # the same pedigree key: they are the same individual.
+  if (anyDuplicated(colnames(cis))) {
+    colnames(cis) <- colnames(trans) <- make.unique(colnames(cis), sep = "_")
+  }
   if (is.null(x$keys)) {
     return(.new_population(x$map, cis, trans, colnames(cis), x$origin))
   }
@@ -444,8 +650,10 @@ genotypic_value <- function(x, qtn, a, d) {
 #' as selection exhausts genetic variance -- which is exactly what a faithful
 #' cross-generation `on = "pheno"` selection driver needs, and what
 #' [genetic_values()] / [simulate_phenotype()] cannot express (they re-scale the
-#' genetic layer to its target `prop` on every population, so the genetic share, and
-#' thus selection accuracy, never decays). (`var_e` is the residual *variance
+#' genetic layer to its target `prop` on every population, so the genetic share is
+#' re-fixed each generation: with an additive-only genetic layer, selection
+#' accuracy stays near \eqn{\sqrt{h^2}} under this re-standardization, and it
+#' declines only when dominance enters). (`var_e` is the residual *variance
 #' parameter*, not a sample-standardized value: `e` is a genuine normal draw, so its
 #' realized sample variance scatters around `var_e` and `Cov(g, e) ~ 0` in
 #' expectation. The package's sample statistic `Var(g)/Var(y)` therefore tracks the
@@ -586,14 +794,21 @@ print.Population <- function(x, ...) {
   cat("<Population>\n")
   cat(sprintf("  Individuals: %d   Markers: %d   Chromosomes: %d\n",
               n_individuals(x), nrow(x$map), length(chr)))
-  cat(sprintf("  Genetic map: %.0f cM total (%.0f-%.0f cM per chromosome)\n",
+  # the span (max - min); crossovers are drawn on the LAST position, see cross()
+  cat(sprintf("  Genetic map: %.0f cM total span (%.0f-%.0f cM per chromosome)\n",
               sum(len), min(len), max(len)))
   cat(sprintf("  Origin: %s\n", x$origin))
   if (!is.null(x$pedigree)) {
     g <- x$pedigree$generation[match(x$keys, x$pedigree$key)]
+    gens <- if (!length(g)) {
+      "none"
+    } else if (min(g) == max(g)) {
+      as.character(min(g))
+    } else {
+      paste0(min(g), "-", max(g))
+    }
     cat(sprintf("  Pedigree: %d recorded individuals; generation %s\n",
-                nrow(x$pedigree),
-                if (min(g) == max(g)) min(g) else paste0(min(g), "-", max(g))))
+                nrow(x$pedigree), gens))
   }
   ids <- x$ids
   shown <- if (length(ids) > 6) {

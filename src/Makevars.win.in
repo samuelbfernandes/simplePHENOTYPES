@@ -12,7 +12,7 @@ all: $(SHLIB) rust_clean
 $(SHLIB): $(STATLIB)
 
 CARGOTMP = $(CURDIR)/.cargo
-VENDOR_DIR = vendor
+VENDOR_DIR = $(CURDIR)/vendor
 
 $(STATLIB):
 	mkdir -p $(TARGET_DIR)/libgcc_mock

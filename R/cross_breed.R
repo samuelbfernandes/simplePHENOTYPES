@@ -69,11 +69,33 @@ breed_composition <- function(pop) {
 #' the F1 heterosis retained in later crosses (one half in an F2 or a backcross,
 #' two thirds in a two-breed rotation at equilibrium) follow from the probability
 #' that an individual's two alleles come from different breeds, a dominance
-#' (breed-origin) model; epistasis is outside this function.
+#' (breed-origin) model, and are exact **only under conditions on the breeds'
+#' Hardy-Weinberg deviations** \eqn{h - 2p(1 - p)} at the locus (not, in
+#' general, on each breed separately). A single fixed inbred line has no deviation
+#' (\eqn{p = 0} or \eqn{1}, so \eqn{h = 0 = 2p(1 - p)}), but a breed made of
+#' several fully inbred lines that differ at a locus does (\eqn{h = 0 <
+#' 2p(1 - p)}). Exactly, at one locus with non-zero F1 heterosis the retained
+#' fraction in a backcross to breed A is one half if and only if
+#' \eqn{h_A = 2 p_A (1 - p_A)}, i.e. only the recurrent breed A need be in
+#' Hardy-Weinberg proportions (whatever breed B is), and in the F2 if and only if
+#' \eqn{[h_A - 2 p_A (1 - p_A)] + [h_B - 2 p_B (1 - p_B)] = 0}, i.e. the two
+#' deviations sum to zero (for example \eqn{-0.12} and \eqn{+0.12}, with neither
+#' breed in Hardy-Weinberg proportions); for breeds that violate this the F2 and
+#' backcross retain a different fraction. (The two-thirds rotation figure is the
+#' classical value for breeds in Hardy-Weinberg proportions; its condition for
+#' breeds with deviations is not derived here.) For example,
+#' an equal mixture of AA and aa lines crossed to an aa line (pure dominance) has
+#' F1 heterozygosity 1/2 and backcross heterozygosity 1/2 against baselines of 0,
+#' so the retention is 1, not 1/2. `realized` is
+#' computed from the actual genotypes, so it does not assume either fraction;
+#' epistasis is outside this function.
 #'
 #' @param pop the crossbred `Population` (pedigree traced to the breed founders).
 #' @param breeds a named list of the pure-breed `Population`s, each name the
 #'   founder pool its population traces to (`as_population(pool =)`); checked.
+#'   Each must hold every founder of its pool that `pop`'s pedigree traces to
+#'   (the breed means are taken from these populations only), and share the marker
+#'   map of `pop`.
 #' @param qtn,a,d frozen loci and effects, as for [genotypic_value()]; `d` may be
 #'   a single value.
 #' @return A list with `realized` (mean minus composition-weighted breed mean),
@@ -142,8 +164,8 @@ heterosis <- function(pop, breeds, qtn, a, d = 0) {
          call. = FALSE)
   }
   maps <- lapply(breeds, function(b) b$map)
-  if (!all(vapply(maps, identical, logical(1), maps[[1]])) ||
-      (!is.null(pop) && !identical(pop$map, maps[[1]]))) {
+  if (!all(vapply(maps[-1], .same_map, logical(1), maps[[1]])) ||
+      (!is.null(pop) && !.same_map(pop$map, maps[[1]]))) {
     stop("All breeds (and the crossbred population) must share one marker map.",
          call. = FALSE)
   }
@@ -157,6 +179,23 @@ heterosis <- function(pop, breeds, qtn, a, d = 0) {
            "pool label \"", b, "\" (as_population(pool = \"", b, "\")); its ",
            "founder pool(s): ", paste(ifelse(is.na(fp), "<none>", fp),
                                       collapse = ", "), ".", call. = FALSE)
+    }
+  }
+  # heterosis() takes each breed mean from `breeds[[b]]` only, so that
+  # population must contain the founders of pool b that `pop` descends from;
+  # a subset or a different sample would silently change `realized`
+  if (!is.null(pop)) {
+    ped <- .ensure_pedigree(pop)$pedigree
+    for (b in names(breeds)) {
+      traced <- ped$key[ped$design == "founder" & !is.na(ped$pool) &
+                          ped$pool == b]
+      lost <- setdiff(traced, .ensure_pedigree(breeds[[b]])$keys)
+      if (length(lost)) {
+        stop("`breeds$", b, "` does not contain ", length(lost), " founder(s) of ",
+             "pool \"", b, "\" that the crossbred population descends from; ",
+             "the breed means must come from the labelled pool the pedigree ",
+             "traces to (not a subset or another sample).", call. = FALSE)
+      }
     }
   }
   invisible()
@@ -187,7 +226,7 @@ heterosis <- function(pop, breeds, qtn, a, d = 0) {
 #' @param generations for `"rotational"`: generations after the F1.
 #' @param sire_breed for `"terminal"`: the name of the terminal sire breed
 #'   (default the last breed).
-#' @param seed optional RNG seed.
+#' @param seed optional RNG seed; the caller's RNG state is restored on exit.
 #' @return The final generation as a `Population`, with attribute `history`: a
 #'   data frame with one row per generation (`generation`, `sire_breed` and the
 #'   mean expected breed fraction per breed).
@@ -216,7 +255,12 @@ crossbreed <- function(breeds, system = c("two_way", "backcross", "three_way",
          " breeds.", call. = FALSE)
   }
   seed <- .validate_seed(seed)
-  if (!is.null(seed)) set.seed(seed)
+  if (!is.null(seed)) {
+    # the caller's RNG state is restored on exit
+    old_seed <- .Random.seed_safe()
+    on.exit(.restore_seed(old_seed), add = TRUE)
+    set.seed(seed)
+  }
   hist <- list()
   record <- function(gen, pop, sire) {
     comp <- colMeans(breed_composition(pop))

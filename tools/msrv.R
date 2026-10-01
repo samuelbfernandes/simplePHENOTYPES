@@ -56,8 +56,8 @@ no_rustc_msg <- c(
 # Add {user}/.cargo/bin to path before checking
 new_path <- paste0(
   Sys.getenv("PATH"),
-  ":",
-  paste0(Sys.getenv("HOME"), "/.cargo/bin")
+  .Platform$path.sep,
+  file.path(Sys.getenv("HOME"), ".cargo", "bin")
 )
 
 # set the path with the new path
@@ -88,8 +88,29 @@ extract_semver <- function(ver) {
   }
 }
 
-# get the MSRV
+# get the MSRV declared in DESCRIPTION
 msrv <- extract_semver(rustc_ver)
+
+# The crate itself declares its MSRV (`rust-version`, = that of the vendored
+# extendr-api). The effective minimum is the larger of the two, and a mismatch is
+# reported so DESCRIPTION cannot silently under-state what the build needs.
+cargo_toml <- "src/rust/Cargo.toml"
+if (file.exists(cargo_toml)) {
+  ct <- readLines(cargo_toml, warn = FALSE)
+  rv_line <- grep("^\\s*rust-version\\s*=", ct, value = TRUE)
+  if (length(rv_line)) {
+    cargo_msrv <- extract_semver(sub("^[^=]*=\\s*['\"]?([0-9.]+).*$", "\\1", rv_line[[1]]))
+    if (!is.na(cargo_msrv)) {
+      if (is.na(msrv) || utils::compareVersion(msrv, cargo_msrv) < 0) {
+        message("Note: DESCRIPTION SystemRequirements lists rustc ",
+                if (is.na(msrv)) "(no version)" else paste(">=", msrv),
+                " but src/rust/Cargo.toml requires rust-version ", cargo_msrv,
+                "; using ", cargo_msrv, ".")
+        msrv <- cargo_msrv
+      }
+    }
+  }
+}
 
 # extract current version
 current_rust_version <- extract_semver(rustc_version)

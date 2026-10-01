@@ -1,6 +1,8 @@
 # test-crossbreed.R -- DECISION-031: breed composition, heterosis, systems.
 
 .breed <- function(pool, n, p, seed, label = pool) {
+  old <- .Random.seed_safe()
+  on.exit(.restore_seed(old), add = TRUE)
   set.seed(seed)
   m <- length(p)
   g <- t(vapply(p, function(pp) stats::rbinom(n, 2, pp) - 1L, integer(n)))
@@ -12,9 +14,17 @@
                                  stringsAsFactors = FALSE), as.data.frame(g)),
                 pool = label)
 }
-set.seed(1)
-PA <- stats::runif(200, 0.05, 0.95); PB <- stats::runif(200, 0.05, 0.95)
-PC <- stats::runif(200, 0.05, 0.95)
+# allele frequencies drawn under a local seed: no test file changes the RNG
+# state of the session
+.freqs <- function() {
+  old <- .Random.seed_safe()
+  on.exit(.restore_seed(old))
+  set.seed(1)
+  list(A = stats::runif(200, 0.05, 0.95), B = stats::runif(200, 0.05, 0.95),
+       C = stats::runif(200, 0.05, 0.95))
+}
+FR <- .freqs()
+PA <- FR$A; PB <- FR$B; PC <- FR$C
 BR <- list(A = .breed("A", 150, PA, 2), B = .breed("B", 150, PB, 3),
            C = .breed("C", 150, PC, 4))
 

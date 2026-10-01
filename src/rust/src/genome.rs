@@ -10,7 +10,8 @@
 
 /// Number of 64-bit words needed to hold `n` bits.
 ///
-/// `usize::div_ceil` is 1.73; this crate's MSRV is 1.65.
+/// `usize::div_ceil` is stable only from Rust 1.73; this crate's MSRV is 1.71
+/// (the `rust-version` of the vendored `extendr-api`, see `Cargo.toml`).
 #[inline]
 pub const fn n_words(n: usize) -> usize {
     (n + 63) >> 6
@@ -86,6 +87,10 @@ impl Bits {
     }
 
     /// Parse a string of `one`/other characters, ascending: `code[j]` -> bit `j`.
+    ///
+    /// Lenient (anything but `one` is a 0); used by the unit tests. Every string
+    /// that arrives from R goes through [`Bits::parse_strand`] instead.
+    #[cfg(test)]
     pub fn from_code(code: &str, one: char) -> Self {
         let mut b = Bits::zeros(code.chars().count());
         for (j, c) in code.chars().enumerate() {
@@ -94,6 +99,39 @@ impl Bits {
             }
         }
         b
+    }
+
+    /// Parse a strand received from R: exactly `n_loci` characters, each `'0'`
+    /// or `'1'` (ascending map order). Anything else is an error rather than a
+    /// silently mis-sized or mis-read haplotype (a `'2'` used to read as 0, a
+    /// short strand produced a short output and a long one indexed past the
+    /// layout).
+    pub fn parse_strand(code: &str, n_loci: usize, what: &str) -> Result<Self, String> {
+        let bytes = code.as_bytes();
+        if bytes.len() != n_loci {
+            return Err(format!(
+                "{} has {} characters but the layout has {} loci",
+                what,
+                bytes.len(),
+                n_loci
+            ));
+        }
+        let mut b = Bits::zeros(n_loci);
+        for (j, &c) in bytes.iter().enumerate() {
+            match c {
+                b'1' => b.set(j, true),
+                b'0' => {}
+                _ => {
+                    return Err(format!(
+                        "{} must contain only '0' and '1'; found {:?} at position {}",
+                        what,
+                        code.chars().nth(j).unwrap_or('?'),
+                        j + 1
+                    ))
+                }
+            }
+        }
+        Ok(b)
     }
 
     /// Render ascending as a string, for direct comparison with isqg's
@@ -140,30 +178,63 @@ pub struct GenomeLayout {
 }
 
 impl GenomeLayout {
-    /// # Panics
-    /// If the per-chromosome counts do not describe `positions`, or any
-    /// chromosome is empty. isqg takes a chromosome's length from its last map
-    /// position, which is undefined for an empty map, so R must never send one.
-    pub fn new(loci_per_chr: &[i32], positions: &[f64]) -> Self {
+    /// Validate and build a layout.
+    ///
+    /// Errors (returned to R as ordinary errors, never panics: a panic aborts
+    /// the R process on some toolchains) if the per-chromosome counts do not
+    /// describe `positions`, there are no chromosomes, any chromosome is empty
+    /// (isqg takes a chromosome's length from its last map position, undefined
+    /// for an empty map), any position is not finite, or positions decrease
+    /// within a chromosome. Ties are allowed.
+    pub fn try_new(loci_per_chr: &[i32], positions: &[f64]) -> Result<Self, String> {
+        if loci_per_chr.is_empty() {
+            return Err("the layout needs at least one chromosome".to_string());
+        }
         let mut chr_start = Vec::with_capacity(loci_per_chr.len() + 1);
         let mut acc = 0usize;
         chr_start.push(0);
         for &c in loci_per_chr {
-            assert!(c > 0, "each chromosome needs at least one locus, got {}", c);
-            acc += c as usize;
+            if c <= 0 {
+                return Err(format!(
+                    "each chromosome needs at least one locus, got {}",
+                    if c == i32::MIN {
+                        "NA".to_string()
+                    } else {
+                        c.to_string()
+                    }
+                ));
+            }
+            acc = acc
+                .checked_add(c as usize)
+                .ok_or_else(|| "loci_per_chr overflows".to_string())?;
             chr_start.push(acc);
         }
-        assert_eq!(
-            acc,
-            positions.len(),
-            "loci_per_chr sums to {} but {} positions were supplied",
-            acc,
-            positions.len()
-        );
-        GenomeLayout {
+        if acc != positions.len() {
+            return Err(format!(
+                "loci_per_chr sums to {} but {} positions were supplied",
+                acc,
+                positions.len()
+            ));
+        }
+        if let Some(j) = positions.iter().position(|p| !p.is_finite()) {
+            return Err(format!(
+                "positions must be finite (position {} is not)",
+                j + 1
+            ));
+        }
+        for w in chr_start.windows(2) {
+            let seg = &positions[w[0]..w[1]];
+            if let Some(k) = seg.windows(2).position(|p| p[1] < p[0]) {
+                return Err(format!(
+                    "positions must be non-decreasing within a chromosome (locus {} of the layout precedes a smaller position)",
+                    w[0] + k + 1
+                ));
+            }
+        }
+        Ok(GenomeLayout {
             chr_start,
             positions: positions.to_vec(),
-        }
+        })
     }
 
     #[inline]
@@ -184,6 +255,13 @@ impl GenomeLayout {
     #[inline]
     pub fn chr_offset(&self, c: usize) -> usize {
         self.chr_start[c]
+    }
+
+    /// Length of chromosome `c` in map units: its LAST position (isqg, and the
+    /// mean of the R-side Poisson crossover count).
+    #[inline]
+    pub fn chr_len(&self, c: usize) -> f64 {
+        self.positions[self.chr_start[c + 1] - 1]
     }
 }
 
@@ -329,20 +407,44 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "positions")]
     fn layout_rejects_mismatched_counts() {
-        GenomeLayout::new(&[3, 2], &[0.0, 0.1, 0.2, 0.3]);
+        let e = GenomeLayout::try_new(&[3, 2], &[0.0, 0.1, 0.2, 0.3])
+            .err()
+            .unwrap();
+        assert!(e.contains("positions"), "{}", e);
     }
 
     #[test]
-    #[should_panic(expected = "at least one locus")]
-    fn layout_rejects_empty_chromosome() {
-        GenomeLayout::new(&[2, 0], &[0.0, 0.1]);
+    fn layout_rejects_empty_chromosome_na_and_no_chromosomes() {
+        let e = GenomeLayout::try_new(&[2, 0], &[0.0, 0.1]).err().unwrap();
+        assert!(e.contains("at least one locus"), "{}", e);
+        assert!(GenomeLayout::try_new(&[i32::MIN], &[]).is_err());
+        assert!(GenomeLayout::try_new(&[], &[]).is_err());
+    }
+
+    #[test]
+    fn layout_rejects_non_finite_and_decreasing_positions_but_allows_ties() {
+        assert!(GenomeLayout::try_new(&[2], &[0.0, f64::NAN]).is_err());
+        assert!(GenomeLayout::try_new(&[2], &[0.0, f64::INFINITY]).is_err());
+        assert!(GenomeLayout::try_new(&[3], &[0.0, 0.5, 0.2]).is_err());
+        assert!(GenomeLayout::try_new(&[3], &[0.0, 0.5, 0.5]).is_ok());
+        // decreasing across a chromosome boundary is fine
+        assert!(GenomeLayout::try_new(&[2, 2], &[0.0, 0.9, 0.0, 0.1]).is_ok());
+    }
+
+    #[test]
+    fn strands_must_match_the_layout_and_the_binary_alphabet() {
+        assert!(Bits::parse_strand("101", 3, "s").is_ok());
+        assert!(Bits::parse_strand("10", 3, "s").is_err());
+        assert!(Bits::parse_strand("1011", 3, "s").is_err());
+        assert!(Bits::parse_strand("121", 3, "s").is_err());
+        assert!(Bits::parse_strand("1a1", 3, "s").is_err());
+        assert!(Bits::parse_strand("", 0, "s").is_ok());
     }
 
     #[test]
     fn layout_slices_chromosomes_in_order() {
-        let g = GenomeLayout::new(&[11, 1, 25], &vec![0.5; 37]);
+        let g = GenomeLayout::try_new(&[11, 1, 25], &vec![0.5; 37]).unwrap();
         assert_eq!(g.n_chr(), 3);
         assert_eq!(g.n_loci(), 37);
         assert_eq!(g.chr_positions(0).len(), 11);

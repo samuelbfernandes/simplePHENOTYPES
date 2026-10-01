@@ -9,19 +9,25 @@
 #'
 #' Filters are applied in order: monomorphic removal, minor-allele frequency,
 #' heterozygosity, then LD pruning. A marker must pass every requested filter to
-#' be kept.
+#' be kept. There is no call-rate filter (PLINK's `--geno` / `--mind`) and no
+#' Hardy-Weinberg test: a marker with no called genotype is kept unless
+#' `remove_monomorphic = TRUE` (its minor-allele frequency is then 0), so drop
+#' or impute such markers beforehand if they matter.
 #'
 #' @section LD pruning and haplotype blocks:
 #' The three sliding-window pruners take the same three-number specification used
 #' by PLINK (`c(window, step, threshold)`); `window_unit` sets whether `window`
 #' counts markers (default) or kilobases (`"kb"`, using the `pos` column).
 #' `indep_pairwise`, `indep` and `indep_pairphase` reproduce PLINK 1.9's
-#' `--indep-pairwise`, `--indep` and `--indep-pairphase` **byte-for-byte for
+#' `--indep-pairwise`, `--indep` and `--indep-pairphase` **marker-for-marker for
 #' ordinary use**: on complete-call **autosomal** genotypes, with `step <= window`,
-#' the kept and removed marker sets match PLINK 1.9 marker-for-marker (verified
-#' against PLINK v1.9.0-b.8 -- the whole bundled panel genome-wide, plus
-#' randomized differential testing; see
-#' `tests/testthat/test-filter-geno-plink-parity.R`). This holds for variant
+#' the kept marker set (and hence the removed set) matches PLINK 1.9. The
+#' committed evidence is a set of golden PLINK v1.9.0-b.8 results on the bundled
+#' `SNP55K_maize282_maf04` panel (nine prune configurations genome-wide, plus
+#' `--blocks no-pheno-req` at 200 and 500 kb), compared in the same marker order
+#' by `tests/testthat/test-filter-geno-plink-parity.R`, together with hard-coded
+#' threshold-epsilon and monomorphic corner cases; there is no PLINK run on other
+#' panels or on randomly generated genotypes. This holds for variant
 #' windows (all three) and kb windows (`indep_pairwise`); `blocks = TRUE` likewise
 #' reproduces the block definitions of PLINK's `--blocks no-pheno-req` at a
 #' matching `--blocks-max-kb` (simplePHENOTYPES imposes no phenotype requirement,
@@ -51,6 +57,11 @@
 #' `pairwise.complete.obs` correlation for `indep_pairwise`/`indep`, complete
 #' pairs only for `indep_pairphase`) and are **not** claimed identical to PLINK's
 #' missing-data path; drop or impute missing genotypes first for PLINK parity.
+#' Variant windows (`window_unit = "variants"`) tolerate missing `chr`/`pos` (for
+#' example genotypes converted from a nucleotide table): markers with a missing
+#' `chr` form one group, ordered as supplied. `window_unit = "kb"` and
+#' `blocks = TRUE` need a physical map, so they stop with an error when `chr` or
+#' `pos` is missing for any marker.
 #' \describe{
 #'   \item{`indep_pairwise = c(window, step, r2)`}{PLINK `--indep-pairwise`: drop
 #'     one marker of every pair whose composite genotype r^2 (squared correlation
@@ -82,21 +93,27 @@
 #' @param geno the genotype object (numeric-format data frame, or an
 #'   individuals-by-markers `-1/0/1` matrix). Convert other formats with
 #'   [as_numeric()] first.
-#' @param maf_above keep markers with minor-allele frequency `>= maf_above`.
-#' @param maf_below keep markers with minor-allele frequency `<= maf_below`.
+#' @param maf_above keep markers with minor-allele frequency `>= maf_above`. A
+#'   single finite number in `[0, 0.5]` (a vector or `NA` is an error).
+#' @param maf_below keep markers with minor-allele frequency `<= maf_below`. A
+#'   single finite number in `[0, 0.5]`, and not smaller than `maf_above`.
 #' @param hets `"any"` (no heterozygosity filter, default), `"include"` (keep
 #'   only markers that have at least one heterozygote -- needed for a dominance
 #'   layer on a near-inbred panel), or `"remove"` (keep only markers with no
 #'   heterozygotes).
-#' @param remove_monomorphic drop markers with no variation (default `TRUE`).
+#' @param remove_monomorphic drop markers with no variation (default `TRUE`);
+#'   must be `TRUE` or `FALSE`.
 #' @param indep_pairwise optional `c(window, step, r2)` for composite-r^2 pairwise
-#'   pruning (see the LD section). `NULL` skips it.
+#'   pruning (see the LD section). `NULL` skips it. `window` and `step` are
+#'   positive whole numbers of markers (`window` may be fractional in
+#'   kilobases when `window_unit = "kb"`), `r2` is in `(0, 1]`; the same holds
+#'   for `indep_pairphase`, and `indep` takes a `vif` of at least 1.
 #' @param indep_pairphase optional `c(window, step, r2)` for haplotypic-r^2
 #'   pairwise pruning (EM-phased; see the LD section). `NULL` skips it.
 #' @param indep optional `c(window, step, vif)` for variance-inflation-factor
 #'   pruning (PLINK's `--indep`; see the LD section). `NULL` skips it.
 #' @param blocks `TRUE` to define Gabriel et al. (2002) haplotype blocks and keep
-#'   one tag marker per block (default `FALSE`).
+#'   one tag marker per block (default `FALSE`); must be `TRUE` or `FALSE`.
 #' @param block_max_kb maximum block span in kilobases for `blocks` (default
 #'   500).
 #' @param window_unit `"variants"` (default) or `"kb"` -- the unit of the pruning
@@ -117,7 +134,11 @@
 #' (the haplotype-block definition).\cr
 #' Hill, W.G. and Robertson, A. (1968). Linkage disequilibrium in finite
 #' populations. \emph{Theor. Appl. Genet.} 38, 226--231.
-#' \doi{10.1007/BF01245622} (the phased r^2 used by `indep_pairphase`).
+#' \doi{10.1007/BF01245622} (the phased r^2 used by `indep_pairphase`).\cr
+#' Gaunt, T.R., Rodriguez, S. and Day, I.N.M. (2007). Cubic exact solutions for
+#' the estimation of pairwise haplotype frequencies. \emph{BMC Bioinformatics}
+#' 8, 428. \doi{10.1186/1471-2105-8-428} (the exact cubic solution for two-locus
+#' haplotype frequencies behind the phased r^2 of `indep_pairphase`).
 #' @seealso [as_numeric()], [simulate_phenotype()], [dominance()].
 #' @export
 #' @examples
@@ -144,6 +165,18 @@ filter_geno <- function(geno,
   hets <- match.arg(hets)
   window_unit <- match.arg(window_unit)
   code_as <- match.arg(code_as)
+  for (nm in c("remove_monomorphic", "blocks", "verbose")) {
+    v <- get(nm)
+    if (!is.logical(v) || length(v) != 1L || is.na(v)) {
+      stop("`", nm, "` must be TRUE or FALSE.", call. = FALSE)
+    }
+  }
+  .check_maf_arg(maf_above, "maf_above")
+  .check_maf_arg(maf_below, "maf_below")
+  if (!is.null(maf_above) && !is.null(maf_below) && maf_above > maf_below) {
+    stop("`maf_above` (", maf_above, ") is larger than `maf_below` (",
+         maf_below, "), so no marker can pass both.", call. = FALSE)
+  }
   if (isTRUE(blocks)) {
     if (length(block_max_kb) != 1L || !is.numeric(block_max_kb) ||
         !is.finite(block_max_kb) || block_max_kb <= 0) {
@@ -161,9 +194,28 @@ filter_geno <- function(geno,
            "individual. Use as_numeric() to convert other formats.",
            call. = FALSE)
     }
+    non_num <- !vapply(geno[, -(1:5), drop = FALSE],
+                       function(col) is.numeric(col) ||
+                         (is.logical(col) && all(is.na(col))), logical(1))
+    if (any(non_num)) {
+      stop("`geno` genotype columns must be numeric (-1/0/1 or 0/1/2); ",
+           "non-numeric column(s): ",
+           paste(utils::head(names(geno)[-(1:5)][non_num], 5L), collapse = ", "),
+           if (sum(non_num) > 5L) ", ..." else "",
+           ". Convert the genotypes with as_numeric() first.", call. = FALSE)
+    }
     Dm  <- as.matrix(geno[, -(1:5), drop = FALSE])   # markers x individuals
     chr <- geno$chr
     pos <- geno$pos
+    needs_map <- (window_unit == "kb" &&
+                    (!is.null(indep_pairwise) || !is.null(indep_pairphase) ||
+                       !is.null(indep))) || isTRUE(blocks)
+    if (needs_map && (anyNA(chr) || anyNA(pos))) {
+      stop("`window_unit = \"kb\"` and `blocks = TRUE` need a physical map, but ",
+           sum(is.na(chr) | is.na(pos)), " marker(s) have a missing `chr` or ",
+           "`pos`. Supply the map, or use window_unit = \"variants\" (which ",
+           "orders markers as supplied).", call. = FALSE)
+    }
   } else if (is.matrix(geno) && is.numeric(geno)) {
     Dm  <- t(geno)                                   # markers x individuals
     chr <- rep(1L, nrow(Dm))
@@ -241,7 +293,7 @@ filter_geno <- function(geno,
     .cite_ld("gabriel")
   }
   if (!is.null(indep_pairwise)) {
-    spec <- .ld_spec(indep_pairwise, "indep_pairwise", need = "r2")
+    spec <- .ld_spec(indep_pairwise, "indep_pairwise", need = "r2", unit = window_unit)
     before <- sum(keep)
     keep <- .ld_prune(dose, maf, chr, pos, keep, method = "pairwise",
                       window = spec[1], step = spec[2], thresh = spec[3],
@@ -249,7 +301,7 @@ filter_geno <- function(geno,
     note(paste0("pairwise r2 > ", spec[3]), before)
   }
   if (!is.null(indep_pairphase)) {
-    spec <- .ld_spec(indep_pairphase, "indep_pairphase", need = "r2")
+    spec <- .ld_spec(indep_pairphase, "indep_pairphase", need = "r2", unit = window_unit)
     before <- sum(keep)
     keep <- .ld_prune(dose, maf, chr, pos, keep, method = "pairphase",
                       window = spec[1], step = spec[2], thresh = spec[3],
@@ -257,7 +309,7 @@ filter_geno <- function(geno,
     note(paste0("pairphase r2 > ", spec[3]), before)
   }
   if (!is.null(indep)) {
-    spec <- .ld_spec(indep, "indep", need = "vif")
+    spec <- .ld_spec(indep, "indep", need = "vif", unit = window_unit)
     before <- sum(keep)
     keep <- .ld_prune(dose, maf, chr, pos, keep, method = "vif",
                       window = spec[1], step = spec[2], thresh = spec[3],
@@ -281,15 +333,47 @@ filter_geno <- function(geno,
 }
 
 #' Validate a c(window, step, threshold) LD-pruning argument
+#'
+#' Three finite positive numbers; `step` (a marker count) and, for variant
+#' windows, `window` must be whole; an r^2 threshold lies in (0, 1]; a VIF
+#' threshold is at least 1 (a diagonal element of an inverse correlation matrix
+#' cannot be smaller).
 #' @keywords internal
 #' @noRd
-.ld_spec <- function(x, arg, need) {
-  if (length(x) != 3L || anyNA(x) || any(x <= 0)) {
+.ld_spec <- function(x, arg, need, unit = "variants") {
+  ex <- if (need == "r2") "0.2" else "2"
+  if (!is.numeric(x) || length(x) != 3L || any(!is.finite(x)) || any(x <= 0)) {
     stop(arg, " must be c(window, step, ", need, ") with three positive ",
-         "numbers (e.g. c(50, 5, ",
-         if (need == "r2") "0.2" else "2", ")).", call. = FALSE)
+         "numbers (e.g. c(50, 5, ", ex, ")).", call. = FALSE)
+  }
+  whole <- function(v) abs(v - round(v)) < 1e-8
+  if (!whole(x[2L]) || (unit == "variants" && !whole(x[1L]))) {
+    stop(arg, ": `step` (and, for variant windows, `window`) is a number of ",
+         "markers and must be a whole number; got c(", x[1L], ", ", x[2L],
+         ", ", x[3L], ").", call. = FALSE)
+  }
+  if (need == "r2" && x[3L] > 1) {
+    stop(arg, ": the r2 threshold must be in (0, 1]; got ", x[3L], ".",
+         call. = FALSE)
+  }
+  if (need == "vif" && x[3L] < 1) {
+    stop(arg, ": the VIF threshold must be at least 1; got ", x[3L], ".",
+         call. = FALSE)
   }
   as.numeric(x)
+}
+
+#' Validate a MAF threshold: NULL, or one finite number in [0, 0.5]
+#' @keywords internal
+#' @noRd
+.check_maf_arg <- function(x, arg) {
+  if (is.null(x)) return(invisible(TRUE))
+  if (!is.numeric(x) || length(x) != 1L || !is.finite(x) || x < 0 || x > 0.5) {
+    stop("`", arg, "` must be a single finite number in [0, 0.5] (a minor-",
+         "allele frequency); got ", paste(format(x), collapse = ", "), ".",
+         call. = FALSE)
+  }
+  invisible(TRUE)
 }
 
 #' Sliding-window LD pruning within chromosomes, byte-exact to PLINK 1.9

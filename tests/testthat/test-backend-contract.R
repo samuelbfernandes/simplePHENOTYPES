@@ -64,3 +64,57 @@ test_that("frozen legacy is not in the contract", {
   # the grammar, not the frozen v1 engine (DECISION-008).
   expect_false("create_phenotypes" %in% backend_contract)
 })
+
+# Signature manifest for the crossing surface: formal names, their ORDER and the
+# defaults of the optional ones. Renaming, reordering or re-defaulting a formal is
+# a contract break even when the name stays exported.
+test_that("the crossing contract signatures are frozen (names, order, defaults)", {
+  sig <- function(f) {
+    fm <- formals(get(f, envir = asNamespace("simplePHENOTYPES")))
+    vapply(fm, function(x) if (is.symbol(x) && !nzchar(as.character(x))) "<none>"
+                           else paste(deparse(x), collapse = ""), character(1))
+  }
+  expect_identical(sig("cross"), c(mother = "<none>", father = "<none>", n = "1",
+                                   seed = "NULL"))
+  expect_identical(sig("selfcross"), c(parent = "<none>", n = "1", seed = "NULL"))
+  expect_identical(sig("double_haploid"), c(parent = "<none>", n = "1", seed = "NULL"))
+  expect_identical(names(sig("as_population")), c("geno", "individuals", "pool"))
+  expect_identical(sig("as_population")[["pool"]], "NA_character_")
+  expect_identical(names(sig("mate")), c("plan", "...", "seed", "prefix"))
+  expect_identical(names(sig("mating_design")),
+                   c("mothers", "fathers", "design", "n_crosses", "progeny_per_cross",
+                     "mothers_per_father", "allow_self", "seed"))
+  expect_identical(names(sig("crossbreed")),
+                   c("breeds", "system", "n_progeny", "generations", "sire_breed",
+                     "seed"))
+  expect_identical(names(sig("heterosis")), c("pop", "breeds", "qtn", "a", "d"))
+  expect_identical(names(sig("synthetic_map")),
+                   c("chr", "pos", "total_cm", "cm_per_mb", "centromere",
+                     "suppression", "width"))
+  expect_identical(names(sig("as_numeric")), c("x", "..."))
+})
+
+# The Rust crate's declared minimum supported Rust version and dependency pin
+# (RUST-F5): the vendored extendr-api needs 1.71, and a wildcard requirement lets a
+# fresh resolve pick any release.
+test_that("the Rust crate declares a consistent MSRV and a pinned dependency", {
+  cargo <- file.path("..", "..", "src", "rust", "Cargo.toml")
+  skip_if_not(file.exists(cargo), "not run from a source tree")
+  ct <- readLines(cargo, warn = FALSE)
+  rv <- sub("^.*=\\s*['\"]([0-9.]+)['\"].*$", "\\1",
+            grep("^\\s*rust-version\\s*=", ct, value = TRUE))
+  expect_identical(rv, "1.71")
+  dep <- grep("^\\s*extendr-api\\s*=", ct, value = TRUE)
+  expect_length(dep, 1L)
+  expect_false(grepl("['\"]\\*['\"]", dep))
+  expect_true(grepl("result_list", dep))
+  desc <- file.path("..", "..", "DESCRIPTION")
+  if (file.exists(desc)) {
+    sr <- read.dcf(desc, "SystemRequirements")[1, 1]
+    d <- sub("^.*rustc\\s*>=\\s*([0-9.]+).*$", "\\1", sr)
+    skip_if(utils::compareVersion(d, rv) < 0,
+            paste0("DESCRIPTION SystemRequirements lists rustc >= ", d,
+                   " but Cargo.toml requires ", rv, "; update DESCRIPTION"))
+    expect_gte(utils::compareVersion(d, rv), 0)
+  }
+})

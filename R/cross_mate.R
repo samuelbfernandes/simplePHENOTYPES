@@ -20,7 +20,11 @@
 #' one-row plan draws the same random numbers and produces the same progeny
 #' genotypes as the equivalent call with that seed -- [cross()] for a cross row,
 #' [selfcross()] for a self, [double_haploid()] for a `"dh"` row; the returned
-#' object differs only in its ids, `origin` and `plan` attribute.
+#' object differs only in its ids, `origin` and `plan` attribute. The caller's
+#' RNG state is restored on exit.
+#'
+#' The populations must share one marker map and the allele coded `+1` (see
+#' [cross()] on allele orientation).
 #'
 #' @param plan a data frame with columns `mother`, `father` (individual ids) and
 #'   `n` (progeny per row, a positive whole number), as produced by
@@ -51,13 +55,30 @@ mate <- function(plan, ..., seed = NULL, prefix = NULL) {
     stop("mate(): give the parent Population(s) in `...`.", call. = FALSE)
   }
   nm <- names(pools)
+  has_pool_cols <- c("mother_pool", "father_pool") %in% names(plan)
   if (length(pools) == 1L && (is.null(nm) || !nzchar(nm))) {
     nm <- ".single"
-  } else if (length(pools) == 1L && !all(c("mother_pool", "father_pool") %in%
-                                        names(plan))) {
-    # one named pool: a plan without pool columns refers to it
-    plan$mother_pool <- nm
-    plan$father_pool <- nm
+    # one unnamed population: there is no pool for a plan's pool columns to
+    # refer to, and they used to be overwritten (and dropped) without a word
+    if (any(has_pool_cols)) {
+      stop("mate(): the plan names pools (mother_pool / father_pool) but `...` ",
+           "holds one unnamed population; name it (e.g. mate(plan, A = pop)) ",
+           "or remove the pool columns.", call. = FALSE)
+    }
+  } else if (length(pools) == 1L) {
+    # one named pool: a plan without pool columns refers to it; a plan with
+    # both is checked against it; a plan with only one is malformed, not
+    # something to overwrite
+    if (sum(has_pool_cols) == 1L) {
+      stop("mate(): the plan has ",
+           c("mother_pool", "father_pool")[has_pool_cols], " but not ",
+           c("mother_pool", "father_pool")[!has_pool_cols],
+           "; give both pool columns or neither.", call. = FALSE)
+    }
+    if (!any(has_pool_cols)) {
+      plan$mother_pool <- nm
+      plan$father_pool <- nm
+    }
   } else if (is.null(nm) || any(!nzchar(nm)) || anyDuplicated(nm)) {
     stop("mate(): with several populations, name each one (e.g. mate(plan, ",
          "A = popA, B = popB)); the names are the pools the plan refers to.",
@@ -85,6 +106,9 @@ mate <- function(plan, ..., seed = NULL, prefix = NULL) {
     p[j]
   }
   if (!is.null(seed)) {
+    # restore the caller's RNG state on exit
+    old_seed <- .Random.seed_safe()
+    on.exit(.restore_seed(old_seed), add = TRUE)
     set.seed(seed)
   }
   kids <- vector("list", nrow(plan))
@@ -187,12 +211,17 @@ mate <- function(plan, ..., seed = NULL, prefix = NULL) {
 #' * `"random"`: `n_crosses` pairs drawn at random (a mother from `mothers`, a
 #'   father from `fathers`; with one parent set, two distinct individuals).
 #'   Without selfs, a mother is drawn among those with at least one father other
-#'   than herself, then one of those fathers.
+#'   than herself, then one of those fathers. The draw is uniform over mothers and
+#'   then over each mother's admissible fathers, so it is uniform over the
+#'   admissible *pairs* only when every mother has the same number of admissible
+#'   fathers; pairs drawn with replacement, a parent can recur.
 #' * `"factorial"`: every mother with every father (North Carolina Design II).
 #' * `"nested"`: each father with its own set of `mothers_per_father` distinct
 #'   mothers, no mother shared between fathers (North Carolina Design I).
-#' * `"diallel"`: every ordered pair of distinct parents, reciprocals included.
-#' * `"half_diallel"`: every unordered pair of distinct parents, once.
+#' * `"diallel"`: every ordered pair of distinct parents, reciprocals included
+#'   (Griffing's method 3; with `allow_self = TRUE`, method 1).
+#' * `"half_diallel"`: every unordered pair of distinct parents, once (Griffing's
+#'   method 4; with `allow_self = TRUE`, method 2).
 #'
 #' Designs pair individuals by id. A pair of the same **individual** is a self,
 #' excluded unless `allow_self = TRUE` (`"diallel"` and `"half_diallel"` then add
@@ -214,11 +243,15 @@ mate <- function(plan, ..., seed = NULL, prefix = NULL) {
 #' @param progeny_per_cross progeny per plan row (the plan's `n`).
 #' @param mothers_per_father mothers per father (`"nested"` only).
 #' @param allow_self allow a parent to be mated with itself.
-#' @param seed optional RNG seed for `"random"`. The other designs are
-#'   deterministic, draw nothing and leave the RNG untouched, so `seed` is
-#'   ignored for them.
+#' @param seed optional RNG seed for `"random"`; the caller's RNG state is
+#'   restored on exit. The other designs are deterministic, draw nothing and
+#'   leave the RNG untouched, so `seed` is ignored for them.
 #' @return A data frame with columns `mother`, `father`, `n`, ready for [mate()]
 #'   (add `mother_pool` / `father_pool` when mating across populations).
+#' @references
+#' Griffing, B. (1956). Concept of general and specific combining ability in
+#' relation to diallel crossing systems. \emph{Australian Journal of Biological
+#' Sciences} 9(4), 463--493. \doi{10.1071/BI9560463}
 #' @seealso [mate()]
 #' @export
 #' @examples
@@ -255,12 +288,17 @@ mating_design <- function(mothers, fathers = mothers,
   # after c(pop, pop), keeps its first id), so no pair is listed twice
   keep <- !duplicated(km); mo <- mo[keep]; km <- km[keep]
   keep <- !duplicated(kf); fa <- fa[keep]; kf <- kf[keep]
-  no_self <- !allow_self
   n <- .validate_count(progeny_per_cross, "progeny_per_cross", minimum = 1L)
   .validate_flag(allow_self, "allow_self")
+  no_self <- !allow_self
   seed <- .validate_seed(seed)
   # only the random design draws; the others must not touch the RNG stream
-  if (!is.null(seed) && design == "random") set.seed(seed)
+  if (!is.null(seed) && design == "random") {
+    # the caller's RNG state is restored on exit
+    old_seed <- .Random.seed_safe()
+    on.exit(.restore_seed(old_seed), add = TRUE)
+    set.seed(seed)
+  }
   pairs <- switch(design,
     random = {
       k <- .validate_count(n_crosses, "n_crosses", minimum = 1L)

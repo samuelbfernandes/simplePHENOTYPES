@@ -154,7 +154,14 @@ synthetic_map <- function(chr,
            " must be finite and fall within its physical span [", min(p),
            ", ", max(p), "].", call. = FALSE)
     }
-    rate <- 1 - suppression * exp(-0.5 * ((p - centre) / (width * span))^2)
+    scale <- width * span
+    if (!is.finite(scale) || scale <= 0) {
+      stop("`width` * (span of chromosome ", chr_levels[[k]], ") is not a ",
+           "representable positive number; the suppression profile cannot be ",
+           "computed. Use physical positions in base pairs and a `width` that ",
+           "is a fraction of the span.", call. = FALSE)
+    }
+    rate <- 1 - suppression * exp(-0.5 * ((p - centre) / scale)^2)
 
     # Trapezoidal integration of the rate across marker intervals: equal
     # positions give a zero-width interval and therefore equal cM.
@@ -163,7 +170,19 @@ synthetic_map <- function(chr,
     increments <- gaps * mid_rate
     cumulative <- c(0, cumsum(increments))
 
-    cm[idx] <- cumulative / cumulative[[length(cumulative)]] * len_cm
+    total <- cumulative[[length(cumulative)]]
+    if (!is.finite(total) || total <= 0) {
+      stop("Chromosome ", chr_levels[[k]], " has a physical span too small to ",
+           "integrate the recombination rate in floating point; supply ",
+           "positions in base pairs.", call. = FALSE)
+    }
+    out <- cumulative / total * len_cm
+    if (anyNA(out) || any(!is.finite(out)) || is.unsorted(out)) {
+      stop("Chromosome ", chr_levels[[k]], ": the genetic map is not finite and ",
+           "non-decreasing (positions too small or too close to be ",
+           "represented).", call. = FALSE)
+    }
+    cm[idx] <- out
   }
 
   cm
@@ -178,6 +197,11 @@ synthetic_map <- function(chr,
   }
   n_chr <- length(chr_levels)
   if (!is.null(names(x))) {
+    dup <- unique(names(x)[duplicated(names(x))])
+    if (length(dup)) {
+      stop("`", arg, "` has more than one entry for chromosome(s): ",
+           paste(dup, collapse = ", "), ".", call. = FALSE)
+    }
     extra <- setdiff(names(x), as.character(chr_levels))
     if (length(extra)) {
       stop("`", arg, "` has entries for chromosome(s) not present in `chr`: ",
