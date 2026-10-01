@@ -1,6 +1,6 @@
 # Round-7 crossing fixes: H1a (as_population validates the counted_allele
 # attribute; orientation guard cannot be bypassed by malformed tokens), H1b
-# (all-NA non-character counted rejected), G5 (collision-free, bounded
+# (all-NA non-character counted rejected), G5 (sanitized, bounded
 # sanitized default file names).
 
 mk_num <- function(allele, counted = NULL) {
@@ -61,7 +61,7 @@ test_that("H1b: all-NA non-character counted columns are rejected", {
   expect_null(.check_counted(NULL))
 })
 
-test_that("G5: sanitized default file names do not collide and are bounded", {
+test_that("G5: sanitized default file names are distinct for these labels and bounded", {
   test_dir <- normalizePath(file.path(testthat::test_path(), ".."))
   td <- withr::local_tempdir()
   withr::local_dir(td)
@@ -92,7 +92,7 @@ test_that("G5: sanitized default file names do not collide and are bounded", {
   expect_length(f3, 1L)
   expect_lte(nchar(f3), 100 + 1 + 8 + nchar("_numeric.txt"))
   expect_true(file.exists(f3))
-  # two long labels that share their first 100 characters stay distinct
+  # two long labels that share their first 100 characters differ by the hash
   f4 <- go(paste0(long, "y"))
   expect_length(f4, 1L)
   expect_false(identical(f3, f4))

@@ -224,6 +224,11 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
 .check_counted <- function(counted, allele = NULL, n = length(counted),
                            what = "map$counted") {
   if (is.null(counted)) return(NULL)
+  if (!is.null(dim(counted))) {
+    stop("`", what, "` must be a plain character vector with one allele ",
+         "symbol per marker, not a ", class(counted)[1L], " with dim (",
+         paste(dim(counted), collapse = " x "), ").", call. = FALSE)
+  }
   if (length(counted) != n) {
     stop("`", what, "` must have one entry per marker (", n, "); got ",
          length(counted), ".", call. = FALSE)

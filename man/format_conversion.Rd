@@ -42,7 +42,10 @@ specifying the reference allele for each SNP. Used with
 \item{to_file}{Logical. Write the result to a file? Defaults to the
 complement of \code{to_r}.}
 
-\item{file_name}{Output file name. Auto-generated when \code{NULL}.}
+\item{file_name}{Output file name. Auto-generated when \code{NULL}: the
+default is derived from the input's label (the file name, or the name of
+the object passed), so different inputs can share it; an existing
+default-named file is overwritten, with a warning.}
 
 \item{f_name}{Base name used to build \code{file_name} for in-memory input.}
 

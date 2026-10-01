@@ -17,7 +17,10 @@
 #'   \code{TRUE} for in-memory input, \code{FALSE} for file input.
 #' @param to_file Logical. Write the result to a file? Defaults to the
 #'   complement of \code{to_r}.
-#' @param file_name Output file name. Auto-generated when \code{NULL}.
+#' @param file_name Output file name. Auto-generated when \code{NULL}: the
+#'   default is derived from the input's label (the file name, or the name of
+#'   the object passed), so different inputs can share it; an existing
+#'   default-named file is overwritten, with a warning.
 #' @param f_name Base name used to build \code{file_name} for in-memory input.
 #' @param code_as Numeric coding scheme: \code{"-101"} (major = 1, het = 0,
 #'   minor = -1; default) or \code{"012"} (major = 2, het = 1, minor = 0).
@@ -123,8 +126,9 @@ format_conversion <- function(file,
       # "<inline data.frame 3 x 13>" becomes "inline_data.frame_3_x_13". When
       # sanitizing changes the label (replaced characters, trimmed edges,
       # fallback or truncation to 100 characters) a short stable hash of the
-      # ORIGINAL label is appended, so distinct labels ("a+b", "a_b") never map
-      # to the same file; labels that need no change are kept exactly.
+      # ORIGINAL label is appended, which makes accidental clashes unlikely
+      # but cannot make the name unique; labels that need no change are kept
+      # exactly. An existing default-named file is overwritten with a warning.
       label <- as.character(f_name)[1L]
       safe <- gsub("[^A-Za-z0-9._-]+", "_", label)
       safe <- gsub("^_+|_+$", "", safe)
@@ -136,6 +140,16 @@ format_conversion <- function(file,
       }
       if (changed) safe <- paste0(safe, "_", .label_hash(label))
       file_name <- paste0(safe, "_numeric.txt")
+    }
+    # A default name is derived from the label, so different inputs can share
+    # it (a hash cannot make names unique, and a case-insensitive file system
+    # folds case). The writer overwrites, so an existing default-named file is
+    # reported rather than replaced silently; file.exists() on the target
+    # already reflects the file system's case folding.
+    if (file.exists(file_name)) {
+      warning("default output file ", file_name, " already exists and is ",
+              "overwritten; pass `file_name` (or the explicit argument) to ",
+              "choose another name", call. = FALSE)
     }
   }
 
@@ -239,8 +253,9 @@ format_conversion <- function(file,
 #'
 #' Polynomial rolling hash of the UTF-8 bytes modulo the prime 4294967291
 #' (all intermediate values stay below 2^53, so it is exact in doubles and
-#' identical on every platform). Used only to keep sanitized default output
-#' names of different labels distinct; it is not a security hash.
+#' identical on every platform). Used only to make accidental clashes between
+#' sanitized default output names unlikely; it cannot make them unique and is
+#' not a security hash.
 #' @keywords internal
 #' @noRd
 .label_hash <- function(label) {
