@@ -10,13 +10,36 @@
 #' processing individuals parents-first, \eqn{A_{ij} = (A_{i,m(j)} + A_{i,f(j)}) / 2}
 #' and \eqn{A_{jj} = 1 + F_j} with \eqn{F_j = A_{m(j) f(j)} / 2}. A self has both
 #' parents equal, so \eqn{F = (1 + F_P) / 2}; a doubled haploid is fully inbred,
-#' \eqn{A_{jj} = 2}, and relates to others as its parent does. Founders are the
-#' base: non-inbred and unrelated. Ancestors not in `pop` still enter through the
-#' pedigree.
+#' \eqn{A_{jj} = 2}, and relates to others as its parent does. Ancestors not in
+#' `pop` still enter through the pedigree.
+#'
+#' Founders are the base of the pedigree: unrelated to each other, and by
+#' default **non-inbred** (`founder_f = 0`, \eqn{A_{jj} = 1}), which is right for
+#' outbred (random-mating) founders. Inbred founders -- e.g. the bundled maize
+#' inbred lines -- are not: their inbreeding coefficient enters the base as
+#' \eqn{A_{jj} = 1 + F_j} and their relationships with descendants, so pass
+#' `founder_f = 1` for fully inbred lines (a founder \eqn{P} crossed to another
+#' inbred line then has \eqn{A_{P,F1} = 1} and the two founders' \eqn{F1} sibs
+#' \eqn{A = 1}, against \eqn{0.5} with the default). Leaving the default on inbred
+#' founders halves those relationships and disagrees systematically with the
+#' genomic matrix of [g_matrix()], whose founder diagonal is close to 2 for inbred
+#' lines. Downstream individuals follow from the recursion; selfing and doubled-haploid
+#' rules are not altered by `founder_f`. Note that a `Population` in which the same
+#' individual appears twice (e.g. `c(pop, pop[1])`) lists that individual under
+#' two ids with a relationship equal to its own diagonal; `a_matrix()` does not
+#' refuse it.
 #'
 #' @param pop a `Population`.
 #' @param ids optional character ids (of `pop`'s individuals) to return;
 #'   default all.
+#' @param founder_f inbreeding coefficient of the founders, in \eqn{[0, 1]}: one
+#'   value for every founder (default `0`, non-inbred), or a numeric vector named
+#'   by founder (founders not named keep `0`). A name is a pedigree key (the
+#'   `key` column of `parentage(pop, ancestors = TRUE)`, unique by construction)
+#'   or a founder's display id. Display ids may repeat across founder pools, so an
+#'   id shared by several founders is ambiguous and is an error naming the
+#'   pedigree keys to use instead; names must be distinct and identify pedigree
+#'   founders. `1` is a fully inbred line.
 #' @return A symmetric matrix with dimnames `ids`.
 #' @references
 #' Wright S (1922) Coefficients of inbreeding and relationship. \emph{The American
@@ -33,7 +56,9 @@
 #' f1 <- cross(pop[1], pop[2], n = 2, seed = 1)
 #' s1 <- selfcross(f1[1], n = 2, seed = 2)
 #' a_matrix(c(f1, s1))
-a_matrix <- function(pop, ids = NULL) {
+#' # the bundled lines are inbred: declare it (A between a line and its F1 is 1)
+#' a_matrix(c(pop, f1), founder_f = 1)
+a_matrix <- function(pop, ids = NULL, founder_f = 0) {
   .check_population(pop)
   pop <- .ensure_pedigree(pop)
   ped <- pop$pedigree
@@ -42,6 +67,7 @@ a_matrix <- function(pop, ids = NULL) {
   A <- matrix(0, n, n)
   mi <- match(ped$mother, ped$key)
   fi <- match(ped$father, ped$key)
+  ff <- .founder_inbreeding(founder_f, ped, mi, fi)
   for (k in seq_len(n)) {
     m <- mi[k]; f <- fi[k]
     if (k > 1L) {
@@ -53,6 +79,8 @@ a_matrix <- function(pop, ids = NULL) {
     }
     A[k, k] <- if (identical(ped$design[k], "dh")) {
       2
+    } else if (is.na(m) && is.na(f)) {
+      1 + ff[k]                                   # a founder: base inbreeding
     } else if (is.na(m) || is.na(f)) {
       1
     } else {
@@ -76,6 +104,62 @@ a_matrix <- function(pop, ids = NULL) {
     out <- out[ids, ids, drop = FALSE]
   }
   out
+}
+
+#' Founder inbreeding coefficients aligned with the pedigree rows (0 for
+#' non-founders); validates `founder_f`
+#' @keywords internal
+#' @noRd
+.founder_inbreeding <- function(founder_f, ped, mi, fi) {
+  bad <- function(why) {
+    stop("a_matrix(): `founder_f` ", why, call. = FALSE)
+  }
+  if (!is.numeric(founder_f) || !length(founder_f) || anyNA(founder_f) ||
+      any(!is.finite(founder_f)) || any(founder_f < 0 | founder_f > 1)) {
+    bad("must be numeric, finite and in [0, 1].")
+  }
+  is_f <- is.na(mi) & is.na(fi)
+  ff <- numeric(nrow(ped))
+  if (length(founder_f) == 1L && is.null(names(founder_f))) {
+    ff[is_f] <- founder_f
+    return(ff)
+  }
+  nm <- names(founder_f)
+  if (is.null(nm) || anyNA(nm) || any(!nzchar(nm))) {
+    bad("must be one value or a vector named by founder (pedigree key or id).")
+  }
+  if (anyDuplicated(nm)) {
+    bad(paste0("has duplicated names (", paste(unique(nm[duplicated(nm)]),
+                                              collapse = ", "), ")."))
+  }
+  # a name is a pedigree KEY (unique) or, failing that, a founder display id;
+  # display ids may legally repeat across pools, so an id shared by several
+  # founders is ambiguous and must be given as keys
+  fk <- ped$key[is_f]
+  fid <- ped$id[is_f]
+  target <- vapply(nm, function(z) {
+    if (z %in% fk) return(z)
+    hit <- fk[fid == z]
+    if (length(hit) == 1L) return(hit)
+    if (length(hit) > 1L) {
+      bad(paste0("name \"", z, "\" is ambiguous: ", length(hit),
+                 " founders share that id (pedigree keys ",
+                 paste(utils::head(hit, 5), collapse = ", "),
+                 "); name them by pedigree key (see parentage())."))
+    }
+    NA_character_
+  }, character(1), USE.NAMES = FALSE)
+  if (anyNA(target)) {
+    bad(paste0("names are not founder ids or keys of `pop`'s pedigree: ",
+               paste(utils::head(nm[is.na(target)], 5), collapse = ", "), "."))
+  }
+  if (anyDuplicated(target)) {
+    bad(paste0("names the same founder twice (",
+               paste(utils::head(nm[target %in% target[duplicated(target)]], 5),
+                     collapse = ", "), ")."))
+  }
+  ff[is_f] <- ifelse(fk %in% target, unname(founder_f)[match(fk, target)], 0)
+  ff
 }
 
 #' Predicted breeding values by BLUP with known variance components
@@ -105,6 +189,26 @@ a_matrix <- function(pop, ids = NULL) {
 #' selection was based on should be included, or predictions are biased
 #' (Henderson 1975).
 #'
+#' **Scope.** One trait, one record per individual (a `pheno` name must not be
+#' repeated, and two ids of `x` that are the same individual -- e.g. after
+#' `c(pop, pop[1])` -- may not both carry a record), an intercept as the only
+#' fixed effect, and no missing phenotypes (they are refused, not dropped); a
+#' single record gives every EBV zero and every reliability zero -- `NA` for an
+#' individual whose prior variance \eqn{K_{ii}\sigma^2_A} is zero, where reliability
+#' is undefined -- since one record cannot separate the mean from the breeding
+#' value. Multi-trait, repeated-record and single-step models are not covered.
+#' With `h2`, \eqn{\sigma^2_A = h^2 \sigma^2_P} and
+#' \eqn{\sigma^2_e = (1 - h^2) \sigma^2_P}, with \eqn{\sigma^2_P} the sample
+#' variance of `ref` or, by default, of the **phenotyped subset** `pheno`. Because
+#' both components are proportional to \eqn{\sigma^2_P}, the ratio
+#' \eqn{\lambda = (1 - h^2) / h^2}, the EBVs and the reliabilities do not depend on
+#' which \eqn{\sigma^2_P} is used (multiplying it by any factor leaves them
+#' unchanged); only the reported absolute `var_a` and `var_e` attributes scale
+#' with it. So `ref` matters when those absolute variances do -- e.g. after
+#' selection the phenotyped subset has a truncated variance, and the base
+#' population's phenotypes as `ref` (or `var_a` and `var_e` directly) keep the
+#' reported components at the base population's scale.
+#'
 #' @param x a `Population` holding every individual to predict (phenotyped and
 #'   not).
 #' @param pheno a numeric vector of phenotypes named by id (a subset of `x`).
@@ -112,8 +216,9 @@ a_matrix <- function(pop, ids = NULL) {
 #' @param h2,var_a,var_e the variance components: either `h2` (then
 #'   \eqn{\sigma^2_A = h^2 \sigma^2_P}, \eqn{\sigma^2_P} the variance of `ref`, default
 #'   `pheno`) or both `var_a` (base additive variance) and `var_e`.
-#' @param ref optional numeric vector of base-population phenotypes setting
-#'   \eqn{\sigma^2_P} for `h2`.
+#' @param ref optional numeric vector (at least two finite values) of
+#'   base-population phenotypes setting \eqn{\sigma^2_P} for `h2`; it is an error
+#'   without `h2` (with `var_a` and `var_e` it would be silently unused).
 #' @param K optional precomputed relationship matrix over `x`'s individuals
 #'   overriding the one `method` builds: finite, symmetric and positive
 #'   semidefinite (it is a covariance matrix up to \eqn{\sigma^2_A}; only
@@ -158,6 +263,15 @@ predict_ebv <- function(x, pheno, method = c("gblup", "pedigree"), h2 = NULL,
   }
   if (anyDuplicated(names(pheno)) || !all(names(pheno) %in% ids)) {
     stop("predict_ebv(): `pheno` names must be distinct ids of `x`.",
+         call. = FALSE)
+  }
+  # one individual listed under two ids would have its record counted twice
+  kx <- .ensure_pedigree(x)$keys[match(names(pheno), ids)]
+  if (anyDuplicated(kx)) {
+    stop("predict_ebv(): `pheno` gives records under two ids (",
+         paste0("\"", names(pheno)[kx == kx[anyDuplicated(kx)]], "\"",
+                collapse = ", "),
+         ") of the same individual; give each individual's record once.",
          call. = FALSE)
   }
   vc <- .blup_variances(pheno, h2, var_a, var_e, ref)
@@ -262,7 +376,21 @@ predict_ebv <- function(x, pheno, method = c("gblup", "pedigree"), h2 = NULL,
   if (any(abs(K - t(K)) > 1e-8 * pmax(1, abs(K), abs(t(K))))) {
     stop("predict_ebv(): `K` must be symmetric.", call. = FALSE)
   }
-  K <- (K + t(K)) / 2
+  # symmetrize only where the two triangles differ (rounding-level): an exactly
+  # symmetric K is returned bit-for-bit. For a differing pair (x, y) the
+  # correctly rounded mean is (x + y) / 2 whenever x + y cannot overflow (both
+  # magnitudes <= xmax / 2, or opposite signs); only otherwise is x/2 + y/2
+  # used, because halving first would flush subnormal entries (s and 2s would
+  # average to s, not 2s)
+  asym <- K != t(K)
+  if (any(asym)) {
+    Kt <- t(K)
+    x <- K[asym]
+    y <- Kt[asym]
+    half <- .Machine$double.xmax / 2
+    safe <- (abs(x) <= half & abs(y) <= half) | (sign(x) != sign(y))
+    K[asym] <- ifelse(safe, (x + y) / 2, x / 2 + y / 2)
+  }
   dg <- diag(K)
   if (any(dg < 0)) {
     stop("predict_ebv(): `K` has a negative diagonal (a negative variance); a ",
@@ -280,10 +408,14 @@ predict_ebv <- function(x, pheno, method = c("gblup", "pedigree"), h2 = NULL,
   rs <- sqrt(dg[!z])
   C <- K[!z, !z, drop = FALSE] / rs
   C <- t(t(C) / rs)
+  if (any(!z) && any(!is.finite(C))) {
+    stop("predict_ebv(): `K` must be positive semidefinite; its correlation ",
+         "scale is not finite (an entry exceeds the geometric mean of its ",
+         "variances by more than the floating-point range allows).",
+         call. = FALSE)
+  }
   ev <- if (!any(!z)) {
     0
-  } else if (any(!is.finite(C))) {
-    -Inf
   } else {
     eigen(C, symmetric = TRUE, only.values = TRUE)$values
   }
@@ -302,6 +434,11 @@ predict_ebv <- function(x, pheno, method = c("gblup", "pedigree"), h2 = NULL,
 #' @keywords internal
 #' @noRd
 .blup_variances <- function(pheno, h2, var_a, var_e, ref) {
+  if (!is.null(ref) && is.null(h2)) {
+    stop("predict_ebv(): `ref` only sets the phenotypic variance for `h2`; ",
+         "it is not used with `var_a` and `var_e`. Drop `ref` or give `h2`.",
+         call. = FALSE)
+  }
   if (!is.null(h2)) {
     if (!is.null(var_a) || !is.null(var_e)) {
       stop("predict_ebv(): give either `h2` or both `var_a` and `var_e`, not ",
@@ -310,6 +447,11 @@ predict_ebv <- function(x, pheno, method = c("gblup", "pedigree"), h2 = NULL,
     if (!is.numeric(h2) || length(h2) != 1L || !is.finite(h2) || h2 <= 0 ||
         h2 >= 1) {
       stop("predict_ebv(): `h2` must be one value in (0, 1).", call. = FALSE)
+    }
+    if (!is.null(ref) && (!is.numeric(ref) || length(ref) < 2L ||
+                          any(!is.finite(ref)))) {
+      stop("predict_ebv(): `ref` must be a finite numeric vector of at least ",
+           "two base-population phenotypes.", call. = FALSE)
     }
     vp <- stats::var(if (is.null(ref)) pheno else ref)
     if (!is.finite(vp) || vp <= 0) {
@@ -350,7 +492,12 @@ predict_ebv <- function(x, pheno, method = c("gblup", "pedigree"), h2 = NULL,
 #' @param ebv predicted values (named by id).
 #' @param truth true breeding values (named by id; e.g. from a simulation's
 #'   `on = "bv"` criterion). Matched by name when both are named.
-#' @return A named numeric vector: `accuracy`, `slope`, `n`.
+#' @return A named numeric vector: `accuracy`, `slope`, `n`. Named vectors are
+#'   matched by name (each name may occur once; a duplicated name in either vector
+#'   is an error, even when the other vector is unnamed) and
+#'   only the common, finite pairs are scored. If `ebv` or `truth` is constant
+#'   the correlation is undefined: `accuracy` is `NA` (and `slope` is `NA` for a
+#'   constant `ebv`), with a warning.
 #' @seealso [predict_ebv()]
 #' @export
 #' @examples
@@ -359,6 +506,15 @@ prediction_accuracy <- function(ebv, truth) {
   if (!is.numeric(ebv) || !is.numeric(truth)) {
     stop("prediction_accuracy(): `ebv` and `truth` must be numeric.",
          call. = FALSE)
+  }
+  # a duplicated name is ambiguous whether or not the other vector is named
+  dup <- c(names(ebv)[duplicated(names(ebv))],
+           names(truth)[duplicated(names(truth))])
+  if (length(dup)) {
+    stop("prediction_accuracy(): duplicated names (",
+         paste(utils::head(unique(dup), 5), collapse = ", "),
+         ") in `ebv` or `truth`; each id must occur once, or the pairing ",
+         "would silently keep the first match.", call. = FALSE)
   }
   if (!is.null(names(ebv)) && !is.null(names(truth))) {
     common <- intersect(names(ebv), names(truth))
@@ -373,8 +529,15 @@ prediction_accuracy <- function(ebv, truth) {
          call. = FALSE)
   }
   e <- as.numeric(ebv[ok]); u <- as.numeric(truth[ok])
-  c(accuracy = stats::cor(e, u),
-    slope = if (stats::var(e) > 0) stats::cov(u, e) / stats::var(e) else NA_real_,
+  ve <- stats::var(e); vu <- stats::var(u)
+  if (!(ve > 0) || !(vu > 0)) {
+    warning("prediction_accuracy(): `",
+            if (!(ve > 0)) "ebv" else "truth",
+            "` is constant over the matched individuals, so the accuracy is ",
+            "undefined (NA).", call. = FALSE)
+  }
+  c(accuracy = if (ve > 0 && vu > 0) stats::cor(e, u) else NA_real_,
+    slope = if (ve > 0) stats::cov(u, e) / ve else NA_real_,
     n = sum(ok))
 }
 

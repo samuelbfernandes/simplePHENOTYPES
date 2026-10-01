@@ -34,9 +34,9 @@
 #' testers' allele frequencies.
 #' So a candidate's GCA depends on the tester, and with testers drawn from the
 #' candidates' own population (`p_T = p`) it equals half its breeding value; with
-#' `d = 0` every SCA is exactly zero. Expectations depend only on the parents'
-#' gamete frequencies, so linkage does not enter them (it enters the variance of a
-#' realized family).
+#' `d = 0` every *expected* SCA is exactly zero. Expectations depend only on the
+#' parents' gamete frequencies, so linkage does not enter them (it enters the
+#' variance of a realized family).
 #'
 #' @section Simulated (an estimate):
 #' `method = "simulated"` realizes `n_progeny` progeny of every cross with the
@@ -45,7 +45,17 @@
 #' [phenotype_value()], `h2` being the heritability of the total genotypic value
 #' in `ref`, default the progeny), and averages per cross. It is a finite-sample
 #' estimate of the expected values, with Mendelian (and, with a residual,
-#' environmental) sampling error.
+#' environmental) sampling error. Consequently a *simulated* SCA is not zero for
+#' `d = 0` when the parents are heterozygous (segregation among the `n_progeny`
+#' progeny of a cross is a sampling deviation from the expectation, shrinking
+#' with `n_progeny`); it is zero for `d = 0` only in expectation, and exactly in a
+#' simulation from fully inbred parents (identical gametes, so no Mendelian
+#' sampling) **that has no residual**: an independent residual per progeny is
+#' environmental sampling error, which inbred parents do not remove, so with
+#' `h2` / `var_e` the simulated SCA is not zero even then (it shrinks with
+#' `n_progeny`). `ref`, like
+#' `h2`, only scales the residual and is an error without `h2`. With `seed` the
+#' caller's random-number stream is left as it was found.
 #'
 #' @section Designs and centering:
 #' * `"topcross"`: every candidate crossed to every tester; GCA over candidates.
@@ -58,7 +68,14 @@
 #' cross involves two candidates, so this package's least-squares solution is
 #' `g_i = (m_i - mu)(p - 1)/(p - 2)`, with `m_i` the mean of candidate `i`'s
 #' `p - 1` crosses; again `SCA = Y - mu - g_i - g_k`. In every design GCAs sum to
-#' zero and each candidate's SCAs sum to zero.
+#' zero and each candidate's SCAs sum to zero. Only the diallel *without
+#' reciprocals* is modelled (Griffing's method 4, one cross per unordered pair):
+#' reciprocal or maternal effects are outside the model and the cross matrix is
+#' symmetric. Individuals are identified by pedigree key, which includes the
+#' founders' `pool` label: two populations built from the same genotypes under
+#' different `as_population(pool = )` labels are different individuals (a cross
+#' between them is recorded as a cross, not a self, although its expected value
+#' is the same).
 #'
 #' @param candidates a `Population` of candidates, each individual once (the
 #'   same individual under a second id is an error).
@@ -71,7 +88,8 @@
 #' @param method `"expected"` or `"simulated"`.
 #' @param n_progeny progeny per cross for `"simulated"`.
 #' @param h2,var_e,ref optional residual for `"simulated"`: give at most one of
-#'   `h2` / `var_e` (none: no residual).
+#'   `h2` / `var_e` (none: no residual); `ref` (the reference population for `h2`)
+#'   is an error without `h2`.
 #' @param seed optional RNG seed for `"simulated"`.
 #' @return A `combining_ability` object: a list with `gca` (named, over
 #'   candidates), `gca_testers` (factorial only), `sca` (matrix: candidates x
@@ -85,7 +103,8 @@
 #'   average effect \eqn{\alpha = a + d(q - p)}.
 #'
 #' Sprague GF, Tatum LA (1942) General vs. specific combining ability in single
-#'   crosses of corn. \emph{Agronomy Journal} 34:923--932.
+#'   crosses of corn. \emph{Journal of the American Society of Agronomy} (now
+#'   \emph{Agronomy Journal}) 34:923--932.
 #'   \doi{10.2134/agronj1942.00021962003400100008x}
 #'
 #' Griffing B (1956) Concept of general and specific combining ability in relation
@@ -139,6 +158,11 @@ combining_ability <- function(candidates, testers = NULL, qtn, a, d = 0,
     n_progeny <- .validate_count(n_progeny, "n_progeny", minimum = 1L)
     if (!is.null(h2) && !is.null(var_e)) {
       stop("combining_ability(): give at most one of `h2` / `var_e`.",
+           call. = FALSE)
+    }
+    if (!is.null(ref) && is.null(h2)) {
+      stop("combining_ability(): `ref` is the reference population for `h2`; ",
+           "it is not used without `h2` (give `h2`, or drop `ref`).",
            call. = FALSE)
     }
   } else if (!is.null(n_progeny) || !is.null(h2) || !is.null(var_e) ||
@@ -223,10 +247,18 @@ combining_ability <- function(candidates, testers = NULL, qtn, a, d = 0,
 .simulate_cross_means <- function(candidates, testers, design, qtn, a, d,
                                   n_progeny, h2, var_e, ref, seed) {
   cand_ids <- candidates$ids
+  # `seed` seeds the whole simulation once (meioses, then residuals, from one
+  # stream) and the caller's stream is put back afterwards, as phenotype_value()
+  seed <- .validate_seed(seed)
+  if (!is.null(seed)) {
+    old <- .Random.seed_safe()
+    on.exit(.restore_seed(old), add = TRUE)
+    set.seed(seed)
+  }
   if (design == "diallel") {
     plan <- mating_design(candidates, design = "half_diallel",
                           progeny_per_cross = n_progeny)
-    progeny <- mate(plan, candidates, seed = seed, prefix = "ca")
+    progeny <- mate(plan, candidates, prefix = "ca")
     test_ids <- cand_ids
   } else {
     plan <- mating_design(candidates, testers, design = "factorial",
@@ -234,7 +266,7 @@ combining_ability <- function(candidates, testers = NULL, qtn, a, d = 0,
     plan$mother_pool <- "candidates"
     plan$father_pool <- "testers"
     progeny <- mate(plan, candidates = candidates, testers = testers,
-                    seed = seed, prefix = "ca")
+                    prefix = "ca")
     test_ids <- testers$ids
   }
   y <- if (is.null(h2) && is.null(var_e)) {
@@ -307,7 +339,12 @@ print.combining_ability <- function(x, ...) {
 #' @param rep replication (default 1).
 #' @return A data frame with columns `qtn` (marker index), `snp`, `a`, `d`, one row
 #'   per causal locus. Refuses models with an epistasis layer or
-#'   `architecture = "complex"`, whose effects have no per-locus a / d form.
+#'   `architecture = "complex"`, whose effects have no per-locus a / d form, and
+#'   models with a *derived* `transcriptome()` layer that carries variance
+#'   (`prop > 0`) for the trait: its heritable part is mediated by gene expression,
+#'   not by per-locus effects, so a template would silently drop it (a layer with
+#'   `prop = 0`, or one built on a real expression source, whose genetic content
+#'   is not asserted, adds nothing to the genetic value and is allowed).
 #' @seealso [combining_ability()], [genotypic_value()], [qtn_table()]
 #' @export
 #' @examples
@@ -331,6 +368,18 @@ template_effects <- function(sim, trait = 1L, rep = 1L) {
     stop("template_effects(): an epistasis layer (or architecture = ",
          "\"complex\") has no per-locus additive / dominance decomposition, so it ",
          "cannot be expressed as frozen a and d.", call. = FALSE)
+  }
+  tx_genetic <- !is.null(sim$genetic_expression) &&
+    any(vapply(sim$layers, function(l) {
+      identical(l$type, "transcriptome") &&
+        .expand_prop(l$prop, sim$n_traits)[trait] > 0
+    }, logical(1)))
+  if (tx_genetic) {
+    stop("template_effects(): the simulation has a derived transcriptome() ",
+         "layer whose heritable part is expression-mediated, not per-locus; ",
+         "it cannot be expressed as frozen a and d (the template would omit ",
+         "it). Use a simulation without a transcriptome layer, or genetic_values() ",
+         "for the realized genetic value.", call. = FALSE)
   }
   add_layers <- Filter(function(l) identical(l$type, "additive"), sim$layers)
   dom_layers <- Filter(function(l) identical(l$type, "dominance"), sim$layers)

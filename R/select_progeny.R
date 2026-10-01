@@ -6,7 +6,9 @@
 #' replacement, from `mates`, one progeny per mating, so each parent gets a
 #' half-sib family: a parent is never its own mate, each individual of `mates`
 #' counts once (by pedigree identity, see [parentage()]), and `n_progeny` must not
-#' exceed the distinct mates available to a parent. Scores every progeny on the frozen architecture
+#' exceed the distinct mates available to a parent. Individuals are identified by pedigree key, which
+#' includes the founders' `pool` label (the same genotypes under two different
+#' pool labels are two individuals). Scores every progeny on the frozen architecture
 #' (`qtn`, `a`, `d`), optionally adds an independent residual (exactly one of
 #' `h2` / `var_e`, as in [phenotype_value()]), and reports each parent's progeny
 #' mean. The progeny `Population` (pedigree recorded, see [families()]) is
@@ -21,8 +23,14 @@
 #' negligibly for a large mate population.) That breeding value uses the average
 #' effects
 #' \eqn{\alpha = a + d(q - p)} at the mates' allele frequencies (Falconer &
-#' Mackay 1996), so dominance enters the progeny mean through them; what does not
-#' enter is a separate dominance deviation of the parent itself. (With a fixed
+#' Mackay 1996), so dominance enters the *parent-dependent* part of the progeny
+#' mean -- the part that ranks parents -- through them; what does not enter is a
+#' separate dominance deviation of the parent itself. Dominance also remains in
+#' the constant common to all parents (under Hardy-Weinberg at the mates'
+#' frequencies, with \eqn{p} the frequency of the counted allele, that constant is
+#' \eqn{a(p - q) + 2 d p q} per locus). For example, with \eqn{a = 0} and
+#' \eqn{p = 1/2}, \eqn{\alpha = 0} and every parent has the same expected progeny
+#' mean, which equals \eqn{d / 2} per locus, not zero. (With a fixed
 #' tester population this is combining ability toward that tester, see
 #' [combining_ability()].)
 #'
@@ -51,9 +59,13 @@
 #'   single value (default 0).
 #' @param n_progeny progeny (and distinct mates) per parent.
 #' @param h2,var_e,ref optional residual: at most one of `h2` / `var_e`; `h2` is
-#'   the heritability of the genotypic value in `ref` (default: the progeny).
+#'   the heritability of the genotypic value in `ref` (default: the progeny), a
+#'   *broad-sense* value when `d != 0` (the accuracy formula above is for an
+#'   additive trait, so with dominance the `h2` given is not the `h2` in it).
+#'   `ref` is an error without `h2`.
 #' @param seed optional RNG seed (mates, meioses and residuals are drawn in that
-#'   order from one stream).
+#'   order from one stream); the caller's random-number stream is left as it was
+#'   found.
 #' @return A data frame with `id` (parent), `progeny_mean` and `n`, with
 #'   attributes `progeny` (the progeny `Population`), `records` (each progeny's
 #'   value, named by id) and `var_e` (the residual variance used, 0 for none).
@@ -83,11 +95,19 @@ progeny_test <- function(parents, mates, qtn, a, d = 0, n_progeny, h2 = NULL,
   if (!is.null(h2) && !is.null(var_e)) {
     stop("progeny_test(): give at most one of `h2` / `var_e`.", call. = FALSE)
   }
+  if (!is.null(ref) && is.null(h2)) {
+    stop("progeny_test(): `ref` is the reference population for `h2`; it is ",
+         "not used without `h2` (give `h2`, or drop `ref`).", call. = FALSE)
+  }
   nl <- length(.resolve_geno_qtn(parents, qtn, "progeny_test")$idx)
   if (length(d) == 1L) d <- rep(d, nl)
   .check_ad(a, d, nl, "progeny_test")
   seed <- .validate_seed(seed)
-  if (!is.null(seed)) set.seed(seed)
+  if (!is.null(seed)) {
+    old <- .Random.seed_safe()
+    on.exit(.restore_seed(old), add = TRUE)
+    set.seed(seed)
+  }
   # distinct mates only (each individual once, never the parent itself), so
   # every family is a half-sib family
   kp <- .ensure_pedigree(parents)$keys
