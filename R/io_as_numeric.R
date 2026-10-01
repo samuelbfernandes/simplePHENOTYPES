@@ -118,6 +118,16 @@
 #'     \item{`from`}{input format, when automatic detection is not wanted.}
 #'     \item{`verbose`}{print progress messages.}
 #'   }
+#' @details When `to_file = TRUE` and no `file_name` is given, the default
+#'   output name is `<label>_numeric.txt`, where the label is the name of the
+#'   object passed as `x` (for a file input, the input file's name). A label
+#'   that is not already a portable file name (other characters replaced, or
+#'   longer than 100 characters) is sanitized and gets a short hash of the
+#'   original label appended, so different labels give different files. An
+#'   inline object (for example `do.call()` or a long expression) has only a
+#'   generic label built from its class and dimensions, which two different
+#'   objects of the same class and size share: pass an explicit `file_name`
+#'   for such input.
 #' @return The genotypes in numeric format: five metadata columns
 #'   (`snp`, `allele`, `chr`, `pos`, `cm`) followed by one column per
 #'   individual. Returned as a data frame when `to_r = TRUE`, otherwise written

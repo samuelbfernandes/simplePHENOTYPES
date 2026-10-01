@@ -26,7 +26,9 @@ as for \code{\link[=as_population]{as_population()}} (the same checks, including
 warning, apply; see its section on the genetic map). Optional columns:
 \code{allele} (the \code{"allele1/allele2"} label of \code{\link[=as_numeric]{as_numeric()}}) and \code{counted}
 (character: the allele the haplotype value \code{1} stands for, \code{NA} where
-unknown). The \code{map} of an existing population (\code{pop$map}) is a valid
+unknown; each entry a single non-empty allele symbol, one of the two
+alleles of \code{allele} when that label exists; \code{""} and numeric values are
+rejected). The \code{map} of an existing population (\code{pop$map}) is a valid
 argument. Other columns are ignored.}
 
 \item{ids}{optional character vector of individual ids, one per individual.

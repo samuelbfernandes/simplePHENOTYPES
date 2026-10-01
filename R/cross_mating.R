@@ -97,10 +97,19 @@
   )
 }
 
+#' Largest accepted interference shape `nu`
+#'
+#' Gamma gaps with shape up to 1e6 are still numerically well behaved (relative
+#' spread 1/sqrt(nu) = 1e-3); beyond it the model is effectively a fixed spacing
+#' and the rate computation can overflow.
+#' @keywords internal
+#' @noRd
+.NU_MAX <- 1e6
+
 #' Validate and normalise the `interference` argument of the crossing functions
 #'
 #' `NULL` (no interference option: Poisson chiasmata, the isqg stream) or a
-#' list / named numeric vector with `nu` (a single number >= 1) and optionally
+#' list / named numeric vector with `nu` (a single number in `[1, 1e6]`) and optionally
 #' `p` (a single number in `[0, 1]`, default 0). Returns `NULL` or
 #' `list(nu =, p =)`.
 #' @param x the argument as given.
@@ -125,9 +134,11 @@
   }
   nu <- x[["nu"]]
   p <- if ("p" %in% nm) x[["p"]] else 0
-  if (!num1(nu) || nu < 1) {
-    stop(fn, "(): `interference$nu` must be one finite number >= 1 (the shape ",
-         "of the gamma model; 1 is no interference); got ",
+  if (!num1(nu) || nu < 1 || nu > .NU_MAX) {
+    stop(fn, "(): `interference$nu` must be one finite number in [1, ",
+         format(.NU_MAX, scientific = FALSE), "] (the shape of the gamma ",
+         "model; 1 is no interference; larger values are numerically ",
+         "indistinguishable from a fixed spacing); got ",
          paste(format(nu), collapse = ", "), ".", call. = FALSE)
   }
   if (!num1(p) || p < 0 || p > 1) {
@@ -185,7 +196,7 @@
   # interfering pathway: stationary gamma renewal process on the bivalent,
   # each chiasma kept in the gamete with probability 1/2
   if (p < 1) {
-    rate <- 2 * nu * (1 - p)
+    rate <- nu * (2 * (1 - p))      # stable ordering; nu <= .NU_MAX
     x <- stats::runif(n_slots) * stats::rgamma(n_slots, shape = nu + 1,
                                               rate = rate)
     act <- which(x <= len)
@@ -194,7 +205,17 @@
     while (length(act)) {
       sl[[length(sl) + 1L]] <- act
       ps[[length(ps) + 1L]] <- x[act]
-      x[act] <- x[act] + stats::rgamma(length(act), shape = nu, rate = rate)
+      gap <- stats::rgamma(length(act), shape = nu, rate = rate)
+      xn <- x[act] + gap
+      # safety guard: every renewal step must advance the position, otherwise
+      # the loop would never end (a non-positive / non-finite gap)
+      if (!all(is.finite(gap)) || !all(gap > 0) || !all(xn > x[act])) {
+        stop("interference: a drawn crossover gap is not strictly positive and ",
+             "finite (nu = ", format(nu), ", p = ", format(p), "); the draw ",
+             "was stopped instead of looping forever. Use a smaller `nu` (at ",
+             "most ", format(.NU_MAX, scientific = FALSE), ").", call. = FALSE)
+      }
+      x[act] <- xn
       act <- act[x[act] <= len[act]]
     }
     sl <- unlist(sl, use.names = FALSE)
@@ -432,7 +453,8 @@
 #' recombinant gamete from each parent, so the two parents contribute one
 #' homologue apiece.
 #'
-#' Recombination follows the count-location model: the number of crossovers on
+#' By default (`interference = NULL`) recombination follows the count-location
+#' model: the number of crossovers on
 #' a chromosome is Poisson with mean equal to its length in Morgans, and their
 #' positions are uniform along it. That length is the chromosome's **last** map
 #' position (`cm / 100`), not its span `max(cm) - min(cm)`: positions are used as
@@ -476,8 +498,9 @@
 #' * The rest (intensity \eqn{2(1 - p)}) is interfering: a stationary renewal
 #'   process whose gaps are gamma distributed with shape `nu` and rate
 #'   \eqn{2 \nu (1 - p)} per Morgan (mean gap \eqn{1 / (2 (1 - p))} Morgans).
-#'   `nu >= 1` is the interference strength; `nu = 1` is exponential gaps, i.e.
-#'   no interference. The first chiasma is drawn from the stationary
+#'   `1 <= nu <= 1e6` is the interference strength (larger values are rejected:
+#'   the gamma gaps are then numerically a fixed spacing); `nu = 1` is
+#'   exponential gaps, i.e. no interference. The first chiasma is drawn from the stationary
 #'   (equilibrium) distribution, so the process does not "start" at the
 #'   chromosome end.
 #' * The two pathways are independent; the gamete's crossovers are the union.
@@ -488,7 +511,7 @@
 #' (y / \nu) [1 - F_\nu(y)]\}}, \eqn{y = 2 \nu (1 - p) d}, \eqn{F_a} the
 #' Gamma(`a`, 1) distribution function. With `nu = 1`, or `p = 1`, the model is
 #' Poisson in distribution (Haldane), although it then uses its own random
-#' stream, not isqg's. `p` is in `[0, 1]`; `nu` must be at least 1 (negative
+#' stream, not isqg's. `p` is in `[0, 1]`; `nu` must be in `[1, 1e6]` (negative
 #' interference is not modelled). The gamma model of interference is that of
 #' McPeek and Speed (1995, *Genetics*) and the two-pathway extension that of
 #' Housworth and Stahl (2003, *American Journal of Human Genetics*) (author,
@@ -510,7 +533,7 @@
 #' @param interference `NULL` (default: Poisson crossovers, no interference, the
 #'   isqg random stream) or `list(nu = , p = )` for the two-pathway gamma model
 #'   of crossover interference (see the section "Crossover interference").
-#'   `nu >= 1` is the interference strength (1 = none), `p` in `[0, 1]` (default
+#'   `1 <= nu <= 1e6` is the interference strength (1 = none), `p` in `[0, 1]` (default
 #'   0 when omitted) the share of chiasmata that do not interfere. The expected
 #'   number of crossovers per Morgan is unchanged.
 #' @return A `Population` of `n` progeny.

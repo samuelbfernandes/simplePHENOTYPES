@@ -46,7 +46,9 @@
 #'   warning, apply; see its section on the genetic map). Optional columns:
 #'   `allele` (the `"allele1/allele2"` label of [as_numeric()]) and `counted`
 #'   (character: the allele the haplotype value `1` stands for, `NA` where
-#'   unknown). The `map` of an existing population (`pop$map`) is a valid
+#'   unknown; each entry a single non-empty allele symbol, one of the two
+#'   alleles of `allele` when that label exists; `""` and numeric values are
+#'   rejected). The `map` of an existing population (`pop$map`) is a valid
 #'   argument. Other columns are ignored.
 #' @param ids optional character vector of individual ids, one per individual.
 #'   Default: the individual names of the matrices (column names, or row names
@@ -120,8 +122,8 @@ population_from_haplotypes <- function(cis, trans, map, ids = NULL,
     stop("`cis`/`trans` must hold at least one marker and one individual.",
          call. = FALSE)
   }
-  pmap <- .make_map(map$snp, map$chr, map$pos, map$cm, map$allele,
-                    if (is.null(map$counted)) NULL else as.character(map$counted))
+  counted <- .check_counted(map$counted, map$allele, nrow(map), "map$counted")
+  pmap <- .make_map(map$snp, map$chr, map$pos, map$cm, map$allele, counted)
 
   # marker names of the matrices (when present) must be the map's, in order
   for (nm in c("cis", "trans")) {

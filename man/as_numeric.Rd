@@ -40,6 +40,18 @@ simulation function in the package expects. HapMap, VCF, GDS and PLINK
 bed/ped input are recognized automatically, from a file path or from an
 object already in memory.
 }
+\details{
+When \code{to_file = TRUE} and no \code{file_name} is given, the default
+output name is \verb{<label>_numeric.txt}, where the label is the name of the
+object passed as \code{x} (for a file input, the input file's name). A label
+that is not already a portable file name (other characters replaced, or
+longer than 100 characters) is sanitized and gets a short hash of the
+original label appended, so different labels give different files. An
+inline object (for example \code{do.call()} or a long expression) has only a
+generic label built from its class and dimensions, which two different
+objects of the same class and size share: pass an explicit \code{file_name}
+for such input.
+}
 \section{Which allele becomes 1}{
 
 By default (\code{method = "frequency"}) the \strong{most frequent allele is the

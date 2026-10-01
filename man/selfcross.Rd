@@ -19,7 +19,7 @@ restored on exit (a seeded call does not disturb the ambient stream); with
 \item{interference}{\code{NULL} (default: Poisson crossovers, no interference, the
 isqg random stream) or \code{list(nu = , p = )} for the two-pathway gamma model
 of crossover interference (see the section "Crossover interference").
-\code{nu >= 1} is the interference strength (1 = none), \code{p} in \verb{[0, 1]} (default
+\verb{1 <= nu <= 1e6} is the interference strength (1 = none), \code{p} in \verb{[0, 1]} (default
 0 when omitted) the share of chiasmata that do not interfere. The expected
 number of crossovers per Morgan is unchanged.}
 }

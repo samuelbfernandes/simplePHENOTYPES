@@ -119,7 +119,23 @@ format_conversion <- function(file,
         file.path(dir_part, out_base)
       }
     } else {
-      file_name <- paste0(f_name, "_numeric.txt")
+      # a default file name must be portable: an inline-object label such as
+      # "<inline data.frame 3 x 13>" becomes "inline_data.frame_3_x_13". When
+      # sanitizing changes the label (replaced characters, trimmed edges,
+      # fallback or truncation to 100 characters) a short stable hash of the
+      # ORIGINAL label is appended, so distinct labels ("a+b", "a_b") never map
+      # to the same file; labels that need no change are kept exactly.
+      label <- as.character(f_name)[1L]
+      safe <- gsub("[^A-Za-z0-9._-]+", "_", label)
+      safe <- gsub("^_+|_+$", "", safe)
+      if (is.na(safe) || !nzchar(safe)) safe <- "geno"
+      changed <- is.na(label) || !identical(safe, label)
+      if (nchar(safe) > 100L) {
+        safe <- substr(safe, 1L, 100L)
+        changed <- TRUE
+      }
+      if (changed) safe <- paste0(safe, "_", .label_hash(label))
+      file_name <- paste0(safe, "_numeric.txt")
     }
   }
 
@@ -217,4 +233,20 @@ format_conversion <- function(file,
 
   if (verbose) message("Genotype conversion complete.")
   if (to_r) return(G)
+}
+
+#' Short stable hash of a label (8 hex digits)
+#'
+#' Polynomial rolling hash of the UTF-8 bytes modulo the prime 4294967291
+#' (all intermediate values stay below 2^53, so it is exact in doubles and
+#' identical on every platform). Used only to keep sanitized default output
+#' names of different labels distinct; it is not a security hash.
+#' @keywords internal
+#' @noRd
+.label_hash <- function(label) {
+  label <- if (is.na(label)) "NA" else label
+  bytes <- as.integer(charToRaw(enc2utf8(label)))
+  h <- 5381
+  for (b in bytes) h <- (h * 131 + b) %% 4294967291
+  sprintf("%04x%04x", as.integer(h %/% 65536), as.integer(h %% 65536))
 }
