@@ -1381,7 +1381,37 @@ a two-breed rotation ≈ 2/3 of the F1 heterosis; additive architectures give 0.
 
 ---
 
-## DECISION-032: position-sensitive layer sub-seed (grammar seed rule)
+## DECISION-032: multi-trait known-covariance BLUP
+
+**Decision (lifts the multi-trait half of SPEC D14; single-step `H` stays deferred):**
+`predict_ebv()` takes an individuals x traits `pheno` matrix (row names ids, column
+names traits, `NA` for a missing record) with `var_a` = `G0` and `var_e` = `R0`, the
+known traits x traits base additive genetic and residual covariance matrices, and
+returns an individuals x traits matrix of predictions. One verb, not a new export: a
+vector `pheno` is single-trait BLUP exactly as before. The model is Henderson & Quaas
+(1976): `y_t = 1 μ_t + Z_t u_t + e_t`, `Var(u) = G0 ⊗ K`, residuals correlated only
+within an individual (`R0` between one individual's records, 0 between individuals), a
+mean per trait. It is solved in the GLS form of DECISION-030 over the stacked records,
+`û = Cov(u, y) V⁻¹ (y − X μ̂)`, so a singular `K` or `G0` (genetic correlation 1) is
+fine; reliability is `1 − PEV / (G0_tt K_ii)` with PEV from
+`P = V⁻¹ − V⁻¹X (X'V⁻¹X)⁻¹ X'V⁻¹`. Missing records are allowed (every trait needs
+one). `h2` / `ref` cannot set between-trait covariances, so they are rejected for a
+matrix `pheno`; the covariance matrices are validated as symmetric and PSD (the
+DECISION-030 correlation-scale check) with positive variances, and named axes must be
+the traits (reordered to `pheno`'s). GBLUP marker effects per trait come from the same
+back-solve. The BLUP of an aggregate genotype `a'u` is `a'û`, ranked through
+`select_ind(on =)`. Validated: equals Henderson's multi-trait MME (with
+`(G0 ⊗ A)⁻¹`) to 1e-9 for `μ`, `û` and PEV with partly missing records; a one-column
+matrix equals single-trait BLUP, and diagonal `G0`, `R0` separate into per-trait BLUP;
+marker effects reproduce the GEBVs; under its own model a correlated recorded trait
+lifts the accuracy of an unrecorded one (0.67 vs 0.45 single-trait at `r_g = 0.8`),
+the slope of truth on prediction is ≈ 1, and mean reliability ≈ squared accuracy.
+Review r1: one-marker marker effects kept as a markers x traits matrix; a
+correlation-scale entry that overflows (e.g. `[[1e-320, 1e200], [1e200, 1e-320]]`) now
+fails the PSD check directly instead of making its tolerance infinite (this also closes
+the same hole for a supplied `K` in single-trait BLUP).
+
+## DECISION-033: position-sensitive layer sub-seed (grammar seed rule)
 
 **Context:** the grammar derived a layer's sub-seed from the *sum* of the character codes
 of its draw label (`additive_rep<r>`, `residual_t<t>`, ...), which is permutation-invariant:
@@ -1414,7 +1444,7 @@ Hard-coded seeded expectations in the grammar tests were re-derived.
 
 ---
 
-## DECISION-033: report the realized additive/dominance partition on shared loci
+## DECISION-034: report the realized additive/dominance partition on shared loci
 
 **Context:** in the variance-partition coding the additive component (dosage x effect) and the
 dominance component (heterozygote indicator x effect) are scaled separately, so on shared loci
@@ -1449,7 +1479,7 @@ too; no report is produced for those.
 
 ---
 
-## DECISION-034: transcriptome realized heritability naming (`h2_realized`, `h2_allocated`, `h2_var_ratio`)
+## DECISION-035: transcriptome realized heritability naming (`h2_realized`, `h2_allocated`, `h2_var_ratio`)
 
 **Context:** the audit-fix round 1 made `genes$h2_realized` the bounded allocation
 `Var(G)/(Var(G)+Var(R))`, which equals the target on the reference panel by construction and so
@@ -1477,7 +1507,7 @@ share is `epsilon`. Round 3 (R3-4): the `h2_*`, `cis_fraction_realized` and
 
 ---
 
-## DECISION-035: `as_numeric()` records the counted allele as an R attribute (`counted_allele`)
+## DECISION-036: `as_numeric()` records the counted allele as an R attribute (`counted_allele`)
 
 **Context:** the numeric `allele` label alone cannot reveal which allele was coded `+1`: an all-`AA`
 and an all-`GG` panel converted separately both encode `+1`, so crossing them mis-reads
@@ -1498,7 +1528,7 @@ cannot carry the attribute; row-subsetting a data frame drops it). Documented in
 
 ---
 
-## DECISION-036: v1 duplicate `chr_pos` accepted in pleiotropic/partial, rejected in LD
+## DECISION-037: v1 duplicate `chr_pos` accepted in pleiotropic/partial, rejected in LD
 
 **Decision (owner, round 2 A3):** the frozen `create_phenotypes()` accepts duplicated `chr_pos`
 markers in the fully pleiotropic and partially pleiotropic architectures (no error; documented in
@@ -1544,8 +1574,9 @@ stricter check and rejects them with an "LD contract" error. The v2 grammar
 | 029 | `marker_select()`: foreground carrier / homozygote filter, staged pyramiding (`min_markers`), ranking on any score, seeded tie-break; `additive_value()` documented as the MARS index | locked (2026-09-28) |
 | 030 | `predict_ebv()` known-variance BLUP (GBLUP / pedigree, GLS form = MME), `a_matrix()` tabular method, `prediction_accuracy()`, `selection_methods()` manifest; multi-trait / single-step deferred (D14, TODO) | locked (2026-09-28) |
 | 031 | `breed_composition()`, `heterosis()` (realized; exact expected F1 from the breeds' genotypes), `crossbreed()` two-way / backcross / three-way / terminal / rotational over `mate()` | locked (2026-09-28) |
-| 032 | Layer sub-seed = position-sensitive rolling hash of the draw label, mixed with `(seed, occurrence of the layer type)`; replaces the permutation-invariant character-code sum (replications 12/21 and traits 12/21 were byte-identical); collision-resistant over ordinary ranges (31-bit, not injective; see the seed-123 collision in the body); adding/removing/reordering a layer never changes other-type layers, inserting a same-type layer shifts later same-type layers by design; every seeded grammar value changed (no v1 parity owed, DECISION-009) | locked (2026-09-29) |
-| 033 | Additive + dominance on shared loci (variance-partition coding): the realized genetic variance is `prop_A + prop_D + 2Cov(c_A,c_D)` for one additive and one dominance layer (general: `Var(c_A) + Var(c_D) + 2Cov(c_A,c_D)`), a structural, allele-coding-dependent bias; report it (`$ad_report`: requested, realized, Var(A), Var(D), 2Cov(A,D), component `Var(c_A)`, `Var(c_D)`, `2Cov(c_A,c_D)` (exact closure for any number of layers), per trait, fractions of V_P) and note `additive(orthogonal = TRUE, ...)` in `print()`, help and SPEC §2; the "finite-sample / usually tracks closely" wording is removed | locked (2026-09-29) |
-| 034 | Transcriptome `genes$h2_realized` = realized `Var(G)/Var(P)` (includes `2Cov(G,R)`, not bounded by 1); `h2_var_ratio` = identical alias; bounded allocation `Var(G)/(Var(G)+Var(R))` renamed `h2_allocated` (not a heritability); mimic GREML guard on the intercept-projected spectrum of K | locked (2026-09-30) |
-| 035 | `as_numeric()` records the `+1`-counted allele per marker as the `counted_allele` attribute (no dosage, column or label change); `as_population()` keeps `map$counted`; cross-pool guard errors on disagreement, else label-only fallback; not persisted through text files | locked (2026-09-30) |
-| 036 | v1 `create_phenotypes()`: duplicated `chr_pos` accepted in pleiotropic / partially pleiotropic, rejected ("LD contract") in `"LD"`; the grammar also accepts duplicated `chr`/`pos` | locked (2026-09-30) |
+| 032 | Multi-trait known-covariance BLUP in `predict_ebv()` (individuals x traits `pheno` with `NA` for missing records; `var_a` = G0, `var_e` = R0; Henderson & Quaas 1976, GLS form = multi-trait MME); single-step `H` still deferred | locked (2026-09-29) |
+| 033 | Layer sub-seed = position-sensitive rolling hash of the draw label, mixed with `(seed, occurrence of the layer type)`; replaces the permutation-invariant character-code sum (replications 12/21 and traits 12/21 were byte-identical); collision-resistant over ordinary ranges (31-bit, not injective; see the seed-123 collision in the body); adding/removing/reordering a layer never changes other-type layers, inserting a same-type layer shifts later same-type layers by design; every seeded grammar value changed (no v1 parity owed, DECISION-009) | locked (2026-09-29) |
+| 034 | Additive + dominance on shared loci (variance-partition coding): the realized genetic variance is `prop_A + prop_D + 2Cov(c_A,c_D)` for one additive and one dominance layer (general: `Var(c_A) + Var(c_D) + 2Cov(c_A,c_D)`), a structural, allele-coding-dependent bias; report it (`$ad_report`: requested, realized, Var(A), Var(D), 2Cov(A,D), component `Var(c_A)`, `Var(c_D)`, `2Cov(c_A,c_D)` (exact closure for any number of layers), per trait, fractions of V_P) and note `additive(orthogonal = TRUE, ...)` in `print()`, help and SPEC §2; the "finite-sample / usually tracks closely" wording is removed | locked (2026-09-29) |
+| 035 | Transcriptome `genes$h2_realized` = realized `Var(G)/Var(P)` (includes `2Cov(G,R)`, not bounded by 1); `h2_var_ratio` = identical alias; bounded allocation `Var(G)/(Var(G)+Var(R))` renamed `h2_allocated` (not a heritability); mimic GREML guard on the intercept-projected spectrum of K | locked (2026-09-30) |
+| 036 | `as_numeric()` records the `+1`-counted allele per marker as the `counted_allele` attribute (no dosage, column or label change); `as_population()` keeps `map$counted`; cross-pool guard errors on disagreement, else label-only fallback; not persisted through text files | locked (2026-09-30) |
+| 037 | v1 `create_phenotypes()`: duplicated `chr_pos` accepted in pleiotropic / partially pleiotropic, rejected ("LD contract") in `"LD"`; the grammar also accepts duplicated `chr`/`pos` | locked (2026-09-30) |

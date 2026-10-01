@@ -54,7 +54,7 @@ THEORY: PASS | FAIL (n)
   props (incl. vqtl) ≤ 1; homoskedastic residual = 1 − Σ all props. `prop` sum > 1 errors.
 - **V2** Reported h² is computed from **realized** genetic/phenotypic values, not asserted
   from the budget (components not orthogonal at non-0.5 freq). vQTL share is *residual*,
-  excluded from H². The transcriptome table follows V2 (DECISION-034): `h2_realized` =
+  excluded from H². The transcriptome table follows V2 (DECISION-035): `h2_realized` =
   realized Var(G)/Var(P) (includes 2Cov(G, R), not bounded by 1), `h2_var_ratio` its alias,
   and the bounded allocation Var(G)/(Var(G)+Var(R)) is named `h2_allocated` (not a
   heritability). The marginal epistasis share is
@@ -169,7 +169,7 @@ THEORY: PASS | FAIL (n)
 - **R1** Every stochastic draw is on R's RNG; nothing random added to the Rust
   parity-critical path.
 - **R2** Seed threading: `(seed, layer_type, occurrence of that type)` for the grammar
-  (DECISION-032; a position-sensitive hash of the label, so permuted labels such as
+  (DECISION-033; a position-sensitive hash of the label, so permuted labels such as
   `rep12` / `rep21` get different sub-seeds and distinct labels are collision-resistant
   over ordinary ranges; the 31-bit sub-seed is NOT injective -- a known collision is
   `.layer_seed(123, "transcriptome_rep106", 0) == .layer_seed(123, "residual_t40160", 3)`.

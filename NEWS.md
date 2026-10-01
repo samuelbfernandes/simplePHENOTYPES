@@ -19,6 +19,13 @@
   with `a_matrix()` (numerator relationship matrix from the recorded pedigree)
   and `prediction_accuracy()`; `selection_methods()` lists the selection
   operators for front ends.
+* `predict_ebv()` multi-trait BLUP: an individuals x traits `pheno` matrix (`NA`
+  for missing records) with known genetic (`var_a`) and residual (`var_e`)
+  covariance matrices predicts every trait for every individual, including traits
+  an individual was not recorded on (Henderson & Quaas 1976).
+* `write_phenotypes(file_type = "json")` writes the long or wide table as JSON (one
+  object per row, UTF-8, values round-trip exactly); needs the suggested package
+  jsonlite.
 * `crossbreed()` (two-way, backcross, three-way, terminal, rotational),
   `breed_composition()` and `heterosis()`.
 * `mabc_select()` and `recurrent_parent_recovery()`: marker-assisted
@@ -50,14 +57,14 @@ output or reject previously accepted input are marked **(behaviour)**.
 
 **Simulation grammar**
 * **(behaviour)** Sub-seeds now use a position-sensitive hash of the draw label
-  (DECISION-032). Replications 12/21, 13/31, ... and traits 12/21 used to share a
+  (DECISION-033). Replications 12/21, 13/31, ... and traits 12/21 used to share a
   sub-seed and returned identical QTNs, effects and residuals. Every seeded
   `simulate_phenotype()` result changes. The rule is (seed, layer type, occurrence
   of that type); inserting a same-type layer shifts later same-type layers.
 * `additive()` + `dominance()` on shared loci report the realized Var(A), Var(D)
   and 2Cov(A, D) (`$ad_report`, and a note in `print()`). The realized-H2 gap is
   a coding-dependent term, not finite-sample noise; `additive(orthogonal = TRUE,
-  ...)` is the recommended model (DECISION-033).
+  ...)` is the recommended model (DECISION-034).
 * **(behaviour)** `simulate_phenotype()` needs at least three individuals.
   `complex_phenotypes()` needs h2-complete inputs, is terminal (adding a layer
   errors) and no longer carries model-1 state (`mediation_split()` is `NULL`).

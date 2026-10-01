@@ -80,7 +80,7 @@ When additive and dominance layers share loci the `phenotype_sim` therefore
 reports, per trait, the requested share, the realized share and the realized
 `Var(A)`, `Var(D)` and `2Cov(A,D)` of the block, and `Var(c_A)`, `Var(c_D)` and
 `2Cov(c_A,c_D)` (fractions of V_P; `$ad_report`,
-and a note in `print()`; DECISION-033), and recommends
+and a note in `print()`; DECISION-034), and recommends
 `additive(orthogonal = TRUE, a =, d =)` for a Fisher-orthogonal partition. For an
 additive-only model the additive proportion is the narrow-sense h² under
 Hardy-Weinberg.
@@ -401,7 +401,7 @@ simulated pedigree can be phenotyped directly without converting back to a dosag
 - `seed` stored on the `phenotype_sim` at creation.
 - Each layer derives a deterministic sub-seed from `(seed, layer type, occurrence of
   that type)`, where *occurrence* is the number of earlier layers of the same type
-  (DECISION-032). Replication `r` of a `vary_qtn` layer and each trait's residual
+  (DECISION-033). Replication `r` of a `vary_qtn` layer and each trait's residual
   use the labels `"<type>_rep<r>"` and `"residual_t<t>"` under the same rule. The
   label is reduced with a position-sensitive rolling hash, so labels that differ
   only by a permutation of characters (`..._rep12` / `..._rep21`, `residual_t12` /

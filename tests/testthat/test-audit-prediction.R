@@ -425,12 +425,12 @@ test_that("selection_methods(): ids, functions and sources are pinned", {
   expect_equal(m$id, c("mass", "within_family", "among_family", "combined",
                        "index", "quadratic_index", "culling", "tandem", "random",
                        "ocs", "usefulness", "mabc", "mas", "combining_ability",
-                       "progeny_test", "blup"))
+                       "progeny_test", "blup", "mt_blup"))
   allowed <- c("Falconer & Mackay 1996", "Lush 1947", "Smith 1936; Hazel 1943",
                "Ceron-Rojas et al. 2026", "Hazel & Lush 1942", "package",
                "Meuwissen 1997", "Zhong & Jannink 2007; Lehermeier et al. 2017",
                "Frisch & Melchinger 2001, 2005", "Lande & Thompson 1990",
                "Sprague & Tatum 1942; Griffing 1956", "package derivation",
-               "Henderson 1975; VanRaden 2008")
+               "Henderson 1975; VanRaden 2008", "Henderson & Quaas 1976")
   expect_true(all(m$source %in% allowed))
 })

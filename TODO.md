@@ -319,9 +319,10 @@ Source: BD `docs/BREEDING_METHODS_CATALOG.md` ("Engine:" notes).
   `marker_select()`; `additive_value()` is the MARS index (DECISION-029).
 - [x] BLUP / EBV prediction verb: `predict_ebv()` (GBLUP / pedigree, known variances),
   `a_matrix()`, `prediction_accuracy()`, `selection_methods()` (DECISION-030).
-- [ ] Multi-trait BLUP and single-step (pedigree + genomic, `H`) BLUP — deferred by
-  maintainer decision D14 (`docs/SPEC-block3b.md`); single-trait known-variance BLUP
-  comes first.
+- [x] Multi-trait BLUP: `predict_ebv()` with an individuals x traits `pheno` matrix and
+  `var_a` / `var_e` covariance matrices (DECISION-032).
+- [ ] Single-step (pedigree + genomic, `H`) BLUP — still deferred by maintainer
+  decision D14 (`docs/SPEC-block3b.md`).
 - [x] Progeny-mean scorer (progeny testing): `progeny_test()` (DECISION-027); families
   in a design via `mating_design()` / `mate()` + `families()`.
 - [x] Multi-trait sequential rules: `select_ind(method = "culling")` and tandem

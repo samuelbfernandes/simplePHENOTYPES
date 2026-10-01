@@ -1,5 +1,5 @@
-# Known-variance BLUP (DECISION-030): predicted breeding values from observable
-# phenotypes and a relationship matrix, the pedigree relationship matrix, accuracy
+# Known-variance BLUP (DECISION-030; multi-trait, DECISION-032): predicted
+# breeding values from observable phenotypes and a relationship matrix, the pedigree relationship matrix, accuracy
 # reporting and a manifest of the engine's selection operators.
 
 #' Numerator relationship matrix from the recorded pedigree
@@ -189,14 +189,15 @@ a_matrix <- function(pop, ids = NULL, founder_f = 0) {
 #' selection was based on should be included, or predictions are biased
 #' (Henderson 1975).
 #'
-#' **Scope.** One trait, one record per individual (a `pheno` name must not be
+#' **Scope (single trait).** One trait, one record per individual (a `pheno` name must not be
 #' repeated, and two ids of `x` that are the same individual -- e.g. after
 #' `c(pop, pop[1])` -- may not both carry a record), an intercept as the only
 #' fixed effect, and no missing phenotypes (they are refused, not dropped); a
 #' single record gives every EBV zero and every reliability zero -- `NA` for an
 #' individual whose prior variance \eqn{K_{ii}\sigma^2_A} is zero, where reliability
 #' is undefined -- since one record cannot separate the mean from the breeding
-#' value. Multi-trait, repeated-record and single-step models are not covered.
+#' value. Repeated-record and single-step models are not covered; for several traits see
+#' *Multi-trait BLUP* below.
 #' With `h2`, \eqn{\sigma^2_A = h^2 \sigma^2_P} and
 #' \eqn{\sigma^2_e = (1 - h^2) \sigma^2_P}, with \eqn{\sigma^2_P} the sample
 #' variance of `ref` or, by default, of the **phenotyped subset** `pheno`. Because
@@ -209,16 +210,44 @@ a_matrix <- function(pop, ids = NULL, founder_f = 0) {
 #' population's phenotypes as `ref` (or `var_a` and `var_e` directly) keep the
 #' reported components at the base population's scale.
 #'
+#' **Multi-trait BLUP.** Give `pheno` as an individuals x traits matrix (row names
+#' ids, column names traits, `NA` for a trait an individual was not recorded on)
+#' and `var_a`, `var_e` as the known traits x traits base additive genetic
+#' covariance matrix \eqn{G_0} and residual covariance matrix \eqn{R_0}. The model
+#' (Henderson & Quaas 1976) is \eqn{y_t = 1\mu_t + Z_t u_t + e_t} for every trait
+#' \eqn{t}, with \eqn{Var(u) = G_0 \otimes K} and residuals correlated only within
+#' an individual, \eqn{Cov(e_{it}, e_{js}) = R_{0,ts}} if \eqn{i = j} and 0
+#' otherwise. It is solved in the same generalized least-squares form over the
+#' stacked records, \eqn{\hat u = Cov(u, y) V^{-1} (y - X\hat\mu)} with
+#' \eqn{V = Var(y)}, so `K` and \eqn{G_0} may be singular (e.g. a genetic
+#' correlation of 1). A trait is predicted for every individual, including those
+#' not recorded on it, through the genetic covariances with the traits that were
+#' recorded; an individual's own record on a correlated trait also enters through
+#' the residual covariance. The records need not be complete, but every trait needs
+#' at least one. With uncorrelated traits (diagonal \eqn{G_0} and \eqn{R_0}) the
+#' result is single-trait BLUP of each trait. The BLUP of an aggregate genotype
+#' \eqn{H = a'u} is \eqn{a'\hat u}, so rank on `ebv %*% a` (e.g.
+#' `select_ind(method = "mass", on = ...)`), or pass the matrix to
+#' `select_ind(method = "culling", on = ...)`.
+#'
 #' @param x a `Population` holding every individual to predict (phenotyped and
 #'   not).
-#' @param pheno a numeric vector of phenotypes named by id (a subset of `x`).
+#' @param pheno a numeric vector of phenotypes named by id (a subset of `x`), or,
+#'   for multi-trait BLUP, a numeric individuals x traits matrix (or data frame)
+#'   with row names ids of `x`, column names the traits and `NA` for a missing
+#'   record.
 #' @param method `"gblup"` or `"pedigree"`.
 #' @param h2,var_a,var_e the variance components: either `h2` (then
 #'   \eqn{\sigma^2_A = h^2 \sigma^2_P}, \eqn{\sigma^2_P} the variance of `ref`, default
-#'   `pheno`) or both `var_a` (base additive variance) and `var_e`.
+#'   `pheno`) or both `var_a` (base additive variance) and `var_e`. For
+#'   multi-trait BLUP, `var_a` and `var_e` are required: the traits x traits base
+#'   additive genetic and residual covariance matrices (named by trait, or in
+#'   `pheno`'s column order), each positive semidefinite with positive variances;
+#'   `h2` and `ref` are not used.
 #' @param ref optional numeric vector (at least two finite values) of
 #'   base-population phenotypes setting \eqn{\sigma^2_P} for `h2`; it is an error
-#'   without `h2` (with `var_a` and `var_e` it would be silently unused).
+#'   without `h2` (with `var_a` and `var_e` it would be silently unused). Not used
+#'   by multi-trait BLUP.
 #' @param K optional precomputed relationship matrix over `x`'s individuals
 #'   overriding the one `method` builds: finite, symmetric and positive
 #'   semidefinite (it is a covariance matrix up to \eqn{\sigma^2_A}; only
@@ -234,8 +263,15 @@ a_matrix <- function(pop, ids = NULL, founder_f = 0) {
 #'   `var_e`, `method` and, for `"gblup"` with the genomic matrix built here (no
 #'   `K` supplied) and `ridge = 0`, `marker_effects` (back-solved, on the
 #'   \eqn{M - 2p} gene-content scale of [g_matrix()]; a supplied `K` carries no
-#'   marker scale, so none are returned).
+#'   marker scale, so none are returned). For multi-trait BLUP, an individuals x
+#'   traits matrix, with `reliability` the matching matrix, `mu` a vector named by
+#'   trait, `var_a` and `var_e` the covariance matrices used, `method`, and
+#'   `marker_effects` (markers x traits) under the same condition; no `lambda`.
 #' @references
+#' Henderson CR, Quaas RL (1976) Multiple trait evaluation using relatives'
+#'   records. \emph{Journal of Animal Science} 43:1188--1197.
+#'   \doi{10.2527/jas1976.4361188x}
+#'
 #' Henderson CR (1975) Best linear unbiased estimation and prediction under a
 #'   selection model. \emph{Biometrics} 31:423--447. \doi{10.2307/2529430}
 #'
@@ -250,31 +286,50 @@ a_matrix <- function(pop, ids = NULL, founder_f = 0) {
 #' y <- phenotype_value(pop, q, c(1, 0.5, 0.25), h2 = 0.5, seed = 1)
 #' ebv <- predict_ebv(pop, y[1:40], h2 = 0.5)      # 20 unphenotyped candidates
 #' head(ebv)
+#'
+#' # multi-trait (illustrative covariances): a second, correlated trait recorded
+#' # on every individual, the first unrecorded on the 20 candidates
+#' y2 <- phenotype_value(pop, q, c(0.8, 0.6, 0), h2 = 0.5, seed = 2)
+#' Y <- cbind(t1 = y, t2 = y2)
+#' Y[41:60, "t1"] <- NA
+#' tr <- c("t1", "t2")
+#' G0 <- matrix(c(1, 0.6, 0.6, 1), 2, dimnames = list(tr, tr))
+#' R0 <- diag(2); dimnames(R0) <- list(tr, tr)
+#' ebv2 <- predict_ebv(pop, Y, var_a = G0, var_e = R0)
+#' head(ebv2)
 predict_ebv <- function(x, pheno, method = c("gblup", "pedigree"), h2 = NULL,
                         var_a = NULL, var_e = NULL, ref = NULL, K = NULL,
                         base_freq = NULL, ridge = 0) {
   .check_population(x)
   method <- match.arg(method)
   ids <- x$ids
-  if (!is.numeric(pheno) || is.null(names(pheno)) || !length(pheno) ||
-      any(!is.finite(pheno))) {
-    stop("predict_ebv(): `pheno` must be a finite numeric vector named by id.",
-         call. = FALSE)
-  }
-  if (anyDuplicated(names(pheno)) || !all(names(pheno) %in% ids)) {
-    stop("predict_ebv(): `pheno` names must be distinct ids of `x`.",
-         call. = FALSE)
+  # an individuals x traits table of records is multi-trait BLUP
+  multi <- is.matrix(pheno) || is.data.frame(pheno)
+  if (multi) {
+    pheno <- .check_pheno_matrix(pheno, ids)
+    vc <- .mt_variances(colnames(pheno), h2, var_a, var_e, ref)
+  } else {
+    if (!is.numeric(pheno) || is.null(names(pheno)) || !length(pheno) ||
+        any(!is.finite(pheno))) {
+      stop("predict_ebv(): `pheno` must be a finite numeric vector named by ",
+           "id, or an individuals x traits matrix.", call. = FALSE)
+    }
+    if (anyDuplicated(names(pheno)) || !all(names(pheno) %in% ids)) {
+      stop("predict_ebv(): `pheno` names must be distinct ids of `x`.",
+           call. = FALSE)
+    }
+    vc <- .blup_variances(pheno, h2, var_a, var_e, ref)
   }
   # one individual listed under two ids would have its record counted twice
-  kx <- .ensure_pedigree(x)$keys[match(names(pheno), ids)]
+  rec_ids <- if (multi) rownames(pheno)[rowSums(!is.na(pheno)) > 0] else names(pheno)
+  kx <- .ensure_pedigree(x)$keys[match(rec_ids, ids)]
   if (anyDuplicated(kx)) {
     stop("predict_ebv(): `pheno` gives records under two ids (",
-         paste0("\"", names(pheno)[kx == kx[anyDuplicated(kx)]], "\"",
+         paste0("\"", rec_ids[kx == kx[anyDuplicated(kx)]], "\"",
                 collapse = ", "),
          ") of the same individual; give each individual's record once.",
          call. = FALSE)
   }
-  vc <- .blup_variances(pheno, h2, var_a, var_e, ref)
   built <- is.null(K)
   # a supplied K is validated and used in its symmetric form (rounding-level
   # asymmetry is tolerated by the check, so it must not survive into the solve)
@@ -301,6 +356,10 @@ predict_ebv <- function(x, pheno, method = c("gblup", "pedigree"), h2 = NULL,
     }
   }
   if (!is.null(rownames(K))) K <- K[ids, ids, drop = FALSE]
+  if (multi) {
+    return(.predict_ebv_mt(x, pheno, method, K, built, vc$var_a, vc$var_e,
+                           base_freq, ridge))
+  }
   rec <- match(names(pheno), ids)
   y <- as.numeric(pheno)
   lambda <- vc$var_e / vc$var_a
@@ -360,21 +419,184 @@ predict_ebv <- function(x, pheno, method = c("gblup", "pedigree"), h2 = NULL,
   ebv
 }
 
-#' Validate a user-supplied relationship matrix: numeric, finite, symmetric and
-#' positive semidefinite (up to rounding); returns its symmetric form
+#' Validate a multi-trait record table: numeric, rows named by distinct ids of
+#' `x`, columns by distinct trait names, `NA` for a missing record, and at least
+#' one record per trait; returns a numeric matrix
 #' @keywords internal
 #' @noRd
-.check_relationship <- function(K) {
+.check_pheno_matrix <- function(pheno, ids) {
+  if (is.data.frame(pheno)) {
+    if (!all(vapply(pheno, is.numeric, logical(1)))) {
+      stop("predict_ebv(): a `pheno` data frame must have only numeric trait ",
+           "columns.", call. = FALSE)
+    }
+    pheno <- as.matrix(pheno)
+  }
+  if (!is.numeric(pheno) || !length(pheno)) {
+    stop("predict_ebv(): a `pheno` matrix must be numeric, individuals x traits.",
+         call. = FALSE)
+  }
+  rn <- rownames(pheno)
+  if (is.null(rn) || anyNA(rn) || anyDuplicated(rn) || !all(rn %in% ids)) {
+    stop("predict_ebv(): a `pheno` matrix needs row names that are distinct ids ",
+         "of `x`.", call. = FALSE)
+  }
+  tn <- colnames(pheno)
+  if (is.null(tn) || anyNA(tn) || any(!nzchar(tn)) || anyDuplicated(tn)) {
+    stop("predict_ebv(): a `pheno` matrix needs distinct, non-empty trait ",
+         "(column) names.", call. = FALSE)
+  }
+  # NA is a missing record; anything else must be a finite value
+  if (any(is.nan(pheno) | (!is.na(pheno) & !is.finite(pheno)))) {
+    stop("predict_ebv(): `pheno` records must be finite (NA marks a missing ",
+         "record).", call. = FALSE)
+  }
+  empty <- tn[colSums(!is.na(pheno)) == 0L]
+  if (length(empty)) {
+    stop("predict_ebv(): every trait needs at least one record (none for ",
+         paste(empty, collapse = ", "), ").", call. = FALSE)
+  }
+  pheno
+}
+
+#' Multi-trait variance components: the known T x T base additive genetic
+#' (`var_a`) and residual (`var_e`) covariance matrices over the traits of
+#' `pheno`, validated as covariance matrices with positive variances
+#' @keywords internal
+#' @noRd
+.mt_variances <- function(traits, h2, var_a, var_e, ref) {
+  nt <- length(traits)
+  if (!is.null(h2) || !is.null(ref)) {
+    stop("predict_ebv(): multi-trait BLUP needs the covariance matrices ",
+         "`var_a` and `var_e` (traits x traits); `h2` and `ref` cannot set ",
+         "the genetic and residual covariances between traits.", call. = FALSE)
+  }
+  one <- function(S, arg) {
+    if (is.null(S)) {
+      stop("predict_ebv(): give `", arg, "` as a ", nt, " x ", nt,
+           " covariance matrix over the traits of `pheno`.", call. = FALSE)
+    }
+    if (!is.matrix(S) && is.numeric(S) && length(S) == 1L && nt == 1L) {
+      S <- matrix(S, 1L, 1L)
+    }
+    if (!is.matrix(S) || !identical(dim(S), c(nt, nt))) {
+      stop("predict_ebv(): `", arg, "` must be a ", nt, " x ", nt,
+           " covariance matrix over the traits of `pheno`.", call. = FALSE)
+    }
+    # named axes must be the traits, identically on both (then reordered);
+    # unnamed ones are taken in `pheno`'s column order
+    rn <- rownames(S); cn <- colnames(S)
+    if (!is.null(rn) || !is.null(cn)) {
+      if (is.null(rn) || !identical(rn, cn) || !setequal(rn, traits) ||
+          anyDuplicated(rn)) {
+        stop("predict_ebv(): `", arg, "` row and column names must both be ",
+             "the traits of `pheno`, in the same order on both axes.",
+             call. = FALSE)
+      }
+      S <- S[traits, traits, drop = FALSE]
+    }
+    S <- .check_relationship(S, arg)
+    if (any(diag(S) <= 0)) {
+      stop("predict_ebv(): `", arg, "` needs a positive variance for every ",
+           "trait.", call. = FALSE)
+    }
+    dimnames(S) <- list(traits, traits)
+    S
+  }
+  list(var_a = one(var_a, "var_a"), var_e = one(var_e, "var_e"))
+}
+
+#' Multi-trait BLUP (Henderson & Quaas 1976) in generalized least-squares form:
+#' records stacked over (trait, individual) pairs, Var(u) = G0 (x) K,
+#' Var(e) = R0 (x) I (residuals correlated within an individual only), a mean
+#' per trait
+#' @keywords internal
+#' @noRd
+.predict_ebv_mt <- function(x, pheno, method, K, built, G0, R0, base_freq,
+                            ridge) {
+  ids <- x$ids
+  n <- length(ids)
+  traits <- colnames(pheno)
+  nt <- length(traits)
+  obs <- which(!is.na(pheno), arr.ind = TRUE)
+  ia <- match(rownames(pheno)[obs[, 1]], ids)     # individual of each record
+  ta <- as.integer(obs[, 2])                      # trait of each record
+  y <- pheno[obs]
+  # V = Var(y) = [G0 (x) K + R0 (x) I] over the records; its Cholesky factor
+  # checks it is positive definite and inverts it
+  V <- G0[ta, ta, drop = FALSE] * K[ia, ia, drop = FALSE] +
+    R0[ta, ta, drop = FALSE] * outer(ia, ia, "==")
+  R <- tryCatch(chol(V), error = function(e) NULL)
+  if (is.null(R)) {
+    stop("predict_ebv(): the phenotypic covariance of the records ",
+         "(var_a (x) K + var_e (x) I) is not positive definite; check `K`, ",
+         "`var_a` and `var_e`.", call. = FALSE)
+  }
+  W <- chol2inv(R)
+  X <- outer(ta, seq_len(nt), "==") * 1           # a mean per trait
+  WX <- W %*% X
+  XWX <- crossprod(X, WX)
+  mu <- as.numeric(solve(XWX, crossprod(WX, y)))
+  alpha <- as.numeric(W %*% (y - X %*% mu))
+  # u_hat = Cov(u, y) V^-1 (y - X mu), Cov(u_t, y_r) = G0[t, t_r] K[, i_r]
+  ebv <- K[, ia, drop = FALSE] %*% (G0[ta, , drop = FALSE] * alpha)
+  if (any(!is.finite(ebv)) || any(!is.finite(mu))) {
+    stop("predict_ebv(): the BLUP solution is not finite (numerical ",
+         "overflow); rescale the phenotypes or variance components.",
+         call. = FALSE)
+  }
+  # reliability 1 - PEV / (G0_tt K_ii), with G0_tt K_ii - PEV = c' P c and
+  # P = W - W X (X'WX)^-1 X'W (the mean is estimated)
+  Pm <- W - WX %*% solve(XWX, t(WX))
+  rel <- matrix(NA_real_, n, nt)
+  for (t in seq_len(nt)) {
+    Ct <- K[, ia, drop = FALSE] * rep(G0[t, ta], each = n)
+    explained <- rowSums((Ct %*% Pm) * Ct)
+    rel[, t] <- ifelse(diag(K) > 0, explained / (G0[t, t] * diag(K)), NA_real_)
+  }
+  if (any(rel < -1e-8 | rel > 1 + 1e-8, na.rm = TRUE)) {
+    stop("predict_ebv(): reliabilities fall outside [0, 1]; the system is ",
+         "numerically unstable (`K` is not positive semidefinite at the ",
+         "precision the variance components require).", call. = FALSE)
+  }
+  rel <- pmin(pmax(rel, 0), 1)
+  dimnames(ebv) <- dimnames(rel) <- list(ids, traits)
+  attr(ebv, "reliability") <- rel
+  attr(ebv, "mu") <- stats::setNames(mu, traits)
+  attr(ebv, "var_a") <- G0
+  attr(ebv, "var_e") <- R0
+  attr(ebv, "method") <- method
+  if (method == "gblup" && ridge == 0 && built) {
+    # u_t = K[, i_r] (G0[t_r, t] alpha): the single-trait back-solve with the
+    # record weights G0[t_r, t] alpha
+    # cbind, not vapply: vapply drops to a vector when there is one marker
+    me <- do.call(cbind, lapply(seq_len(nt), function(t) {
+      .gblup_marker_effects(x, ia, G0[ta, t] * alpha, base_freq)
+    }))
+    dimnames(me) <- list(x$map$snp, traits)
+    attr(ebv, "marker_effects") <- me
+  }
+  ebv
+}
+
+#' Validate a user-supplied relationship (or trait covariance) matrix: numeric,
+#' finite, symmetric and positive semidefinite (up to rounding); returns its
+#' symmetric form. `arg` names the argument in messages.
+#' @keywords internal
+#' @noRd
+.check_relationship <- function(K, arg = "K") {
+  what <- if (arg == "K") "; a relationship matrix is a covariance matrix" else ""
   if (!is.matrix(K) || !is.numeric(K) || any(!is.finite(K))) {
-    stop("predict_ebv(): `K` must be a finite numeric matrix.", call. = FALSE)
+    stop("predict_ebv(): `", arg, "` must be a finite numeric matrix.",
+         call. = FALSE)
   }
   if (nrow(K) != ncol(K)) {
-    stop("predict_ebv(): `K` must be square.", call. = FALSE)
+    stop("predict_ebv(): `", arg, "` must be square.", call. = FALSE)
   }
   # element-wise tolerances, so a large entry elsewhere cannot hide a local
   # defect
   if (any(abs(K - t(K)) > 1e-8 * pmax(1, abs(K), abs(t(K))))) {
-    stop("predict_ebv(): `K` must be symmetric.", call. = FALSE)
+    stop("predict_ebv(): `", arg, "` must be symmetric.", call. = FALSE)
   }
   # symmetrize only where the two triangles differ (rounding-level): an exactly
   # symmetric K is returned bit-for-bit. For a differing pair (x, y) the
@@ -393,8 +615,8 @@ predict_ebv <- function(x, pheno, method = c("gblup", "pedigree"), h2 = NULL,
   }
   dg <- diag(K)
   if (any(dg < 0)) {
-    stop("predict_ebv(): `K` has a negative diagonal (a negative variance); a ",
-         "relationship matrix is a covariance matrix.", call. = FALSE)
+    stop("predict_ebv(): `", arg, "` has a negative diagonal (a negative ",
+         "variance)", what, ".", call. = FALSE)
   }
   # PSD on the correlation scale (unit diagonal), so the test does not depend
   # on how large the other variances are; a zero-variance row must be all zero
@@ -408,13 +630,11 @@ predict_ebv <- function(x, pheno, method = c("gblup", "pedigree"), h2 = NULL,
   rs <- sqrt(dg[!z])
   C <- K[!z, !z, drop = FALSE] / rs
   C <- t(t(C) / rs)
-  if (any(!z) && any(!is.finite(C))) {
-    stop("predict_ebv(): `K` must be positive semidefinite; its correlation ",
-         "scale is not finite (an entry exceeds the geometric mean of its ",
-         "variances by more than the floating-point range allows).",
-         call. = FALSE)
-  }
-  ev <- if (!any(!z)) {
+  # a non-finite correlation-scale entry is itself proof of indefiniteness; it
+  # must fail directly (as an eigenvalue of -Inf it would also make the
+  # tolerance below infinite and pass)
+  nonfinite <- any(!z) && any(!is.finite(C))
+  ev <- if (!any(!z) || nonfinite) {
     0
   } else {
     eigen(C, symmetric = TRUE, only.values = TRUE)$values
@@ -422,9 +642,9 @@ predict_ebv <- function(x, pheno, method = c("gblup", "pedigree"), h2 = NULL,
   # only floating-point rounding below zero (n eps max|eigenvalue|, the usual
   # numerical-rank tolerance) is accepted as semidefinite
   tol <- length(ev) * .Machine$double.eps * max(1, abs(ev))
-  if (bad_zero || min(ev) < -tol) {
-    stop("predict_ebv(): `K` must be positive semidefinite; a relationship ",
-         "matrix is a covariance matrix.", call. = FALSE)
+  if (bad_zero || nonfinite || min(ev) < -tol) {
+    stop("predict_ebv(): `", arg, "` must be positive semidefinite", what, ".",
+         call. = FALSE)
   }
   K
 }
@@ -601,6 +821,9 @@ selection_methods <- function() {
     m("progeny_test", "Progeny test", "progeny_test()",
       "mates, qtn, a, d, n_progeny, h2 | var_e", "package derivation"),
     m("blup", "BLUP breeding values (known variances)", "predict_ebv()",
-      "pheno, method, h2 | var_a + var_e", "Henderson 1975; VanRaden 2008")
+      "pheno, method, h2 | var_a + var_e", "Henderson 1975; VanRaden 2008"),
+    m("mt_blup", "Multi-trait BLUP (known covariance matrices)",
+      "predict_ebv()", "pheno, method, var_a + var_e",
+      "Henderson & Quaas 1976")
   )
 }
