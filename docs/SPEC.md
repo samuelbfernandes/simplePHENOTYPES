@@ -148,11 +148,21 @@ simulate_phenotype(
   mean         = NULL,           # per-trait intercept (scalar or length n_traits)
   individuals  = NULL,           # subset of individuals to simulate
   model        = "A",           # one-call model: "A" | "AD" | "AE"
+  reps         = 1,             # records per entry; residual variance V_E / reps
   ...                            # architecture-specific args
 )
 ```
 
 Returns a `phenotype_sim` object (h² = 0 until a layer is added).
+
+**Entry-mean replication (`reps`, DECISION-038).** `reps` is a positive whole number (scalar or
+one per trait): the phenotype is the mean of `reps` independent records of the same genotype, so the
+residual variance is `V_E / reps` (AlphaSimR `setPheno(varE, reps)` semantics). `h2` is the
+single-record heritability V_G/(V_G+V_E); with `reps` records per entry the entry-mean heritability is
+V_G/(V_G+V_E/reps). `h2`, layer `prop` and `var_budget` stay on the single-record scale; the printed
+realized H2 is the entry-mean value and `print()` also shows the single-record value when any
+`reps > 1`. Records are iid given the genotype (no shared permanent environment). `reps = 1` is
+bit-identical to the output before the argument existed.
 
 **One-call vs piped (folds in the former `sim_phenotypes()` shortcut).** If the
 call already carries a self-sufficient genetic spec — `h2` supplied together with
@@ -291,7 +301,7 @@ vqtl(sim,      prop, same_as_add = TRUE, n_qtn = NULL, qtn = NULL, dist = "geome
 ### 4.3 `complex_phenotypes()` — combine architectures
 
 ```
-complex_phenotypes(..., h2)        # ... = two or more phenotype_sim objects
+complex_phenotypes(..., h2, reps = 1)   # ... = two or more phenotype_sim objects
 ```
 
 - Combines the inputs' genetic values, **weighted by their genetic variances**.
@@ -299,6 +309,8 @@ complex_phenotypes(..., h2)        # ... = two or more phenotype_sim objects
   replication count, and trait means.
 - Preserves every replication, scales the combined genetic value to requested
   variance `h2`, and adds a common residual; inputs' individual residuals are discarded.
+  `reps` (default 1) divides that common residual by `sqrt(reps)` as in §4.1; the inputs' own
+  `reps` are ignored with their residuals.
 - **Seed handling (O4):** if inputs were built with different seeds, the **first
   input's seed is used** and a warning is emitted.
 - Recreates partial pleiotropy: combine a `"pleiotropy"` model with an `"independent"`
@@ -361,9 +373,20 @@ cM/Mb average); earlier package versions shipped `cm` as an all-`NA` placeholder
 non-decreasing within each chromosome) and dosage coded `-1/0/1`. Homozygotes phase
 exactly; heterozygotes are phased arbitrarily as allele-1 on the first strand. This is
 near-lossless for an inbred panel (rare heterozygotes) but means first-generation linkage
-between heterozygous sites in an outbred sample is not realistic. The current public API
-does not import external phase, so substantially heterozygous unphased founders are not
-supported for realistic multi-generation recombination studies.
+between heterozygous sites in an outbred sample is not realistic. For known phase use
+`population_from_haplotypes()` (below); substantially heterozygous *unphased* founders are
+not supported for realistic multi-generation recombination studies.
+
+**`population_from_haplotypes()` / `haplotypes()` (DECISION-039).**
+`population_from_haplotypes(cis, trans, map, ids = NULL, pool = NA_character_,
+individuals_in_rows = FALSE)` builds a `Population` from two known-phase 0/1 haplotype matrices
+(markers x individuals by default, the `Population` layout; `individuals_in_rows = TRUE` takes the
+transposed export layout). Entry 1 is the counted (+1) allele and dosage = `cis + trans - 1`, the
+`as_population()` encoding; `cis`/`trans` carry no maternal/paternal meaning. The map is validated as in
+`as_population()` (`snp`, `chr`, `pos`, `cm`; `cm` ordered, in centiMorgans); `map$counted` is recorded
+only if the supplied map carries it (never inferred from `allele`). `haplotypes(pop)` returns
+`list(cis, trans)`, integer markers x individuals with dimnames (`snp`, ids); `as_population()` ->
+`haplotypes()` -> `population_from_haplotypes()` reproduces the `Population` exactly.
 
 **`cross()` / `selfcross()` / `double_haploid()`** take single-individual `Population`s
 (`mother`, `father`, or `parent`; subset a larger one with `x[i]`) and return `n` progeny
@@ -376,6 +399,26 @@ combines one gamete from each parent. All three draw every random quantity in R,
 isqg's exact order, before calling the Rust core, which is a pure function of those draws
 and never calls an RNG (DECISION-012) — `seed` (or an ambient `set.seed()`) fully
 determines the outcome.
+
+**Crossover interference (optional, DECISION-041).** `cross()`, `selfcross()`, `double_haploid()`,
+`mate()` and `crossbreed()` take a trailing `interference = NULL`; `NULL` is the Poisson model and the
+isqg stream above, bit-identical to versions without the argument. `interference = list(nu = , p = )`
+(`nu >= 1`, `p` in [0, 1], `p` default 0) selects the two-pathway gamma model. Model: bivalent chiasmata
+of intensity 2 per Morgan = a non-interfering Poisson pathway (share `p`) + a stationary renewal pathway
+with Gamma(shape `nu`, rate `2 nu (1-p)`) gaps (share `1-p`); a gamete keeps each chiasma with
+probability 1/2 (no chromatid interference), so the expected number of crossovers per Morgan stays 1 for
+every `nu`, `p`. Then `r(d) = (1 - P0(d))/2`, `P0(d) = exp(-2 p d) [1 - F_e(2 nu (1-p) d)]`,
+`F_e(y) = F_{nu+1}(y) + (y/nu)(1 - F_nu(y))` (`F_a`: Gamma(a, 1) cdf, `d` in Morgans);
+`r(d)` is Haldane for `nu = 1` or `p = 1`, and `nu = 2.6, p = 0` is within 0.001 of Kosambi over
+0-1 M. Tests: the recombination fraction and the pair correlation against these closed forms, and the
+expected number of crossovers per Morgan unchanged. The draws are made in R (their own stream) and the
+sorted chiasma positions go to the unchanged Rust core.
+
+**Per-call cost and batching (DECISION-040).** Every crossing function runs through one batched
+integer-strand call into the Rust core (`mate_many_core()`); `mate()` executes all rows of a plan in one
+call, drawing row by row in plan order, so a plan equals the same sequence of `cross()` /
+`selfcross()` / `double_haploid()` calls bit for bit. Many doubled-haploid families at once:
+`mate(data.frame(mother = ids, father = ids, n = 100, design = "dh"), pop)`.
 
 A `Population` is accepted anywhere `simulate_phenotype()` takes `geno` (§4.1), so a
 simulated pedigree can be phenotyped directly without converting back to a dosage matrix.
@@ -413,6 +456,10 @@ simulated pedigree can be phenotyped directly without converting back to a dosag
   type before an existing one shifts that layer's occurrence index, so its draws
   change (the second `additive()` is keyed by occurrence 1 whatever precedes it).
 - The caller's RNG state is left untouched (sub-seeds are set and restored).
+- `reps` does not alter the RNG stream: the residual of each trait is drawn under the same sub-seed
+  `residual_t<t>` with the same number of draws, and is scaled by `1/sqrt(reps[t])` afterwards, so a
+  seeded `reps = r` phenotype equals the `reps = 1` genetic value plus the `reps = 1` residual divided
+  by `sqrt(r)`.
 - This clean scheme is the grammar's own (DECISION-009 — no v1 bit-parity obligation).
   The frozen `create_phenotypes()` keeps its *own* legacy seed arithmetic
   (`(seed + z) * round(h2 * 10)`, `seed + i`, etc.) and `RNGversion('3.5.1')`; the two
@@ -540,7 +587,14 @@ pop <- as_population(SNP55K_maize282_maf04, individuals = c("33-16", "38-11"))
 f1  <- cross(pop[1], pop[2], n = 1, seed = 1)
 f2  <- selfcross(f1, n = 200, seed = 2)
 ph  <- simulate_phenotype(f2, seed = 3) |> additive(prop = 0.5, n_qtn = 3)
+
+# 5 records per entry: residual variance V_E/5, single-record h2 = 0.4
+ph <- simulate_phenotype(SNP55K_maize282_maf04, h2 = 0.4, n_qtn = 10, seed = 1, reps = 5)
+ph   # prints the entry-mean realized H2 (~0.4/(0.4+0.6/5) = 0.77) and the single-record H2 (~0.4)
 ```
+
+`h2` is the single-record heritability V_G/(V_G+V_E); with `reps` records per entry the entry-mean
+heritability is V_G/(V_G+V_E/reps).
 
 ---
 

@@ -42,8 +42,19 @@ consumer.
 ## The contract surface
 
 ### Populations & crossing (multi-generation genetics)
-`as_population`, `cross`, `selfcross`, `double_haploid`, `dosages`,
-`n_individuals`, `synthetic_map`, and the `Population` methods `[`, `c`, `print`.
+`as_population`, `population_from_haplotypes`, `haplotypes`, `cross`, `selfcross`,
+`double_haploid`, `dosages`, `n_individuals`, `synthetic_map`, and the `Population`
+methods `[`, `c`, `print`. `population_from_haplotypes(cis, trans, map, ids, pool,
+individuals_in_rows)` and its inverse `haplotypes(pop)` are the public known-phase
+constructor and accessor (SPEC-0020 item 5, DECISION-039): 0/1 matrices, markers x
+individuals by default, 1 = the counted (+1) allele, dosage = `cis + trans - 1`;
+`map$counted` is kept only if the supplied map has it. A consumer must call these
+instead of replacing the `cis`/`trans` slots of an `as_population()` result.
+Appended optional arguments (SPEC-0020 items 3, 6, 8): `interference = NULL` on `cross`,
+`selfcross`, `double_haploid`, `mate`, `crossbreed`; `reps = 1` on `simulate_phenotype`
+and `complex_phenotypes`; `n_per_family` on `select_ind`; and a `source` attribute on
+the `sample_parents()` result. Each is appended with a default that keeps today's
+output and random stream.
 Pedigree and mating plans (2.0.0.9001): `parentage`, `families`, `mating_design`,
 `mate` (DECISION-024/025).
 Crossbreeding (2.0.0.9001): `crossbreed`, `breed_composition`, `heterosis`
@@ -127,6 +138,22 @@ parental SCA/GCA estimate, and not the transmissible breeding value
 - **Length of a chromosome** for the Poisson crossover count is its *last* map
   position in Morgans (isqg convention), not its span; `cm` must be in
   centiMorgans (a map that looks like Morgans draws a warning).
+- **Crossover interference.** `cross`, `selfcross`, `double_haploid`, `mate` and
+  `crossbreed` take a trailing `interference = NULL` (appended, default unchanged). `NULL` is
+  the Poisson model and the isqg random stream, bit-identical to versions without the
+  argument; `list(nu =, p =)` (nu >= 1, p in [0, 1]) is the two-pathway gamma model
+  (`?cross`, DECISION-041), drawn in R, consuming its own stream. The kernel is unchanged:
+  it receives sorted chiasma positions in [0, L] under the same `counts`/`flips` contract.
+- **Batched meiosis.** The internal `mate_many_core()` (integer strands in and out, a
+  mating table, one shared event stream consumed in mating order; DECISION-040) is what the
+  crossing functions use; a batch equals running its matings sequentially, bit for bit.
+  `mate_haplotypes_core()`, `meiosis_core()` and `gamete_masks_core()` are unchanged. The
+  signature manifest in `tests/testthat/test-backend-contract.R` lists the appended
+  `interference`; `cross`, `selfcross`, `double_haploid`, `mate` and `crossbreed` keep their
+  earlier formals in order.
+- **Frozen signatures.** `create_phenotypes()` is untouched (DECISION-008). Every other
+  change in this round is an appended optional argument or a new export, so a consumer
+  pinned at `>= 2.0` is unaffected.
 - **RNG.** `cross`, `selfcross`, `double_haploid`, `mate`, `mating_design(random)`
   and `crossbreed` restore the caller's RNG state when `seed =` is given.
 - **Build profiles.** The development build (`DEBUG` set at install) is the debug

@@ -1,5 +1,48 @@
 # simplePHENOTYPES (development version)
 
+## Engine requests from breedingDesigner SPEC-0020 (2026-09)
+
+Items 1, 2, 3, 5, 6, 7 and 8 of the breedingDesigner engine-request list. All new
+arguments are appended with defaults that keep today's output and random stream.
+G x E traits (item 4) and native coalescent founders (item 9) are not implemented.
+
+* `simulate_phenotype()` no longer deparses the whole genotype object to name it: a
+  large inline `geno` (e.g. `do.call(simulate_phenotype, list(geno = pop, ...))`) used
+  to cost seconds (9 s for a 2000 x 14000 population); it now gets a constant-time
+  label (`"<inline Population>"` etc.). Labels of ordinary calls are unchanged.
+  `as_numeric()` uses the same label for an inline `x` (same cost, same fix).
+* `cross()`, `selfcross()`, `double_haploid()` and `mate()` are much cheaper per call.
+  The meiosis core takes and returns integer strands in one batched call
+  (`mate_many_core()`), and `mate()` runs all plan rows through one call (a 100-row
+  doubled-haploid plan on 14,000 markers: 14 s to 2 s; `cross()`, `selfcross()` and
+  `double_haploid()` about 6x cheaper per call at that size). Results are
+  bit-identical to the previous version for a given seed (DECISION-040). To make many
+  doubled-haploid families at once use
+  `mate(data.frame(mother = ids, father = ids, n = 100, design = "dh"), pop)`.
+* Crossover interference: `cross()`, `selfcross()`, `double_haploid()`, `mate()` and
+  `crossbreed()` gain `interference = NULL`; `list(nu = , p = )` selects the
+  two-pathway gamma model (shape `nu >= 1`, share `p` of non-interfering chiasmata)
+  with the genetic map's expected crossovers per Morgan unchanged. The default
+  (`NULL`) is the Poisson model and its random stream exactly as before
+  (DECISION-041). The selection-scheme wrappers do not yet expose it.
+* `population_from_haplotypes()` builds a `Population` directly from known-phase 0/1
+  haplotype matrices (1 = counted allele), so callers no longer replace the
+  `cis`/`trans` slots after `as_population()`; `haplotypes()` returns the two strand
+  matrices of a `Population` (DECISION-039).
+* New argument `reps` in `simulate_phenotype()` and `complex_phenotypes()` (default 1):
+  entry-mean replication, the phenotype is the mean of `reps` independent records so
+  the residual variance is `V_E / reps` (AlphaSimR `setPheno(varE, reps)` semantics).
+  `h2` stays the single-record heritability; the printed realized H2 is the entry-mean
+  value, and `print()` also shows the single-record value when `reps > 1`. `reps = 1`
+  is bit-identical to before (DECISION-038).
+* `sample_parents()` now records, as attribute `source` (data frame `slot`, `id`,
+  `index`, `name`), which individual of `pop` filled each parent slot, for both
+  `method = "allocate"` and `"multinomial"`. The draws are unchanged.
+* `select_ind(method = "within_family")` gains `n_per_family` (last argument) to keep
+  a stated number of individuals in every family (one whole number, or a vector named
+  by family label) instead of apportioning a total `n` proportionally; a family
+  smaller than requested is an error. Default behaviour is unchanged.
+
 ## New features
 * Every `Population` now records its pedigree (`parentage()`, `families()`), kept
   through subsetting and pooling; `as_population()` gains `pool =`.
