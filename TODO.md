@@ -406,8 +406,17 @@ DECISION-033 to 037). Evidence: `.tmp/audit-2026-09-29/`, `.tmp/codex-review*/`
 
 - [ ] Codex review of the new features (items 2, 3, 5, 6, 7, 8): `.tmp/codex-review-round5.sh`;
   the interference model (item 3) and `reps` (item 6) are new genetics.
-- [ ] Forward `interference` through the selection-scheme wrappers (`single_seed_descent`,
-  `bulk`, `pedigree`, `recurrent_selection`) if wanted.
+- [ ] **Propagate `interference` to every function that runs meiosis** (maintainer note
+  2026-09-30). Today only `cross()`, `selfcross()`, `double_haploid()`, `mate()` and
+  `crossbreed()` accept it; these still draw Poisson crossovers and ignore it:
+  `single_seed_descent()` and `bulk()` (`R/select_schemes.R:491`, `selfcross`),
+  `pedigree()` and `recurrent_selection()` (`R/select_schemes.R:513`, `cross`), and
+  `cross_usefulness()` (`R/select_usefulness.R:284-290`, family simulation). Append
+  `interference = NULL` to each (default unchanged, bit-identical), forward it to the
+  crossing call, validate with `.check_interference()`, test it, and re-check any other
+  caller of `cross`/`selfcross`/`double_haploid` (grep) so that a whole breeding scheme
+  uses one meiosis model. A scheme-level default (e.g. an option or an argument on
+  `as_population()`) could be considered.
 - [ ] Add the interference rubric item (M4) to `docs/THEORY_REVIEW.md` after the Codex review.
 
 **Known gaps left open on purpose**
