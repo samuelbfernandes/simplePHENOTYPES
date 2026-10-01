@@ -22,7 +22,7 @@ bancic-timing-2026-09-30.md` (one full-size DH cycle: 10,000 DH × 14,000 marker
 - [x] 3. Crossover interference model (gamma / count–location with interference; AlphaSimR
       `v`, `p`) as an option of the meiosis core — today Poisson only. Needed for
       like-for-like comparisons with AlphaSimR's default.
-      *Done 2026-09-30 (DECISION-041): `interference = NULL` on `cross`/`selfcross`/`double_haploid`/`mate`/`crossbreed`; `list(nu, p)` = two-pathway gamma model, expected chiasma count per Morgan unchanged. Awaiting Codex theory review; not yet forwarded by the selection-scheme wrappers.*
+      *Done 2026-09-30 (DECISION-041): `interference = NULL` on `cross`/`selfcross`/`double_haploid`/`mate`/`crossbreed`; `list(nu, p)` = two-pathway gamma model, expected chiasma count per Morgan unchanged. Codex round 5: theory passed; `nu` limited to [1, 1e6] (2026-09-30); forwarded by every function that runs meiosis (see Block 3C).*
 - [ ] 4. Additive-by-environment (G×E) trait layer (AlphaSimR `addTraitAG` semantics) — needed
       to reproduce Bančič Program 4.
       *Not implemented: waiting for the maintainer's instructions.*
@@ -405,9 +405,14 @@ DECISION-033 to 037). Evidence: `.tmp/audit-2026-09-29/`, `.tmp/codex-review*/`
   merge with the multi-trait BLUP / JSON writer work was verified by the test suite only).
 
 - [ ] Codex review of the new features (items 2, 3, 5, 6, 7, 8): `.tmp/codex-review-round5.sh`;
-  the interference model (item 3) and `reps` (item 6) are new genetics.
-- [ ] **Propagate `interference` to every function that runs meiosis** (maintainer note
-  2026-09-30). Today only `cross()`, `selfcross()`, `double_haploid()`, `mate()` and
+  the interference model (item 3) and `reps` (item 6) are new genetics. *Reviewed once (round 5),
+  fixes applied 2026-09-30; re-review of items G1-G5/C1/H1/C2 + propagation still owed.*
+- [x] **Propagate `interference` to every function that runs meiosis** (maintainer note
+  2026-09-30). *Done 2026-09-30 (DECISION-041 propagation): `interference = NULL` is now the last
+  formal of `single_seed_descent()`, `bulk()`, `pedigree()`, `recurrent_selection()`,
+  `cross_usefulness()`, `combining_ability(method = "simulated")` (error under `"expected"`) and
+  `progeny_test()`; validated up front, forwarded to every meiosis, default bit-identical; tests in
+  `tests/testthat/test-fix6-propagation.R`. A scheme-level default was not added.* Original note: Today only `cross()`, `selfcross()`, `double_haploid()`, `mate()` and
   `crossbreed()` accept it; these still draw Poisson crossovers and ignore it:
   `single_seed_descent()` and `bulk()` (`R/select_schemes.R:491`, `selfcross`),
   `pedigree()` and `recurrent_selection()` (`R/select_schemes.R:513`, `cross`), and

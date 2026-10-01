@@ -158,7 +158,8 @@ ok
 # How the map changes results
 
 The map is not decoration — it determines how much recombination happens. The
-number of crossovers on a chromosome is Poisson with mean equal to its length in
+number of crossovers on a chromosome is, with `interference = NULL` (the default), Poisson
+with mean equal to its length in
 Morgans, so a 150 cM chromosome averages 1.5 crossovers per meiosis.
 
 Compare linkage under the default map with linkage under a map ten times

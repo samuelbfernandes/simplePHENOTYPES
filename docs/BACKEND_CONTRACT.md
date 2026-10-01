@@ -51,7 +51,9 @@ individuals by default, 1 = the counted (+1) allele, dosage = `cis + trans - 1`;
 `map$counted` is kept only if the supplied map has it. A consumer must call these
 instead of replacing the `cis`/`trans` slots of an `as_population()` result.
 Appended optional arguments (SPEC-0020 items 3, 6, 8): `interference = NULL` on `cross`,
-`selfcross`, `double_haploid`, `mate`, `crossbreed`; `reps = 1` on `simulate_phenotype`
+`selfcross`, `double_haploid`, `mate`, `crossbreed` and, as the last formal, on `single_seed_descent`,
+`bulk`, `pedigree`, `recurrent_selection`, `cross_usefulness`, `combining_ability` (simulated only;
+an error with `method = "expected"`) and `progeny_test`; `reps = 1` on `simulate_phenotype`
 and `complex_phenotypes`; `n_per_family` on `select_ind`; and a `source` attribute on
 the `sample_parents()` result. Each is appended with a default that keeps today's
 output and random stream.
@@ -122,7 +124,9 @@ parental SCA/GCA estimate, and not the transmissible breeding value
   compared (warning on opposite order, error on disjoint alleles). The record is
   R-object-only: it is not written to numeric text files. Crossing separately
   converted panels is still unsafe unless they are converted jointly or with the
-  same `ref_allele` (`as_numeric(method = "reference", ref_allele = )`). The map
+  same `ref_allele` (`as_numeric(method = "reference", ref_allele = )`). A supplied
+  `map$counted` is validated (character; one non-empty allele symbol per marker, `NA` =
+  unknown; `""` and numeric columns are rejected). The map
   identity judgement (`.same_map()`) uses a symmetric relative tolerance
   (`1e-8 * max(1, |x|, |y|)`).
 - **Map identity.** Two populations share a map when marker names, chromosome
@@ -135,13 +139,16 @@ parental SCA/GCA estimate, and not the transmissible breeding value
   text `chr` give the same seeded progeny. Labels that tie on every canonical key
   (`"1"`, `"01"`) are ordered by the label in byte order, so the order is total. Text labels that used to sort as
   `"1", "10", "2"` are now `1, 2, 10`: seeded output changes only for such maps.
-- **Length of a chromosome** for the Poisson crossover count is its *last* map
+- **Length of a chromosome** for the Poisson crossover count (`interference = NULL`) is its *last* map
   position in Morgans (isqg convention), not its span; `cm` must be in
   centiMorgans (a map that looks like Morgans draws a warning).
 - **Crossover interference.** `cross`, `selfcross`, `double_haploid`, `mate` and
-  `crossbreed` take a trailing `interference = NULL` (appended, default unchanged). `NULL` is
+  `crossbreed` take a trailing `interference = NULL` (appended, default unchanged); so do
+  `single_seed_descent`, `bulk`, `pedigree`, `recurrent_selection`, `cross_usefulness`,
+  `combining_ability` (simulated only) and `progeny_test`, which forward it to every
+  meiosis they draw (DECISION-041). `NULL` is
   the Poisson model and the isqg random stream, bit-identical to versions without the
-  argument; `list(nu =, p =)` (nu >= 1, p in [0, 1]) is the two-pathway gamma model
+  argument; `list(nu =, p =)` (1 <= nu <= 1e6, p in [0, 1]) is the two-pathway gamma model
   (`?cross`, DECISION-041), drawn in R, consuming its own stream. The kernel is unchanged:
   it receives sorted chiasma positions in [0, L] under the same `counts`/`flips` contract.
 - **Batched meiosis.** The internal `mate_many_core()` (integer strands in and out, a
@@ -149,8 +156,10 @@ parental SCA/GCA estimate, and not the transmissible breeding value
   crossing functions use; a batch equals running its matings sequentially, bit for bit.
   `mate_haplotypes_core()`, `meiosis_core()` and `gamete_masks_core()` are unchanged. The
   signature manifest in `tests/testthat/test-backend-contract.R` lists the appended
-  `interference`; `cross`, `selfcross`, `double_haploid`, `mate` and `crossbreed` keep their
-  earlier formals in order.
+  `interference`; `cross`, `selfcross`, `double_haploid`, `mate`, `crossbreed`,
+  `single_seed_descent`, `bulk`, `pedigree`, `recurrent_selection`, `cross_usefulness`,
+  `combining_ability` and `progeny_test` keep their earlier formals in order (`interference`
+  is the last).
 - **Frozen signatures.** `create_phenotypes()` is untouched (DECISION-008). Every other
   change in this round is an appended optional argument or a new export, so a consumer
   pinned at `>= 2.0` is unaffected.

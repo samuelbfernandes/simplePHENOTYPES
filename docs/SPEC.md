@@ -156,13 +156,20 @@ simulate_phenotype(
 Returns a `phenotype_sim` object (h² = 0 until a layer is added).
 
 **Entry-mean replication (`reps`, DECISION-038).** `reps` is a positive whole number (scalar or
-one per trait): the phenotype is the mean of `reps` independent records of the same genotype, so the
-residual variance is `V_E / reps` (AlphaSimR `setPheno(varE, reps)` semantics). `h2` is the
-single-record heritability V_G/(V_G+V_E); with `reps` records per entry the entry-mean heritability is
-V_G/(V_G+V_E/reps). `h2`, layer `prop` and `var_budget` stay on the single-record scale; the printed
-realized H2 is the entry-mean value and `print()` also shows the single-record value when any
-`reps > 1`. Records are iid given the genotype (no shared permanent environment). `reps = 1` is
-bit-identical to the output before the argument existed.
+one per trait): the phenotype is the mean of `reps` independent records of the same genotype
+(AlphaSimR `setPheno(varE, reps)` semantics). The realized residual is the `reps = 1` realized residual
+divided by `sqrt(reps)`, so its realized variance is the `reps = 1` residual variance / `reps` (for vqtl:
+`[V0 + Vv + 2Cov(e0, ev)] / reps`, not the nominal `V_E / reps`, because the two standardized components
+have non-zero sample covariance). Target (expected) heritabilities: single-record V_G/(V_G+V_E) (what `h2`
+requests) and entry-mean V_G/(V_G+V_E/reps). `h2`, layer `prop` and `var_budget` stay on the
+single-record scale. Realized heritabilities are Var(G)/Var(y) from the realized values: entry-mean
+Var(y_bar) = V_G + V_E/reps + 2Cov(G,e)/sqrt(reps); record Var(y) = V_G + V_E + 2Cov(G,e); the allocation
+formula is the realized value only when the sample Cov(G,e) = 0. The printed realized H2 is the
+entry-mean value and `print()` also shows the single-record value when any `reps > 1` (and
+`reps (per trait) = [...]` when `reps` varies). Records are iid given the genotype and, with a derived
+transcriptome layer, the fixed transcriptome component: the environmental transcriptome part is a
+persistent entry-level quantity that is not redrawn per record, so replication is conditional on the
+fixed transcriptome covariate. `reps = 1` is bit-identical to the output before the argument existed.
 
 **One-call vs piped (folds in the former `sim_phenotypes()` shortcut).** If the
 call already carries a self-sufficient genetic spec — `h2` supplied together with
@@ -391,8 +398,8 @@ only if the supplied map carries it (never inferred from `allele`). `haplotypes(
 **`cross()` / `selfcross()` / `double_haploid()`** take single-individual `Population`s
 (`mother`, `father`, or `parent`; subset a larger one with `x[i]`) and return `n` progeny
 as a new `Population`. Recombination follows the Karlin & Liberman count-location
-process — crossover count Poisson with mean equal to chromosome length in Morgans,
-positions uniform along it, chromosomes independent — matching isqg exactly
+process — with `interference = NULL` (the default) the crossover count is Poisson with mean equal to
+chromosome length in Morgans, positions uniform along it, chromosomes independent — matching isqg exactly
 (DECISION-012). `double_haploid()` progeny are fully homozygous by construction (a single
 gamete, duplicated); `selfcross()` halves heterozygosity per generation; `cross()`
 combines one gamete from each parent. All three draw every random quantity in R, in
@@ -401,9 +408,12 @@ and never calls an RNG (DECISION-012) — `seed` (or an ambient `set.seed()`) fu
 determines the outcome.
 
 **Crossover interference (optional, DECISION-041).** `cross()`, `selfcross()`, `double_haploid()`,
-`mate()` and `crossbreed()` take a trailing `interference = NULL`; `NULL` is the Poisson model and the
+`mate()` and `crossbreed()` take a trailing `interference = NULL`, as do (by propagation) every other
+function that runs meiosis: `single_seed_descent()`, `bulk()`, `pedigree()`, `recurrent_selection()`,
+`cross_usefulness()`, `combining_ability(method = "simulated")` (an error with `method = "expected"`) and
+`progeny_test()`; `NULL` is the Poisson model and the
 isqg stream above, bit-identical to versions without the argument. `interference = list(nu = , p = )`
-(`nu >= 1`, `p` in [0, 1], `p` default 0) selects the two-pathway gamma model. Model: bivalent chiasmata
+(`1 <= nu <= 1e6`, `p` in [0, 1], `p` default 0) selects the two-pathway gamma model. Model: bivalent chiasmata
 of intensity 2 per Morgan = a non-interfering Poisson pathway (share `p`) + a stationary renewal pathway
 with Gamma(shape `nu`, rate `2 nu (1-p)`) gaps (share `1-p`); a gamete keeps each chiasma with
 probability 1/2 (no chromatid interference), so the expected number of crossovers per Morgan stays 1 for
@@ -588,13 +598,14 @@ f1  <- cross(pop[1], pop[2], n = 1, seed = 1)
 f2  <- selfcross(f1, n = 200, seed = 2)
 ph  <- simulate_phenotype(f2, seed = 3) |> additive(prop = 0.5, n_qtn = 3)
 
-# 5 records per entry: residual variance V_E/5, single-record h2 = 0.4
+# 5 records per entry: target residual variance V_E/5, single-record h2 = 0.4
 ph <- simulate_phenotype(SNP55K_maize282_maf04, h2 = 0.4, n_qtn = 10, seed = 1, reps = 5)
-ph   # prints the entry-mean realized H2 (~0.4/(0.4+0.6/5) = 0.77) and the single-record H2 (~0.4)
+ph   # prints the entry-mean realized H2 (target 0.4/(0.4+0.6/5) = 0.77) and the single-record H2 (target 0.4)
 ```
 
-`h2` is the single-record heritability V_G/(V_G+V_E); with `reps` records per entry the entry-mean
-heritability is V_G/(V_G+V_E/reps).
+`h2` is the single-record target V_G/(V_G+V_E); with `reps` records per entry the entry-mean target is
+V_G/(V_G+V_E/reps). The printed values are realized, Var(G)/Var(y) with
+Var(y_bar) = V_G + V_E/reps + 2Cov(G,e)/sqrt(reps), so they match the targets up to sampling covariance.
 
 ---
 

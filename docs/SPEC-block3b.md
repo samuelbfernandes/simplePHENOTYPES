@@ -312,7 +312,7 @@ a heterozygote, `P(homozygous favourable) = 1/4` per unlinked locus in the F2 an
 (package derivation). For **linked** targets the joint probabilities depend on the
 recombination fraction, which the meiosis core realizes under the count-location
 model with no interference by default (an optional interference model exists, `interference =
-list(nu, p)`, SPEC §4.6, DECISION-041), so Haldane's map function `r = ½(1 − e^{−2d})` (`d` in
+list(nu, p)`, SPEC §4.6, DECISION-041, accepted by every function that runs meiosis), so Haldane's map function `r = ½(1 − e^{−2d})` (`d` in
 Morgans) gives the exact expected recombinant fractions to test against. The marker
 index on estimated effects is the Lande & Thompson (1990) programme — indices combining
 marker and phenotypic information, whose efficiency depends on the genetic parameters

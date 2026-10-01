@@ -10,7 +10,9 @@ G x E traits (item 4) and native coalescent founders (item 9) are not implemente
   large inline `geno` (e.g. `do.call(simulate_phenotype, list(geno = pop, ...))`) used
   to cost seconds (9 s for a 2000 x 14000 population); it now gets a constant-time
   label (`"<inline Population>"` etc.). Labels of ordinary calls are unchanged.
-  `as_numeric()` uses the same label for an inline `x` (same cost, same fix).
+  `as_numeric()` uses the same label for an inline `x` (same cost, same fix). The default
+  output file name derived from an inline object is sanitized (characters other than
+  letters, digits, `.`, `_` and `-` become `_`; a symbol `hmp` gives `hmp_numeric.txt`).
 * `cross()`, `selfcross()`, `double_haploid()` and `mate()` are much cheaper per call.
   The meiosis core takes and returns integer strands in one batched call
   (`mate_many_core()`), and `mate()` runs all plan rows through one call (a 100-row
@@ -21,20 +23,38 @@ G x E traits (item 4) and native coalescent founders (item 9) are not implemente
   `mate(data.frame(mother = ids, father = ids, n = 100, design = "dh"), pop)`.
 * Crossover interference: `cross()`, `selfcross()`, `double_haploid()`, `mate()` and
   `crossbreed()` gain `interference = NULL`; `list(nu = , p = )` selects the
-  two-pathway gamma model (shape `nu >= 1`, share `p` of non-interfering chiasmata)
-  with the genetic map's expected crossovers per Morgan unchanged. The default
+  two-pathway gamma model (shape `1 <= nu <= 1e6`, share `p` of non-interfering
+  chiasmata) with the genetic map's expected crossovers per Morgan unchanged. The default
   (`NULL`) is the Poisson model and its random stream exactly as before
-  (DECISION-041). The selection-scheme wrappers do not yet expose it.
+  (DECISION-041). Larger `nu` previously made the renewal draw hang and is now rejected.
+* `interference = list(nu =, p =)` is now accepted, as the last argument, by every
+  function that runs meiosis: `single_seed_descent()`, `bulk()`, `pedigree()`,
+  `recurrent_selection()`, `cross_usefulness()`, `combining_ability(method = "simulated")`
+  (an error with `method = "expected"`) and `progeny_test()`, so a whole breeding scheme
+  can use one meiosis model. The default `NULL` is bit-identical to before (same random
+  stream and results).
+* `population_from_haplotypes()` validates `map$counted` (one entry per marker; a character
+  vector of single allele symbols, `NA` where unknown; an empty string, a numeric column
+  or a symbol that is not one of the marker's two `allele` letters is an error), and the
+  orientation guard treats `""` as unknown, so a malformed record can no longer suppress
+  it (DECISION-039, DECISION-036).
 * `population_from_haplotypes()` builds a `Population` directly from known-phase 0/1
   haplotype matrices (1 = counted allele), so callers no longer replace the
   `cis`/`trans` slots after `as_population()`; `haplotypes()` returns the two strand
   matrices of a `Population` (DECISION-039).
 * New argument `reps` in `simulate_phenotype()` and `complex_phenotypes()` (default 1):
-  entry-mean replication, the phenotype is the mean of `reps` independent records so
-  the residual variance is `V_E / reps` (AlphaSimR `setPheno(varE, reps)` semantics).
-  `h2` stays the single-record heritability; the printed realized H2 is the entry-mean
-  value, and `print()` also shows the single-record value when `reps > 1`. `reps = 1`
-  is bit-identical to before (DECISION-038).
+  entry-mean replication, the phenotype is the mean of `reps` independent records
+  (AlphaSimR `setPheno(varE, reps)` semantics): the realized residual is the `reps = 1`
+  realized residual divided by `sqrt(reps)` (for vQTL, `[V0 + Vv + 2Cov(e0, ev)] / reps`,
+  not the nominal `V_E / reps`). `h2` stays the single-record target
+  `V_G / (V_G + V_E)`; the entry-mean target is `V_G / (V_G + V_E / reps)`. The printed
+  realized H2 is `Var(G) / Var(y)` from the realized values, with
+  `Var(y_bar) = V_G + V_E / reps + 2 Cov(G, e) / sqrt(reps)`; the allocation formula equals
+  it only when the sample `Cov(G, e)` is 0. `print()` also shows the single-record value
+  when `reps > 1`, and lists repeated positions when `reps` varies by trait. With a
+  `transcriptome()` layer, replication is conditional on the fixed transcriptome covariate
+  (a persistent entry effect that is not redrawn per record). `reps = 1` is bit-identical
+  to before (DECISION-038).
 * `sample_parents()` now records, as attribute `source` (data frame `slot`, `id`,
   `index`, `name`), which individual of `pop` filled each parent slot, for both
   `method = "allocate"` and `"multinomial"`. The draws are unchanged.
@@ -42,6 +62,18 @@ G x E traits (item 4) and native coalescent founders (item 9) are not implemente
   a stated number of individuals in every family (one whole number, or a vector named
   by family label) instead of apportioning a total `n` proportionally; a family
   smaller than requested is an error. Default behaviour is unchanged.
+
+* **Review follow-ups (Codex re-reviews of the SPEC-0020 work).**
+  `as_population()` validates the `counted_allele` attribute (an invalid value is an error)
+  and `.check_orientation()` only trusts a counted token that is one of the marker's two
+  alleles; a `counted` column of the wrong type (including all-`NA` numeric or logical) is
+  rejected. Default output file names of `as_numeric()` for inline objects or unusual
+  symbols are sanitized, capped at 100 characters, and carry an 8-character hash of the
+  original label whenever sanitization changed it, so different labels no longer overwrite
+  each other (ordinary names such as `hmp_numeric.txt` are unchanged). The interference
+  option rejects `nu > 1e6` and the renewal draw cannot loop forever. The `reps`
+  documentation states that the phenotype residual value is divided by `sqrt(reps)`
+  (its variance by `reps`).
 
 ## New features
 * Every `Population` now records its pedigree (`parentage()`, `families()`), kept

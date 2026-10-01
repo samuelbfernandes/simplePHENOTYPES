@@ -27,7 +27,8 @@ produce doubled haploids, and then simulate phenotypes on the result.
 
 These functions implement the algorithms from the `isqg` package, reimplemented
 in Rust. Recombination follows the Karlin & Liberman count-location model: the
-number of crossovers on a chromosome is Poisson with mean equal to its length in
+number of crossovers on a chromosome is, with `interference = NULL` (the default), Poisson
+with mean equal to its length in
 Morgans, crossover positions are uniform along it, and chromosomes assort
 independently.
 
