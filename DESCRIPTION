@@ -29,6 +29,7 @@ Suggests:
     gdsfmt,
     jsonlite,
     knitr,
+    pkgload,
     rmarkdown,
     testthat (>= 3.0.0),
     withr

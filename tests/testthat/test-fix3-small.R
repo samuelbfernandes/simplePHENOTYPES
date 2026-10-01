@@ -31,7 +31,7 @@ test_that("R3-3: exactly symmetric subnormal K stays bit-identical; 1.7e308 rank
 })
 
 test_that("R3-3: randomized property test against an exact high-precision mean", {
-  skip_if_not_installed("Rmpfr")
+  mpfr <- optional_fun("Rmpfr", "mpfr")
   set.seed(303)
   n <- 400
   # off-diagonal scales from subnormal to 1e300; diag 1 keeps the matrix PSD
@@ -58,7 +58,7 @@ test_that("R3-3: randomized property test against an exact high-precision mean",
     K <- matrix(c(d, x, y, d), 2, 2)
     Ks <- .check_relationship(K)
     ref <- as.numeric(
-      (Rmpfr::mpfr(x, 2300) + Rmpfr::mpfr(y, 2300)) / 2)
+      (mpfr(x, 2300) + mpfr(y, 2300)) / 2)
     if (!identical(Ks[1, 2], ref) || !identical(Ks[2, 1], ref)) bad <- bad + 1L
   }
   expect_identical(bad, 0L)

@@ -90,6 +90,7 @@ test_that("E[A|P] must be linear for R = i Cov(A,P)/sigma_P (R3-10)", {
   expect_equal(linear, 1.0769230769, tolerance = 1e-8)
   expect_false(isTRUE(all.equal(actual, linear)))
   # the roxygen carries the assumption
+  skip_if_no_source("R", "select_ind.R")
   src <- readLines(test_path("..", "..", "R", "select_ind.R"), warn = FALSE)
   txt <- paste(src[seq_len(60)], collapse = " ")
   expect_match(txt, "linear", fixed = TRUE)
@@ -98,6 +99,7 @@ test_that("E[A|P] must be linear for R = i Cov(A,P)/sigma_P (R3-10)", {
 # ---- R3-11 ------------------------------------------------------------------
 
 test_that("additive-only re-standardised accuracy is 'near', not 'held constant' (R3-11)", {
+  skip_if_no_source("R", "select_schemes.R")
   src <- readLines(test_path("..", "..", "R", "select_schemes.R"), warn = FALSE)
   txt <- paste(src, collapse = " ")
   expect_false(grepl("also held constant", txt, fixed = TRUE))

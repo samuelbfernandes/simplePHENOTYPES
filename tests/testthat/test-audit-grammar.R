@@ -178,6 +178,7 @@ test_that("A+D on disjoint loci reports nothing; the orthogonal model reports it
 })
 
 test_that("the documentation no longer calls the A+D bias finite-sample (F1)", {
+  skip_if_no_source("R", "grammar_simulate_phenotype.R")
   txt <- paste(readLines(testthat::test_path("..", "..", "R",
                                              "grammar_simulate_phenotype.R")),
                collapse = "\n")

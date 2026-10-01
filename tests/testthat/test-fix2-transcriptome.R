@@ -171,6 +171,7 @@ test_that("C11: marginal epistasis share = eps/(eps + (1-eps)/s_ct^2)", {
 })
 
 test_that("C11: the roxygen text gives the formula and no longer says 'slightly'", {
+  skip_if_no_source("R", "transcriptome_simulate.R")
   src <- readLines(testthat::test_path("..", "..", "R", "transcriptome_simulate.R"))
   expect_false(any(grepl("differs slightly otherwise", src, fixed = TRUE)))
   expect_true(any(grepl("epsilon + (1 - epsilon) / s_ct^2", src, fixed = TRUE)))
@@ -179,6 +180,8 @@ test_that("C11: the roxygen text gives the formula and no longer says 'slightly'
 # ---- C17: benchmark 05 wording -------------------------------------------------
 
 test_that("C17: benchmark 05 defines 'structural null' as no shared module/status", {
+  skip_if_no_source("benchmarks", "05_twas_power.R")
+  skip_if_no_source("benchmarks", "README.md")
   b5 <- paste(readLines(testthat::test_path("..", "..", "benchmarks",
                                             "05_twas_power.R")), collapse = "\n")
   rd <- paste(readLines(testthat::test_path("..", "..", "benchmarks",

@@ -15,12 +15,13 @@ test_that("C1: huge nu is rejected quickly instead of looping forever", {
   cis <- matrix(c(0, 1, 1, 0), 2, 2, dimnames = list(c("m1", "m2"), NULL))
   pop <- population_from_haplotypes(cis, 1 - cis, map, ids = c("a", "b"))
   for (nu in c(.Machine$double.xmax, 1e7, 1e300)) {
-    expect_error(
-      R.utils::withTimeout(
-        cross(pop[1], pop[2], n = 2,
-              interference = list(nu = nu, p = 0.5), seed = 1),
-        timeout = 20, onTimeout = "error"),
-      "interference\\$nu", fixed = FALSE)
+    msg <- tryCatch({
+      setTimeLimit(elapsed = 20, transient = TRUE)
+      cross(pop[1], pop[2], n = 2, interference = list(nu = nu, p = 0.5), seed = 1)
+      "no error"
+    }, error = function(e) conditionMessage(e),
+    finally = setTimeLimit(elapsed = Inf, transient = FALSE))
+    expect_match(msg, "interference\\$nu")
   }
   expect_error(.check_interference(list(nu = Inf)), "nu")
   # the documented maximum is still accepted and terminates
