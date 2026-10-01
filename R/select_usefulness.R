@@ -28,6 +28,31 @@
 #' the realized family from the returned `mean`/`sd` (or simulate the family
 #' directly with [cross()]/[selfcross()]) if you need the exact tail mean.
 #'
+#' The intensity is the infinite-population normal value
+#' \eqn{i = \varphi(\Phi^{-1}(1-p))/p} for `select_top = p` (1.755 at `p = 0.1`);
+#' the mean of the top `p` of a *finite* family is slightly smaller (about 1.73 for
+#' the top 10 of 100), and a family with `n_progeny * select_top < 1` selects less
+#' than one progeny, so `U` is then only a normal-theory ranking score. Prefer
+#' `n_progeny * select_top >= 1`, in practice a few tens of progeny at least.
+#'
+#' **Heterozygous parents and `"dh"` / `"selfcross"`.** These schemes derive each
+#' family from a *single* F1 individual of the cross (one draw of the two
+#' parental gametes), then double or self it. For inbred (homozygous) parents that
+#' F1 is unique, so the family-generating distribution is that of the cross itself
+#' (no conditioning on a random F1). The returned `mean` and `sd` are nevertheless
+#' Monte Carlo estimates from `n_progeny` simulated progeny (meiosis and, for
+#' `"selfcross"`, the selfing draws remain random), so they still vary with `seed`
+#' and converge to the cross's moments only as `n_progeny` grows. For a
+#' **heterozygous** parent the F1 is also one random draw, so the reported `mean`
+#' and `sd` are additionally conditional on which F1 was drawn: they change with
+#' `seed` for that reason as well, and the standard deviation `sd` (its square, the
+#' family variance, likewise) is on average lower than the F1-averaged (many-F1)
+#' value. The
+#' function warns once per call when a parent in `pairs` is heterozygous at a
+#' scoring locus under these schemes. Use inbred parents, or `scheme = "cross"`
+#' (which draws every progeny from an independent meiosis of the parents), when
+#' the parents are not inbred; the sampling scheme itself is unchanged.
+#'
 #' Progeny are scored on the additive QTN effects already realized in `sim` (the
 #' template), applied on a common scale, so the means and standard deviations are
 #' directly comparable between crosses. Only the additive component enters the
@@ -37,19 +62,21 @@
 #'
 #' @param sim a realized, Population-backed `phenotype_sim` whose candidate parents
 #'   are its individuals and whose additive layer supplies the scoring model.
-#' @param pairs a two-column matrix or data frame of parent pairs (ids or
-#'   positions). `NULL` (default) uses all pairwise combinations of the parents ---
-#'   guard the count yourself for large panels.
+#' @param pairs a two-column matrix or data frame of parent pairs (ids, or whole
+#'   positions), at least one row. `NULL` (default) uses all pairwise combinations
+#'   of the parents --- guard the count yourself for large panels.
 #' @param scheme how the progeny family is derived: `"dh"` (doubled haploids, fully
 #'   inbred in one step), `"selfcross"` (self to near-inbred over `generations`), or
 #'   `"cross"` (single-cross progeny; only informative for non-inbred parents).
 #' @param n_progeny family size simulated per cross.
 #' @param generations selfing generations for `scheme = "selfcross"`.
 #' @param select_top fraction of progeny whose intensity `i` sets the usefulness
-#'   horizon (default 0.1; smaller = a more elite target).
+#'   horizon: one value in (0, 1) (default 0.1; smaller = a more elite target).
 #' @param trait trait index to evaluate (default 1).
 #' @param direction `"high"` (default) adds `i*sigma`; `"low"` subtracts it.
-#' @param seed optional RNG seed for the whole evaluation.
+#' @param seed optional RNG seed for the whole evaluation: one non-negative whole
+#'   number. The caller's RNG state is restored on exit; with `seed = NULL` the
+#'   ambient RNG is used (and advanced).
 #' @return a data frame with `parent1`, `parent2`, `mean`, `sd`, `usefulness`,
 #'   sorted best first, carrying attribute `intensity` (the `i` used).
 #' @references Zhong S, Jannink J-L (2007) Using quantitative trait loci results to
@@ -77,13 +104,19 @@ cross_usefulness <- function(sim, pairs = NULL,
   direction <- match.arg(direction)
   n_progeny <- .validate_count(n_progeny, "n_progeny", minimum = 2L)
   if (!is.numeric(select_top) || length(select_top) != 1L ||
-      select_top <= 0 || select_top >= 1) {
+      !is.finite(select_top) || select_top <= 0 || select_top >= 1) {
     stop("`select_top` must be a single value in (0, 1).", call. = FALSE)
   }
   i_val <- .intensity_from_p(select_top)
   model <- .additive_model(sim, trait)          # fixed loci + effects (by name)
   pairs <- .resolve_pairs(pairs, pop)
-  if (!is.null(seed)) set.seed(seed)
+  seed <- .validate_seed(seed)
+  if (!is.null(seed)) {
+    old <- .Random.seed_safe()
+    set.seed(seed)
+    on.exit(.restore_seed(old))                # the caller's RNG state is restored
+  }
+  if (scheme != "cross") .warn_heterozygous_parents(pop, pairs, model, scheme)
 
   res <- vector("list", nrow(pairs))
   for (k in seq_len(nrow(pairs))) {
@@ -196,15 +229,51 @@ cross_usefulness <- function(sim, pairs = NULL,
   if (ncol(pairs) != 2L) {
     stop("`pairs` must have two columns (one parent per column).", call. = FALSE)
   }
+  if (nrow(pairs) < 1L) {
+    stop("`pairs` must have at least one row (a pair of parents).",
+         call. = FALSE)
+  }
   idx <- if (is.character(pairs)) {
     matrix(match(pairs, ids), ncol = 2L)
   } else {
+    if (!is.numeric(pairs) || any(!is.finite(pairs)) ||
+        any(pairs != round(pairs))) {
+      stop("`pairs` given as positions must be whole numbers (a fractional ",
+           "position would be silently truncated); use ids or integer positions.",
+           call. = FALSE)
+    }
     matrix(as.integer(pairs), ncol = 2L)
   }
   if (anyNA(idx) || any(idx < 1L | idx > length(ids))) {
     stop("`pairs` refers to parents not in `pop`.", call. = FALSE)
   }
   idx
+}
+
+#' Warn (once per call) when "dh"/"selfcross" families come from heterozygous parents
+#'
+#' Those schemes derive the whole family from ONE F1 individual, so for a
+#' heterozygous parent the family mean/sd are conditional on that F1 draw.
+#' Heterozygosity is judged at the scoring loci, which are what mu and sigma see.
+#' @keywords internal
+#' @noRd
+.warn_heterozygous_parents <- function(pop, pairs, model, scheme) {
+  d <- dosages(pop)
+  hit <- match(model$snp, rownames(d))
+  hit <- hit[!is.na(hit)]
+  if (!length(hit)) return(invisible())
+  par <- unique(as.vector(pairs))
+  het <- vapply(par, function(j) any(d[hit, j] == 0, na.rm = TRUE), logical(1))
+  if (any(het)) {
+    warning("cross_usefulness(): ", sum(het), " parent(s) are heterozygous at ",
+            "scoring loci (e.g. ", paste(utils::head(pop$ids[par[het]], 3L),
+                                         collapse = ", "),
+            "). With scheme = \"", scheme, "\" each family comes from a single ",
+            "F1 draw, so for heterozygous parents its mean and sd are conditional ",
+            "on that one F1 (they vary with the seed) rather than averaged over ",
+            "F1s. Use inbred parents or scheme = \"cross\".", call. = FALSE)
+  }
+  invisible()
 }
 
 #' Simulate one progeny family from parents a, b under the chosen scheme

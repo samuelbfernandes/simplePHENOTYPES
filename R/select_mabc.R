@@ -24,13 +24,13 @@
 #'
 #' For an unselected cohort from `t` successive backcrosses to the recurrent
 #' parent after the F1 (`t = 0` for the F1), the expected donor genome proportion
-#' in BC`t` is `1/2^(t + 1)` (Frisch & Melchinger 2005, Introduction), so the
+#' in BC`t` is `1/2^(t + 1)` (Frisch & Melchinger 2005), so the
 #' expected recovery is `R_t = 1 - (1/2)^(t + 1)`: 0.5, 0.75, 0.875, 0.9375 at F1,
 #' BC1, BC2, BC3. It follows from Mendelian transmission -- each backcross joins
 #' one fully recurrent gamete to a gamete carrying, on average, the backcrossed
 #' parent's recurrent fraction, so `R_0 = 1/2` and `R_t = 1/2 + R_(t-1)/2`.
-#' Background-selected individuals are meant to exceed their cohort's mean. The staged foreground / recombinant / background
-#' procedure follows Frisch & Melchinger (2001); the weighted marker estimator of
+#' Background-selected individuals are meant to exceed their cohort's mean. The
+#' staged foreground / recombinant / background procedure follows Frisch & Melchinger (2001); the weighted marker estimator of
 #' recovery is this package's definition. Plain truncation selection with
 #' [select_ind()] on a phenotype is not marker-assisted backcrossing.
 #'
@@ -61,10 +61,12 @@
 #' @param exclude_interval optional genomic interval(s) removed from the
 #'   background, typically the target region, whose donor segment foreground
 #'   selection deliberately keeps: a list or data frame with `chr`, `from`, `to`
-#'   in centiMorgans (the map's `cm`). Several rows give several intervals.
+#'   in centiMorgans (the map's `cm`). Several rows give several intervals. The
+#'   bounds are inclusive (a marker at exactly `from` or `to` is excluded).
 #'   Markers inside are dropped, and with `marker_weights = "interval"` the
 #'   interval's length is also removed from the genome the remaining markers
-#'   represent. Target and flanking markers leave the background too, but the
+#'   represent; with the default equal weights only the markers are removed and
+#'   the excluded region's genome share is *not* taken out of the denominator. Target and flanking markers leave the background too, but the
 #'   genome around them stays represented by the neighbouring background markers
 #'   unless an interval covers it.
 #' @param flanking_markers optional markers for recombinant selection, by name or
@@ -268,6 +270,12 @@ recurrent_parent_recovery <- function(pop, recurrent, donor, markers = NULL,
     }
     idx <- idx[fx$informative[idx]]
   }
+  if (!length(idx)) {
+    warning("recurrent_parent_recovery(): no informative markers (the recurrent ",
+            "and donor founders are not homozygous for alternate alleles at any ",
+            "scored marker), so recovery is NA for every individual.",
+            call. = FALSE)
+  }
   out <- .mabc_recovery(fx$score, map, idx, weights)
   attr(out, "n_markers") <- length(idx)
   out
@@ -292,11 +300,7 @@ recurrent_parent_recovery <- function(pop, recurrent, donor, markers = NULL,
   }
   .check_single(recurrent, "recurrent")
   .check_single(donor, "donor")
-  same <- function(a, b) {
-    identical(a$map$snp, b$map$snp) && identical(a$map$chr, b$map$chr) &&
-      isTRUE(all.equal(a$map$cm, b$map$cm))
-  }
-  if (!same(pop, recurrent) || !same(pop, donor)) {
+  if (!.same_map(pop$map, recurrent$map) || !.same_map(pop$map, donor$map)) {
     stop("`pop`, `recurrent` and `donor` must share the same marker map.",
          call. = FALSE)
   }

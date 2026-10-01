@@ -49,6 +49,11 @@ g_matrix <- function(x, ridge = 0, base_freq = NULL) {
          "valid (positive semi-definite) relationship matrix.", call. = FALSE)
   }
   d <- .dosage_from(x)                       # markers x individuals, -1/0/1
+  if (!is.numeric(d)) {
+    stop("g_matrix(): the dosage matrix must be numeric (coded -1/0/1); got a ",
+         class(d)[1L], " matrix. Convert with as_numeric(code_as = \"-101\") ",
+         "first.", call. = FALSE)
+  }
   if (anyNA(d)) {
     stop("g_matrix(): the genotypes contain missing values. A missing call ",
          "makes a marker's allele frequency NA, which would silently drop that ",
@@ -111,31 +116,50 @@ g_matrix <- function(x, ridge = 0, base_freq = NULL) {
 #'   numeric vector (named by id or in order), or a function `merit(sim)` --- the
 #'   same hook as [select_ind()], so genomic/phenomic EBVs plug straight in.
 #'   Meuwissen's OCS maximizes the *transmissible* merit of the parents' progeny,
-#'   so the default is the additive breeding value `"bv"` (the Fisher average-effect
-#'   projection), not the total genotypic value `"gv"`: with `"gv"` a
-#'   non-transmissible dominance/epistasis advantage (e.g. an overdominant
-#'   heterozygote) would be chased even though it is not passed on. `"bv"` is
-#'   unavailable for `architecture = "complex"`; pass numeric merit there.
+#'   so the default is the additive breeding value `"bv"`, not the total
+#'   genotypic value `"gv"`: with `"gv"` a non-transmissible dominance/epistasis
+#'   advantage (e.g. an overdominant heterozygote) would be chased even though it
+#'   is not passed on. `"bv"` is the *transmitting* average effect, computed
+#'   analytically from the simulation's own effects as
+#'   \eqn{\alpha_j = a_j + d_j(q_j - p_j)} per locus (DECISION-019; the same
+#'   quantity as `select_ind(on = "bv")`) -- not a least-squares (Fisher
+#'   statistical) projection of the genotypic value, which differs off
+#'   Hardy-Weinberg. It is refused (an error) for a model with an epistasis layer
+#'   and for `architecture = "complex"`, because those have no per-locus
+#'   \eqn{a}/\eqn{d}; pass a numeric `merit` there.
 #' @param trait trait index when `merit` is `"gv"`/`"pheno"` (default 1).
 #' @param direction `"high"` (default) maximizes merit, `"low"` minimizes it.
 #' @param lambda penalty on group coancestry (>= 0). Larger spreads contributions
 #'   and lowers coancestry. Give exactly one of `lambda`, `target_coancestry`,
 #'   `max_coancestry`.
 #' @param target_coancestry desired group coancestry \eqn{\tfrac12 c'Gc}; the
-#'   penalty is tuned to meet it (or the minimum attainable, with a warning).
+#'   penalty is tuned to meet it (or the minimum attainable, with a warning). A
+#'   target above the coancestry of the unconstrained (merit-only) optimum cannot
+#'   be met by a non-negative penalty: a warning is issued and `lambda = 0` is
+#'   used.
 #' @param max_coancestry as `target_coancestry`, but only enforced if the
 #'   unconstrained optimum exceeds it.
 #' @param G optional precomputed relationship matrix (from [g_matrix()]); built
-#'   from `x` when omitted.
+#'   from `x` when omitted. A supplied `G` must be a symmetric positive
+#'   semi-definite matrix with the individual ids as identical row and column
+#'   names (an unnamed matrix is an error: merit is aligned to `G` by name).
 #' @param rep replication to read merit from (default 1).
 #' @param min_contribution contributions below this are treated as zero when
 #'   listing selected parents (default 1e-4).
-#' @param max_iter,tol Iteration cap (default 10000) and duality-gap tolerance
-#'   for the away-step Frank-Wolfe optimizer. A warning is issued if it does not
-#'   reach `tol` within `max_iter`, meaning the contributions may be sub-optimal.
+#' @param max_iter,tol Iteration cap (default 10000; a whole number >= 1) and
+#'   duality-gap tolerance (positive) for the away-step Frank-Wolfe optimizer. A
+#'   warning is issued if it does not reach `tol` within `max_iter`, meaning the
+#'   contributions may be sub-optimal. `tol` is on the merit scale; when a
+#'   coancestry target is tuned and the merit spread is extreme (outside
+#'   1e-6..1e6) the search and the final solve use merit rescaled to unit spread,
+#'   which leaves the contributions unchanged (the penalty scales linearly with
+#'   merit).
 #' @return an `ocs` object: `contributions` (named, summing to 1), `parents` (ids
 #'   with contribution above `min_contribution`), `n_parents`, `merit` (expected
-#'   \eqn{c'g}), `coancestry` (\eqn{\tfrac12 c'Gc}), and `lambda`.
+#'   \eqn{c'g}, on the original merit scale), `coancestry`
+#'   (\eqn{\tfrac12 c'Gc}), and `lambda`. The contributions do not depend on a
+#'   constant added to every merit (the optimum lies on the simplex
+#'   \eqn{\sum c = 1}); merit is centred internally before the penalty is tuned.
 #' @references Meuwissen THE (1997) Maximizing the response of selection with a
 #'   predefined rate of inbreeding. \emph{Journal of Animal Science}
 #'   75(4):934--940. \doi{10.2527/1997.754934x}
@@ -175,10 +199,23 @@ optimum_contribution <- function(x, merit = "bv", trait = 1L,
     stop("`", .tradeoff_name, "` must be a single finite numeric value.",
          call. = FALSE)
   }
+  # Control arguments: an NA/non-numeric value would otherwise yield an `ocs`
+  # object with NA parents or a cryptic "missing value where TRUE/FALSE needed".
+  if (!is.numeric(min_contribution) || length(min_contribution) != 1L ||
+      !is.finite(min_contribution) || min_contribution < 0 ||
+      min_contribution >= 1) {
+    stop("`min_contribution` must be one finite number in [0, 1).",
+         call. = FALSE)
+  }
+  max_iter <- .validate_count(max_iter, "max_iter", minimum = 1L)
+  if (!is.numeric(tol) || length(tol) != 1L || !is.finite(tol) || tol <= 0) {
+    stop("`tol` must be one finite positive number.", call. = FALSE)
+  }
 
   if (inherits(x, "phenotype_sim")) {
     g <- .criterion_values(x, merit, trait, rep)   # named by the sim's ids
     if (is.null(G)) G <- g_matrix(x)
+    .check_G_ids(G)
     # Align merit to G's row order. When G comes from g_matrix(x) the order already
     # matches; a user-supplied G may be in a different order, and pairing merit with
     # G positionally would optimize contributions for the wrong individuals.
@@ -191,6 +228,7 @@ optimum_contribution <- function(x, merit = "bv", trait = 1L,
     }
   } else {
     if (is.null(G)) G <- g_matrix(x)
+    .check_G_ids(G)
     if (!is.numeric(merit)) {
       stop("With a Population, `merit` must be a numeric vector of merit values ",
            "(one per individual).", call. = FALSE)
@@ -214,23 +252,51 @@ optimum_contribution <- function(x, merit = "bv", trait = 1L,
     }
     g <- stats::setNames(as.numeric(g), rownames(G))
   }
+  if (any(!is.finite(g))) {
+    stop("`merit` must be finite for every individual (found NA/NaN/Inf); ",
+         "impute or drop individuals without a merit value.", call. = FALSE)
+  }
   if (length(g) != nrow(G)) {
     stop("merit has length ", length(g), " but G is ", nrow(G), "x", nrow(G), ".",
          call. = FALSE)
   }
   .validate_coancestry_matrix(G)
   if (direction == "low") g <- -g
+  # The simplex constraint sum(c) = 1 makes the optimum invariant to adding a
+  # constant to every merit, so centre the merit before tuning/solving: at a large
+  # common offset (e.g. 1e16) the spread would otherwise be lost to floating-point
+  # cancellation. `shift` restores the original scale for the reported merit only.
+  # When the finite merits span more than .Machine$double.xmax (e.g. -1e308 and
+  # 1e308) the subtraction itself overflows, so the merit is halved first
+  # (`hf = 2`): the centred merit is then (g - min(g)) / 2, the optimum is
+  # unchanged (c is invariant under g -> g/2, lambda -> lambda/2) and lambda is
+  # mapped back to the original scale below. Ordinary problems take `hf = 1` and
+  # are untouched.
+  hf <- if (is.finite(max(g) - min(g))) 1 else 2
+  shift <- min(g) / hf
+  g <- g / hf - shift
 
+  sc <- 1                                       # merit rescaling (tuned path only)
+  lam_n <- NULL                                 # penalty on the solved (g / sc) scale
   lam <- if (!is.null(lambda)) {
     if (lambda < 0) stop("`lambda` must be >= 0.", call. = FALSE)
-    lambda
+    lambda / hf
   } else {
     target <- if (!is.null(target_coancestry)) target_coancestry else max_coancestry
-    .tune_lambda(g, G, target, max_iter, tol,
-                 enforce_below = !is.null(max_coancestry))
+    tuned <- .tune_lambda(g, G, target, max_iter, tol,
+                          enforce_below = !is.null(max_coancestry))
+    sc <- tuned$scale
+    lam_n <- tuned$lambda_n
+    tuned$lambda
   }
+  if (is.null(lam_n)) lam_n <- lam / sc
 
-  c_opt <- .frank_wolfe(g, G, lam, max_iter, tol)
+  # lambda scales linearly with the merit scale (c is unchanged under
+  # g -> g/s, lambda -> lambda/s), so an extreme-scale tuned problem is solved on
+  # the unit-spread scale it was tuned on; sc = 1 leaves the problem untouched.
+  # (the tuned penalty is used on its own scale: multiplying by sc and dividing
+  # back would overflow for merits near .Machine$double.xmax)
+  c_opt <- .frank_wolfe(g / sc, G, lam_n, max_iter, tol)
   # The away-step optimizer converges to `tol` on well-posed problems, so a
   # failure to converge within max_iter is a genuine signal that the returned
   # contributions are sub-optimal (rather than the spurious near-optimum that a
@@ -243,7 +309,9 @@ optimum_contribution <- function(x, merit = "bv", trait = 1L,
             call. = FALSE)
   }
   attributes(c_opt) <- NULL
-  merit_val <- sum(c_opt * (if (direction == "low") -g else g))
+  # Merit on the original scale: c sums to 1, so c'(g + shift) = c'g + shift.
+  merit_val <- hf * (sum(c_opt * g) + shift)
+  if (direction == "low") merit_val <- -merit_val
   coan <- as.numeric(0.5 * crossprod(c_opt, G %*% c_opt))
   keep <- c_opt > min_contribution
   structure(
@@ -252,7 +320,7 @@ optimum_contribution <- function(x, merit = "bv", trait = 1L,
          n_parents = sum(keep),
          merit = merit_val,
          coancestry = coan,
-         lambda = lam),
+         lambda = lam * hf),
     class = "ocs"
   )
 }
@@ -279,18 +347,47 @@ print.ocs <- function(x, ...) {
 #' Draw parents for mating in proportion to OCS contributions
 #'
 #' Turns continuous [optimum_contribution()] contributions into a concrete set of
-#' `n` parents by sampling with probability equal to the contributions. Feed the
-#' result to the crossing primitives or [recurrent_selection()].
+#' `n` parent slots. Feed the result to the crossing primitives or
+#' [recurrent_selection()].
+#'
+#' Two methods are available. `method = "allocate"` (the default) **allocates**
+#' the slots so that the realized contributions match the optimized ones as
+#' closely as integers allow. This controls the *marginal* count error of each
+#' individual; it is an approximation, not a guarantee on the group coancestry
+#' \eqn{\tfrac12 c'Gc}, which is quadratic in the contributions and is not
+#' preserved exactly by integer counts. The gap between the realized and the
+#' optimized coancestry depends on `n` and on \eqn{G} and shrinks as `n` grows
+#' (for example with \eqn{G = I} and \eqn{c = (0.5, 0.5)} the optimum is 0.25, but
+#' `n = 1` must pick one parent, whose realized coancestry is 0.5). Individual
+#' \eqn{i} receives
+#' \eqn{\lfloor n c_i \rfloor} slots and the remaining slots go, one each, to the
+#' individuals with the largest fractional parts of \eqn{n c_i} (largest-remainder
+#' rule; ties are broken by the larger contribution and then at random with
+#' `seed`), so every count is within one slot of \eqn{n c_i}. The counts are
+#' deterministic except for such exact ties. The order of the slots is shuffled
+#' (with `seed`), so repeated copies of a parent are not adjacent.
+#'
+#' `method = "multinomial"` is the former behaviour: `n` independent draws with
+#' replacement, weighted by the contributions. Its expected number of slots is
+#' also \eqn{n c_i}, but the *realized* counts carry sampling noise (with
+#' \eqn{c = (0.5, 0.5)} and `n = 10` one parent's count ranges widely around 5),
+#' so the realized group coancestry is on average above the optimum, more so for
+#' small `n`. Use it only when that sampling variation is itself wanted.
 #'
 #' @param ocs an `ocs` object from [optimum_contribution()].
 #' @param pop the `Population` the contributions were computed on.
-#' @param n number of parent slots to draw.
-#' @param seed optional RNG seed.
-#' @return a `Population` of `n` sampled parents (with replacement, weighted by
-#'   contribution). Sampling with replacement can place the same parent in several
-#'   slots; because the crossing and phenotyping primitives require unique
-#'   individual names, repeated draws of one parent are given disambiguated ids
-#'   (`"A"`, `"A_1"`, `"A_2"`, ...) while carrying identical genotypes.
+#' @param n number of parent slots to fill.
+#' @param seed optional RNG seed: one non-negative whole number. It orders the
+#'   slots (`"allocate"`) or drives the draws (`"multinomial"`); the caller's RNG
+#'   state is restored on exit.
+#' @param method `"allocate"` (default, largest-remainder allocation) or
+#'   `"multinomial"` (independent weighted draws with replacement).
+#' @return a `Population` of `n` parents. An individual can occupy several slots;
+#'   because the crossing and phenotyping primitives require unique individual
+#'   names, repeated copies of one parent are given disambiguated ids (`"A"`,
+#'   `"A_1"`, `"A_2"`, ...) while carrying identical genotypes. With
+#'   `"allocate"`, individuals whose `n * contribution` is below one may receive no
+#'   slot when `n` is small; use a larger `n` if every contributor must be kept.
 #' @seealso [optimum_contribution()], [recurrent_selection()].
 #' @export
 #' @examples
@@ -301,20 +398,39 @@ print.ocs <- function(x, ...) {
 #' oc  <- optimum_contribution(ph, merit = "bv", lambda = 5)
 #' mates <- sample_parents(oc, f2, n = 10, seed = 4)
 #' n_individuals(mates)
-sample_parents <- function(ocs, pop, n, seed = NULL) {
+sample_parents <- function(ocs, pop, n, seed = NULL,
+                           method = c("allocate", "multinomial")) {
   if (!inherits(ocs, "ocs")) stop("`ocs` must be an ocs object.", call. = FALSE)
   .check_population(pop)
   n <- .validate_count(n, "n", minimum = 1L)
+  method <- match.arg(method)
   ids <- names(ocs$contributions)
   idx <- match(ids, pop$ids)
   if (anyNA(idx)) {
     stop("The OCS contributions name individuals that are not in `pop`.",
          call. = FALSE)
   }
-  if (!is.null(seed)) set.seed(seed)
-  drawn <- sample(idx, size = n, replace = TRUE, prob = ocs$contributions)
+  seed <- .validate_seed(seed)
+  if (!is.null(seed)) {
+    old <- .Random.seed_safe()
+    set.seed(seed)
+    on.exit(.restore_seed(old))                # the caller's RNG state is restored
+  }
+  if (method == "multinomial") {
+    # idx[sample.int(...)], not sample(idx, ...): with a single candidate `idx` is
+    # a length-1 number and sample() would draw from 1:idx.
+    drawn <- idx[sample.int(length(idx), size = n, replace = TRUE,
+                            prob = ocs$contributions)]
+  } else {
+    counts <- .allocate_slots(ocs$contributions, n,
+                              tiebreak = sample.int(length(idx)))
+    drawn <- rep(idx, counts)
+    # Only the ORDER of the slots is random (exchangeable), so copies of one
+    # parent are not adjacent for downstream pairing; the counts are fixed.
+    drawn <- drawn[sample.int(length(drawn))]
+  }
   sampled <- pop[drawn]
-  # Repeated draws of the same parent carry duplicate ids, which violates the
+  # Repeated slots of the same parent carry duplicate ids, which violates the
   # unique-name invariant every downstream primitive (cross/selfcross/
   # simulate_phenotype) enforces. Keep the repeated parent slots (same genotypes)
   # but give them unique names so the documented OCS -> mating workflow runs.
@@ -324,6 +440,41 @@ sample_parents <- function(ocs, pop, n, seed = NULL) {
     sampled$ids <- uid
   }
   sampled
+}
+
+#' Largest-remainder allocation of `n` slots to contributions
+#'
+#' `floor(n * c_i)` slots each, then one extra slot to the individuals with the
+#' largest fractional parts (ties: larger contribution, then the `tiebreak` rank),
+#' so every count is within one of `n * c_i` and the counts sum to `n`.
+#' @param contributions numeric vector of non-negative contributions (any scale;
+#'   normalised to sum 1).
+#' @param n total number of slots.
+#' @param tiebreak integer ranks used to order exact ties (default: position).
+#' @return an integer vector of slot counts, one per contribution.
+#' @keywords internal
+#' @noRd
+.allocate_slots <- function(contributions, n,
+                            tiebreak = seq_along(contributions)) {
+  cc <- as.numeric(contributions)
+  cc[!is.finite(cc) | cc < 0] <- 0
+  if (sum(cc) <= 0) stop("The OCS contributions are all zero.", call. = FALSE)
+  cc <- cc / sum(cc)
+  q <- n * cc
+  base <- floor(q + 1e-9)                        # guard 0.3 * 10 = 2.9999999999
+  frac <- pmax(q - base, 0)
+  r <- n - sum(base)
+  if (r > 0) {
+    # Exact ties are judged on rounded keys so 0.1 * 3 vs 0.3 do not split on
+    # floating-point noise.
+    ord <- order(-round(frac, 9), -round(cc, 12), tiebreak)
+    base[ord[seq_len(r)]] <- base[ord[seq_len(r)]] + 1
+  } else if (r < 0) {                            # floating overshoot (rare)
+    pos <- which(base > 0)
+    ord <- pos[order(round(frac[pos], 9), round(cc[pos], 12), -tiebreak[pos])]
+    base[ord[seq_len(-r)]] <- base[ord[seq_len(-r)]] - 1
+  }
+  as.integer(base)
 }
 
 # ---- internal ---------------------------------------------------------------
@@ -362,13 +513,42 @@ sample_parents <- function(ocs, pop, n, seed = NULL) {
   invisible(TRUE)
 }
 
+#' A supplied G must carry the individual ids the contributions are named by
+#'
+#' Without dimnames the contributions vector would be unnamed and `parents`
+#' empty (an `ocs` object `sample_parents()` cannot use), and merit could only be
+#' paired with G by position. Require identical, unique row/column names.
+#' @keywords internal
+#' @noRd
+.check_G_ids <- function(G) {
+  if (!is.matrix(G) || nrow(G) != ncol(G)) {
+    stop("`G` must be a square relationship matrix.", call. = FALSE)
+  }
+  if (is.null(rownames(G)) || is.null(colnames(G)) ||
+      !identical(rownames(G), colnames(G))) {
+    stop("`G` must carry individual ids as identical row and column names ",
+         "(as g_matrix() returns); set dimnames(G) <- list(ids, ids).",
+         call. = FALSE)
+  }
+  if (anyDuplicated(rownames(G))) {
+    stop("`G` row/column names must be unique individual ids.", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
 #' Marker x individual -1/0/1 dosage matrix (with id column names) from any input
 #' @keywords internal
 #' @noRd
 .dosage_from <- function(x) {
   if (inherits(x, "Population")) return(dosages(x))
   if (inherits(x, "phenotype_sim")) {
-    if (inherits(x$geno, "Population")) return(dosages(x$geno))
+    if (inherits(x$geno, "Population")) {
+      # A subset sim (simulate_phenotype(individuals = )) keeps `ind_idx` of the
+      # backing population's columns; G must cover exactly the sim's individuals.
+      d <- dosages(x$geno)
+      if (!is.null(x$ind_idx)) d <- d[, x$ind_idx, drop = FALSE]
+      return(d)
+    }
     stop("g_matrix(): this phenotype_sim is not built on a Population; pass a ",
          "Population or a dosage matrix.", call. = FALSE)
   }
@@ -437,15 +617,55 @@ sample_parents <- function(ocs, pop, n, seed = NULL) {
 }
 
 #' Bisect the penalty so group coancestry meets a target
+#'
+#' The penalty scales linearly with the merit scale, so when the merit spread is
+#' extreme (outside 1e-6..1e6) the search runs on merit rescaled to unit spread
+#' and the penalty is returned in the original units together with the scale used
+#' (`sc = 1` otherwise, leaving ordinary problems bit-identical). The doubling
+#' bracket is therefore always relative to the problem's own scale instead of a
+#' fixed absolute cap.
+#' @return list(lambda, scale, lambda_n): `lambda_n` is the penalty on the
+#'   unit-spread scale the search ran on (`lambda = lambda_n * scale`).
 #' @keywords internal
 #' @noRd
 .tune_lambda <- function(g, G, target, max_iter, tol, enforce_below) {
+  spread <- diff(range(g))
+  sc <- if (is.finite(spread) && spread > 0 && (spread > 1e6 || spread < 1e-6)) {
+    spread
+  } else {
+    1
+  }
+  gn <- g / sc
   coan_at <- function(lam) {
-    cc <- .frank_wolfe(g, G, lam, max_iter, tol)
+    cc <- .frank_wolfe(gn, G, lam, max_iter, tol)
     as.numeric(0.5 * crossprod(cc, G %*% cc))
   }
+  done <- function(lam_n) list(lambda = lam_n * sc, scale = sc, lambda_n = lam_n)
   c0 <- coan_at(0)                          # unconstrained (merit only)
-  if (enforce_below && c0 <= target) return(0)   # constraint slack
+  if (enforce_below && c0 <= target) return(done(0))   # constraint slack
+  # Floating-point-correct comparison: c0 and the target are O(1) coancestries, so
+  # equality is judged to a small multiple of machine epsilon relative to their
+  # magnitude, not by an absolute band (which would hide a genuinely-too-high
+  # target such as 0.5000005 against 0.5, or 2e-16 against 1e-16 when G is tiny).
+  # The band is purely relative (no absolute floor, which would hide e.g.
+  # target = 2*double.xmin against c0 = double.xmin); it is computed by
+  # multiplication only (no division) so subnormals cannot overflow, and it
+  # collapses to exact equality when both quantities are zero/underflow.
+  band <- 16 * .Machine$double.eps * max(abs(target), abs(c0))
+  if (!enforce_below && abs(c0 - target) <= band) {
+    return(done(0))                         # target equals the unconstrained optimum
+  }
+  if (!enforce_below && c0 < target) {
+    # A non-negative penalty can only lower coancestry, so a target above the
+    # unconstrained optimum's coancestry cannot be met; say so instead of quietly
+    # returning the (near-)unconstrained solution.
+    warning("optimum_contribution(): requested coancestry ", signif(target, 8),
+            " is above the coancestry of the unconstrained (merit-only) optimum (",
+            signif(c0, 8), "), which a non-negative penalty cannot raise; using ",
+            "lambda = 0 (the unconstrained optimum). Use `max_coancestry` for a ",
+            "ceiling that is only enforced when it binds.", call. = FALSE)
+    return(done(0))
+  }
   # grow an upper penalty until coancestry drops to/below target
   hi <- 1
   for (i in seq_len(60)) {
@@ -455,9 +675,11 @@ sample_parents <- function(ocs, pop, n, seed = NULL) {
   cmin <- coan_at(hi)
   if (cmin > target) {
     warning("optimum_contribution(): requested coancestry ", signif(target, 3),
-            " is below the minimum attainable (", signif(cmin, 3),
-            "); using the minimum-coancestry contributions.", call. = FALSE)
-    return(hi)
+            " is below the minimum attainable, or needs a larger penalty than the ",
+            "search range (lambda up to 2^60 on a unit merit scale): coancestry ",
+            signif(cmin, 3), " was reached at the largest penalty tried. Using the ",
+            "minimum-coancestry contributions.", call. = FALSE)
+    return(done(hi))
   }
   lo <- 0
   for (i in seq_len(100)) {                 # bisection on a monotone function
@@ -465,5 +687,5 @@ sample_parents <- function(ocs, pop, n, seed = NULL) {
     if (coan_at(mid) > target) lo <- mid else hi <- mid
     if (hi - lo < 1e-8 * (1 + hi)) break
   }
-  hi
+  done(hi)
 }

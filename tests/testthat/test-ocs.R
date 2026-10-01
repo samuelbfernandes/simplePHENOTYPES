@@ -146,8 +146,10 @@ test_that("cross_usefulness captures between-cross mean and variance", {
   pop <- as_population(SNP55K_maize282_maf04, individuals = 1:8)
   sim <- suppressMessages(simulate_phenotype(pop, h2 = 0.5, seed = 1) |>
                             additive(n_qtn = 30))
-  u <- suppressMessages(
-    cross_usefulness(sim, scheme = "dh", n_progeny = 40, seed = 2))
+  # (maize lines carry residual heterozygosity, so the heterozygous-parent
+  # warning of the dh/selfcross schemes is expected here; see test-audit-ocs.R)
+  u <- suppressWarnings(suppressMessages(
+    cross_usefulness(sim, scheme = "dh", n_progeny = 40, seed = 2)))
   expect_equal(nrow(u), choose(8L, 2L))
   expect_named(u, c("parent1", "parent2", "mean", "sd", "usefulness"))
   # families differ (fixed-effect scoring is not re-standardized per family)
@@ -164,10 +166,44 @@ test_that("cross_usefulness accepts explicit pairs and a low direction", {
   sim <- suppressMessages(simulate_phenotype(pop, h2 = 0.5, seed = 1) |>
                             additive(n_qtn = 20))
   pr <- rbind(c(1, 2), c(3, 4))
-  u <- suppressMessages(
+  u <- suppressWarnings(suppressMessages(
     cross_usefulness(sim, pairs = pr, scheme = "dh", n_progeny = 20,
-                     direction = "low", seed = 2))
+                     direction = "low", seed = 2)))
   expect_equal(nrow(u), 2L)
   expect_equal(u$usefulness, u$mean - attr(u, "intensity") * u$sd,
                tolerance = 1e-8)
+})
+
+test_that("the Frank-Wolfe optimizer equals the analytic simplex projection on G = I", {
+  # For G = I the optimum is c_i = max(0, (g_i - mu) / lambda) with sum(c) = 1.
+  proj <- function(g, lambda) {
+    o <- sort(g, decreasing = TRUE)
+    cs <- cumsum(o)
+    k <- max(which(o - (cs - lambda) / seq_along(o) > 0))
+    mu <- (cs[k] - lambda) / k
+    pmax(0, g - mu) / lambda
+  }
+  g <- c(0.3, 1.2, -0.5, 0.9, 2.0, 1.1)
+  I6 <- diag(6)
+  for (lam in c(0.5, 1, 5)) {
+    cf <- simplePHENOTYPES:::.frank_wolfe(g, I6, lam, 10000L, 1e-10)
+    expect_true(attr(cf, "converged"))
+    expect_equal(as.numeric(cf), proj(g, lam), tolerance = 1e-6)
+  }
+  # lambda = 0 puts everything on the best candidate
+  c0 <- simplePHENOTYPES:::.frank_wolfe(g, I6, 0, 10000L, 1e-10)
+  expect_equal(which(c0 > 0), which.max(g))
+  # huge penalty on G = diag(1, 1, 3): minimum-c'Gc point (3, 3, 1) / 7
+  cinf <- simplePHENOTYPES:::.frank_wolfe(c(0, 0, 0), diag(c(1, 1, 3)), 1e9,
+                                          10000L, 1e-10)
+  expect_equal(as.numeric(cinf), c(3, 3, 1) / 7, tolerance = 1e-6)
+})
+
+test_that("optimum_contribution() output is a valid simplex point at every lambda", {
+  ph <- .ph(.f2(40))
+  for (lam in c(0.1, 1, 10, 100)) {
+    oc <- optimum_contribution(ph, merit = "bv", lambda = lam)
+    expect_gte(min(oc$contributions), 0)
+    expect_lt(abs(sum(oc$contributions) - 1), 1e-12)
+  }
 })

@@ -131,9 +131,14 @@ test_that("cross_usefulness() scores an orthogonal layer on its average effect, 
   og <- suppressMessages(
     simulate_phenotype(.f2(20), h2 = 0.6, seed = 3) |>
       additive(orthogonal = TRUE, a = 0, d = 0.6, n_qtn = 12))
-  u <- suppressMessages(
-    cross_usefulness(og, pairs = rbind(c(1, 2), c(3, 4)),
-                     scheme = "dh", n_progeny = 30, seed = 2))
+  # The selfed-F2 parents are heterozygous, so cross_usefulness() warns that a
+  # "dh" family is conditional on one F1 draw (USE-F1); the average-effect
+  # scoring checked below is unaffected.
+  expect_warning(
+    u <- suppressMessages(
+      cross_usefulness(og, pairs = rbind(c(1, 2), c(3, 4)),
+                       scheme = "dh", n_progeny = 30, seed = 2)),
+    "heterozygous")
   # a = 0 but d > 0: the average effect alpha = d(1 - 2p) is non-zero away from
   # p = 0.5, so the prediction must not collapse to zero (the U2 defect, which
   # scored on bare a and returned mean = sd = usefulness = 0).

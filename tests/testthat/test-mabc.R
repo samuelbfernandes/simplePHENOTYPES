@@ -267,3 +267,70 @@ test_that("founders on a different map are rejected", {
   expect_error(recurrent_parent_recovery(BC1, other[1], other[2]),
                "same marker map")
 })
+
+# ---- audit additions (reconciliation v2-ocs-usefulness-marker) ---------------
+
+test_that("ranking is lexicographic: flank count outranks background recovery", {
+  # A: both flanks recurrent-homozygous but a donor background (recovery 0);
+  # B: no recurrent flank but a fully recurrent background (recovery 1).
+  g <- data.frame(snp = paste0("m", 1:6), allele = "A/G",
+                  chr = c(1, 1, 1, 2, 2, 2), pos = 1:6, cm = c(0, 10, 20, 0, 10, 20),
+                  REC = 1L, DON = -1L, A = c(1L, 0L, 1L, -1L, -1L, -1L),
+                  B = c(0L, 0L, 0L, 1L, 1L, 1L), stringsAsFactors = FALSE)
+  pop <- as_population(g)
+  sel <- mabc_select(pop[3:4], pop[1], pop[2], target_markers = "m2",
+                     flanking_markers = c("m1", "m3"), n = 1, seed = 1)
+  d <- attr(sel, "mabc")
+  expect_identical(sel$ids, "A")
+  expect_equal(d$flank_recurrent[d$id == "A"], 2L)
+  expect_equal(d$background_recovery[d$id == "B"], 1)
+  expect_equal(d$rank[d$id == "A"], 1L)
+})
+
+test_that("recurrent_parent_recovery() warns and stays NA with no informative marker", {
+  g <- data.frame(snp = paste0("m", 1:3), allele = "A/G", chr = 1:3, pos = 1,
+                  cm = 0, P1 = 1L, P2 = 1L, stringsAsFactors = FALSE)
+  fnd <- as_population(g)
+  expect_warning(r <- recurrent_parent_recovery(fnd, fnd[1], fnd[2]), "informative")
+  expect_true(all(is.na(r)))
+})
+
+test_that("a zero-weight marker is identical to dropping the marker", {
+  w <- rep(1, 82); w[5] <- 0
+  r1 <- recurrent_parent_recovery(BC1, REC, DON, weights = w)
+  r2 <- recurrent_parent_recovery(BC1, REC, DON, markers = setdiff(1:82, 5))
+  expect_equal(as.numeric(r1), as.numeric(r2))   # ignore the n_markers attribute
+})
+
+test_that("flanking selection shortens the donor segment around the target", {
+  # length (cM) of the contiguous non-recurrent run around target m10 on chr 1
+  seg_len <- function(pop, tgt = 10L) {
+    S <- (dosages(pop)[1:41, , drop = FALSE] * dosages(REC)[1:41, 1] + 1) / 2
+    cm <- FOUNDERS$map$cm[1:41]
+    apply(S, 2L, function(s) {
+      lo <- tgt; while (lo > 1L && s[lo - 1L] < 1) lo <- lo - 1L
+      hi <- tgt; while (hi < 41L && s[hi + 1L] < 1) hi <- hi + 1L
+      cm[hi] - cm[lo]
+    })
+  }
+  iv <- list(chr = 1, from = 0, to = 50)
+  bg <- mabc_select(BC1, REC, DON, target_markers = "m10", n = 10, seed = 1,
+                    exclude_interval = iv)
+  fl <- mabc_select(BC1, REC, DON, target_markers = "m10", n = 10, seed = 1,
+                    flanking_markers = c("m6", "m14"), exclude_interval = iv)
+  feas <- BC1[which(attr(bg, "mabc")$feasible)]
+  expect_lt(mean(seg_len(fl)), mean(seg_len(bg)))
+  expect_lt(mean(seg_len(bg)), mean(seg_len(feas)))
+})
+
+test_that("two rounds of foreground + background selection beat the unselected cohort", {
+  rr <- function(p) mean(recurrent_parent_recovery(p, REC, DON))
+  sel1 <- mabc_select(BC1, REC, DON, target_markers = "m20", n = 10, seed = 5)
+  BC2s <- do.call(c, lapply(1:10, function(i)
+    cross(sel1[i], REC, n = 30, seed = 7000 + i)))
+  sel2 <- mabc_select(BC2s, REC, DON, target_markers = "m20", n = 10, seed = 6)
+  BC3s <- do.call(c, lapply(1:10, function(i)
+    cross(sel2[i], REC, n = 30, seed = 8000 + i)))
+  expect_gt(rr(BC2s), rr(BC2) + 0.05)
+  expect_gt(rr(BC3s), rr(BC3) + 0.03)
+})

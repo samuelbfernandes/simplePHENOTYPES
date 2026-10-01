@@ -102,6 +102,7 @@ marker_select <- function(pop, markers, favorable = 1L,
   requirement <- rep_len(requirement, k)
   if (is.null(min_markers)) min_markers <- k
   if (!is.numeric(min_markers) || length(min_markers) != 1L ||
+      !is.finite(min_markers) ||
       min_markers != floor(min_markers) || min_markers < 0 || min_markers > k) {
     stop("marker_select(): `min_markers` must be a whole number in 0..", k, ".",
          call. = FALSE)

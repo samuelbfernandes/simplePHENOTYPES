@@ -137,3 +137,39 @@ test_that("oracle selection agrees with on = 'bv' up to ties (review B r2)", {
     expect_equal(sort(unname(sc[m$ids])), c(0, 1))       # a tie at the cut-off
   }
 })
+
+# ---- audit additions (reconciliation v2-ocs-usefulness-marker) ---------------
+
+test_that("per-marker favorable / requirement vectors give exact states and counts", {
+  g <- data.frame(snp = paste0("m", 1:3), allele = "A/G", chr = 1:3, pos = 1,
+                  cm = 0, I1 = c(1L, -1L, 0L), I2 = c(-1L, 1L, 1L),
+                  I3 = c(0L, 0L, -1L), stringsAsFactors = FALSE)
+  pop <- as_population(g)
+  out <- marker_select(pop, c("m1", "m2", "m3"), favorable = c(1, -1, 1),
+                       requirement = c("carrier", "homozygote", "carrier"),
+                       min_markers = 0)
+  d <- attr(out, "marker_select")
+  expect_identical(d$state, c("F;F;H", "U;U;F", "H;H;U"))
+  expect_identical(d$n_met, c(3L, 1L, 1L))
+})
+
+test_that("repulsion pyramid: P(double favourable homozygote) = (r/2)^2", {
+  # Repulsion F1 (favourable alleles on different parental haplotypes): a
+  # favourable/favourable gamete needs a recombination (prob r/2 per gamete).
+  for (d in c(10, 50)) {
+    g <- data.frame(snp = c("m1", "m2"), allele = "A/G", chr = 1, pos = 1:2,
+                    cm = c(0, d), P1 = c(1L, -1L), P2 = c(-1L, 1L),
+                    stringsAsFactors = FALSE)
+    fnd <- as_population(g)
+    f1 <- cross(fnd[1], fnd[2], seed = 2)
+    r <- 0.5 * (1 - exp(-2 * d / 100))
+    target <- (r / 2)^2
+    n <- 4000L
+    ph <- vapply(1:4, function(s) {
+      f2 <- selfcross(f1, n = n, seed = 500 * d + s)
+      mean(attr(marker_select(f2, c("m1", "m2"), requirement = "homozygote"),
+                "marker_select")$feasible)
+    }, numeric(1))
+    expect_lt(abs(mean(ph) - target), 3 * sqrt(target * (1 - target) / (4 * n)))
+  }
+})

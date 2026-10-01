@@ -15,14 +15,34 @@
 #' \describe{
 #'   \item{`"pheno"`}{the observed phenotype -- realistic mass selection. For a
 #'     purely additive model this is the classic \eqn{R = i\,h^2\,\sigma_P}
-#'     (narrow-sense \eqn{h^2}; Falconer & Mackay). When dominance/epistasis layers
-#'     are present the simulated components are not Fisher-orthogonal (SPEC S2), so
-#'     only the additive fraction is transmitted and the realized breeding-value
-#'     response is governed by the additive variance, not by broad-sense \eqn{H^2}.}
+#'     (narrow-sense \eqn{h^2}; Falconer & Mackay). In general the expected
+#'     response of the mean breeding value is \eqn{R = i\,\mathrm{Cov}(A, P) /
+#'     \sigma_P} (the regression of breeding value on the criterion; Smith 1936,
+#'     Hazel 1943) **provided \eqn{E[A \mid P]} is linear in \eqn{P}** (as under
+#'     joint normality of \eqn{A} and \eqn{P}); it is not an identity for an
+#'     arbitrary joint distribution. A discrete counterexample: \eqn{A = (0, 1,
+#'     2)} equiprobable with \eqn{P = A^2}, selecting the top third (\eqn{A =
+#'     2}), gives an actual response of 1 against a linear-regression value of
+#'     about 1.077. Under that linearity assumption the expression equals
+#'     \eqn{i\,h^2\,\sigma_P} with \eqn{h^2 = V_A / V_P} only when \eqn{\mathrm{Cov}(A, P - A) = 0}, i.e. when
+#'     every non-additive component of the phenotype (dominance, epistasis and the
+#'     residual) is uncorrelated with the breeding value. Under random mating /
+#'     Hardy-Weinberg proportions with linkage equilibrium this holds for
+#'     dominance, but it can fail for epistasis under linkage disequilibrium: the
+#'     package's centred epistatic products need not be orthogonal to the additive
+#'     values (SPEC S2), so \eqn{\mathrm{Cov}(A, P)} can differ from \eqn{V_A}
+#'     (e.g. a two-locus population in Hardy-Weinberg proportions at each locus but
+#'     with disequilibrium \eqn{D = 0.05} gives \eqn{\mathrm{Cov}(A, I) \ne 0}).
+#'     When dominance/epistasis layers are present the response is therefore
+#'     governed by the covariance of the breeding value with the phenotype, not by
+#'     broad-sense \eqn{H^2}, and an epistatic term can itself contribute
+#'     transmissible (marginal) average effects, which is why `"bv"` is not offered
+#'     for epistatic models. Off Hardy-Weinberg (selfed, inbred or selected
+#'     populations) the covariance is likewise not \eqn{V_A}.}
 #'   \item{`"gv"`}{the true *total* genetic value (broad-sense: additive plus any
 #'     dominance/epistasis). Idealized selection on genetic merit -- an upper bound
 #'     on selectable genetic value, but not on breeding-value response, since the
-#'     non-additive part is not transmitted to progeny.}
+#'     non-additive part is not, in general, transmitted to progeny.}
 #'   \item{`"bv"`}{the true *breeding* value -- the classical transmissible merit,
 #'     \eqn{A_i = \sum_j \alpha_j (x_{ij} - 2p_j)}, summing each causal locus's
 #'     average effect of substitution \eqn{\alpha_j = a_j + d_j(q_j - p_j)}
@@ -83,11 +103,25 @@
 #' scale); a family of one is scored by its own record, `h2` times its deviation.
 #' `"index"` is
 #' the Smith--Hazel multi-trait economic index (`weights` = economic weights, one
-#' per trait): \eqn{b = P^{-1} G a}, selecting on \eqn{b'y}. `"quadratic_index"` is
+#' per trait): \eqn{b = P^{-1} G a}, selecting on \eqn{b'y}, with \eqn{P} the
+#' phenotypic covariance matrix and \eqn{G} the covariance matrix of the true
+#' breeding values (`G = Cov(A)`). Hazel's (1943) \eqn{G} is the covariance of each
+#' trait's phenotype with each trait's breeding value, \eqn{\mathrm{Cov}(P, A)};
+#' the two coincide only when \eqn{\mathrm{Cov}(A, D) = 0} (random mating /
+#' Hardy-Weinberg proportions, e.g. an F2 or a random-mated population). In selfed,
+#' inbred or previously selected populations with dominance
+#' \eqn{\mathrm{Cov}(P, A) \neq \mathrm{Cov}(A)} and the index is then Smith--Hazel
+#' under that assumption, not the exact maximiser of the correlation with the
+#' aggregate breeding value (DECISION-015). Phenotype rows are matched to
+#' individuals by id, so the row order of `sim$pheno` is irrelevant.
+#' `"quadratic_index"` is
 #' the nonlinear genomic selection index of Ceron-Rojas et al. (2026),
 #' \eqn{\hat I = w'y + y'Wy} (`weights` = linear `w`, `quad_weights` = the
 #' symmetric quadratic/cross-product matrix `W`), which captures trait interactions
-#' and intermediate optima. `"random"` draws at random (a drift control).
+#' and intermediate optima. `"random"` draws at random (a drift control); its
+#' `differential` and `intensity` attributes are the *realized* values on the
+#' `on` criterion of the individuals drawn (expected 0, either sign), not those of
+#' the random draw score, and `on` is validated.
 #' `"culling"` is independent culling levels: `culling` gives one proportion per
 #' trait (traits in `trait`, default the first `length(culling)`), and an individual
 #' is kept iff it is in the top `culling[t]` fraction of every trait (simultaneous;
@@ -102,22 +136,39 @@
 #' \eqn{i(p) h\sigma_A} (tandem: one trait per generation, via the scheme
 #' wrappers' `trait` vector), so index \eqn{\ge} culling \eqn{\ge} tandem; at
 #' `T = 2`, `p = 0.1` culling and tandem reach 0.907 and 0.707 of the index. Family
-#' methods need a `family` grouping; `"combined"` additionally needs `h2`.
+#' methods need a `family` grouping with no missing labels (`NA` is an error);
+#' `"combined"` additionally needs `h2`. `"among_family"` keeps **whole** families
+#' (highest family mean first) until at least `n` individuals are held, so it
+#' returns *at least* `n` -- often more -- and `intensity` describes that whole
+#' set; `"within_family"` allocates exactly `n` across families in proportion to
+#' family size by largest remainder (remainder ties follow the character sort order
+#' of the family labels). The count from `prop` is `round(prop * N)` (R's
+#' half-to-even rounding) with a minimum of 1. The reported `intensity` is
+#' `S / sd(criterion)` with the sample (n - 1) standard deviation.
 #'
 #' @param sim a realized `phenotype_sim`, ideally built on a `Population` so the
 #'   selected individuals can be crossed on.
 #' @param n number of individuals to keep. Exactly one of `n`, `prop`, `intensity`.
-#' @param prop proportion of individuals to keep (0-1).
+#'   For `method = "among_family"` this is a floor: whole families are kept, so
+#'   more than `n` individuals can be returned (see the Method section).
+#' @param prop proportion of individuals to keep (0-1); the count is
+#'   `round(prop * N)` (half-to-even) and at least 1.
 #' @param intensity standardized selection intensity `i`; the number kept is the
-#'   count whose expected intensity under normality is closest to `i`.
+#'   count whose asymptotic (infinite-population) truncation-selection intensity
+#'   \eqn{i(p) = \phi(z_p)/p} is closest to `i`. The finite-sample expectation of
+#'   the realized intensity is somewhat lower than \eqn{i(p)} (small `N`).
 #' @param on selection criterion (see the Criterion section).
-#' @param trait trait index to select on (default 1); ignored for `method =
-#'   "index"`, which uses all traits.
+#' @param trait one trait index in `1..n_traits` to select on (default 1);
+#'   not used for `method = "index"`/`"quadratic_index"` (all traits) or for a
+#'   numeric/function `on`, but it is still validated in every non-culling method.
+#'   A vector is an error here (it is only meaningful for `method = "culling"`, and
+#'   as a tandem schedule in [pedigree()] / [recurrent_selection()]).
 #' @param direction `"high"` (default) keeps the largest scores, `"low"` the
-#'   smallest.
+#'   smallest; one value (a vector is an error, except per trait for
+#'   `method = "culling"`).
 #' @param method selection method (see the Method section).
-#' @param family optional grouping vector (length = individuals) for the family
-#'   methods.
+#' @param family optional grouping vector (length = individuals, no `NA`) for the
+#'   family methods.
 #' @param weights economic weights (one per trait) for `method = "index"`, or the
 #'   linear weights `w` for `method = "quadratic_index"`.
 #' @param quad_weights symmetric `n_traits x n_traits` matrix of quadratic
@@ -138,7 +189,9 @@
 #' @return the selected individuals as a `Population` (when `sim` is
 #'   Population-backed) or their ids, carrying attributes `selected` (ids),
 #'   `differential` (selection differential S on the criterion), `intensity`
-#'   (realized standardized i), `criterion` and `method`.
+#'   (realized standardized i = S / sample SD of the criterion), `criterion` and
+#'   `method`. A criterion whose scores, differential or SD overflow to a
+#'   non-finite value is an error.
 #' @references
 #' Truncation response and selection intensity: Falconer DS, Mackay TFC (1996)
 #'   Introduction to Quantitative Genetics, 4th ed. Longman, Harlow; Lynch M,
@@ -215,7 +268,15 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
     stop("`culling` and `sequential` apply to method = \"culling\" only.",
          call. = FALSE)
   }
+  # match.arg() silently returns "high" for the whole default vector, so an
+  # explicit direction vector must be rejected before it is reduced.
+  if (!missing(direction)) .check_direction(direction)
   direction <- match.arg(direction)
+  # `trait` is one validated scalar index in every non-culling branch, including
+  # those that ignore it (index/quadratic_index score on all traits; a numeric or
+  # function `on` supplies its own values): a malformed `trait` is a caller error
+  # that must not pass silently just because it happens to be unused.
+  .check_trait_index(trait, sim$n_traits)
   ids <- sim$ids
   n_ind <- sim$n_ind
 
@@ -225,6 +286,13 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
     if (is.null(family) || length(family) != n_ind) {
       stop("method = \"", method, "\" needs a `family` grouping vector of ",
            "length ", n_ind, ".", call. = FALSE)
+    }
+    # split()/tapply() silently drop NA labels, so an individual with an NA family
+    # could never be selected (and the combined index would crash): refuse.
+    if (anyNA(family)) {
+      stop("`family` has ", sum(is.na(family)), " NA label(s); every individual ",
+           "needs a family (NA would silently exclude it from selection).",
+           call. = FALSE)
     }
     as.character(family)
   } else NULL
@@ -252,17 +320,29 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
          "with method = \"mass\".", call. = FALSE)
   }
 
+  crit_real <- NULL     # criterion the statistics are reported on, when the
+                        # ranking score is not it (method = "random")
   score <- if (method == "index") {
     .index_score(sim, weights, rep)
   } else if (method == "quadratic_index") {
     .quadratic_index_score(sim, weights, quad_weights, rep)
   } else if (method == "random") {
+    # `on` is validated (and evaluated) so S and i can be reported honestly on the
+    # phenotype/criterion of the individuals actually drawn; the draw itself uses
+    # only the uniform score below.
+    crit_real <- .criterion_values(sim, on, trait, rep)
     stats::setNames(stats::runif(n_ind), ids)
   } else if (method == "combined") {
     .combined_score(.criterion_values(sim, on, trait, rep), fam, h2,
                     family_relationship)
   } else {
     .criterion_values(sim, on, trait, rep)
+  }
+  if (!all(is.finite(score))) {
+    stop("The selection score has ", sum(!is.finite(score)), " non-finite ",
+         "value(s) (overflow or NA in the index/criterion inputs -- e.g. weights ",
+         "of extreme magnitude); rescale the weights so every score is finite.",
+         call. = FALSE)
   }
   if (direction == "low") score <- -score
 
@@ -278,13 +358,29 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
   # direction-adjusted (selected individuals are its largest values), so S_dir >= 0;
   # i is reported as a positive magnitude and S in the natural (unflipped) sign. A
   # criterion with no spread (e.g. all ties) gives i = 0 rather than NaN.
-  S_dir <- mean(score[sel_idx]) - mean(score)
-  sd_crit <- stats::sd(score)
-  intensity_real <- if (isTRUE(is.finite(sd_crit) && sd_crit > 0)) S_dir / sd_crit else 0
+  #
+  # method = "random": the differential/intensity are the realized values of the
+  # individuals drawn on the `on` criterion (natural sign; expected 0), never those
+  # of the uniform draw score that ranked them.
+  if (method == "random") {
+    S_out <- mean(crit_real[sel_idx]) - mean(crit_real)
+    sd_crit <- stats::sd(crit_real)
+    S_dir <- S_out
+  } else {
+    S_dir <- mean(score[sel_idx]) - mean(score)
+    sd_crit <- stats::sd(score)
+    S_out <- if (direction == "low") -S_dir else S_dir
+  }
+  if (!is.finite(S_dir) || !is.finite(sd_crit)) {
+    stop("The selection differential or the criterion's standard deviation ",
+         "overflowed (non-finite); the criterion is on an extreme scale -- ",
+         "rescale it before selecting.", call. = FALSE)
+  }
+  intensity_real <- if (sd_crit > 0) S_dir / sd_crit else 0
 
   out <- .selection_result(sim, sel_idx, ids)
   attr(out, "selected") <- ids[sel_idx]
-  attr(out, "differential") <- if (direction == "low") -S_dir else S_dir
+  attr(out, "differential") <- S_out
   attr(out, "intensity") <- intensity_real
   attr(out, "criterion") <- if (is.function(on)) "custom" else
     if (is.numeric(on)) "custom" else on
@@ -332,6 +428,37 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
   keep
 }
 
+#' Validate the single trait index a criterion is evaluated on
+#'
+#' A vector would be silently recycled inside `ph$trait == paste0("Trait_",
+#' trait)` (an alternating-trait criterion), and an out-of-range index would only
+#' surface later as a misleading non-finite-criterion error.
+#' @keywords internal
+#' @noRd
+.check_trait_index <- function(trait, n_traits) {
+  if (!is.numeric(trait) || length(trait) != 1L || !is.finite(trait) ||
+      trait != floor(trait) || trait < 1 || trait > n_traits) {
+    stop("`trait` must be one trait index in 1..", n_traits, "; got ",
+         paste(format(trait), collapse = ", "), ". select_ind() ranks on a ",
+         "single trait (a vector `trait` is only defined for method = ",
+         "\"culling\", or as a tandem schedule in pedigree() / ",
+         "recurrent_selection()).", call. = FALSE)
+  }
+  invisible(trait)
+}
+
+#' Validate a single selection direction
+#' @keywords internal
+#' @noRd
+.check_direction <- function(direction) {
+  if (!is.character(direction) || length(direction) != 1L ||
+      is.na(direction) || !direction %in% c("high", "low")) {
+    stop("`direction` must be one of \"high\" or \"low\" (a single value; got ",
+         paste(format(direction), collapse = ", "), ").", call. = FALSE)
+  }
+  invisible(direction)
+}
+
 #' Per-individual criterion values (named by id)
 #' @keywords internal
 #' @noRd
@@ -358,10 +485,13 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
       v <- v[ids]
     }
   } else if (identical(on, "bv")) {
+    .check_trait_index(trait, sim$n_traits)
     v <- .breeding_value_matrix(sim, rep)[, trait]
   } else if (identical(on, "gv")) {
+    .check_trait_index(trait, sim$n_traits)
     v <- .genetic_matrix(sim, rep)[, trait]
   } else if (identical(on, "pheno")) {
+    .check_trait_index(trait, sim$n_traits)
     ph <- sim$pheno
     ph <- ph[ph$rep == rep & ph$trait == paste0("Trait_", trait), ]
     v <- ph$value[match(ids, ph$id)]
@@ -470,11 +600,17 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
   # The Smith-Hazel index predicts additive genetic merit, so `G` is the
   # additive breeding-value covariance -- the classical transmissible average
   # effects (which capture the additive effects induced by dominance loci;
-  # epistatic models are refused), not the total genotypic covariance.
-  G <- .breeding_value_matrix(sim, rep)                # ind x trait breeding values
-  wide <- phenotypes_wide(sim)
-  wide <- wide[wide$rep == rep, , drop = FALSE]
-  P <- as.matrix(wide[, paste0("Trait_", seq_len(nt)), drop = FALSE])
+  # epistatic models are refused), not the total genotypic covariance. This is
+  # Hazel's g_ij = Cov(phenotype_i, breeding value_j) only when Cov(A, D) = 0
+  # (random mating / Hardy-Weinberg): in selfed or inbred populations with
+  # dominance Cov(P, A) != Cov(A). Kept as Cov(A) by decision (DECISION-015).
+  G <- .breeding_value_matrix(sim, rep)                # ind x trait, sim$ids order
+  # Phenotypes are joined to individuals by NAME (as .criterion_values() does), not
+  # by row position: sim$pheno is a user-visible data frame whose row order carries
+  # no guarantee, and G above is in sim$ids order.
+  P <- do.call(cbind, lapply(seq_len(nt), function(k) {
+    .criterion_values(sim, "pheno", k, rep)
+  }))
   Pcov <- stats::cov(P)
   Gcov <- stats::cov(G)
   b <- .index_weights(Pcov, Gcov %*% weights)
@@ -496,6 +632,12 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
 #' @keywords internal
 #' @noRd
 .index_weights <- function(P, r) {
+  if (any(!is.finite(P)) || any(!is.finite(r))) {
+    stop("method = \"index\": the phenotypic covariance or the genetic ",
+         "covariance-weight product has non-finite (NA/NaN/Inf) entries, so the ",
+         "index weights are undefined (constant or missing phenotypes?).",
+         call. = FALSE)
+  }
   s <- svd(P)
   tol <- max(dim(P)) * .Machine$double.eps * (if (length(s$d)) s$d[1L] else 0)
   pos <- s$d > tol
@@ -521,7 +663,8 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
 #' correlation t = r h2:
 #'   Var(own) = vP;  Var(fam mean) = Cov(own, fam mean) = vP (1+(n-1)t)/n
 #'   Cov(A, own) = vA;  Cov(A, fam mean) = vA (1+(n-1)r)/n
-#' Both weights are non-negative; the family mean drops out as h2 -> 1.
+#' Both weights are non-negative; the family mean drops out as h2 -> 1 when r < 1
+#' (at r = 1 the family mean is the breeding value itself and keeps its weight).
 #' @keywords internal
 #' @noRd
 .combined_score <- function(values, fam, h2, r) {
@@ -612,6 +755,9 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
 }
 
 #' Among-family selection: keep every individual of the top-ranked families
+#'
+#' Whole families are taken (highest mean first) until at least `keep_n`
+#' individuals are held, so `keep_n` is a floor: more can be returned.
 #' @keywords internal
 #' @noRd
 .sel_among_family <- function(score, fam, keep_n) {
