@@ -4,12 +4,21 @@
 \alias{complex_phenotypes}
 \title{Combine single-architecture models under a common heritability}
 \usage{
-complex_phenotypes(..., h2)
+complex_phenotypes(..., h2, reps = 1)
 }
 \arguments{
 \item{...}{two or more \code{phenotype_sim} objects.}
 
-\item{h2}{requested genetic variance share (scalar or length \code{n_traits}).}
+\item{h2}{requested genetic variance share (scalar or length \code{n_traits}), on
+the \strong{single-record} scale \code{V_G / (V_G + V_E)}.}
+
+\item{reps}{number of independent records averaged into each entry's
+phenotype (default 1; entry-mean replication, as in \code{\link[=simulate_phenotype]{simulate_phenotype()}}):
+a positive whole number or one per trait. The common residual drawn here has
+variance \code{V_E / reps}, so the phenotype is an entry mean and the realized H2
+reported is the entry-mean \code{V_G / (V_G + V_E / reps)}; \code{h2} stays the
+single-record share. The inputs' own \code{reps} are not used (their residuals are
+discarded); with \code{reps = 1} the result is bit-identical to a call without it.}
 }
 \value{
 a combined \code{phenotype_sim} (architecture "complex").

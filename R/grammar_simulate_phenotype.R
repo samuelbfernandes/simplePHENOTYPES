@@ -149,6 +149,29 @@
 #'   [transcriptome()] layer: a `transcriptome_sim` from `simulate_transcriptome()`,
 #'   or `TRUE` to derive one from `geno` with default settings. Give at most one of
 #'   `expression` / `transcriptome`.
+#' @param reps number of independent records averaged into each entry's
+#'   phenotype (default 1; entry-mean replication, the AlphaSimR
+#'   `setPheno(varE, reps)` semantics): a positive whole number, or a vector of
+#'   length `n_traits` for per-trait counts. The phenotype becomes the mean of
+#'   `reps` independent records of the same genotype, so the **residual**
+#'   variance (including the [vqtl()] heterogeneity component) is divided by
+#'   `reps`, `V_E / reps`; the genetic value and any [transcriptome()]
+#'   component are unchanged. `h2` and every layer `prop` stay on the
+#'   **single-record** scale (shares of the unit record variance
+#'   `V_G + V_E = 1`, the `var_budget` and the printed "residual" row), so
+#'   the entry-mean phenotype has variance `V_G + V_E / reps`, not 1. Two
+#'   heritabilities therefore exist: the single-record
+#'   `V_G / (V_G + V_E)` (what `h2` requests) and the entry-mean
+#'   `H2 = V_G / (V_G + V_E / reps)`, which is larger for `reps > 1`. The
+#'   realized H2 printed by the object, and the shares reported against
+#'   "V_P" (`$ad_report`, [mediation_split()]), are on the **entry-mean** scale
+#'   (the stored phenotype); `print()` also shows the single-record realized
+#'   value when `reps > 1`. The residual is drawn exactly as for `reps = 1` (same
+#'   RNG stream) and then scaled by `1 / sqrt(reps)`, so `reps = 1` is
+#'   bit-identical to a call without `reps`. `reps` are independent records of
+#'   a fixed genotype; it does not model repeated measures with a shared
+#'   permanent environment. With more than one record per entry the
+#'   realized sample variance of the residual is exactly `V_E / reps`.
 #' @param ... architecture-specific arguments (validated -- an unknown name is
 #'   an error, and an argument for a different architecture warns). For
 #'   `"pleiotropy"`: `cor`, `pi` (or the two-trait `pi_target` /
@@ -228,6 +251,7 @@ simulate_phenotype <- function(geno = NULL,
                                model = "A",
                                expression = NULL,
                                transcriptome = NULL,
+                               reps = 1,
                                ...) {
   architecture <- match.arg(architecture)
   n_traits <- .validate_count(n_traits, "n_traits", minimum = 1L)
@@ -235,6 +259,7 @@ simulate_phenotype <- function(geno = NULL,
   n_reps <- .validate_count(n_reps, "n_reps", minimum = 1L)
   .validate_flag(vary_qtn, "vary_qtn")
   seed <- .validate_seed(seed)
+  reps <- .validate_reps(reps, n_traits)
   model <- toupper(match.arg(toupper(model), c("A", "AD", "AE")))
   if (!is.null(h2)) {
     h2 <- .validate_proportion(h2, "h2", n_traits)
@@ -260,7 +285,7 @@ simulate_phenotype <- function(geno = NULL,
          "shared-locus correlation use \"pleiotropy\".", call. = FALSE)
   }
 
-  geno_name <- deparse(substitute(geno))
+  geno_name <- .geno_label(substitute(geno))
   no_geno <- is.null(geno)
   if (no_geno) {
     # Genotype-free (mode 2): the phenotype is built from an expression source
@@ -315,6 +340,7 @@ simulate_phenotype <- function(geno = NULL,
       seed         = seed,
       h2           = h2,
       mean         = mean,
+      reps         = reps,
       arch_args    = arch_args,
       layers       = list(),
       pheno        = NULL,
@@ -359,6 +385,60 @@ simulate_phenotype <- function(geno = NULL,
   }
 
   sim
+}
+
+#' Cheap, bounded label for the `geno` argument
+#'
+#' `substitute(geno)` is the *object itself* when the caller passes it inline
+#' (`do.call(simulate_phenotype, list(geno = pop, ...))`), and `deparse()` of a
+#' 10,000 x 14,000 population then costs tens of seconds just to produce a
+#' display name. A symbol keeps its name and a short call is deparsed (first
+#' line only), exactly as before; anything else (an inline object, or a call
+#' embedding one) gets a type label and is never deparsed.
+#' @param expr the result of `substitute(geno)`.
+#' @return a single string.
+#' @keywords internal
+#' @noRd
+.geno_label <- function(expr) {
+  if (is.symbol(expr)) {
+    return(as.character(expr))
+  }
+  if (is.null(expr)) {
+    return("NULL")
+  }
+  if (is.call(expr) && .small_expr(expr)) {
+    return(deparse(expr, nlines = 1L)[1L])
+  }
+  d <- dim(expr)
+  paste0("<inline ", class(expr)[1L],
+         if (length(d) == 2L) sprintf(" %d x %d", d[1L], d[2L]) else "", ">")
+}
+
+#' TRUE when a call is cheap to deparse: no large embedded objects, bounded size
+#'
+#' Walks the call tree with a node budget; any non-language leaf longer than 16
+#' elements, with attributes, or any list/environment/function leaf, makes it
+#' "not small".
+#' @keywords internal
+#' @noRd
+.small_expr <- function(expr, budget = 200L) {
+  n <- 0L
+  walk <- function(e) {
+    n <<- n + 1L
+    if (n > budget) return(FALSE)
+    if (is.symbol(e) || is.null(e)) return(TRUE)
+    if (is.call(e)) {
+      parts <- as.list(e)
+      for (i in seq_along(parts)) {
+        # an empty argument (`df[1:3, ]`) is the missing-arg symbol: skip it
+        if (identical(parts[[i]], quote(expr = ))) next
+        if (!walk(parts[[i]])) return(FALSE)
+      }
+      return(TRUE)
+    }
+    is.atomic(e) && length(e) <= 16L && is.null(attributes(e))
+  }
+  walk(expr)
 }
 
 #' Validate architecture-specific `...` arguments
@@ -453,6 +533,23 @@ simulate_phenotype <- function(geno = NULL,
          paste(x, collapse = ", "), ".", call. = FALSE)
   }
   as.integer(x)
+}
+
+#' Validate the entry-mean replication count
+#'
+#' A positive whole number per trait: a scalar (recycled) or a vector of length
+#' `n_traits`. Returns an integer vector of length `n_traits`.
+#' @keywords internal
+#' @noRd
+.validate_reps <- function(reps, n_traits) {
+  if (!is.numeric(reps) || !length(reps) %in% c(1L, n_traits) ||
+      anyNA(reps) || any(!is.finite(reps)) || any(reps != floor(reps)) ||
+      any(reps < 1) || any(reps > .Machine$integer.max)) {
+    stop("`reps` must be a positive whole number (records averaged per entry), ",
+         "one value or one per trait (length ", n_traits, "); got ",
+         paste(reps, collapse = ", "), ".", call. = FALSE)
+  }
+  rep_len(as.integer(reps), n_traits)
 }
 
 #' Validate a scalar logical flag
@@ -848,6 +945,7 @@ print.phenotype_sim <- function(x, ...) {
     cat(sprintf("    %-10s %s\n", "residual", fmt(1 - gen)))
     cat(sprintf("  Requested genetic share = %s   realized H\u00b2 = %s\n",
                 fmt(gen), fmt(.realized_h2(x))))
+    .print_reps_note(x, fmt)
     return(invisible(x))
   }
   if (length(x$layers) == 0) {
@@ -886,6 +984,7 @@ print.phenotype_sim <- function(x, ...) {
   cat(sprintf("    %-11s %s\n", "residual", fmt(1 - .total_variance_prop(x))))
   cat(sprintf("  Requested genetic share = %s   realized H\u00b2 = %s\n",
               fmt(.total_genetic_prop(x)), fmt(.realized_h2(x))))
+  .print_reps_note(x, fmt)
   has_tx <- any(vapply(x$layers, function(l) identical(l$type, "transcriptome"), TRUE))
   if (!is.null(x$h2) && !has_tx) {
     spent <- .total_genetic_prop(x)
@@ -911,6 +1010,39 @@ print.phenotype_sim <- function(x, ...) {
         sep = "")
   }
   invisible(x)
+}
+
+#' State the heritability scale when entry means of `reps > 1` records are shown
+#'
+#' Silent for `reps = 1`, so the default print is unchanged. Otherwise says that
+#' the phenotype is an entry mean (residual variance V_E / reps), that the
+#' proportions and the requested share are on the single-record scale, that the
+#' realized H2 above is the entry-mean value V_G / (V_G + V_E / reps), and gives
+#' the single-record value V_G / (V_G + V_E) alongside.
+#' @keywords internal
+#' @noRd
+.print_reps_note <- function(x, fmt) {
+  reps <- .sim_reps(x)
+  if (all(reps == 1L)) {
+    return(invisible())
+  }
+  cat(sprintf(
+    "  Entry means of reps = %s records: residual variance = V_E / reps. The\n",
+    .fmt_int(unique(reps))),
+    "  proportions and requested share above are single-record shares; the\n",
+    "  realized H\u00b2 above is the entry-mean H\u00b2 = V_G / (V_G + V_E / reps).\n",
+    sep = "")
+  cat(sprintf("  Single-record realized H\u00b2 = V_G / (V_G + V_E) = %s\n",
+              fmt(.realized_h2(x, scale = "record"))))
+  invisible()
+}
+
+#' Format an integer vector as a scalar or a bracketed list
+#' @keywords internal
+#' @noRd
+.fmt_int <- function(v) {
+  if (length(v) == 1L) as.character(v) else
+    paste0("[", paste(v, collapse = ", "), "]")
 }
 
 #' Print the realized additive/dominance partition when the two layers share loci

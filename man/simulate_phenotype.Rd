@@ -18,6 +18,7 @@ simulate_phenotype(
   model = "A",
   expression = NULL,
   transcriptome = NULL,
+  reps = 1,
   ...
 )
 }
@@ -113,6 +114,30 @@ used by a \code{\link[=transcriptome]{transcriptome()}} layer. Give at most one 
 \code{\link[=transcriptome]{transcriptome()}} layer: a \code{transcriptome_sim} from \code{simulate_transcriptome()},
 or \code{TRUE} to derive one from \code{geno} with default settings. Give at most one of
 \code{expression} / \code{transcriptome}.}
+
+\item{reps}{number of independent records averaged into each entry's
+phenotype (default 1; entry-mean replication, the AlphaSimR
+\code{setPheno(varE, reps)} semantics): a positive whole number, or a vector of
+length \code{n_traits} for per-trait counts. The phenotype becomes the mean of
+\code{reps} independent records of the same genotype, so the \strong{residual}
+variance (including the \code{\link[=vqtl]{vqtl()}} heterogeneity component) is divided by
+\code{reps}, \code{V_E / reps}; the genetic value and any \code{\link[=transcriptome]{transcriptome()}}
+component are unchanged. \code{h2} and every layer \code{prop} stay on the
+\strong{single-record} scale (shares of the unit record variance
+\code{V_G + V_E = 1}, the \code{var_budget} and the printed "residual" row), so
+the entry-mean phenotype has variance \code{V_G + V_E / reps}, not 1. Two
+heritabilities therefore exist: the single-record
+\code{V_G / (V_G + V_E)} (what \code{h2} requests) and the entry-mean
+\code{H2 = V_G / (V_G + V_E / reps)}, which is larger for \code{reps > 1}. The
+realized H2 printed by the object, and the shares reported against
+"V_P" (\verb{$ad_report}, \code{\link[=mediation_split]{mediation_split()}}), are on the \strong{entry-mean} scale
+(the stored phenotype); \code{print()} also shows the single-record realized
+value when \code{reps > 1}. The residual is drawn exactly as for \code{reps = 1} (same
+RNG stream) and then scaled by \code{1 / sqrt(reps)}, so \code{reps = 1} is
+bit-identical to a call without \code{reps}. \code{reps} are independent records of
+a fixed genotype; it does not model repeated measures with a shared
+permanent environment. With more than one record per entry the
+realized sample variance of the residual is exactly \code{V_E / reps}.}
 
 \item{...}{architecture-specific arguments (validated -- an unknown name is
 an error, and an argument for a different architecture warns). For

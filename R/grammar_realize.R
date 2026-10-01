@@ -10,6 +10,11 @@
 #' on shared loci; see [.ad_report()]). Called after every layer so the object
 #' always carries realized values.
 #'
+#' With `reps > 1` (entry-mean replication, AlphaSimR `setPheno(varE, reps)`
+#' semantics) the realized residual of trait `t` is divided by `sqrt(reps[t])`
+#' after the unchanged draw, so its variance is `resid_var / reps[t]`; the
+#' genetic and transcriptome components are untouched.
+#'
 #' RNG (residual draws) stays in R. The residual sub-seed is
 #' independent of the layers, so adding a layer does not perturb other layers'
 #' QTN draws; it does change the residual (less residual variance), which is the
@@ -24,6 +29,7 @@
   ids <- sim$ids
   nt  <- sim$n_traits
   nr  <- sim$n_reps
+  reps <- .sim_reps(sim)
 
   mean_layers <- Filter(function(l) l$type %in% c("additive", "dominance",
                                                   "epistasis", "transcriptome"), sim$layers)
@@ -45,6 +51,14 @@
       seed_r <- .layer_seed(sim$seed, paste0("residual_t", t), rep - 1L)
       resid <- .seeded_residual(seed_r, n, resid_var)
       resid <- .apply_vqtl(resid, vqtl_layers, sim, t, rep, vqtl_prop)
+      # Entry-mean replication: the phenotype is the mean of `reps` independent
+      # records of the same genotype, so the residual (including the vqtl
+      # heterogeneity component) has variance V_E / reps. The residual is drawn
+      # exactly as for reps = 1 (same RNG stream, same number of draws) and only
+      # rescaled afterwards; reps = 1 skips the rescale (bit-identical).
+      if (reps[t] != 1L) {
+        resid <- resid / sqrt(reps[t])
+      }
 
       value <- Gen[, t] + Tx[, t] + resid + .trait_mean(sim, t)
       k <- k + 1L
@@ -834,20 +848,35 @@
 #' `transcriptome()` layer. A `vqtl()` layer contributes no genetic value and a
 #' real expression source's genetic content is not asserted, so both are
 #' excluded from the numerator.
+#'
+#' `scale` names the phenotype the denominator is taken from. `"phenotype"`
+#' (default) is the stored phenotype, i.e. the **entry mean** when `reps > 1`:
+#' \eqn{H^2 = V_G / (V_G + V_E/reps)} (it equals the record-scale value when
+#' `reps = 1`). `"record"` reconstructs the single-record phenotype by undoing
+#' the `1/sqrt(reps)` residual rescale (\eqn{y_{rec} = y + (\sqrt{reps} - 1)\,e},
+#' with \eqn{e = y - g - tx - mean} the stored residual), giving the
+#' single-record \eqn{V_G / (V_G + V_E)}, the scale `h2` is requested on.
 #' @keywords internal
 #' @noRd
-.realized_h2 <- function(sim) {
+.realized_h2 <- function(sim, scale = c("phenotype", "record")) {
+  scale <- match.arg(scale)
   nt <- sim$n_traits
   if (is.null(sim$pheno) ||
       (length(sim$layers) == 0 && !identical(sim$architecture, "complex"))) {
     return(rep(0, nt))
   }
+  reps <- .sim_reps(sim)
   out <- numeric(nt)
   for (t in seq_len(nt)) {
     ratios <- vapply(seq_len(sim$n_reps), function(r) {
       gen <- .genetic_value_matrix(sim, r)
       y <- sim$pheno$value[sim$pheno$trait == paste0("Trait_", t) &
                            sim$pheno$rep == r]
+      if (scale == "record" && reps[t] != 1L) {
+        e <- y - .genetic_matrix(sim, r)[, t] -
+          .transcriptome_matrix(sim, r)[, t] - .trait_mean(sim, t)
+        y <- y + (sqrt(reps[t]) - 1) * e
+      }
       vg <- stats::var(gen[, t])
       vp <- stats::var(y)
       if (is.finite(vp) && vp > 0) vg / vp else NA_real_
@@ -855,6 +884,18 @@
     out[t] <- mean(ratios, na.rm = TRUE)
   }
   out
+}
+
+#' Per-trait replication counts of a simulation (1 when none was set)
+#'
+#' Objects built before `reps` existed carry no `reps` field: they are 1.
+#' @keywords internal
+#' @noRd
+.sim_reps <- function(sim) {
+  if (is.null(sim$reps)) {
+    return(rep(1L, sim$n_traits))
+  }
+  rep_len(as.integer(sim$reps), sim$n_traits)
 }
 
 #' Enforce the h2 variance identity when a model is materialized

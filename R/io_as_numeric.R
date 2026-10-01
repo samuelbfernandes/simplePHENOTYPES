@@ -169,7 +169,7 @@ as_numeric <-
       }
       f_name <- NULL
     } else {
-      f_name <- deparse(substitute(x))
+      f_name <- .geno_label(substitute(x))
     }
     format_conversion(file = x, to = "numeric", f_name = f_name, ...)
   }
