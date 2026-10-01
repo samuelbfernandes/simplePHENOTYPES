@@ -3,8 +3,10 @@
 # dosage x effect model applied per gene: cis effects (markers near the gene) plus
 # trans effects mediated by a few latent regulatory factors, non-genetic
 # co-expression modules, and gene noise, on the normalized (~Gaussian) scale. All
-# stochastic draws are in R (DECISION-006). v1: parametric only (mimic/counts are
-# separate follow-ups); one primary module per gene; no Rust.
+# stochastic draws are in R (DECISION-006). Implemented: the parametric generator,
+# mimic calibration (transcriptome_mimic.R), the count layer
+# (transcriptome_counts.R), the genotype-free mode and epistatic expression; one
+# primary module per gene; no Rust.
 
 #' Simulate a genetically controlled transcriptome
 #'
@@ -32,14 +34,40 @@
 #' The genetic component `G` (scaled to `Var(G) = h2`) and the residual `R`
 #' (scaled to `Var(R) = 1 - h2`, carrying the shared non-genetic module factor so
 #' genes co-express through `kappa`) are drawn **independently**, so `Cov(G, R) = 0`
-#' in expectation. Realized heritability is reported as the finite-sample ratio
-#' `Var(G) / Var(E)`; it tracks the target up to finite-sample `Cov(G, R)`, which
-#' is itself reported (`var_budget$gr_cov`) rather than projected away -- the
-#' package's realized-not-asserted variance convention. Degenerate genes realize
-#' `h2 = 0`: a gene whose cis window holds no eligible marker **and** whose module
-#' factor is inert (which can happen on a small panel, where the union of the
-#' module's genes' cis windows covers every marker, leaving no distant hub) has no
-#' realizable genetic variance and gets `h2_realized = 0`.
+#' in expectation. Per gene the table reports:
+#' \itemize{
+#'   \item `h2_realized = Var(G) / Var(P)`, the **realized heritability**: the
+#'     variance of the realized genetic values divided by the variance of the
+#'     realized expression phenotype `P = E = G + R` (plus the constant location).
+#'     It therefore includes the finite-sample covariance,
+#'     `Var(E) = Var(G) + Var(R) + gr_cov` with `var_budget$gr_cov = 2 Cov(G, R)`,
+#'     so on the reference panel `h2_realized = Var(G) / (Var(G) + Var(R) + gr_cov)`
+#'     at any scale. Only when `Var(G) + Var(R) = 1` (no `mimic` rescaling) does
+#'     this reduce to `h2 / (1 + gr_cov)`; under `mimic` the variances carry the
+#'     mimicked scale and that shortcut does not hold. It
+#'     is **not bounded by 1** and is unreliable for small samples: fewer than 30
+#'     individuals (`n_ind < 30`) triggers a warning; fewer than 3 is an error.
+#'     The covariance is reported rather than projected away -- the package's
+#'     realized-not-asserted convention.
+#'   \item `h2_var_ratio`, the same quantity under its original name (kept for
+#'     backward compatibility; identical to `h2_realized`).
+#'   \item `h2_allocated = Var(G) / (Var(G) + Var(R))`, always in `[0, 1]`. This
+#'     is the **variance allocation**, not a heritability: it drops `2 Cov(G, R)`
+#'     and, because `G` and `R` are each scaled exactly on the reference
+#'     population, equals `h2_target` there by construction (it is informative on
+#'     a new population via [predict.transcriptome_sim()], where `R` is redrawn).
+#'     Do not read it as a realized heritability.
+#' }
+#' Degenerate genes realize `h2 = 0`: a gene whose cis window holds no eligible
+#' marker (MAF >= 0.05 and known chromosome/position) **and** whose module factor
+#' is inert (which can happen on a small panel, where the union of the module's
+#' genes' cis windows covers every marker, leaving no distant hub) has no
+#' realizable genetic variance and gets `h2_realized = 0` (and `h2_allocated = 0`).
+#'
+#' Random draws are made gene by gene from one stream, so changing an option that
+#' alters one gene's draws (e.g. its `cis_fraction`) re-flows the random numbers
+#' of every later gene; per-gene results are reproducible only for the same full
+#' call and `seed`.
 #'
 #' @param geno a `Population`, a Population-backed `phenotype_sim`, a
 #'   numeric-format genotype data frame, or an individuals-by-markers dosage matrix
@@ -49,7 +77,11 @@
 #'   `mimic` do not apply.
 #' @param n_ind number of individuals, **required only when `geno = NULL`**
 #'   (otherwise taken from `geno`).
-#' @param n_genes number of genes to simulate (ignored when `annotation` is given).
+#' @param n_genes number of genes to simulate (ignored when `annotation` is
+#'   given). Synthetic gene ids are `gene0001`, `gene0002`, ... with a genome and
+#'   synthetic coordinates, and `gene1`, `gene2`, ... in genotype-free and `mimic`
+#'   mode (unless `mimic` carries row names). Only markers with MAF >= 0.05 and a
+#'   known chromosome/position are eligible as eQTL (a fixed threshold).
 #' @param annotation optional gene annotation, a data frame with columns
 #'   `gene_id`, `chr`, `tss` (transcription start site, in the same physical units
 #'   as the genotype `pos`). When `NULL`, synthetic coordinates are generated.
@@ -60,17 +92,50 @@
 #'   `Beta(1.5, 6)`, mean 0.20), a single number, or a length-`n_genes` vector.
 #' @param cis_fraction per-gene cis fraction of the marginal genetic variance
 #'   `omega`: `"beta"` (draw `Beta(2, 6)`, mean 0.25), a single number in `[0, 1]`,
-#'   or a length-`n_genes` vector.
+#'   or a length-`n_genes` vector. `omega` is the target of the *marginal* share
+#'   `v_cis / (v_cis + v_trans)`, which equals `omega` by construction (the
+#'   standardized parts each have unit variance). The **realized**
+#'   `cis_fraction_realized` is the share of the realized genetic variance,
+#'   `v_cis / Var(G)`, which differs from `omega` by the cis-trans covariance (and
+#'   is not bounded by 1 when cis and trans covary negatively; with
+#'   `epistasis > 0` compare it with `omega * (1 - epsilon)`). Not used when
+#'   `geno = NULL`.
 #' @param epistasis per-gene **epistatic** fraction of the genetic variance
 #'   `epsilon`: `0` (default, purely additive cis/trans), a single number in
 #'   `[0, 1]`, `"beta"` (draw `Beta(1.5, 6)`, mean 0.20), or a length-`n_genes`
-#'   vector. When positive, each gene gains 1--2 marker pairs whose centered dosage
-#'   **product** (an additive-by-additive interaction) contributes to its expression; the
-#'   additive share is then `(1 - epsilon)` split by `cis_fraction`. Reported as an
-#'   `epi_eqtl` truth table and `v_epi` / `cis_epi_cov` / `trans_epi_cov` budget
-#'   rows; reconstructable and reusable by [predict.transcriptome_sim()].
+#'   vector. `epsilon` is a **marginal** share, the blend weight of the
+#'   standardized epistatic score against the standardized additive score:
+#'   `v_epi / (v_cis + v_trans + v_epi)` equals `epsilon` exactly only when the
+#'   cis and trans scores are uncorrelated (or one of them is absent). In general,
+#'   with `s_ct^2 = Var(sqrt(omega) c + sqrt(1 - omega) t)` the pre-standardization
+#'   variance of the combined standardized cis (`c`) and trans (`t`) scores
+#'   (`s_ct^2 = 1 + 2 sqrt(omega (1 - omega)) cor(c, t)`), the marginal share is
+#'   `epsilon / (epsilon + (1 - epsilon) / s_ct^2)`, which can differ materially
+#'   from `epsilon`: e.g. perfectly positively correlated cis and trans scores
+#'   with `omega = 0.5` give `s_ct^2 = 2`, so `epsilon = 0.4` yields a marginal
+#'   share of `0.4 / (0.4 + 0.6 / 2) = 0.5714` (and strongly negative correlation
+#'   pushes it further the other way). `s_ct^2` is recoverable from the variance
+#'   budget as `1 + cis_trans_cov / (v_cis + v_trans)`. This formula holds for
+#'   the non-degenerate blend only: when the cis and trans scores exactly (or
+#'   numerically) cancel (`s_ct^2` is 0, e.g. perfectly negatively correlated
+#'   scores with `omega = 0.5`), the generator falls back to the surviving
+#'   component, the cis part is dropped, and the marginal share is the target
+#'   `epsilon` itself (for `epsilon = 0.4` it is 0.4, not the formula value 0; the
+#'   budget then describes the one-component architecture). The share of
+#'   the realized genetic variance, `v_epi / Var(G)`, is reported as
+#'   `epistasis_realized` and differs further by the covariance rows. When
+#'   positive, each gene gains 1--2 marker pairs (drawn from all eligible markers,
+#'   with no exclusion of the gene's own cis window or trans hub, and possibly the
+#'   same pair twice) whose centered dosage **product** (an additive-by-additive
+#'   interaction) contributes to its expression; the additive share is then
+#'   `(1 - epsilon)` split by `cis_fraction`. Reported as an `epi_eqtl` truth table
+#'   and `v_epi` / `cis_epi_cov` / `trans_epi_cov` budget rows; reconstructable
+#'   and reusable by [predict.transcriptome_sim()]. If fewer than two eligible
+#'   markers exist a warning is issued and no epistasis is realized
+#'   (`epistasis_realized = 0`). Not used when `geno = NULL`; reported as 0 for
+#'   genes with `h2 = 0`.
 #' @param n_factors number of latent regulatory factors `Q`; default
-#'   `min(50, max(5, ceiling(n_genes / 100)), n_ind - 2)`.
+#'   `max(1, min(50, max(5, ceiling(n_genes / 100)), n_ind - 2))`.
 #' @param residual_module_fraction the residual module fraction `kappa`, a single
 #'   number in `[0, 1]`: the **target/expected** fraction of residual variance
 #'   carried by the shared module factor before normalization. As with `h2` and the
@@ -78,20 +143,38 @@
 #'   scatter is large only at very small `n`).
 #' @param mimic optional **user expression matrix** (genes x individuals, columns
 #'   named/ordered to the genotypes) to calibrate the generator to. When supplied,
-#'   the generator's *targets* are set from it: exact per-gene mean and variance;
+#'   the generator's *targets* are set from it: exact per-gene mean and variance
+#'   (the rescale is skipped only for a gene whose realized unit-scale variance is
+#'   exactly zero or non-finite; a counted warning is issued when the rescale is
+#'   ill-conditioned, i.e. the realized unit variance is below `1e-12`);
 #'   a per-gene heritability from a GREML estimator (REML on the genotypes' GRM,
-#'   single variance component); the co-expression factor count `n_factors`
-#'   (Marchenko-Pastur) and strength `kappa`. `n_genes` is taken from `mimic`. The
+#'   single variance component; it replaces `h2`, which is ignored with a
+#'   warning); the co-expression factor count `n_factors` (Marchenko-Pastur) and
+#'   the residual module fraction `kappa`. `n_genes` is taken from `mimic`. The
 #'   eQTL effects, loadings, and (downstream) phenotype slopes are still drawn de
 #'   novo -- mimic calibrates the *distribution* of expression, it does not fit
-#'   individual effects. The estimates are returned in `$calibration`. `kappa` is
-#'   a documented strength proxy, not an identifiable residual-module estimate.
+#'   individual effects: **loadings and their signs are not retained** (every
+#'   generated gene loads +1 on one factor, so anti-correlated blocks of the input
+#'   are regenerated as positively co-expressed) and only `n_factors` and `kappa`
+#'   summarize the input's co-expression. `kappa` is the mean within-module
+#'   correlation of the input after subtracting the genetic trans share implied by
+#'   the GREML `h2` and `cis_fraction` (a spiked-covariance estimator, see
+#'   `.tx_estimate_kappa()`); pure noise gives `kappa` near 0. The per-gene GREML
+#'   values are a *distribution*-level calibration: for sparse eQTL architectures
+#'   they do not match the truth gene by gene (per-gene sd about 0.1 at n = 280),
+#'   and a warning is issued below 100 individuals. The estimates are returned in
+#'   `$calibration`.
 #' @param profile a named calibration profile (currently `"generic_bulk"`).
 #' @param seed optional seed (`NULL` or one non-negative whole number); the RNG
 #'   state is restored afterwards.
 #' @return a `transcriptome_sim`: `expression` and `genetic_expression`
-#'   (genes x individuals), `genes` (per-gene table: target and realized `h2`,
-#'   target and realized cis fraction, module, coordinates, and `trans_scale`),
+#'   (genes x individuals), `genes` (per-gene table: `h2_target`,
+#'   `h2_realized = Var(G)/Var(P)` (also `h2_var_ratio`; not bounded by 1, it
+#'   includes `2 Cov(G, R)`), the bounded allocation
+#'   `h2_allocated = Var(G)/(Var(G)+Var(R))`; `cis_fraction_target` and the
+#'   realized `cis_fraction_realized = v_cis / Var(G)`; `epistasis_target`,
+#'   `epistasis_realized = v_epi / Var(G)`, `n_cis`, `n_epi`, module, coordinates,
+#'   and `trans_scale`),
 #'   `cis_eqtl` (effective coefficient on centered dosage), `factor_eqtl` (raw
 #'   hub effects), and -- when `epistasis > 0` -- `epi_eqtl` (interacting marker
 #'   pairs: `snp1`, `snp2`, `effect`, `prod_mean`) truth tables, `loadings`, the
@@ -117,9 +200,12 @@
 #'   architecture and its default calibration follow reported eQTL structure:
 #'   Albert et al. (2018) \emph{eLife}, \doi{10.7554/eLife.35471} (trans hotspots);
 #'   GTEx Consortium (2020) \emph{Science}, \doi{10.1126/science.aaz1776} (cis-eQTL
-#'   windows; multiple cis-eQTL per gene); Ouwens et al. (2020)
-#'   \emph{Eur. J. Hum. Genet.}, \doi{10.1038/s41431-019-0511-5} (cis/trans
-#'   expression heritability). Falconer & Mackay is cited only for the general
+#'   windows; multiple cis-eQTL per gene); Ouwens et al. (2020, published online
+#'   2019) \emph{Eur. J. Hum. Genet.} 28(2):253-263,
+#'   \doi{10.1038/s41431-019-0511-5} (cis/trans expression heritability). The
+#'   `mimic` GREML step is an EMMA-style single-component REML: Kang et al. (2008)
+#'   \emph{Genetics} 178(3):1709-1723, \doi{10.1534/genetics.107.080101}.
+#'   Falconer & Mackay is cited only for the general
 #'   additive-dosage value and the definition of heritability; the cis / trans
 #'   latent-factor construction and its finite-sample standardization and scaling
 #'   are this package's own composite design, not attributed to a single source.
@@ -173,6 +259,8 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
     dose <- NULL; marker_mean <- numeric(0); Z <- NULL
     mim <- NULL
     h2 <- 0                                           # force non-genetic
+    cis_fraction <- 0                                 # not applicable without a
+    epistasis <- 0                                    # genome: ignored, reported 0
   } else {
   if (inherits(geno, "phenotype_sim")) {
     if (!inherits(geno$geno, "Population")) {
@@ -194,6 +282,17 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
          "expression variance decomposition (heritability and co-expression are ",
          "not defined for fewer).", call. = FALSE)
   }
+  if (n_ind < .TX_MIN_N_STABLE && !identical(h2, 0) &&
+      !(is.numeric(h2) && all(h2 == 0))) {
+    warning("simulate_transcriptome(): only ", n_ind, " individuals (< ",
+            .TX_MIN_N_STABLE, "). The finite-sample genetic-residual covariance ",
+            "is large at this size, so the realized heritability `h2_realized` = ",
+            "Var(G) / Var(E) can be far from (and above) the target; ",
+            "`h2_allocated` (Var(G) / (Var(G) + Var(R))) stays in [0, 1] but ",
+            "equals the target by construction and is not a heritability. Use >= ",
+            .TX_MIN_N_STABLE, " individuals for a meaningful realized-heritability ",
+            "check.", call. = FALSE)
+  }
   # A bare genotype matrix carries no chromosome info (chr = NA); treat all markers
   # as one chromosome (pos = column index) so cis proximity is well-defined.
   if (all(is.na(map$chr))) map$chr <- rep(1L, nrow(map))
@@ -212,6 +311,11 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
   # effects, loadings, and phenotype slopes remain drawn de novo.
   mim <- if (is.null(mimic)) NULL else .tx_mimic_calibrate(mimic, sim, Z)
   if (!is.null(mim)) {
+    if (!identical(h2, "beta")) {
+      warning("simulate_transcriptome(): `h2` is ignored when `mimic` is given; ",
+              "the per-gene targets come from the GREML calibration.",
+              call. = FALSE)
+    }
     h2 <- mim$h2                                # per-gene GREML targets override `h2`
     if (is.null(n_factors)) n_factors <- mim$Q  # factor count (unless user-fixed)
     # kappa is recomputed below against the FINAL Q (respecting a user override).
@@ -282,7 +386,11 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
 
   # In mimic mode, the co-expression strength kappa is estimated against the FINAL
   # factor count Q (so a user-supplied n_factors stays consistent with kappa).
-  if (!is.null(mim)) kappa <- .tx_estimate_kappa(mim$Es, Q)
+  if (!is.null(mim)) {
+    om_assumed <- if (is.numeric(cis_fraction) && length(cis_fraction) > 0L &&
+                      all(is.finite(cis_fraction))) mean(cis_fraction) else 0.25
+    kappa <- .tx_estimate_kappa(mim$Es, Q, h2 = mim$h2, omega = om_assumed)
+  }
 
   # Per-gene location/scale to reproduce a mimicked matrix's moments; identity
   # (0, 1) otherwise. Applied as a final affine to expression and genetic, and
@@ -316,6 +424,12 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
     # chromosome or position cannot be cis or trans and is excluded.
     eligible <- which(maf >= 0.05 & !is.na(map$chr) & !is.na(map$pos))
     need_genetic <- any(h2_g > 0)
+    if (any(h2_g > 0 & epi_g > 0) && length(eligible) < 2L) {
+      warning("simulate_transcriptome(): `epistasis` > 0 needs at least two ",
+              "eligible markers (MAF >= 0.05, known chromosome/position) to form ",
+              "an interacting pair, but only ", length(eligible), " exist; no ",
+              "epistasis is realized (`epistasis_realized` = 0).", call. = FALSE)
+    }
     if (need_genetic && length(eligible) < 1L) {
       stop("simulate_transcriptome(): a positive expression heritability was ",
            "requested but no marker has MAF >= 0.05 to serve as an eQTL.",
@@ -358,7 +472,9 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
                          dimnames = list(coords$gene_id, ids))
     genetic <- matrix(0, T_genes, n_ind, dimnames = list(coords$gene_id, ids))
     h2_real <- numeric(T_genes)
+    h2_alloc <- numeric(T_genes)
     om_real <- numeric(T_genes)
+    epi_real <- numeric(T_genes)
     trans_scale <- numeric(T_genes)
     gr_cov <- numeric(T_genes)
     v_cis <- v_trans <- v_cov <- numeric(T_genes)
@@ -368,6 +484,7 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
     cis_rows <- vector("list", T_genes)
     epi_rows <- vector("list", T_genes)
     scl_used <- scl                                     # realized per-gene scale
+    n_ill <- 0L                                         # ill-conditioned mimic rescales
 
     z1 <- function(v) {                                 # reference standardize
       s <- stats::sd(v)
@@ -403,8 +520,8 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       epi_prodmean <- numeric(0); sd_e <- 0
       if (h2_g[g] > 0 && epi_g[g] > 0 && length(eligible) >= 2L) {
         npair <- 1L + stats::rbinom(1L, 1L, 0.5)          # 1 or 2 interacting pairs
-        # each pair is two DISTINCT eligible markers (>= 2 eligible is guaranteed
-        # by the outer guard), so a requested epistatic gene always gets its pairs.
+        # each pair is two DISTINCT eligible markers (the `length(eligible) >= 2`
+        # guard above skips the gene otherwise, with a warning at the run level).
         prs <- vapply(seq_len(npair),
                       function(.) eligible[sample.int(length(eligible), 2L)],
                       integer(2))
@@ -438,9 +555,10 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       }
       have_ct <- is.finite(sG0ct) && sG0ct > 1e-9
 
-      # Blend the additive and epistatic scores. `epf` is the realized epistatic
-      # fraction of the genetic variance: 0 with no epistasis, and 1 when only the
-      # epistatic score carries variance.
+      # Blend the additive and epistatic scores. `epf` is the MARGINAL epistatic
+      # share v_epi / (v_cis + v_trans + v_epi) that the blend imposes (0 with no
+      # epistasis, 1 when only the epistatic score carries variance); the share of
+      # the realized Var(G) is reported separately as epistasis_realized.
       epf <- if (have_e) epi_g[g] else 0
       if (!have_ct) epf <- if (have_e) 1 else 0
       G0 <- if (epf == 0) {
@@ -480,9 +598,9 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       # unit reconstruction times the stored scale reproduces this genetic.
       esc <- 1
       if (!is.null(mim)) {
-        u  <- (Gg - mean(Gg)) + (Rg - mean(Rg))
-        vu <- stats::var(u)
-        esc <- if (is.finite(vu) && vu > 1e-12) scl[g] / sqrt(vu) else scl[g]
+        rs <- .tx_mimic_scale(Gg, Rg, scl[g])
+        esc <- rs$esc
+        if (rs$ill) n_ill <- n_ill + 1L         # amplifies rounding noise: counted
         Gg <- esc * (Gg - mean(Gg))
         Rg <- esc * (Rg - mean(Rg))
       }
@@ -491,7 +609,14 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       expression[g, ] <- Eg
       genetic[g, ] <- Gg
       vE <- stats::var(Eg)
-      h2_real[g] <- if (vE > 1e-12) stats::var(Gg) / vE else 0
+      vG <- stats::var(Gg); vR <- stats::var(Rg)
+      # realized heritability Var(G)/Var(P) from the realized genetic values and
+      # phenotype (includes 2Cov(G, R)); the bounded allocation is separate
+      # scale-free: a ratio is reported whenever its denominator is finite and
+      # strictly positive (no absolute cutoff, so valid low-scale data such as a
+      # mimic with variance 1e-14 is not reported as 0); exact/non-finite zero -> 0
+      h2_real[g] <- .tx_ratio(vG, vE)
+      h2_alloc[g] <- .tx_ratio(vG, vG + vR)                        # in [0, 1]
       gr_cov[g] <- 2 * stats::cov(Gg, Rg)               # finite-sample G-R cov
 
       # cis/trans/epistatic variance decomposition of the realized genetic
@@ -523,9 +648,10 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       v_cov[g] <- 2 * stats::cov(cis_part, trans_part)
       cis_epi_cov[g] <- 2 * stats::cov(cis_part, epi_part)
       trans_epi_cov[g] <- 2 * stats::cov(trans_part, epi_part)
-      om_real[g] <- if (v_cis[g] + v_trans[g] > 0) {
-        v_cis[g] / (v_cis[g] + v_trans[g])
-      } else 0
+      # realized shares of the realized genetic variance Var(G) (covariance rows
+      # included in the denominator), NOT the target restated
+      om_real[g] <- .tx_ratio(v_cis[g], vG)
+      epi_real[g] <- .tx_ratio(v_epi[g], vG)
       # effective trans coefficient on centered dosage Z_k for a hub k of this
       # gene's module is trans_scale * hub_effect (loading = 1); so the trans truth
       # is reconstructable from factor_eqtl + loadings + this multiplier.
@@ -552,8 +678,14 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       }
     }
 
+    if (n_ill > 0L) {
+      warning("simulate_transcriptome(): ", n_ill, " gene(s) had a near-cancelling ",
+              "genetic/residual realization (unit-scale variance < 1e-12); the ",
+              "per-gene mimic rescale factor is very large and amplifies rounding ",
+              "noise (the requested variance is still hit).", call. = FALSE)
+    }
     list(expression = expression, genetic = genetic, h2_real = h2_real,
-         module = module, n_cis = n_cis, n_epi = n_epi, om_real = om_real,
+         h2_alloc = h2_alloc, epi_real = epi_real, module = module, n_cis = n_cis, n_epi = n_epi, om_real = om_real,
          trans_scale = trans_scale, gr_cov = gr_cov,
          cis_eqtl = do.call(rbind, cis_rows),
          factor_eqtl = do.call(rbind, factor_eqtl),
@@ -574,8 +706,11 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
     gene_id = coords$gene_id, chr = coords$chr, tss = coords$tss,
     module = out$module, coordinate_source = coordinate_source,
     h2_target = out$h2_g, h2_realized = out$h2_real,
+    h2_var_ratio = out$h2_real, h2_allocated = out$h2_alloc,
     cis_fraction_target = out$omega_g, cis_fraction_realized = out$om_real,
-    n_cis = out$n_cis, n_epi = out$n_epi, epistasis_target = out$epi_g,
+    n_cis = out$n_cis, n_epi = out$n_epi,
+    epistasis_target = ifelse(out$h2_g > 0, out$epi_g, 0),
+    epistasis_realized = out$epi_real,
     trans_scale = out$trans_scale, stringsAsFactors = FALSE)
 
   structure(
@@ -620,21 +755,28 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
 #' so it is drawn afresh; set `residual = FALSE` for noiseless genetic expression.
 #'
 #' @param object a `transcriptome_sim` from [simulate_transcriptome()].
-#' @param geno new genotypes carrying (at least) every marker named in the
+#' @param geno new genotypes -- a `Population`, a Population-backed
+#'   `phenotype_sim`, a numeric-format genotype data frame, or an
+#'   individuals-by-markers dosage matrix (as for [simulate_transcriptome()]) --
+#'   carrying (at least) every marker named in the
 #'   architecture's eQTL tables, in the **same coding and effect-allele
 #'   orientation** as the reference. Only marker names and the -1/0/1 dosage
 #'   coding are checked; the architecture does not store allele labels, so a
 #'   marker whose reference/alternate alleles are swapped (same name, flipped
 #'   dosage) would pass the check yet produce different genetic values. When
 #'   combining datasets, harmonize effect-allele orientation first.
-#' @param seed optional seed for the fresh residual draws.
+#' @param seed optional seed for the fresh residual draws (`NULL` or one
+#'   non-negative whole number).
 #' @param residual add a freshly drawn non-genetic residual (default `TRUE`);
-#'   `FALSE` returns noiseless genetic expression.
+#'   `FALSE` returns noiseless genetic expression. Must be `TRUE` or `FALSE`.
 #' @param ... unused.
 #' @return a new `transcriptome_sim` for the new individuals, carrying the same
-#'   architecture (effect tables, per-gene targets, reference constants) with
+#'   architecture (effect tables, per-gene targets, reference constants, and the
+#'   `calibration` of a `mimic` fit) with
 #'   `expression` / `genetic_expression` and a variance budget realized on the
-#'   new population.
+#'   new population. At least two new individuals are needed: the realized
+#'   variance budget (and `h2_realized`, `h2_allocated`, `cis_fraction_realized`)
+#'   is undefined for one, so a single individual is rejected with an error.
 #' @export
 predict.transcriptome_sim <- function(object, geno, seed = NULL,
                                       residual = TRUE, ...) {
@@ -645,7 +787,30 @@ predict.transcriptome_sim <- function(object, geno, seed = NULL,
   if (is.null(geno)) {
     stop("predict(): `geno` (the new genotypes) is required.", call. = FALSE)
   }
-  sim <- .normalize_geno(geno, "geno")
+  seed <- .validate_seed(seed)
+  if (!is.logical(residual) || length(residual) != 1L || is.na(residual)) {
+    stop("predict.transcriptome_sim(): `residual` must be TRUE or FALSE.",
+         call. = FALSE)
+  }
+  if (inherits(geno, "phenotype_sim")) {
+    if (!inherits(geno$geno, "Population")) {
+      stop("predict.transcriptome_sim(): this phenotype_sim is not built on a ",
+           "Population; pass a Population or a genotype matrix/data frame.",
+           call. = FALSE)
+    }
+    sim <- .normalize_geno(geno$geno, "geno", individuals = geno$ids)
+  } else {
+    sim <- tryCatch(
+      .normalize_geno(geno, "geno"),
+      error = function(e) {
+        if (grepl("at least two individuals", conditionMessage(e), fixed = TRUE)) {
+          stop("predict.transcriptome_sim(): needs at least two new individuals ",
+               "(the realized variance budget is undefined for one).",
+               call. = FALSE)
+        }
+        stop(e)
+      })
+  }
   n_new <- sim$n_ind
   ids <- sim$ids
   mm <- object$reference$marker_mean
@@ -770,12 +935,19 @@ predict.transcriptome_sim <- function(object, geno, seed = NULL,
   gr_cov <- vapply(seq_len(Tg),
                    function(g) 2 * stats::cov(genetic[g, ], R[g, ]), 0)
   vE <- apply(expression, 1L, stats::var)
-  h2_real <- ifelse(vE > 1e-12, apply(genetic, 1L, stats::var) / vE, 0)
-  om_real <- ifelse(v_cis + v_trans > 0, v_cis / (v_cis + v_trans), 0)
+  vG <- apply(genetic, 1L, stats::var)
+  vR <- apply(R, 1L, stats::var)
+  h2_real <- .tx_ratio(vG, vE)                              # realized Var(G)/Var(P)
+  h2_alloc <- .tx_ratio(vG, vG + vR)                        # allocation, in [0, 1]
+  om_real <- .tx_ratio(v_cis, vG)
+  epi_real <- .tx_ratio(v_epi, vG)
 
   new_genes <- genes
   new_genes$h2_realized <- h2_real
+  new_genes$h2_var_ratio <- h2_real
+  new_genes$h2_allocated <- h2_alloc
   new_genes$cis_fraction_realized <- om_real
+  new_genes$epistasis_realized <- epi_real
 
   structure(
     list(
@@ -791,10 +963,38 @@ predict.transcriptome_sim <- function(object, geno, seed = NULL,
         gene_id = genes$gene_id, v_cis = v_cis, v_trans = v_trans, v_epi = v_epi,
         cis_trans_cov = v_cov, cis_epi_cov = cis_epi_cov,
         trans_epi_cov = trans_epi_cov, gr_cov = gr_cov, stringsAsFactors = FALSE),
+      calibration = object$calibration,
       profile = object$profile, seed = seed,
       n_genes = Tg, n_ind = n_new
     ),
     class = "transcriptome_sim")
+}
+
+# Per-gene mimic rescale factor; returns list(esc, ill).
+.tx_mimic_scale <- function(Gg, Rg, scl) {
+  # per-gene rescale factor hitting the requested variance scl^2 exactly.
+  # scale-free: vu is the dimensionless unit-scale variance of G + R, so any
+  # finite strictly positive value is rescaled (an absolute cutoff would silently
+  # miss the requested variance for a near-cancelling G/R pair); only exact-zero /
+  # non-finite vu keeps the unscaled fallback (scl itself).
+  u  <- (Gg - mean(Gg)) + (Rg - mean(Rg))
+  vu <- stats::var(u)
+  if (is.finite(vu) && vu > 0) {
+    list(esc = scl / sqrt(vu), ill = 1 / sqrt(vu) > 1e6)   # 1e6: rounding-noise amplification
+  } else {
+    list(esc = scl, ill = FALSE)
+  }
+}
+
+#' Scale-free variance ratio: `num / den` wherever `den` is finite and strictly
+#' positive, else 0 (guards only an exact or non-finite zero denominator, never an
+#' absolute magnitude, so the result does not depend on the measurement unit)
+#' @noRd
+.tx_ratio <- function(num, den) {
+  ok <- is.finite(den) & den > 0 & is.finite(num)
+  out <- rep(0, length(den))
+  out[ok] <- num[ok] / den[ok]
+  out
 }
 
 #' Per-gene parameter vector from a "beta"/scalar/vector spec
@@ -905,7 +1105,7 @@ print.transcriptome_sim <- function(x, ...) {
               x$n_genes, x$n_ind, x$reference$n_factors))
   cat(sprintf("  Coordinates: %s   Profile: %s\n",
               x$genes$coordinate_source[1], x$profile))
-  cat(sprintf("  Expression h2 (realized): median %.2f  [%.2f, %.2f]\n",
+  cat(sprintf("  Realized expression h2 Var(G)/Var(P): median %.2f  [%.2f, %.2f]\n",
               stats::median(x$genes$h2_realized), min(x$genes$h2_realized),
               max(x$genes$h2_realized)))
   cat(sprintf("  cis-eQTL: %d over %d genes; trans hubs: %d\n",

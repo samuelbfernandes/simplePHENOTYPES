@@ -7,9 +7,18 @@
 # environmental part Tx_e. We check two things:
 #
 #   (1) mediation_split()'s genetic-mediated share recovers the intended fraction.
-#       If every causal gene has expression heritability h2*, then a share
-#       ~ prop * h2* of the phenotype should be genetic-mediated. We sweep h2* and
-#       compare mediation_split() to prop * h2*.
+#       The rough expectation prop * mean(h2) holds ONLY for independent,
+#       equal-weight causal genes (it is an approximation, not the estimand). The
+#       exact share, independent of any independence assumption, is
+#           m_g = prop * Var(sum_g w_g (G_g - mean)/s_Eg)
+#                      / Var(sum_g w_g (E_g - mean)/s_Eg) / V_P
+#       (w_g slopes, s_Eg the sd of expression, V_P the realized phenotypic
+#       variance; the layer scales the total expression score to sqrt(prop) and
+#       the genetic part by the SAME constant). We compute it directly from the
+#       expression matrices, WITHOUT mediation_split(), and check that
+#       mediation_split() reproduces it; prop * mean(h2) is reported alongside as
+#       the approximation. (V_P differs from 1 by the finite-sample covariance
+#       between the layers, so the realized total share is not exactly prop.)
 #
 #   (2) The genetic-mediated part ENTERS realized H2, whereas the SAME expression
 #       matrix fed as a REAL/observed source (expression = ) does not: its genetic
@@ -52,12 +61,22 @@ rows <- lapply(seq_along(H2_STAR), function(i) {
   h2s <- H2_STAR[i]
   tx <- simulate_transcriptome(g, n_genes = N_GENES, seed = 300 + i,
                                h2 = h2s, cis_fraction = 0.5)
-  causal_h2 <- mean(tx$genes$h2_realized[causal_idx])
+  causal_h2 <- mean(tx$genes$h2_realized[causal_idx])   # realized Var(G)/Var(P)
 
   # (1) derived: genome-traced expression -> genetic/environmental split
   ph_d <- simulate_phenotype(g, seed = 400 + i, transcriptome = tx) |>
     transcriptome(prop = PROP, genes = causal_idx, slopes = slopes)
   ms <- mediation_split(ph_d)
+
+  # exact genetic-mediated share, computed from the expression matrices only
+  Ec <- tx$expression[causal_idx, , drop = FALSE]
+  Gc <- tx$genetic_expression[causal_idx, , drop = FALSE]
+  sE <- apply(Ec, 1L, stats::sd)
+  z_tot <- (Ec - rowMeans(Ec)) / sE
+  z_gen <- (Gc - rowMeans(Gc)) / sE
+  raw_tot <- as.numeric(slopes %*% z_tot); raw_gen <- as.numeric(slopes %*% z_gen)
+  exact_gm <- PROP * stats::var(raw_gen) / stats::var(raw_tot) /
+    stats::var(phenotypes_wide(ph_d)$Trait_1)
 
   # (2) real: the SAME matrix as an observed source -> no asserted genetics
   ph_r <- simulate_phenotype(g, seed = 400 + i, expression = tx$expression) |>
@@ -67,8 +86,9 @@ rows <- lapply(seq_along(H2_STAR), function(i) {
     h2_star            = h2s,
     causal_h2_realized = causal_h2,
     prop               = PROP,
-    intended_gm_target = PROP * h2s,          # prop * h2*
-    intended_gm_real   = PROP * causal_h2,    # prop * realized causal h2
+    intended_gm_target = PROP * h2s,          # prop * h2* (approximation)
+    intended_gm_real   = PROP * causal_h2,    # prop * mean realized causal h2 (approx.)
+    exact_gm           = exact_gm,            # independence-free formula above
     med_genetic        = ms$genetic_mediated,
     med_env            = ms$env_mediated,
     med_cov            = ms$covariance,
@@ -85,14 +105,22 @@ rownames(res) <- NULL
 cat("\n=== Benchmark 04: mediation recovery & derived/real H2 asymmetry ===\n")
 cat(sprintf("  %d causal genes, prop = %.2f (target expression-mediated share)\n",
             N_CAUSAL, PROP))
-cat("\n-- (1) genetic-mediated share vs intended (prop * h2*) --\n")
+cat("\n-- (1) genetic-mediated share: exact formula vs approximations (prop * h2*) --\n")
 print(format(res[, c("h2_star", "causal_h2_realized", "intended_gm_target",
-                     "intended_gm_real", "med_genetic", "med_env", "med_total")],
+                     "intended_gm_real", "exact_gm", "med_genetic", "med_env",
+                     "med_total")],
              digits = 3))
-cat(sprintf("\n  genetic-mediated tracks prop*h2*: corr(intended, realized) = %.3f\n",
-            stats::cor(res$intended_gm_target, res$med_genetic)))
-cat(sprintf("  mean |realized - prop*realized_causal_h2| = %.3f\n",
-            mean(abs(res$med_genetic - res$intended_gm_real))))
+cat(sprintf("\n  %d sweep points (too few for a correlation; absolute errors reported)\n",
+            nrow(res)))
+cat(sprintf("  max |mediation_split - exact formula|          = %.2e\n",
+            max(abs(res$med_genetic - res$exact_gm))))
+cat(sprintf("  max |mediation_split - prop*mean(realized h2)| = %.3f (approximation)\n",
+            max(abs(res$med_genetic - res$intended_gm_real))))
+cat(sprintf("  max |mediation_split - prop*h2*|               = %.3f (approximation)\n",
+            max(abs(res$med_genetic - res$intended_gm_target))))
+if (max(abs(res$med_genetic - res$exact_gm)) > 1e-6) {
+  stop("Benchmark 04: mediation_split() disagrees with the exact formula.")
+}
 
 cat("\n-- (2) the SAME expression matrix: derived enters H2, real does not --\n")
 print(format(res[, c("h2_star", "med_genetic", "H2_derived", "H2_real_source",
@@ -107,14 +135,14 @@ bench_png("04_mediation_recovery.png", {
   op <- graphics::par(mfrow = c(1, 2), mar = c(4.4, 4.4, 3, 1))
   on.exit(graphics::par(op), add = TRUE)
 
-  lim <- c(0, max(res$intended_gm_target, res$med_genetic) * 1.1)
-  graphics::plot(res$intended_gm_target, res$med_genetic, pch = 19, cex = 1.4,
+  lim <- c(0, max(res$exact_gm, res$med_genetic) * 1.1)
+  graphics::plot(res$exact_gm, res$med_genetic, pch = 19, cex = 1.4,
                  col = "#d95f0e", xlim = lim, ylim = lim,
-                 xlab = "intended genetic-mediated (prop * h2*)",
+                 xlab = "exact genetic-mediated share (independence-free formula)",
                  ylab = "realized (mediation_split)",
                  main = "mediation recovery")
   graphics::abline(0, 1, col = "grey40", lwd = 2, lty = 2)
-  graphics::text(res$intended_gm_target, res$med_genetic,
+  graphics::text(res$exact_gm, res$med_genetic,
                  labels = sprintf("h2*=%.1f", res$h2_star), pos = 4, cex = 0.8)
 
   bh <- t(as.matrix(res[, c("H2_derived", "H2_real_source")]))

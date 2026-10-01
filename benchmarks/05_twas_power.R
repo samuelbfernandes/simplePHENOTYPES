@@ -21,6 +21,28 @@
 # half the genes cis-driven (cis fraction 0.9), half purely trans (cis fraction 0,
 # so a cis-only model can reconstruct nothing for them).
 #
+# Reading the numbers (audit TX-F7 / O10):
+#   * Power / FPR are averaged over REPS phenotype realizations per `prop` (the
+#     same transcriptome and causal architecture, fresh phenotype noise); the
+#     Monte Carlo standard error over replicates is reported. They are NOT a
+#     single realization.
+#   * Non-causal genes are split in two: STRUCTURAL nulls (in a co-expression
+#     module with no causal gene: no shared module and no direct causal-gene
+#     status, so no designed path to the phenotype) and MODULE-LINKED genes
+#     (share a module with a causal gene, so they genuinely correlate with the
+#     phenotype). "Structural null" is a statement about the simulated design,
+#     NOT a proof of zero association: genes in different modules can still be
+#     weakly associated through marker linkage disequilibrium (LD) between their
+#     eQTL (in one run the strongest structural-null gene had a sample correlation
+#     of about -0.14 with the causal expression score). The Bonferroni "false
+#     positive rate" is therefore the rate for genes with no designed link (no
+#     shared module / direct causal status), not a guaranteed-zero null; for
+#     module-linked genes it measures the co-expression confound the simulator
+#     lets you study.
+#   * The cis-predicted power of purely-trans genes is 0 BY CONSTRUCTION (their
+#     cis prediction is identically 0); it is an illustration of the cis-only
+#     limit, not an empirical finding.
+#
 # Run:  Rscript benchmarks/05_twas_power.R
 # ==============================================================================
 
@@ -39,10 +61,13 @@ N_GENES     <- 120L
 N_CIS_GENES <- 60L                # genes 1..60 cis-driven, 61..120 trans-driven
 N_CAUSAL_EA <- 12L                # causal genes drawn per group (cis / trans)
 PROPS       <- c(0.05, 0.1, 0.2, 0.4, 0.6)
+REPS        <- 20L                # phenotype replications per prop
 
 # controlled cis fraction: strongly cis-driven vs purely trans-driven genes.
 cis_frac_vec <- c(rep(0.9, N_CIS_GENES), rep(0.0, N_GENES - N_CIS_GENES))
-tx <- simulate_transcriptome(g, n_genes = N_GENES, seed = 21,
+# 40 factors (modules) so that some modules hold no causal gene -- otherwise
+# every non-causal gene is module-linked and no structural null exists.
+tx <- simulate_transcriptome(g, n_genes = N_GENES, seed = 21, n_factors = 40,
                              h2 = 0.8, cis_fraction = cis_frac_vec)
 E  <- tx$expression
 ce <- tx$cis_eqtl
@@ -88,29 +113,45 @@ cor_p <- function(mat, y) {
 
 bonf <- 0.05 / N_GENES     # genome-wide threshold for the observed-expression TWAS
 
+noncausal  <- setdiff(seq_len(N_GENES), causal_idx)
+mod_all    <- tx$genes$module
+linked     <- noncausal[mod_all[noncausal] %in% mod_all[causal_idx]]
+structural <- setdiff(noncausal, linked)
+stopifnot(length(structural) > 0, length(linked) > 0)
+mc_se <- function(x) stats::sd(x) / sqrt(length(x))
+
 rows <- lapply(seq_along(PROPS), function(i) {
   prop <- PROPS[i]
-  ph <- simulate_phenotype(g, seed = 500 + i, transcriptome = tx) |>
-    transcriptome(prop = prop, genes = causal_idx, slopes = slopes)
-  y <- phenotypes_wide(ph)$Trait_1
-
-  obs  <- cor_p(E, y)
-  cisp <- cor_p(cis_pred, y)
   ci <- causal_idx[is_cis]; tr <- causal_idx[!is_cis]
-  noncausal <- setdiff(seq_len(N_GENES), causal_idx)
-
+  reps <- lapply(seq_len(REPS), function(r) {
+    ph <- simulate_phenotype(g, seed = 500 + 100 * i + r, transcriptome = tx) |>
+      transcriptome(prop = prop, genes = causal_idx, slopes = slopes)
+    y <- phenotypes_wide(ph)$Trait_1
+    obs  <- cor_p(E, y)
+    cisp <- cor_p(cis_pred, y)
+    data.frame(
+      power_obs_all = mean(obs$p[causal_idx] < bonf),
+      fpr_structural = mean(obs$p[structural] < bonf),
+      fpr_linked     = mean(obs$p[linked] < bonf),
+      cispred_meanr_cis   = mean(cisp$absr[ci]),
+      cispred_meanr_trans = mean(cisp$absr[tr]),
+      cispred_pow_cis     = mean(cisp$p[ci] < 0.05),
+      cispred_pow_trans   = mean(cisp$p[tr] < 0.05))
+  })
+  rr <- do.call(rbind, reps)
   data.frame(
-    prop = prop,
+    prop = prop, reps = REPS,
     # A) observed-expression TWAS: power over ALL causal genes (Bonferroni).
-    # Observed expression detects a causal gene regardless of cis/trans origin.
-    power_obs_all = mean(obs$p[causal_idx] < bonf),
-    fpr_obs       = mean(obs$p[noncausal] < bonf),
+    power_obs_all    = mean(rr$power_obs_all),
+    power_obs_se     = mc_se(rr$power_obs_all),
+    fpr_structural   = mean(rr$fpr_structural),   # genuine false-positive rate
+    fpr_linked       = mean(rr$fpr_linked),       # module-linked confound
     # B) cis-predicted TWAS: mean association + nominal-alpha power, cis vs trans.
-    # Purely trans genes have no cis prediction, so their association is ~0.
-    cispred_meanr_cis   = mean(cisp$absr[ci]),
-    cispred_meanr_trans = mean(cisp$absr[tr]),
-    cispred_pow_cis     = mean(cisp$p[ci] < 0.05),
-    cispred_pow_trans   = mean(cisp$p[tr] < 0.05),
+    cispred_meanr_cis   = mean(rr$cispred_meanr_cis),
+    cispred_meanr_trans = mean(rr$cispred_meanr_trans),   # 0 by construction
+    cispred_pow_cis     = mean(rr$cispred_pow_cis),
+    cispred_pow_cis_se  = mc_se(rr$cispred_pow_cis),
+    cispred_pow_trans   = mean(rr$cispred_pow_trans),     # 0 by construction
     stringsAsFactors = FALSE
   )
 })
@@ -120,21 +161,25 @@ rownames(res) <- NULL
 cat("\n=== Benchmark 05: TWAS-style power vs transcriptome prop ===\n")
 cat(sprintf("  %d causal genes (%d cis-driven, %d purely trans); %d genes tested\n",
             length(causal_idx), sum(is_cis), sum(!is_cis), N_GENES))
-cat("\n-- (A) observed-expression TWAS: power over causal genes rises with prop --\n")
-cat(sprintf("       (Bonferroni p < %.2e; fpr_obs = non-causal false positives)\n", bonf))
-print(format(res[, c("prop", "power_obs_all", "fpr_obs")], digits = 3))
+cat(sprintf("\n-- (A) observed-expression TWAS: power over causal genes (mean of %d replications; se = MC s.e.) --\n", REPS))
+cat(sprintf("       (Bonferroni p < %.2e; %d structural-null genes (no shared module / causal status; not guaranteed zero under LD), %d module-linked non-causal genes)\n",
+            bonf, length(structural), length(linked)))
+print(format(res[, c("prop", "power_obs_all", "power_obs_se", "fpr_structural",
+                     "fpr_linked")], digits = 3))
 cat("\n-- (B) cis-predicted TWAS: cis-driven detectable, purely trans invisible --\n")
-cat("       (mean |cor| of cis-predicted expression vs phenotype; power at p<0.05)\n")
+cat("       (mean |cor| of cis-predicted expression vs phenotype; power at p<0.05;\n")
+cat("        the purely-trans columns are 0 BY CONSTRUCTION, not an empirical result)\n")
 print(format(res[, c("prop", "cispred_meanr_cis", "cispred_meanr_trans",
-                     "cispred_pow_cis", "cispred_pow_trans")], digits = 3))
+                     "cispred_pow_cis", "cispred_pow_cis_se",
+                     "cispred_pow_trans")], digits = 3))
 cat(sprintf(
   "\n  At prop = %.2f a cis-only TWAS recovers cis-driven causal genes (power %.2f,\n",
   max(PROPS), res$cispred_pow_cis[nrow(res)]))
 cat(sprintf(
-  "  mean |r| %.3f) but is blind to purely trans-driven ones (power %.2f, |r| %.3f)\n",
+  "  mean |r| %.3f) and, by construction, cannot see purely trans-driven ones\n  (their cis prediction is identically 0: power %.2f, |r| %.3f).\n",
   res$cispred_meanr_cis[nrow(res)], res$cispred_pow_trans[nrow(res)],
   res$cispred_meanr_trans[nrow(res)]))
-cat("  -- exactly the cis-only limit a single-gene cis-TWAS (e.g. twas_sim) sees.\n")
+cat("  This is the cis-only limit a single-gene cis-TWAS (e.g. twas_sim) has.\n")
 
 bench_write_csv(res, "05_twas_power.csv")
 
@@ -147,11 +192,14 @@ bench_png("05_twas_power.png", {
                  col = "#1c9099", ylim = c(0, 1),
                  xlab = "transcriptome prop", ylab = "detection rate",
                  main = "observed-expression TWAS")
-  graphics::lines(res$prop, res$fpr_obs, type = "b", pch = 1, lwd = 2, lty = 2,
-                  col = "grey45")
-  graphics::legend("topleft", bty = "n", lwd = 2, lty = c(1, 2), pch = c(19, 1),
-                   col = c("#1c9099", "grey45"),
-                   legend = c("power (causal)", "FPR (non-causal)"), cex = 0.9)
+  graphics::lines(res$prop, res$fpr_structural, type = "b", pch = 1, lwd = 2,
+                  lty = 2, col = "grey45")
+  graphics::lines(res$prop, res$fpr_linked, type = "b", pch = 2, lwd = 2,
+                  lty = 3, col = "#d95f0e")
+  graphics::legend("topleft", bty = "n", lwd = 2, lty = c(1, 2, 3),
+                   pch = c(19, 1, 2), col = c("#1c9099", "grey45", "#d95f0e"),
+                   legend = c("power (causal)", "FPR (structural null)",
+                              "module-linked non-causal"), cex = 0.9)
 
   graphics::plot(res$prop, res$cispred_meanr_cis, type = "b", pch = 17, lwd = 2,
                  col = "#d95f0e",

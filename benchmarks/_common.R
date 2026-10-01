@@ -4,6 +4,12 @@
 # from the package root. It loads the package with devtools::load_all(".") and
 # provides an output directory plus a plotting wrapper that degrades gracefully
 # when no graphics device is available.
+#
+# OUTPUT LOCATION: the scripts never write into the repository by default. CSV
+# and PNG files go to `<tempdir()>/simplePHENOTYPES-benchmarks`, or to the
+# directory named by the environment variable SP_BENCH_OUT (e.g.
+# `SP_BENCH_OUT=benchmarks/output Rscript benchmarks/01_h2_calibration.R`; that
+# directory is gitignored).
 
 # --- locate the package root (works whether run from root or benchmarks/) -----
 .bench_find_root <- function() {
@@ -26,8 +32,13 @@
 }
 
 BENCH_ROOT <- .bench_find_root()
-BENCH_OUT  <- file.path(BENCH_ROOT, "benchmarks", "output")
+BENCH_OUT  <- {
+  o <- Sys.getenv("SP_BENCH_OUT", unset = "")
+  if (nzchar(o)) o else file.path(tempdir(), "simplePHENOTYPES-benchmarks")
+}
 dir.create(BENCH_OUT, showWarnings = FALSE, recursive = TRUE)
+BENCH_OUT  <- normalizePath(BENCH_OUT)
+message("Benchmark output directory: ", BENCH_OUT)
 
 # --- load the package (rextendr) ----------------------------------------------
 message("Loading simplePHENOTYPES from ", BENCH_ROOT, " ...")
@@ -45,7 +56,7 @@ if (!ok) {
 
 # --- helpers ------------------------------------------------------------------
 
-# Save a CSV under benchmarks/output and echo the path.
+# Save a CSV under BENCH_OUT and echo the path.
 bench_write_csv <- function(df, name) {
   path <- file.path(BENCH_OUT, name)
   utils::write.csv(df, path, row.names = FALSE)

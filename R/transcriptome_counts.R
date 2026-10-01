@@ -34,8 +34,19 @@
 #'   non-negative number or one per gene. `0` gives a Poisson limit. Default `0.1`.
 #' @param seed optional seed; the RNG state is restored afterwards.
 #' @return the `transcriptome_sim` with a `counts` matrix (genes x individuals,
-#'   integer) and a `count_model` list (the per-gene/per-individual parameters and
-#'   the realized mean matrix `mu`).
+#'   R storage type `integer` on both the Poisson and negative-binomial paths) and
+#'   a `count_model` list (the per-gene/per-individual parameters and the realized
+#'   mean matrix `mu`). Counts must fit R's integer range: a mean above `1e9`, or
+#'   a draw above `.Machine$integer.max`, is an error rather than a silently
+#'   huge double.
+#' @references
+#'   The `Var = mu + phi mu^2` negative-binomial parameterization and its use for
+#'   RNA-seq counts follow the edgeR convention: McCarthy DJ, Chen Y, Smyth GK
+#'   (2012) \emph{Nucleic Acids Res.} 40(10):4288-4297,
+#'   \doi{10.1093/nar/gks042}; Robinson MD, Smyth GK (2008) \emph{Biostatistics}
+#'   9(2):321-332, \doi{10.1093/biostatistics/kxm030} (page-level equation
+#'   numbers not verified). The log-link to the latent expression and the
+#'   library-size factor are this package's own design.
 #' @seealso [simulate_transcriptome()].
 #' @export
 #' @examples
@@ -74,8 +85,15 @@ observe_counts <- function(tx, library_size = 1, baseline = 3, coupling = 0.5,
          call. = FALSE)
   }
 
+  if (max(mu) > .TX_MAX_COUNT_MEAN) {
+    stop("observe_counts(): a count mean of ", format(max(mu), digits = 3),
+         " exceeds ", format(.TX_MAX_COUNT_MEAN, scientific = FALSE),
+         "; counts must fit R's integer range. Lower `baseline`, `coupling`, ",
+         "or `library_size`.", call. = FALSE)
+  }
+
   draw <- function() {
-    Y <- matrix(0L, Tg, n, dimnames = dimnames(E))
+    Y <- matrix(0, Tg, n, dimnames = dimnames(E))
     for (g in seq_len(Tg)) {
       Y[g, ] <- if (phi[g] <= 0) {
         stats::rpois(n, mu[g, ])                        # Poisson limit
@@ -88,6 +106,13 @@ observe_counts <- function(tx, library_size = 1, baseline = 3, coupling = 0.5,
   counts <- if (is.null(seed)) draw() else {
     old <- .Random.seed_safe(); set.seed(seed); on.exit(.restore_seed(old)); draw()
   }
+  if (anyNA(counts) || max(counts) > .Machine$integer.max) {
+    stop("observe_counts(): the draws are missing or exceed R's integer range ",
+         "(the dispersion is extreme for this mean). Lower `dispersion` or ",
+         "`baseline`.", call. = FALSE)
+  }
+  storage.mode(counts) <- "integer"
+
   dimnames(mu) <- dimnames(E)
 
   tx$counts <- counts
@@ -95,6 +120,9 @@ observe_counts <- function(tx, library_size = 1, baseline = 3, coupling = 0.5,
                          dispersion = phi, mu = mu, seed = seed)
   tx
 }
+
+# Largest admissible count mean (counts are stored as integers).
+.TX_MAX_COUNT_MEAN <- 1e9
 
 #' Validate/recycle a per-gene or per-individual count parameter
 #' @keywords internal

@@ -7,9 +7,20 @@
 #
 # We sweep a range of TARGET h2 values (with cis_fraction held fixed) and a range
 # of TARGET cis-fraction values (with h2 held fixed) on the real maize panel, and
-# compare the REALIZED per-gene values reported in `$genes`
-# (h2_realized, cis_fraction_realized). We report bias (mean realized - target)
-# and RMSE, and save a target-vs-realized scatter.
+# compare the REALIZED per-gene values reported in `$genes` with the targets. We
+# report bias (mean realized - target) and RMSE, save a target-vs-realized
+# scatter, and FAIL (stop) if a calibration tolerance is exceeded.
+#
+# Which columns are informative (audit TX-F1/TX-F2):
+#   * `h2_allocated` = Var(G)/(Var(G)+Var(R)) is bounded in [0, 1] but is a
+#     variance ALLOCATION, not a heritability: it equals the target by
+#     construction on the reference population, so it is reported only as a
+#     sanity column. The informative one is the realized heritability
+#     `h2_realized` = Var(G)/Var(P) = Var(G)/(Var(G)+Var(R)+gr_cov), which is
+#     h2/(1 + gr_cov) when Var(G)+Var(R) = 1 (also stored as `h2_var_ratio`), which carries the finite-sample genetic-residual
+#     covariance.
+#   * `cis_fraction_realized` = v_cis/Var(G) (covariance included). It scatters
+#     around the target by the cis-trans covariance, so this panel can fail.
 #
 # Run:  Rscript benchmarks/01_h2_calibration.R
 # ==============================================================================
@@ -35,8 +46,9 @@ h2_rows <- lapply(seq_along(h2_targets), function(i) {
   h <- h2_targets[i]
   tx <- simulate_transcriptome(g, n_genes = N_GENES, seed = 100 + i,
                                h2 = h, cis_fraction = 0.5)
-  real <- tx$genes$h2_realized
+  real <- tx$genes$h2_realized              # realized Var(G)/Var(P)
   data.frame(target = h, realized = real,
+             bounded = tx$genes$h2_allocated,   # allocation, == target by construction
              gene = tx$genes$gene_id, stringsAsFactors = FALSE)
 })
 h2_df <- do.call(rbind, h2_rows)
@@ -49,6 +61,7 @@ h2_summary <- do.call(rbind, lapply(split(h2_df, h2_df$target), function(d) {
     bias        = mean(d$realized - d$target[1]),
     rmse        = sqrt(mean((d$realized - d$target[1])^2)),
     frac_zero   = mean(d$realized == 0),   # degenerate (no realizable genetic var)
+    allocated_h2_max_dev = max(abs(d$bounded - d$target[1])),  # ~0 by construction
     stringsAsFactors = FALSE
   )
 }))
@@ -64,7 +77,8 @@ cf_rows <- lapply(seq_along(cf_targets), function(i) {
   cf <- cf_targets[i]
   tx <- simulate_transcriptome(g, n_genes = N_GENES, seed = 200 + i,
                                h2 = 0.7, cis_fraction = cf)
-  keep <- tx$genes$n_cis > 0 & tx$genes$h2_realized > 0
+  keep <- tx$genes$n_cis > 0 & tx$genes$trans_scale > 0 &
+    tx$genes$h2_realized > 0            # both a cis and a trans part exist
   data.frame(target = cf,
              realized = tx$genes$cis_fraction_realized[keep],
              stringsAsFactors = FALSE)
@@ -87,18 +101,30 @@ rownames(cf_summary) <- NULL
 # report
 # ------------------------------------------------------------------------------
 cat("\n=== Benchmark 01: h2 & cis-fraction calibration ===\n")
-cat("\n-- per-gene h2 calibration (cis_fraction = 0.5,",
+cat("\n-- per-gene h2 calibration: realized Var(G)/Var(P) (cis_fraction = 0.5,",
     N_GENES, "genes/target) --\n")
 print(format(h2_summary, digits = 3))
 cat(sprintf("\n  overall h2 bias = %+.4f   overall h2 RMSE = %.4f\n",
             mean(h2_df$realized - h2_df$target),
             sqrt(mean((h2_df$realized - h2_df$target)^2))))
 
-cat("\n-- per-gene cis-fraction calibration (h2 = 0.7, genes with a cis eQTL) --\n")
+cat("\n-- per-gene cis-fraction calibration: v_cis/Var(G) (h2 = 0.7, genes with a cis and a trans part) --\n")
 print(format(cf_summary, digits = 3))
 cat(sprintf("\n  overall cis-fraction bias = %+.4f   RMSE = %.4f\n",
             mean(cf_df$realized - cf_df$target),
             sqrt(mean((cf_df$realized - cf_df$target)^2))))
+
+# ---- pass/fail (the panels can fail: neither is a restated target) -----------
+h2_bias <- mean(h2_df$realized - h2_df$target)
+h2_rmse <- sqrt(mean((h2_df$realized - h2_df$target)^2))
+cf_bias <- mean(cf_df$realized - cf_df$target)
+cf_rmse <- sqrt(mean((cf_df$realized - cf_df$target)^2))
+CHECKS <- c(h2_bias = abs(h2_bias) < 0.01, h2_rmse = h2_rmse < 0.05,
+            cis_bias = abs(cf_bias) < 0.02, cis_rmse = cf_rmse < 0.06,
+            cis_not_tautological = cf_rmse > 1e-6)
+cat("\n-- checks --\n"); print(CHECKS)
+if (!all(CHECKS)) stop("Benchmark 01: calibration check(s) failed: ",
+                       paste(names(CHECKS)[!CHECKS], collapse = ", "))
 
 bench_write_csv(h2_summary, "01_h2_calibration_summary.csv")
 bench_write_csv(cf_summary, "01_cisfraction_calibration_summary.csv")
@@ -114,7 +140,7 @@ bench_png("01_h2_calibration_scatter.png", {
   graphics::plot(jx(h2_df$target), h2_df$realized,
                  pch = 16, col = grDevices::adjustcolor("#2c7fb8", 0.28),
                  xlim = c(0, 1), ylim = c(0, 1),
-                 xlab = "target h2", ylab = "realized h2",
+                 xlab = "target h2", ylab = "realized h2 (Var(G)/Var(P))",
                  main = "Expression heritability")
   graphics::abline(0, 1, col = "grey40", lwd = 2, lty = 2)
   graphics::points(h2_summary$target, h2_summary$mean_real,
@@ -127,7 +153,7 @@ bench_png("01_h2_calibration_scatter.png", {
   graphics::plot(jx(cf_df$target), cf_df$realized,
                  pch = 16, col = grDevices::adjustcolor("#31a354", 0.28),
                  xlim = c(0, 1), ylim = c(0, 1),
-                 xlab = "target cis fraction", ylab = "realized cis fraction",
+                 xlab = "target cis fraction", ylab = "realized v_cis/Var(G)",
                  main = "cis fraction (genes with cis eQTL)")
   graphics::abline(0, 1, col = "grey40", lwd = 2, lty = 2)
   graphics::points(cf_summary$target, cf_summary$mean_real,

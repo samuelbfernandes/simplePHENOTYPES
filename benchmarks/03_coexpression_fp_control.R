@@ -9,8 +9,11 @@
 #
 # We show (a) strong within-module vs between-module co-expression, and (b) that
 # a naive "genetic co-expression" test -- the everyday inference that a tight
-# co-expression module reflects shared genetic regulation -- FALSE-POSITIVES on
-# every module here, because the truth is h2 = 0. As a foil we generate a
+# co-expression module reflects shared genetic regulation -- flags every module
+# here, although the simulated truth is h2 = 0. The Wilcoxon test below is NOT a
+# genetic test (it only compares within- and between-module |r|); the
+# "naive-inference error rate" is defined against the STATED truth h2 = 0, not
+# against the Wilcoxon null. As a foil we generate a
 # genotype-driven transcriptome (real trans-hotspots, h2 > 0) whose co-expression
 # looks the same, so co-expression alone cannot tell the two apart.
 #
@@ -64,7 +67,7 @@ naive_flags <- do.call(rbind, lapply(sort(unique(mod)), function(m) {
 }))
 rownames(naive_flags) <- NULL
 
-fpr <- mean(naive_flags$flagged)     # every flagged module is a false positive
+naive_error_rate <- mean(naive_flags$flagged)   # every flag contradicts the truth h2 = 0
 
 # ---- (2) foil: genotype-driven transcriptome (h2 > 0), same module strength --
 data("SNP55K_maize282_maf04")
@@ -100,10 +103,10 @@ cat(sprintf("  within-module mean |r| = %.3f   between-module mean |r| = %.3f  (
 cat("\n-- naive 'genetic co-expression' test on the h2 = 0 data --\n")
 print(format(naive_flags, digits = 3))
 cat(sprintf(
-  "\n  %d of %d modules flagged as 'genetically co-regulated' -> FALSE-POSITIVE\n",
+  "\n  %d of %d modules flagged as 'genetically co-regulated' -> wrong (truth: h2 = 0)\n",
   sum(naive_flags$flagged), nrow(naive_flags)))
-cat(sprintf("  rate = %.0f%%, yet the true genetic co-regulation is ZERO (h2 = 0).\n",
-            100 * fpr))
+cat(sprintf("  naive-inference error rate = %.0f%%, yet the true genetic co-regulation is ZERO (h2 = 0).\n",
+            100 * naive_error_rate))
 
 cat("\n-- foil: co-expression looks the same with vs without a genetic basis --\n")
 print(format(summary_tbl, digits = 3))

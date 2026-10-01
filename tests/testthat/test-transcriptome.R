@@ -4,6 +4,10 @@
 data("SNP55K_maize282_maf04")
 G <- SNP55K_maize282_maf04
 
+# tiny hand-built panels (n = 6) trigger the documented small-n warning
+# (< 30 individuals); these tests target other behaviour, so silence it.
+sim_small <- function(...) suppressWarnings(simulate_transcriptome(...))
+
 test_that("simulate_transcriptome returns a well-formed transcriptome_sim", {
   tx <- simulate_transcriptome(G, n_genes = 200, seed = 1)
   expect_s3_class(tx, "transcriptome_sim")
@@ -19,17 +23,22 @@ test_that("simulate_transcriptome returns a well-formed transcriptome_sim", {
 
 test_that("realized expression heritability tracks the target (finite-sample)", {
   tx <- simulate_transcriptome(G, n_genes = 400, seed = 2)
-  # realized h2 = Var(G)/Var(E) recomputed independently from the matrices
+  # realized heritability h2_realized = Var(G)/Var(E) (alias h2_var_ratio)
+  # recomputed independently from the matrices; the bounded allocation
+  # h2_allocated = Var(G)/(Var(G)+Var(R)) is in [0, 1]
   vg <- apply(tx$genetic_expression, 1, stats::var)
   ve <- apply(tx$expression, 1, stats::var)
+  vr <- apply(tx$expression - tx$genetic_expression, 1, stats::var)
   expect_equal(unname(vg / ve), tx$genes$h2_realized, tolerance = 1e-10)
-  expect_true(all(tx$genes$h2_realized >= 0))
-  # G and R are drawn independently, so realized tracks target up to finite-sample
-  # Cov(G, R) (reported in gr_cov, ~0 in expectation) -- not forced to be exact
+  expect_equal(unname(vg / ve), tx$genes$h2_var_ratio, tolerance = 1e-10)
+  expect_equal(unname(vg / (vg + vr)), tx$genes$h2_allocated, tolerance = 1e-10)
+  expect_true(all(tx$genes$h2_allocated >= 0 & tx$genes$h2_allocated <= 1))
+  # G and R are drawn independently, so the raw ratio tracks the target up to
+  # finite-sample Cov(G, R) (reported in gr_cov, ~0 in expectation)
   gettable <- tx$genes$h2_realized > 1e-8
-  expect_gt(stats::cor(tx$genes$h2_target[gettable], tx$genes$h2_realized[gettable]),
+  expect_gt(stats::cor(tx$genes$h2_target[gettable], tx$genes$h2_var_ratio[gettable]),
             0.95)
-  expect_lt(mean(abs(tx$genes$h2_realized[gettable] -
+  expect_lt(mean(abs(tx$genes$h2_var_ratio[gettable] -
                        tx$genes$h2_target[gettable])), 0.03)
   expect_lt(abs(mean(tx$var_budget$gr_cov)), 0.02)     # G-R covariance ~ 0
 })
@@ -149,7 +158,7 @@ test_that("edge inputs terminate and sample size is validated", {
   col <- c(-1L, -1L, 0L, 0L, 1L, 1L)                   # polymorphic, MAF 0.5
   m <- matrix(c(rep(col, 4), rep(rev(col), 4)), nrow = 6,
               dimnames = list(paste0("i", 1:6), paste0("m", 1:8)))
-  tx2 <- simulate_transcriptome(m, n_genes = 4, seed = 1)
+  tx2 <- sim_small(m, n_genes = 4, seed = 1)
   expect_equal(tx2$n_ind, 6L)
   # fewer than 3 individuals is rejected (orthogonalized residual has no d.f.)
   m2 <- matrix(rep(c(-1L, 1L), 4), nrow = 2,
@@ -163,7 +172,7 @@ test_that("cis is attainable for matrix input (treated as one chromosome)", {
   col <- c(-1L, -1L, 0L, 0L, 1L, 1L)
   m <- matrix(c(rep(col, 4), rep(rev(col), 4)), nrow = 6,
               dimnames = list(paste0("i", 1:6), paste0("m", 1:8)))
-  tx <- simulate_transcriptome(m, n_genes = 10, cis_fraction = 1, h2 = 0.5,
+  tx <- sim_small(m, n_genes = 10, cis_fraction = 1, h2 = 0.5,
                                seed = 1)
   expect_true(all(tx$genes$n_cis > 0))                   # every gene has a cis-eQTL
   expect_true(all(tx$genes$cis_fraction_realized > 0.99))# pure cis realized
@@ -218,7 +227,7 @@ test_that("annotation chromosomes: NA rejected, factor labels interoperate", {
   names(df)[-(1:5)] <- paste0("i", 1:6)
   ann <- data.frame(gene_id = c("a", "b"),
                     chr = factor("1", levels = c("1", "2")), tss = c(2, 5))
-  tx <- simulate_transcriptome(df, annotation = ann, h2 = 0.5, seed = 1)
+  tx <- sim_small(df, annotation = ann, h2 = 0.5, seed = 1)
   expect_s3_class(tx, "transcriptome_sim")
 })
 
@@ -232,7 +241,7 @@ test_that("markers with missing coordinates are never used as eQTL", {
                    as.data.frame(gm), stringsAsFactors = FALSE)
   names(df)[-(1:5)] <- paste0("i", 1:6)
   ann <- data.frame(gene_id = "g", chr = 1L, tss = 2)
-  tx <- simulate_transcriptome(df, annotation = ann, cis_window = 0,
+  tx <- sim_small(df, annotation = ann, cis_window = 0,
                                n_factors = 1, h2 = 0.5, seed = 4)
   used <- c(tx$cis_eqtl$snp, tx$factor_eqtl$snp)
   expect_false("s2" %in% used)                         # the NA-chr marker
@@ -254,7 +263,7 @@ test_that("a gene with neither cis nor an active module realizes h2 = 0", {
   m <- matrix(c(rep(col, 4), rep(rev(col), 4)), nrow = 6,
               dimnames = list(paste0("i", 1:6), paste0("m", 1:8)))
   ann <- data.frame(gene_id = c("near", "far"), chr = 1L, tss = c(4, 100))
-  tx <- simulate_transcriptome(m, annotation = ann, cis_window = 10,
+  tx <- sim_small(m, annotation = ann, cis_window = 10,
                                n_factors = 1, h2 = 0.5, seed = 1)
   expect_equal(tx$genes$h2_realized[tx$genes$gene_id == "far"], 0)
 })
@@ -268,7 +277,7 @@ test_that("a single-chromosome numeric panel does not crash", {
                    pos = (1:8) * 1000L, cm = 0, as.data.frame(gm),
                    stringsAsFactors = FALSE)
   names(df)[-(1:5)] <- paste0("i", 1:6)
-  tx <- simulate_transcriptome(df, n_genes = 5, seed = 1)
+  tx <- sim_small(df, n_genes = 5, seed = 1)
   expect_s3_class(tx, "transcriptome_sim")
   expect_true(all(tx$genes$chr == 10))
 })
@@ -276,13 +285,13 @@ test_that("a single-chromosome numeric panel does not crash", {
 test_that("h2 = 0 works on a monomorphic panel (purely non-genetic)", {
   m <- matrix(-1L, nrow = 6, ncol = 4,
               dimnames = list(paste0("i", 1:6), paste0("m", 1:4)))
-  tx <- simulate_transcriptome(m, n_genes = 8, h2 = 0, seed = 1)
+  tx <- sim_small(m, n_genes = 8, h2 = 0, seed = 1)
   expect_s3_class(tx, "transcriptome_sim")
   expect_true(all(tx$genes$h2_realized == 0))
   expect_null(tx$factor_eqtl)                          # no genetic component
   expect_true(all(apply(tx$expression, 1, stats::var) > 0))  # modules + noise
   # a positive h2 on the same monomorphic panel is rejected (no eQTL possible)
-  expect_error(simulate_transcriptome(m, n_genes = 4, h2 = 0.5, seed = 1),
+  expect_error(sim_small(m, n_genes = 4, h2 = 0.5, seed = 1),
                "no marker has MAF")
 })
 
@@ -402,7 +411,9 @@ test_that("a user n_factors override keeps kappa consistent with that Q", {
   Es <- t(apply(Euser, 1L, function(r) {
     s <- stats::sd(r); if (s > 0) (r - mean(r)) / s else r * 0
   }))
-  expect_equal(m$reference$kappa, simplePHENOTYPES:::.tx_estimate_kappa(Es, 1L))
+  expect_equal(m$reference$kappa,
+               simplePHENOTYPES:::.tx_estimate_kappa(
+                 Es, 1L, h2 = m$calibration$h2$h2_greml, omega = 0.25))
   expect_equal(m$calibration$kappa, m$reference$kappa)   # calibration reports the pair used
 })
 
@@ -512,7 +523,7 @@ test_that("an all-epistatic gene is fully represented in the truth table", {
 test_that("epistasis produces its pairs even on a tiny two-marker panel", {
   m <- matrix(c(-1L, -1L, 0L, 0L, 1L, 1L, 1L, 1L, 0L, 0L, -1L, -1L), nrow = 6,
               dimnames = list(paste0("i", 1:6), c("mA", "mB")))
-  tx <- simulate_transcriptome(m, n_genes = 5, cis_fraction = 1,
+  tx <- sim_small(m, n_genes = 5, cis_fraction = 1,
                                epistasis = 0.4, h2 = 0.6, seed = 3)
   expect_true(all(tx$genes$n_epi > 0))                   # not silently zero
 })

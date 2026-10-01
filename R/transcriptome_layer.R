@@ -135,9 +135,15 @@
 #' (warned).
 #' A genotype-free basis (`simulate_phenotype(expression = ...)` with no `geno`),
 #' `qtn_table()` gene rows, and cross-population reuse of an architecture
-#' ([predict.transcriptome_sim()]) are all supported. Still-planned follow-ups:
-#' `mimic` calibration from a user expression matrix, and an RNA-seq count
-#' observation layer.
+#' ([predict.transcriptome_sim()]) are all supported, as are `mimic` calibration
+#' of the generator to a user expression matrix
+#' ([simulate_transcriptome()]) and an RNA-seq count observation layer
+#' ([observe_counts()]).
+#'
+#' With `simulate_phenotype(transcriptome = TRUE)` the derived transcriptome is
+#' built on the phenotype's whole genotype panel (before any `individuals`
+#' subsetting) and uses the phenotype's raw `seed` unchanged for
+#' [simulate_transcriptome()].
 #'
 #' @param sim a `phenotype_sim` carrying an expression source (see
 #'   [simulate_phenotype()]'s `expression` / `transcriptome` arguments).
@@ -147,7 +153,8 @@
 #'   variance category, bounded (with all layers) to sum to at most 1.
 #' @param n_genes number of causal genes to draw (sparse); give this or `genes`.
 #' @param genes an explicit causal-gene set (names matching the expression source's
-#'   row names, or integer gene indices); overrides `n_genes`.
+#'   row names, or integer gene indices); overrides `n_genes`. Must be non-empty
+#'   and free of duplicates.
 #' @param slopes optional per-causal-gene slopes; a finite numeric vector, one per
 #'   causal gene. When `NULL`, slopes are drawn `N(0, 1)` (their absolute scale is
 #'   irrelevant -- the component is scaled to `prop`).
@@ -212,6 +219,16 @@ transcriptome <- function(sim, prop = NULL, n_genes = NULL, genes = NULL,
     } else {
       stop("transcriptome(): `genes` must be gene names or integer indices.",
            call. = FALSE)
+    }
+    if (length(idx0) < 1L) {
+      stop("transcriptome(): `genes` is empty; give at least one causal gene.",
+           call. = FALSE)
+    }
+    if (anyDuplicated(idx0)) {
+      stop("transcriptome(): `genes` has duplicate gene(s): ",
+           paste(utils::head(unique(gene_ids[idx0[duplicated(idx0)]]), 5),
+                 collapse = ", "), ". List each causal gene once (combine its ",
+           "slopes).", call. = FALSE)
     }
     if (any(!has_var[idx0])) {
       stop("transcriptome(): causal gene(s) have constant expression and carry ",

@@ -8,7 +8,9 @@ layer with `mediation_split()`).
 Each script is **standalone**: it loads the package from the repository root with
 `devtools::load_all(".")`, runs a small self-contained analysis on the bundled
 maize panel (`SNP55K_maize282_maf04`, 10,650 markers x 280 individuals), prints a
-result table to stdout, and writes a CSV plus a PNG under `benchmarks/output/`.
+result table to stdout, and writes a CSV plus a PNG to an output directory (by
+default a session temporary directory; see below -- nothing is written into the
+repository unless you ask for it).
 Sizes are kept modest so every script finishes in well under a minute, and all
 random draws are seeded for reproducibility. Plotting is wrapped so a missing or
 broken graphics device downgrades to a warning instead of crashing the run.
@@ -32,10 +34,14 @@ Or all at once:
 for f in benchmarks/0*_*.R; do Rscript "$f"; done
 ```
 
-Outputs (CSV + PNG) land in `benchmarks/output/` (created on first run).
-`benchmarks/_common.R` holds shared helpers (package loading, the output
-directory, a crash-safe `bench_png()`, and a `bench_dosage()` genotype reader);
-it is sourced by each script and is not run directly.
+Outputs (CSV + PNG) land in `<tempdir()>/simplePHENOTYPES-benchmarks` by default
+(the path is printed at the start of each run). To keep them, name a directory
+with the `SP_BENCH_OUT` environment variable, e.g.
+`SP_BENCH_OUT=benchmarks/output Rscript benchmarks/01_h2_calibration.R`
+(`benchmarks/output/` is gitignored). `benchmarks/_common.R` holds shared helpers
+(package loading, the output directory, a crash-safe `bench_png()`, and a
+`bench_dosage()` genotype reader); it is sourced by each script and is not run
+directly.
 
 ## What each script does
 
@@ -50,18 +56,29 @@ it is sourced by each script and is not run directly.
 ### 01 — h2 & cis-fraction calibration
 Sweeps target h2 (with `cis_fraction = 0.5`) and target cis fraction (with
 `h2 = 0.7`) over 200 genes each on the maize panel, and compares the **realized**
-values in `$genes` (`h2_realized`, `cis_fraction_realized`) to the targets. Reports
-per-target bias and RMSE and saves a target-vs-realized scatter. (Observed: per-gene
-h2 bias ≈ +0.0003, RMSE ≈ 0.024; the realized cis fraction of genes that carry a
-cis-eQTL matches the target essentially exactly, because the cis/trans budget is a
-standardized decomposition.)
+values in `$genes` to the targets. Two of the reported columns are informative and
+two are not: the bounded `h2_allocated = Var(G)/(Var(G)+Var(R))` is a variance
+allocation (not a heritability) that equals the target by construction on the
+reference population (shown only as a sanity column), so the h2 panel uses the
+realized heritability `h2_realized = Var(G)/Var(P)` (also stored as
+`h2_var_ratio`); the cis panel uses
+`cis_fraction_realized = v_cis/Var(G)` (covariance included), which scatters around
+the target. Both panels have tolerances and the script stops if one is exceeded, so
+neither can pass vacuously. (Observed: realized-h2 bias ≈ +0.0003, RMSE ≈ 0.024;
+cis-fraction bias ≈ +0.002, RMSE ≈ 0.040, i.e. the realized cis share deviates from
+the target by the cis-trans covariance.)
 
 ### 02 — cis-eQTL recovery
 Simulates a cis-heavy transcriptome (`h2 = 0.8`, `cis_fraction = 0.95`), then for
-40 genes runs a marginal association scan over a candidate set of {the gene's true
-cis-eQTL from `$cis_eqtl`} + 200 random decoy markers, and reports where the true
-cis-eQTL rank. (Observed: the true cis-eQTL is the top hit for ~100% of genes, vs a
-~2.5% top-5 chance under random ranking.)
+two sets of 40 genes -- a **random** draw from all genes with a cis-eQTL (the
+headline) and, for comparison, the 40 with the largest |cis effect| (the easiest
+subset) -- runs a marginal association scan over a candidate set of {the gene's
+true cis-eQTL from `$cis_eqtl`} + 200 random decoy markers, and reports where the
+true cis-eQTL rank. The chance comparator is exact per gene,
+`1 - choose(D, K)/choose(D + m, K)` for `m` true markers among `D` decoys and
+top-`K` (about 4% on average here, since 47% of genes have more than one true
+marker; the one-marker value `K/(D+1)` = 2.5% understates it). (Observed: the true
+cis-eQTL is the top hit for ~100% of both sets.)
 
 ### 03 — co-expression without a genetic basis (headline)
 Generates a **genotype-free** transcriptome (`geno = NULL`, every gene `h2 = 0`)
@@ -69,29 +86,45 @@ with real co-expression modules, shows within-module correlations far exceed
 between-module (~14x), and runs a naive "genetic co-expression" test that flags a
 module as genetically co-regulated when its within-module correlation is
 significantly higher than background. Every module is flagged — a **100%
-false-positive rate**, because the truth is `h2 = 0`. A genotype-driven foil
+naive-inference error rate**, measured against the stated truth `h2 = 0` (the
+Wilcoxon test itself is not a genetic test; it is presented as the naive,
+wrong inference). A genotype-driven foil
 (`h2 > 0`) shows co-expression looks the same with or without a genetic basis, so
 co-expression alone cannot distinguish them. This is a ground truth no
 genotype→trait simulator provides.
 
 ### 04 — mediation recovery & the derived/real H2 asymmetry
 Builds a derived expression-mediated phenotype and sweeps the per-gene expression
-heritability `h2*`. Shows `mediation_split()`'s `genetic_mediated` share tracks the
-intended `prop * h2*` (observed corr ≈ 0.997), and that feeding the **same
+heritability `h2*`. The rough expectation `prop * mean(h2)` holds only for
+independent, equal-weight causal genes; the exact share is
+`prop * Var(Σ w_g (G_g - mean)/s_Eg) / Var(Σ w_g (E_g - mean)/s_Eg) / V_P`
+(no independence assumption), which the script computes from the expression
+matrices independently of `mediation_split()` and checks against it (agreement to
+~1e-16); `prop * h2*` is reported as the approximation (max deviation ≈ 0.03 with
+20 causal genes). No correlation over the three sweep points is reported. Feeding the **same
 expression matrix** as a *real* observed source (`expression =`) yields H2 ≈ 0 and
 `NULL` mediation — because only genome-**derived** expression is credited to
-heritability (its genetic-mediated part appears in `genetic_values()`).
+heritability (its genetic-mediated part appears in `genetic_values()`). The
+realized total share differs from `prop` because `V_P` is not exactly 1.
 
 ### 05 — TWAS power
 For a derived transcriptome-mediated phenotype, (A) an observed-expression TWAS
 (correlate each gene's expression with the phenotype) shows detection power rising
-with `prop`; (B) a **cis-predicted** TWAS (correlate each gene's cis-eQTL-imputed
-expression with the phenotype — the single-gene cis-TWAS setting) recovers
-cis-driven causal genes but is blind to purely trans-driven ones (mean |r| = 0 for
-purely-trans genes, since they have no cis component to impute). Note the
-observed-expression TWAS also shows a rising non-causal "FPR": non-causal genes that
-share a co-expression module with causal genes genuinely correlate with the
-phenotype — a real confound the simulator lets you study.
+with `prop`, averaged over 20 phenotype replications per `prop` with the Monte
+Carlo standard error reported (not a single realization); (B) a **cis-predicted**
+TWAS (correlate each gene's cis-eQTL-imputed expression with the phenotype — the
+single-gene cis-TWAS setting) recovers cis-driven causal genes; its power for
+purely trans-driven ones is 0 **by construction** (they have no cis component to
+impute), an illustration of the cis-only limit rather than an empirical finding.
+Non-causal genes are split into *structural nulls* (modules with no causal gene:
+no shared module and no direct causal-gene status, i.e. no designed path to the
+phenotype; this is a statement about the simulated design, not a proof of zero
+association, because marker linkage disequilibrium (LD) between eQTL can still
+induce weak association, so their Bonferroni rate is the false-positive rate for
+genes with no designed link and is expected to be small, not guaranteed zero) and
+*module-linked* genes (they share a co-expression module with a causal gene and
+genuinely correlate with the phenotype — a real confound the simulator lets you
+study, with a rate that rises with `prop`).
 
 ## External-tool comparisons (planned — NOT installed here)
 
@@ -152,4 +185,4 @@ pulled in as a heavy dependency.
 - A harmless `OMP: Warning #179` line may appear on stderr from a compiled
   dependency's OpenMP setup under a restricted temp directory; it does not affect
   results.
-- `benchmarks/output/` is regenerated on each run and can be deleted safely.
+- Output files are regenerated on each run and can be deleted safely (they live in a temporary directory unless `SP_BENCH_OUT` is set).
