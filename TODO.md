@@ -387,42 +387,55 @@ Source: BD `docs/BREEDING_METHODS_CATALOG.md` ("Engine:" notes).
 
 ---
 
-## Block 3C — Post-audit follow-ups (independent dual-model audit, 2026-09)
+## Block 3C — Post-audit follow-ups (independent dual-model audit, 2026-09/10)
 
-Audit and review rounds 1-4 are closed and pushed to master (see NEWS "Audit fixes" and
-DECISION-033 to 037). Evidence: `.tmp/audit-2026-09-29/`, `.tmp/codex-review*/`
-(gitignored, in the audit worktree).
+Status 2026-10-01: audit and review rounds 1-4 are on master (NEWS "Audit fixes",
+DECISION-033 to 037). The SPEC-0020 engine requests (items 1, 2, 3, 5, 6, 7, 8 above, the
+interference propagation, and their review fixes) are in **PR #13**
+(`feat/spec0020-engine-requests`, DECISION-038 to 041): full test suite green (63 files, 5761
+expectations), local `R CMD check` 0 errors / 0 warnings, Codex re-reviews fixed.
+
+**Housekeeping (do first)**
+- [ ] Merge PR #13 once CI is green (the session's auto-fix watcher may not survive archiving;
+  re-check `gh pr checks 13`). After merging, the main checkout's uncommitted `TODO.md` edits are
+  already contained in this file (copied 2026-09-30): discard them (`git checkout TODO.md`)
+  before `git pull`.
+- [ ] Items **4** (G x E trait layer) and **9** (coalescent founders) in the PRIORITY list are
+  NOT implemented: waiting for the maintainer's instructions.
+- [ ] Evidence is gitignored and lives only in the audit worktree
+  (`.claude/worktrees/kind-shamir-c7d1df/.tmp/`): copy `.tmp/audit-2026-09-29/` (reports,
+  equation-to-code PDF) and `.tmp/codex-review*/` to a permanent folder before the worktree is
+  deleted.
+- [ ] Remove the leftover agent worktree/branch `worktree-agent-abf14fefa4d4acf18`.
 
 **Reviews still owed (the other model must review genetics changes, AGENTS.md)**
-- [ ] Codex re-review of the round-4 changes (script to be written, adapt
-  `.tmp/codex-review-round3.sh`): R4-1 (`.tune_lambda()` purely relative above-optimum
-  band, `R/select_ocs.R`) and R4-5 (`.tx_mimic_scale()` always rescales to the requested
-  per-gene variance, counted warning when ill-conditioned, `R/transcriptome_simulate.R`).
-- [ ] Codex review of the round-3 wording/I-O items R3-5 to R3-15 (tested by their owners,
-  never sent to Codex): case-insensitive orientation labels, 11-column HapMap guard,
-  integer genotype schema, heterosis retention text, `h2_*` documentation.
-- [ ] Full `R CMD check` on the merged master (the last run covered documentation only; the
-  merge with the multi-trait BLUP / JSON writer work was verified by the test suite only).
+- [ ] Codex re-review of the round-4 changes (script to write, adapt
+  `.tmp/codex-review-round3.sh`): R4-1 (`.tune_lambda()` purely relative above-optimum band,
+  `R/select_ocs.R`) and R4-5 (`.tx_mimic_scale()` always rescales to the requested per-gene
+  variance, counted warning when ill-conditioned, `R/transcriptome_simulate.R`).
+- [ ] Codex review of the last fixes of PR #13 (validation and wording only, 24 tests): the
+  overwrite warning for default-named `as_numeric()` output files, `.check_counted()` rejecting
+  matrices, the DECISION-038 index row.
+- [ ] Codex review of round-3 items never sent to Codex: 11-column HapMap guard (R3-6),
+  integer genotype schema (R3-7), heterosis retention text (R3-12), `h2_*` documentation
+  (R3-14), case-insensitive orientation labels (R3-5).
+- [ ] Add the interference rubric item (M4) to `docs/THEORY_REVIEW.md` after the review (no
+  exact text was proposed yet); verify the cited McPeek & Speed (1995) and Housworth & Stahl
+  (2003) references in `?cross` (author/year/journal only, unverified).
+- [ ] Pre-PR gate: a full `R CMD check` **with vignettes** (needs pandoc). The `v1-to-v2`
+  vignette failure escaped the test suite and local no-vignette checks; consider a test that
+  evaluates every vignette's code.
 
-- [ ] Codex review of the new features (items 2, 3, 5, 6, 7, 8): `.tmp/codex-review-round5.sh`;
-  the interference model (item 3) and `reps` (item 6) are new genetics. *Reviewed once (round 5),
-  fixes applied 2026-09-30; re-review of items G1-G5/C1/H1/C2 + propagation still owed.*
-- [x] **Propagate `interference` to every function that runs meiosis** (maintainer note
-  2026-09-30). *Done 2026-09-30 (DECISION-041 propagation): `interference = NULL` is now the last
-  formal of `single_seed_descent()`, `bulk()`, `pedigree()`, `recurrent_selection()`,
-  `cross_usefulness()`, `combining_ability(method = "simulated")` (error under `"expected"`) and
-  `progeny_test()`; validated up front, forwarded to every meiosis, default bit-identical; tests in
-  `tests/testthat/test-fix6-propagation.R`. A scheme-level default was not added.* Original note: Today only `cross()`, `selfcross()`, `double_haploid()`, `mate()` and
-  `crossbreed()` accept it; these still draw Poisson crossovers and ignore it:
-  `single_seed_descent()` and `bulk()` (`R/select_schemes.R:491`, `selfcross`),
-  `pedigree()` and `recurrent_selection()` (`R/select_schemes.R:513`, `cross`), and
-  `cross_usefulness()` (`R/select_usefulness.R:284-290`, family simulation). Append
-  `interference = NULL` to each (default unchanged, bit-identical), forward it to the
-  crossing call, validate with `.check_interference()`, test it, and re-check any other
-  caller of `cross`/`selfcross`/`double_haploid` (grep) so that a whole breeding scheme
-  uses one meiosis model. A scheme-level default (e.g. an option or an argument on
-  `as_population()`) could be considered.
-- [ ] Add the interference rubric item (M4) to `docs/THEORY_REVIEW.md` after the Codex review.
+**Open follow-ups from the new features**
+- [ ] `.stable_key()` in `R/cross_pedigree.R` could be vectorised (~2 ms of ~23 ms per call).
+- [ ] `cross_usefulness()` `"dh"` / `"selfcross"`: the interference dispersion is not tested
+  (forwarding only, via a call counter).
+- [ ] Optional: a scheme-level interference default (an option or an `as_population()` argument)
+  instead of passing `interference =` to every function.
+- [ ] The default-name overwrite warning of `as_numeric()` fires before conversion, so a failed
+  conversion still warns.
+- [ ] `reps` with a derived transcriptome layer is conditional on a fixed transcriptome
+  covariate (DECISION-038); revisit if a per-record transcriptome environment is wanted.
 
 **Known gaps left open on purpose**
 - [ ] `counted_allele` lives on the R object only: it is not written to numeric text files or
@@ -435,13 +448,13 @@ DECISION-033 to 037). Evidence: `.tmp/audit-2026-09-29/`, `.tmp/codex-review*/`
 - [ ] Not all 328 proposed tests of the audit were adopted (see
   `.tmp/audit-2026-09-29/reconciliation/*` section 6).
 - [ ] Unverifiable citation pages (e.g. PRED-F3 Ceron-Rojas, AUX-F20 CRAN baseline version,
-  Meuwissen 1997 / Baik et al. 2005 equation pages): confirm against the sources before
-  the Python port quotes them.
+  Meuwissen 1997 / Baik et al. 2005 equation pages): confirm against the sources before the
+  Python port quotes them.
 
 **Before the Python re-creation**
-- [ ] Use `.tmp/audit-2026-09-29/simplePHENOTYPES_equation_code_map.pdf` (equation to code
-  map) and `V1_AUDIT_REPORT.md` / `V2_AUDIT_REPORT.md` as the porting checklist; regenerate
-  the PDF line numbers after the fixes (they refer to the pre-fix tree).
+- [ ] Use `.tmp/audit-2026-09-29/simplePHENOTYPES_equation_code_map.pdf` (equation to code map)
+  and `V1_AUDIT_REPORT.md` / `V2_AUDIT_REPORT.md` as the porting checklist; regenerate the PDF
+  line numbers after the fixes (they refer to the pre-fix tree).
 
 ---
 
