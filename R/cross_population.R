@@ -79,17 +79,7 @@
 #' pop <- as_population(SNP55K_maize282_maf04, individuals = c("33-16", "38-11"))
 #' pop
 as_population <- function(geno, individuals = NULL, pool = NA_character_) {
-  if (length(pool) != 1L || !is.atomic(pool) ||
-      !(is.na(pool) || is.character(pool))) {
-    stop("`pool` must be a single character label (or NA).", call. = FALSE)
-  }
-  # every missing label (NA of any type, NaN) is the same "no pool"
-  if (is.na(pool)) pool <- NA_character_
-  if (!is.na(pool) && (!nzchar(pool) || pool == "<unassigned>")) {
-    stop("`pool` must be a non-empty label other than \"<unassigned>\" ",
-         "(reserved for founders without a label); use NA for none.",
-         call. = FALSE)
-  }
+  pool <- .check_pool(pool)
   meta <- c("snp", "allele", "chr", "pos", "cm")
   if (!is.data.frame(geno) || ncol(geno) < 6 ||
       any(colnames(geno)[1:5] != meta)) {
@@ -98,29 +88,13 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
          "See data(SNP55K_maize282_maf04).", call. = FALSE)
   }
 
-  map <- data.frame(
-    snp = as.character(geno$snp),
-    chr = geno$chr,
-    pos = geno$pos,
-    cm  = as.numeric(geno$cm),
-    stringsAsFactors = FALSE
-  )
-  .check_map(map)
-  .check_cm_units(map)
   # The allele column is kept (when informative) so crossing can compare the
-  # allele orientation of two populations (`.check_orientation()`). It is
-  # deliberately not part of the map identity (`.same_map()`).
-  allele <- as.character(geno$allele)
-  if (!all(is.na(allele))) map$allele <- allele
-  # The counted (+1) allele, when as_numeric() recorded it (the "counted_allele"
-  # attribute of its result), is what the orientation check compares; numeric
-  # data without it (older files, subsetted or rebuilt data frames) keeps the
-  # label-only check.
-  counted <- attr(geno, "counted_allele", exact = TRUE)
-  if (is.character(counted) && length(counted) == nrow(geno) &&
-      !all(is.na(counted))) {
-    map$counted <- toupper(counted)
-  }
+  # allele orientation of two populations (`.check_orientation()`). The counted
+  # (+1) allele, when as_numeric() recorded it (the "counted_allele" attribute of
+  # its result), is what the orientation check compares; numeric data without
+  # it (older files, subsetted or rebuilt data frames) keeps the label-only check.
+  map <- .make_map(geno$snp, geno$chr, geno$pos, geno$cm, geno$allele,
+                   attr(geno, "counted_allele", exact = TRUE))
 
   geno_values <- geno[, -(1:5), drop = FALSE]
   if (!all(vapply(geno_values, is.numeric, logical(1)))) {
@@ -176,6 +150,56 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
   fp <- .founder_pedigree(colnames(dose), cis, trans, pool)
   .new_population(map, cis, trans, colnames(dose), "founder",
                   keys = fp$keys, pedigree = fp$pedigree)
+}
+
+#' Validate a founder-pool label (shared by `as_population()` and
+#' `population_from_haplotypes()`); returns it with every missing label as NA.
+#' @keywords internal
+#' @noRd
+.check_pool <- function(pool) {
+  if (length(pool) != 1L || !is.atomic(pool) ||
+      !(is.na(pool) || is.character(pool))) {
+    stop("`pool` must be a single character label (or NA).", call. = FALSE)
+  }
+  # every missing label (NA of any type, NaN) is the same "no pool"
+  if (is.na(pool)) pool <- NA_character_
+  if (!is.na(pool) && (!nzchar(pool) || pool == "<unassigned>")) {
+    stop("`pool` must be a non-empty label other than \"<unassigned>\" ",
+         "(reserved for founders without a label); use NA for none.",
+         call. = FALSE)
+  }
+  pool
+}
+
+#' Build and validate the marker map of a Population
+#'
+#' The one place a `Population` map is assembled, so every constructor
+#' (`as_population()`, `population_from_haplotypes()`) validates it identically:
+#' `snp`, `chr`, `pos`, `cm` (checked by `.check_map()` and `.check_cm_units()`),
+#' plus the `allele` label (kept when informative) and the `counted` (+1) allele
+#' (kept when it names at least one allele). The allele columns are deliberately
+#' not part of the map identity (`.same_map()`).
+#' @keywords internal
+#' @noRd
+.make_map <- function(snp, chr, pos, cm, allele = NULL, counted = NULL) {
+  map <- data.frame(
+    snp = as.character(snp),
+    chr = chr,
+    pos = pos,
+    cm  = as.numeric(cm),
+    stringsAsFactors = FALSE
+  )
+  .check_map(map)
+  .check_cm_units(map)
+  if (!is.null(allele)) {
+    allele <- as.character(allele)
+    if (!all(is.na(allele))) map$allele <- allele
+  }
+  if (is.character(counted) && length(counted) == nrow(map) &&
+      !all(is.na(counted))) {
+    map$counted <- toupper(counted)
+  }
+  map
 }
 
 #' Construct a Population
