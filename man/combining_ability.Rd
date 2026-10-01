@@ -16,7 +16,8 @@ combining_ability(
   h2 = NULL,
   var_e = NULL,
   ref = NULL,
-  seed = NULL
+  seed = NULL,
+  interference = NULL
 )
 }
 \arguments{
@@ -41,6 +42,11 @@ as for \code{\link[=genotypic_value]{genotypic_value()}}. \code{d} may be a sing
 is an error without \code{h2}.}
 
 \item{seed}{optional RNG seed for \code{"simulated"}.}
+
+\item{interference}{\code{NULL} (default: Poisson crossovers, no interference, the
+isqg stream, bit-identical to earlier versions) or \code{list(nu = , p = )}, the
+two-pathway gamma model of crossover interference of \code{\link[=cross]{cross()}} (see its
+section "Crossover interference"), for the meioses of \code{method = "simulated"}; an error with \code{"expected"}, which runs no meiosis.}
 }
 \value{
 A \code{combining_ability} object: a list with \code{gca} (named, over

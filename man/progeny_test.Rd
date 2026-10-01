@@ -14,7 +14,8 @@ progeny_test(
   h2 = NULL,
   var_e = NULL,
   ref = NULL,
-  seed = NULL
+  seed = NULL,
+  interference = NULL
 )
 }
 \arguments{
@@ -37,6 +38,11 @@ additive trait, so with dominance the \code{h2} given is not the \code{h2} in it
 \item{seed}{optional RNG seed (mates, meioses and residuals are drawn in that
 order from one stream); the caller's random-number stream is left as it was
 found.}
+
+\item{interference}{\code{NULL} (default: Poisson crossovers, no interference, the
+isqg stream, bit-identical to earlier versions) or \code{list(nu = , p = )}, the
+two-pathway gamma model of crossover interference of \code{\link[=cross]{cross()}} (see its
+section "Crossover interference"), for the meioses that make the progeny.}
 }
 \value{
 A data frame with \code{id} (parent), \code{progeny_mean} and \code{n}, with

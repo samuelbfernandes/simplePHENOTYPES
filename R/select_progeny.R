@@ -66,6 +66,10 @@
 #' @param seed optional RNG seed (mates, meioses and residuals are drawn in that
 #'   order from one stream); the caller's random-number stream is left as it was
 #'   found.
+#' @param interference `NULL` (default: Poisson crossovers, no interference, the
+#'   isqg stream, bit-identical to earlier versions) or `list(nu = , p = )`, the
+#'   two-pathway gamma model of crossover interference of [cross()] (see its
+#'   section "Crossover interference"), for the meioses that make the progeny.
 #' @return A data frame with `id` (parent), `progeny_mean` and `n`, with
 #'   attributes `progeny` (the progeny `Population`), `records` (each progeny's
 #'   value, named by id) and `var_e` (the residual variance used, 0 for none).
@@ -83,7 +87,9 @@
 #'                    n_progeny = 10, h2 = 0.3, seed = 1)
 #' pt
 progeny_test <- function(parents, mates, qtn, a, d = 0, n_progeny, h2 = NULL,
-                         var_e = NULL, ref = NULL, seed = NULL) {
+                         var_e = NULL, ref = NULL, seed = NULL,
+                         interference = NULL) {
+  interference <- .check_interference(interference, "progeny_test")
   .check_population(parents)
   .check_population(mates)
   .check_distinct(parents, "parents", "progeny_test")
@@ -127,7 +133,8 @@ progeny_test <- function(parents, mates, qtn, a, d = 0, n_progeny, h2 = NULL,
   }))
   plan$mother_pool <- "parents"
   plan$father_pool <- "mates"
-  progeny <- mate(plan, parents = parents, mates = mates, prefix = "pt")
+  progeny <- mate(plan, parents = parents, mates = mates, prefix = "pt",
+                  interference = interference)
   if (is.null(h2) && is.null(var_e)) {
     y <- genotypic_value(progeny, qtn, a, d)
     ve <- 0

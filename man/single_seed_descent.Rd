@@ -4,7 +4,7 @@
 \alias{single_seed_descent}
 \title{Single seed descent}
 \usage{
-single_seed_descent(x, generations = 5L, seed = NULL)
+single_seed_descent(x, generations = 5L, seed = NULL, interference = NULL)
 }
 \arguments{
 \item{x}{a \code{Population}, or a \code{phenotype_sim} built on one (its genotypes are
@@ -16,6 +16,12 @@ used).}
 ambient RNG stream is used) or one non-negative whole number. When given, the
 caller's RNG state is restored on exit, so a seeded scheme does not disturb
 the surrounding random stream.}
+
+\item{interference}{\code{NULL} (default: Poisson crossovers, no interference, the
+isqg stream, bit-identical to earlier versions) or \code{list(nu = , p = )}, the
+two-pathway gamma model of crossover interference of \code{\link[=cross]{cross()}} (see its
+section "Crossover interference"). It is applied to every meiosis the scheme
+runs, in every generation, so a whole scheme can use one meiosis model.}
 }
 \value{
 a \code{Population} of inbred lines.

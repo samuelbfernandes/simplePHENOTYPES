@@ -91,6 +91,11 @@
 #'   `h2` / `var_e` (none: no residual); `ref` (the reference population for `h2`)
 #'   is an error without `h2`.
 #' @param seed optional RNG seed for `"simulated"`.
+#' @param interference `NULL` (default: Poisson crossovers, no interference, the
+#'   isqg stream, bit-identical to earlier versions) or `list(nu = , p = )`, the
+#'   two-pathway gamma model of crossover interference of [cross()] (see its
+#'   section "Crossover interference"), for the meioses of `method =
+#'   "simulated"`; an error with `"expected"`, which runs no meiosis.
 #' @return A `combining_ability` object: a list with `gca` (named, over
 #'   candidates), `gca_testers` (factorial only), `sca` (matrix: candidates x
 #'   testers, or the symmetric candidate x candidate matrix for a diallel, `NA` on
@@ -124,9 +129,10 @@ combining_ability <- function(candidates, testers = NULL, qtn, a, d = 0,
                               design = c("topcross", "factorial", "diallel"),
                               method = c("expected", "simulated"),
                               n_progeny = NULL, h2 = NULL, var_e = NULL,
-                              ref = NULL, seed = NULL) {
+                              ref = NULL, seed = NULL, interference = NULL) {
   design <- match.arg(design)
   method <- match.arg(method)
+  interference <- .check_interference(interference, "combining_ability")
   .check_population(candidates)
   .check_distinct(candidates, "candidates")
   if (design == "diallel") {
@@ -166,9 +172,9 @@ combining_ability <- function(candidates, testers = NULL, qtn, a, d = 0,
            call. = FALSE)
     }
   } else if (!is.null(n_progeny) || !is.null(h2) || !is.null(var_e) ||
-             !is.null(ref) || !is.null(seed)) {
-    stop("combining_ability(): `n_progeny`, `h2`, `var_e`, `ref` and `seed` ",
-         "apply to method = \"simulated\" only.", call. = FALSE)
+             !is.null(ref) || !is.null(seed) || !is.null(interference)) {
+    stop("combining_ability(): `n_progeny`, `h2`, `var_e`, `ref`, `seed` and ",
+         "`interference` apply to method = \"simulated\" only.", call. = FALSE)
   }
 
   cand_ids <- candidates$ids
@@ -182,7 +188,7 @@ combining_ability <- function(candidates, testers = NULL, qtn, a, d = 0,
     extra <- list()
   } else {
     sim <- .simulate_cross_means(candidates, testers, design, qtn, a, d,
-                                 n_progeny, h2, var_e, ref, seed)
+                                 n_progeny, h2, var_e, ref, seed, interference)
     Y <- sim$Y
     extra <- sim[c("n_progeny", "var_e", "progeny")]
   }
@@ -245,7 +251,8 @@ combining_ability <- function(candidates, testers = NULL, qtn, a, d = 0,
 #' @keywords internal
 #' @noRd
 .simulate_cross_means <- function(candidates, testers, design, qtn, a, d,
-                                  n_progeny, h2, var_e, ref, seed) {
+                                  n_progeny, h2, var_e, ref, seed,
+                                  interference = NULL) {
   cand_ids <- candidates$ids
   # `seed` seeds the whole simulation once (meioses, then residuals, from one
   # stream) and the caller's stream is put back afterwards, as phenotype_value()
@@ -258,7 +265,7 @@ combining_ability <- function(candidates, testers = NULL, qtn, a, d = 0,
   if (design == "diallel") {
     plan <- mating_design(candidates, design = "half_diallel",
                           progeny_per_cross = n_progeny)
-    progeny <- mate(plan, candidates, prefix = "ca")
+    progeny <- mate(plan, candidates, prefix = "ca", interference = interference)
     test_ids <- cand_ids
   } else {
     plan <- mating_design(candidates, testers, design = "factorial",
@@ -266,7 +273,7 @@ combining_ability <- function(candidates, testers = NULL, qtn, a, d = 0,
     plan$mother_pool <- "candidates"
     plan$father_pool <- "testers"
     progeny <- mate(plan, candidates = candidates, testers = testers,
-                    prefix = "ca")
+                    prefix = "ca", interference = interference)
     test_ids <- testers$ids
   }
   y <- if (is.null(h2) && is.null(var_e)) {
