@@ -205,7 +205,7 @@ test_that("item 6: per-trait reps and vqtl heterogeneity are rescaled", {
   expect_identical(mixed$reps, c(1L, 4L))
   # the printed note names both scales
   out <- utils::capture.output(print(mixed))
-  expect_true(any(grepl("Entry means of reps = \\[1, 4\\]", out)))
+  expect_true(any(grepl("Entry means of reps \\(per trait\\) = \\[1, 4\\]", out)))
   expect_true(any(grepl("entry-mean", out)))
   expect_true(any(grepl("Single-record realized", out)))
 })
@@ -215,7 +215,7 @@ test_that("item 6: print() states which scale is shown", {
   ph <- simulate_phenotype(geno, h2 = 0.5, n_qtn = 3, seed = 3, reps = 4)
   out <- utils::capture.output(print(ph))
   expect_true(any(grepl("Entry means of reps = 4 records", out)))
-  expect_true(any(grepl("entry-mean H", out)))
+  expect_true(any(grepl("entry-mean Var\\(G\\) / Var\\(y_bar\\)", out)))
   expect_true(any(grepl("Single-record realized", out)))
 })
 

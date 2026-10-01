@@ -27,11 +27,16 @@
 #'   the **single-record** scale `V_G / (V_G + V_E)`.
 #' @param reps number of independent records averaged into each entry's
 #'   phenotype (default 1; entry-mean replication, as in [simulate_phenotype()]):
-#'   a positive whole number or one per trait. The common residual drawn here has
-#'   variance `V_E / reps`, so the phenotype is an entry mean and the realized H2
-#'   reported is the entry-mean `V_G / (V_G + V_E / reps)`; `h2` stays the
-#'   single-record share. The inputs' own `reps` are not used (their residuals are
-#'   discarded); with `reps = 1` the result is bit-identical to a call without it.
+#'   a positive whole number or one per trait. The common residual drawn here is
+#'   divided by `sqrt(reps)`, so the phenotype is an entry mean. `h2` stays the
+#'   single-record target share `V_G / (V_G + V_E)`; the entry-mean target is
+#'   `V_G / (V_G + V_E / reps)`. The realized H2 reported is
+#'   `Var(G) / Var(y_bar)` from the realized values, with
+#'   `Var(y_bar) = V_G + V_E / reps + 2 Cov(G, e) / sqrt(reps)` (record scale
+#'   `V_G + V_E + 2 Cov(G, e)`): it equals the allocation formula only when the
+#'   sample covariance `Cov(G, e)` is zero. The inputs' own `reps` are not used
+#'   (their residuals are discarded); with `reps = 1` the result is bit-identical
+#'   to a call without it.
 #' @return a combined `phenotype_sim` (architecture "complex").
 #' @export
 #' @examples
@@ -121,7 +126,7 @@ complex_phenotypes <- function(..., h2, reps = 1) {
       seed_r <- .layer_seed(seed, paste0("complex_resid_t", t), r - 1L)
       e <- .seeded_residual(seed_r, n, max(0, 1 - h2v[t]))
       if (reps[t] != 1L) {
-        e <- e / sqrt(reps[t])     # entry mean of `reps` records: Var = V_E / reps
+        e <- e / sqrt(reps[t])     # entry mean of `reps` records: residual / sqrt(reps)
       }
       k <- k + 1L
       long[[k]] <- data.frame(

@@ -119,25 +119,47 @@ or \code{TRUE} to derive one from \code{geno} with default settings. Give at mos
 phenotype (default 1; entry-mean replication, the AlphaSimR
 \code{setPheno(varE, reps)} semantics): a positive whole number, or a vector of
 length \code{n_traits} for per-trait counts. The phenotype becomes the mean of
-\code{reps} independent records of the same genotype, so the \strong{residual}
-variance (including the \code{\link[=vqtl]{vqtl()}} heterogeneity component) is divided by
-\code{reps}, \code{V_E / reps}; the genetic value and any \code{\link[=transcriptome]{transcriptome()}}
-component are unchanged. \code{h2} and every layer \code{prop} stay on the
-\strong{single-record} scale (shares of the unit record variance
-\code{V_G + V_E = 1}, the \code{var_budget} and the printed "residual" row), so
-the entry-mean phenotype has variance \code{V_G + V_E / reps}, not 1. Two
-heritabilities therefore exist: the single-record
-\code{V_G / (V_G + V_E)} (what \code{h2} requests) and the entry-mean
-\code{H2 = V_G / (V_G + V_E / reps)}, which is larger for \code{reps > 1}. The
-realized H2 printed by the object, and the shares reported against
-"V_P" (\verb{$ad_report}, \code{\link[=mediation_split]{mediation_split()}}), are on the \strong{entry-mean} scale
-(the stored phenotype); \code{print()} also shows the single-record realized
-value when \code{reps > 1}. The residual is drawn exactly as for \code{reps = 1} (same
-RNG stream) and then scaled by \code{1 / sqrt(reps)}, so \code{reps = 1} is
-bit-identical to a call without \code{reps}. \code{reps} are independent records of
-a fixed genotype; it does not model repeated measures with a shared
-permanent environment. With more than one record per entry the
-realized sample variance of the residual is exactly \code{V_E / reps}.}
+\code{reps} independent records of the same genotype, so the \strong{residual} (including
+the \code{\link[=vqtl]{vqtl()}} heterogeneity component) is divided by \code{sqrt(reps)}; the genetic
+value and any \code{\link[=transcriptome]{transcriptome()}} component are unchanged. \code{h2} and every layer
+\code{prop} stay on the \strong{single-record} scale (shares of the unit record variance
+\code{V_G + V_E = 1}, the \code{var_budget} and the printed "residual" row).
+
+Target versus realized. Two heritabilities exist. The \strong{target}
+(expected-value) values come from the variance allocation:
+single-record \code{V_G / (V_G + V_E)} (what \code{h2} requests) and entry-mean
+\code{V_G / (V_G + V_E / reps)}, which is larger for \code{reps > 1}. The
+\strong{realized} values are \code{Var(G) / Var(y)} computed from the realized
+values, so they carry the sample covariance between the genetic value and
+the residual \code{e}: without a transcriptome layer the entry-mean variance is
+\verb{Var(y_bar) = V_G + V_E / reps + 2 Cov(G, e) / sqrt(reps)} and the
+single-record variance is \verb{Var(y) = V_G + V_E + 2 Cov(G, e)}, with \code{V_E}
+and \code{e} the realized single-record residual variance and values. The
+allocation formula is the realized one only when that sample covariance is
+zero. The realized H2 printed by the object, and the shares reported
+against "V_P" (\verb{$ad_report}, \code{\link[=mediation_split]{mediation_split()}}), are on the
+\strong{entry-mean} scale (the stored phenotype); \code{print()} also shows the
+single-record realized value when \code{reps > 1}. The residual is drawn
+exactly as for \code{reps = 1} (same RNG stream) and then scaled by
+\code{1 / sqrt(reps)}, so \code{reps = 1} is bit-identical to a call without
+\code{reps}.
+
+Scope of the replication model. Only the phenotype residual is
+replicated: its realized variance is exactly the \code{reps = 1} residual
+variance divided by \code{reps} (for a \code{\link[=vqtl]{vqtl()}} layer this is
+\verb{[V0 + Vv + 2 Cov(e0, ev)] / reps}, with \code{V0} the homoskedastic and \code{Vv} the
+heterogeneity part, not the nominal \code{V_E / reps}, because the two
+standardized components have a non-zero sample covariance). Without a
+\code{\link[=transcriptome]{transcriptome()}} layer the \code{reps} records are independent given the
+genotype; this does not model repeated measures with a shared permanent
+environment. With a derived \code{\link[=transcriptome]{transcriptome()}} layer the environmental
+transcriptome component is a persistent entry-level quantity that is
+\strong{not} redrawn per record, so the records are independent only
+conditional on that fixed transcriptome covariate (and the genotype), and
+only the phenotype residual is rescaled (its value by \code{1/sqrt(reps)}, its
+variance by \code{1/reps}). The realized denominator
+is then the variance of the full stored phenotype, which includes the
+unreplicated transcriptome component and its covariances.}
 
 \item{...}{architecture-specific arguments (validated -- an unknown name is
 an error, and an argument for a different architecture warns). For

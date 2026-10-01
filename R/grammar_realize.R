@@ -12,8 +12,11 @@
 #'
 #' With `reps > 1` (entry-mean replication, AlphaSimR `setPheno(varE, reps)`
 #' semantics) the realized residual of trait `t` is divided by `sqrt(reps[t])`
-#' after the unchanged draw, so its variance is `resid_var / reps[t]`; the
-#' genetic and transcriptome components are untouched.
+#' after the unchanged draw, so its realized variance is the `reps = 1` realized
+#' residual variance divided by `reps[t]` (for a vqtl layer
+#' `[V0 + Vv + 2Cov(e0, ev)] / reps[t]`, not the nominal `resid_var / reps[t]`);
+#' the genetic and transcriptome components (including a derived transcriptome's
+#' environmental part, a persistent entry-level quantity) are untouched.
 #'
 #' RNG (residual draws) stays in R. The residual sub-seed is
 #' independent of the layers, so adding a layer does not perturb other layers'
@@ -53,9 +56,15 @@
       resid <- .apply_vqtl(resid, vqtl_layers, sim, t, rep, vqtl_prop)
       # Entry-mean replication: the phenotype is the mean of `reps` independent
       # records of the same genotype, so the residual (including the vqtl
-      # heterogeneity component) has variance V_E / reps. The residual is drawn
-      # exactly as for reps = 1 (same RNG stream, same number of draws) and only
-      # rescaled afterwards; reps = 1 skips the rescale (bit-identical).
+      # heterogeneity component) is the realized single-record residual e
+      # divided by sqrt(reps): Var = [V0 + Vv + 2Cov(e0, ev)] / reps, with V0 the
+      # homoskedastic part and Vv the vqtl part (each is standardized, their
+      # sample covariance is not exactly zero, so this is not the nominal
+      # V_E / reps). The residual is drawn exactly as for reps = 1 (same RNG
+      # stream, same number of draws) and only rescaled afterwards; reps = 1
+      # skips the rescale (bit-identical). A derived transcriptome component
+      # (Tx_env included) is a persistent entry-level covariate and is NOT
+      # redrawn or rescaled per record.
       if (reps[t] != 1L) {
         resid <- resid / sqrt(reps[t])
       }
@@ -851,11 +860,23 @@
 #'
 #' `scale` names the phenotype the denominator is taken from. `"phenotype"`
 #' (default) is the stored phenotype, i.e. the **entry mean** when `reps > 1`:
-#' \eqn{H^2 = V_G / (V_G + V_E/reps)} (it equals the record-scale value when
-#' `reps = 1`). `"record"` reconstructs the single-record phenotype by undoing
-#' the `1/sqrt(reps)` residual rescale (\eqn{y_{rec} = y + (\sqrt{reps} - 1)\,e},
-#' with \eqn{e = y - g - tx - mean} the stored residual), giving the
-#' single-record \eqn{V_G / (V_G + V_E)}, the scale `h2` is requested on.
+#' the realized \eqn{H^2 = Var(G)/Var(\bar y)}, computed from the realized
+#' values (it equals the record-scale value when `reps = 1`). With no
+#' transcriptome layer, \eqn{\bar y = G + e/\sqrt{reps} + \mu} and so
+#' \eqn{Var(\bar y) = V_G + V_E/reps + 2\,Cov(G, e)/\sqrt{reps}}, where
+#' \eqn{e} is the realized single-record residual. The allocation
+#' \eqn{V_G/(V_G + V_E/reps)} is the **target** (expected-value) heritability,
+#' the value the realized one has when the sample covariance
+#' \eqn{Cov(G, e)} is zero; it is not what this function returns. With a
+#' derived `transcriptome()` layer the denominator is the variance of the full
+#' stored phenotype, which also contains the (not replicated) transcriptome
+#' component and its covariances. `"record"` reconstructs the single-record
+#' phenotype by undoing the `1/sqrt(reps)` residual rescale
+#' (\eqn{y_{rec} = y + (\sqrt{reps} - 1)\,e}, with
+#' \eqn{e = y - g - tx - mean} the stored residual), giving the realized
+#' \eqn{Var(G)/Var(y_{rec})}, where \eqn{Var(y_{rec}) = V_G + V_E + 2\,Cov(G, e)}
+#' without a transcriptome layer; the target on this scale is
+#' \eqn{V_G/(V_G + V_E)}, the share `h2` requests.
 #' @keywords internal
 #' @noRd
 .realized_h2 <- function(sim, scale = c("phenotype", "record")) {

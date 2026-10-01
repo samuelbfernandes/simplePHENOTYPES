@@ -153,25 +153,47 @@
 #'   phenotype (default 1; entry-mean replication, the AlphaSimR
 #'   `setPheno(varE, reps)` semantics): a positive whole number, or a vector of
 #'   length `n_traits` for per-trait counts. The phenotype becomes the mean of
-#'   `reps` independent records of the same genotype, so the **residual**
-#'   variance (including the [vqtl()] heterogeneity component) is divided by
-#'   `reps`, `V_E / reps`; the genetic value and any [transcriptome()]
-#'   component are unchanged. `h2` and every layer `prop` stay on the
-#'   **single-record** scale (shares of the unit record variance
-#'   `V_G + V_E = 1`, the `var_budget` and the printed "residual" row), so
-#'   the entry-mean phenotype has variance `V_G + V_E / reps`, not 1. Two
-#'   heritabilities therefore exist: the single-record
-#'   `V_G / (V_G + V_E)` (what `h2` requests) and the entry-mean
-#'   `H2 = V_G / (V_G + V_E / reps)`, which is larger for `reps > 1`. The
-#'   realized H2 printed by the object, and the shares reported against
-#'   "V_P" (`$ad_report`, [mediation_split()]), are on the **entry-mean** scale
-#'   (the stored phenotype); `print()` also shows the single-record realized
-#'   value when `reps > 1`. The residual is drawn exactly as for `reps = 1` (same
-#'   RNG stream) and then scaled by `1 / sqrt(reps)`, so `reps = 1` is
-#'   bit-identical to a call without `reps`. `reps` are independent records of
-#'   a fixed genotype; it does not model repeated measures with a shared
-#'   permanent environment. With more than one record per entry the
-#'   realized sample variance of the residual is exactly `V_E / reps`.
+#'   `reps` independent records of the same genotype, so the **residual** (including
+#'   the [vqtl()] heterogeneity component) is divided by `sqrt(reps)`; the genetic
+#'   value and any [transcriptome()] component are unchanged. `h2` and every layer
+#'   `prop` stay on the **single-record** scale (shares of the unit record variance
+#'   `V_G + V_E = 1`, the `var_budget` and the printed "residual" row).
+#'
+#'   Target versus realized. Two heritabilities exist. The **target**
+#'   (expected-value) values come from the variance allocation:
+#'   single-record `V_G / (V_G + V_E)` (what `h2` requests) and entry-mean
+#'   `V_G / (V_G + V_E / reps)`, which is larger for `reps > 1`. The
+#'   **realized** values are `Var(G) / Var(y)` computed from the realized
+#'   values, so they carry the sample covariance between the genetic value and
+#'   the residual `e`: without a transcriptome layer the entry-mean variance is
+#'   `Var(y_bar) = V_G + V_E / reps + 2 Cov(G, e) / sqrt(reps)` and the
+#'   single-record variance is `Var(y) = V_G + V_E + 2 Cov(G, e)`, with `V_E`
+#'   and `e` the realized single-record residual variance and values. The
+#'   allocation formula is the realized one only when that sample covariance is
+#'   zero. The realized H2 printed by the object, and the shares reported
+#'   against "V_P" (`$ad_report`, [mediation_split()]), are on the
+#'   **entry-mean** scale (the stored phenotype); `print()` also shows the
+#'   single-record realized value when `reps > 1`. The residual is drawn
+#'   exactly as for `reps = 1` (same RNG stream) and then scaled by
+#'   `1 / sqrt(reps)`, so `reps = 1` is bit-identical to a call without
+#'   `reps`.
+#'
+#'   Scope of the replication model. Only the phenotype residual is
+#'   replicated: its realized variance is exactly the `reps = 1` residual
+#'   variance divided by `reps` (for a [vqtl()] layer this is
+#'   `[V0 + Vv + 2 Cov(e0, ev)] / reps`, with `V0` the homoskedastic and `Vv` the
+#'   heterogeneity part, not the nominal `V_E / reps`, because the two
+#'   standardized components have a non-zero sample covariance). Without a
+#'   [transcriptome()] layer the `reps` records are independent given the
+#'   genotype; this does not model repeated measures with a shared permanent
+#'   environment. With a derived [transcriptome()] layer the environmental
+#'   transcriptome component is a persistent entry-level quantity that is
+#'   **not** redrawn per record, so the records are independent only
+#'   conditional on that fixed transcriptome covariate (and the genotype), and
+#'   only the phenotype residual is rescaled (its value by `1/sqrt(reps)`, its
+#'   variance by `1/reps`). The realized denominator
+#'   is then the variance of the full stored phenotype, which includes the
+#'   unreplicated transcriptome component and its covariances.
 #' @param ... architecture-specific arguments (validated -- an unknown name is
 #'   an error, and an argument for a different architecture warns). For
 #'   `"pleiotropy"`: `cor`, `pi` (or the two-trait `pi_target` /
@@ -1015,10 +1037,13 @@ print.phenotype_sim <- function(x, ...) {
 #' State the heritability scale when entry means of `reps > 1` records are shown
 #'
 #' Silent for `reps = 1`, so the default print is unchanged. Otherwise says that
-#' the phenotype is an entry mean (residual variance V_E / reps), that the
-#' proportions and the requested share are on the single-record scale, that the
-#' realized H2 above is the entry-mean value V_G / (V_G + V_E / reps), and gives
-#' the single-record value V_G / (V_G + V_E) alongside.
+#' the phenotype is an entry mean (residual scaled by 1/sqrt(reps)), that the
+#' proportions and the requested share are on the single-record scale (the
+#' target allocation), and that the realized H2 above is Var(G)/Var(y_bar)
+#' from the realized values, which includes the sample covariance of G and the
+#' residual (so it differs from the target V_G / (V_G + V_E / reps)). Gives the
+#' realized single-record value Var(G)/Var(y) alongside. The per-trait `reps`
+#' vector is printed in full (never de-duplicated) when it varies.
 #' @keywords internal
 #' @noRd
 .print_reps_note <- function(x, fmt) {
@@ -1026,14 +1051,26 @@ print.phenotype_sim <- function(x, ...) {
   if (all(reps == 1L)) {
     return(invisible())
   }
+  if (length(unique(reps)) == 1L) {
+    reps_txt <- sprintf("reps = %s", .fmt_int(unique(reps)))
+  } else {
+    reps_txt <- sprintf("reps (per trait) = %s", .fmt_int(reps))
+  }
   cat(sprintf(
-    "  Entry means of reps = %s records: residual variance = V_E / reps. The\n",
-    .fmt_int(unique(reps))),
-    "  proportions and requested share above are single-record shares; the\n",
-    "  realized H\u00b2 above is the entry-mean H\u00b2 = V_G / (V_G + V_E / reps).\n",
+    "  Entry means of %s records: residual scaled by 1 / sqrt(reps). The\n",
+    reps_txt),
+    "  proportions and requested share above are single-record (target) shares.\n",
+    "  The realized H\u00b2 above is the entry-mean Var(G) / Var(y_bar) from the\n",
+    "  realized values; it includes Cov(G, e), so it differs from the target\n",
+    "  V_G / (V_G + V_E / reps).\n",
     sep = "")
-  cat(sprintf("  Single-record realized H\u00b2 = V_G / (V_G + V_E) = %s\n",
+  cat(sprintf("  Single-record realized H\u00b2 = Var(G) / Var(y) = %s\n",
               fmt(.realized_h2(x, scale = "record"))))
+  if (any(vapply(x$layers, function(l) identical(l$type, "transcriptome"), TRUE))) {
+    cat("  (the transcriptome component is not redrawn per record: replication is\n",
+        "   conditional on it, and only the phenotype residual is rescaled: its value by 1/sqrt(reps),\n   its variance by 1/reps)\n",
+        sep = "")
+  }
   invisible()
 }
 
