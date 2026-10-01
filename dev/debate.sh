@@ -23,6 +23,9 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export TMPDIR="${PIPELINE_TMPDIR:-$DIR/../.tmp}"; mkdir -p "$TMPDIR"
 cd "$(git rev-parse --show-toplevel)"
 . "$DIR/lib/verdict.sh"; . "$DIR/lib/audit.sh"; . "$DIR/lib/worktree.sh"
+# Pin provenance to the MAIN checkout now: with ISOLATE=1 we cd into a throwaway worktree
+# below, where audit_dir would otherwise resolve (and be deleted with the worktree).
+export AUDIT_DIR; AUDIT_DIR="$(audit_dir)"
 
 RUBRIC="docs/THEORY_REVIEW.md"
 DEFENDER="${DEFENDER:-claude}"
@@ -42,7 +45,8 @@ call_claude_ro() { claude -p "$1" --permission-mode plan \
                      --allowedTools "Read,Grep,Glob,Bash(Rscript:*),Bash(git diff:*)"; }
 call_codex_rw()  { codex exec -s workspace-write --skip-git-repo-check "$1" </dev/null; }
 # skeptic is workspace-write so it can RUN R for evidence (read-only blocks R's temp);
-# the skeptic prompt forbids editing source.
+# the skeptic prompt forbids editing source, but that is prompt-enforced only (the sandbox
+# would allow it). Use ISOLATE=1 and inspect `git diff` afterwards.
 call_codex_ro()  { codex exec -s workspace-write --skip-git-repo-check "$1" </dev/null; }
 defender() { case "$DEFENDER" in claude) call_claude_rw "$1";; codex) call_codex_rw "$1";; esac; }
 skeptic()  { case "$SKEPTIC"  in claude) call_claude_ro "$1";; codex) call_codex_ro "$1";; esac; }
@@ -54,7 +58,7 @@ gate() { echo "→ gate: devtools::test()"; Rscript -e "options(crayon.enabled=F
 TASK=""
 if [ "${1:-}" = "--task" ]; then TASK="${2:?task text}"; SCOPE="task: $TASK";
 elif [ "${1:-}" = "--staged" ]; then SCOPE="staged diff"; CHANGE="$(git diff --staged)";
-elif [ $# -gt 0 ]; then SCOPE="files: $*"; CHANGE="$(git diff -- "$@" 2>/dev/null; echo; echo '--- contents ---'; cat "$@" 2>/dev/null)";
+elif [ $# -gt 0 ]; then SCOPE="files: $*"; CHANGE="$(git diff -- "$@" 2>/dev/null; echo; echo '--- contents ---'; cat -- "$@" 2>/dev/null || true)";
 else SCOPE="unstaged working tree"; CHANGE="$(git diff)"; fi
 
 require "$DEFENDER"; require "$SKEPTIC"

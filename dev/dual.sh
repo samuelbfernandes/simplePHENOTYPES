@@ -9,6 +9,7 @@
 #   dev/dual.sh check                              # just run the objective gate (tests)
 #
 # Env knobs:
+#   PIPELINE_TMPDIR=<dir> writable temp (default <repo>/.tmp)
 #   IMPL=claude|codex     implementer  (default: claude)
 #   REVIEWER=codex|claude reviewer     (default: the model that is NOT the implementer)
 #   MAX_ITERS=4           loop cap
@@ -38,12 +39,13 @@ run_claude_impl()   { claude -p "$1" --permission-mode acceptEdits \
                         --allowedTools "Edit,Write,Read,Grep,Glob,Bash(Rscript:*),Bash(cd src/rust*)"; }
 run_claude_review() { claude -p "$1" --permission-mode plan \
                         --allowedTools "Read,Grep,Glob,Bash(Rscript:*),Bash(git diff:*)"; }
-# Codex headless: exec = non-interactive. full-auto writes in the workspace; read-only
-# for review. (OpenAI Codex CLI: `codex exec`, `--full-auto`, `-s read-only`.)
+# Codex headless: exec = non-interactive. (OpenAI Codex CLI: `codex exec`, `-s <sandbox>`.)
 # stdin from /dev/null so codex never blocks waiting on it inside a script.
 # Reviewer uses workspace-write (NOT read-only): it must create temp files to RUN R and
 # gather executed evidence — read-only forbids all writes, so R can't even start. The
-# review prompt forbids editing source; verify with `git status` after if you like.
+# review prompt forbids editing source, but this is enforced by the prompt ONLY, not by
+# the sandbox — always check `git status` / `git diff` after a review. (The claude reviewer
+# runs in --permission-mode plan, which does block edits.)
 run_codex_impl()    { codex exec -s workspace-write --skip-git-repo-check "$1" </dev/null; }
 run_codex_review()  { codex exec -s workspace-write --skip-git-repo-check "$1" </dev/null; }
 
@@ -71,7 +73,10 @@ cmd_review() {
   if [ "${1:-}" = "--staged" ]; then
     diff="$(git diff --staged)"; scope="staged changes"
   elif [ $# -gt 0 ]; then
-    diff="$(git diff -- "$@"; echo; echo '--- current contents ---'; cat "$@" 2>/dev/null)"; scope="$*"
+    local p
+    for p in "$@"; do [ -e "$p" ] || echo "⚠ path not found (skipped in contents): $p" >&2; done
+    # cat may fail on a missing path: never let that abort the assignment under set -e.
+    diff="$(git diff -- "$@"; echo; echo '--- current contents ---'; cat -- "$@" 2>/dev/null || true)"; scope="$*"
   else
     diff="$(git diff)"; scope="unstaged working tree"
   fi
@@ -96,9 +101,11 @@ $diff
   printf '%s\n' "$out"
   # Persist the full findings so they are not lost when the terminal scrolls/clears.
   audit_init
-  local tf; tf="$(audit_dir)/transcripts/review-$(date +%Y%m%d-%H%M%S).md"
+  # REVIEW_TRANSCRIPT (set by dev/audit-all.sh) names the single transcript file for this
+  # review so each audited group produces exactly ONE transcript and ONE audit record.
+  local tf; tf="${REVIEW_TRANSCRIPT:-$(audit_dir)/transcripts/review-$(date +%Y%m%d-%H%M%S).md}"
   { echo "# review — $scope  ($(date))"; echo; printf '%s\n' "$out"; } > "$tf" 2>/dev/null || tf="-"
-  audit_record "review" "$scope" "$(parse_verdict "$out")" "-" "$REVIEWER" "$tf" >&2 || true
+  audit_record "review" "${REVIEW_LABEL:+$REVIEW_LABEL: }$scope" "$(parse_verdict "$out")" "-" "$REVIEWER" "$tf" >&2 || true
   [ "$tf" != "-" ] && echo "→ findings saved: $tf" >&2
 }
 

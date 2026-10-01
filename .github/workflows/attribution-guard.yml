@@ -25,13 +25,13 @@ jobs:
             range="${{ github.sha }} -1"
           fi
           msgs="$(git log --format='%H%n%B%n==='  $range || git log -1 --format='%H%n%B')"
-          ai='claude|anthropic|codex|openai|chatgpt|gpt-[0-9]|copilot|gemini|\bllm\b|bot@|noreply@anthropic'
-          gen='generated (with|by)[^[:alnum:]]*(claude|codex|gpt|openai|chatgpt|copilot|gemini|anthropic|assistant|a\.?i\.?)|🤖'
-          bad=0
-          while IFS= read -r line; do
-            if printf '%s' "$line" | grep -qiE '^[[:space:]]*co-authored-by:' && printf '%s' "$line" | grep -qiE "$ai"; then
-              echo "::error::AI Co-Authored-By trailer: $line"; bad=1; fi
-            if printf '%s' "$line" | grep -qiE "$gen"; then
-              echo "::error::AI 'generated with' attribution: $line"; bad=1; fi
-          done <<< "$msgs"
-          [ "$bad" -eq 0 ] && echo "✓ no AI attribution found" || { echo "commit messages must read as a human wrote them (AGENTS.md #1)"; exit 1; }
+          # ONE shared definition of AI attribution (also used by .githooks/commit-msg).
+          . .githooks/ai-patterns
+          if hits="$(printf '%s\n' "$msgs" | ai_attribution_scan)"; then
+            echo "✓ no AI attribution found"
+          else
+            printf '%s\n' "$hits" | while IFS= read -r l; do echo "::error::$l"; done
+            echo "commit messages must read as a human wrote them (AGENTS.md #1)"; exit 1
+          fi
+      - name: Guard self-test (sample messages)
+        run: bash dev/test-attribution-guard.sh

@@ -223,6 +223,12 @@ create_phenotypes(
   h2 = 0.9, QTN_list = QTN_list, ntraits = 1, model = "ADE")
 ```
 
+The frozen v1 engine now rejects this exact call with an explicit error: a
+single-trait run cannot take a `QTN_list`, and a single-trait `"ADE"`/`"DE"` model is
+not supported (both used to fail with cryptic messages). v1 accepts `QTN_list` for
+`ntraits >= 2`; the v2 form below has no such restriction.
+
+
 **v2** — pass the loci to each layer; `epistasis(qtn=)` takes an
 `n_pairs × interaction` matrix:
 

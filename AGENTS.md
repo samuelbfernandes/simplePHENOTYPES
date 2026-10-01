@@ -43,8 +43,14 @@ they land. The protocol:
   `docs/THEORY_REVIEW.md` before commit. Genetics = the grammar, PleioArch, effects,
   selection engine (`select_ind.R`, `select_ocs.R`, `select_usefulness.R`, `select_schemes.R`), meiosis/isqg,
   variance partitioning, any cited equation.
-- **The reviewer is read-only.** It reports PASS / FAIL / UNVERIFIABLE per rubric item
-  with file:line evidence and the primary source; it does not edit code.
+- **The reviewer is read-only by contract.** It reports PASS / FAIL / UNVERIFIABLE per
+  rubric item with file:line evidence and the primary source; it does not edit code. The
+  contract is enforced by the prompt, not the sandbox: the codex reviewer runs with
+  `-s workspace-write` because R needs temp files to produce executed evidence (only the
+  claude reviewer, in `--permission-mode plan`, is blocked from editing). So run reviews
+  in a throwaway git worktree (`ISOLATE=1 dev/debate.sh ...`), point temp files at
+  `$TMPDIR` (the pipeline scripts default it to `<repo>/.tmp`, or set `PIPELINE_TMPDIR`),
+  and check `git status` / `git diff` after a review to confirm nothing changed.
 - **Objective gate:** `devtools::test()` (and `rcmdcheck` for releases) must be green
   regardless of what either model says.
 - Driver: `dev/dual.sh` (see `dev/README.md`). `dev/dual.sh review <paths|--staged>`
@@ -114,7 +120,7 @@ Rust never calls an RNG on the parity-critical path (DECISION-012).
 `selfcross`, `double_haploid`, `synthetic_map`) · selection (`select_ind`,
 `single_seed_descent`, `bulk`, `pedigree`, `recurrent_selection`, `c.Population`,
 `g_matrix`, `optimum_contribution`, `sample_parents`, `cross_usefulness`) · `as_numeric()` ·
-`format_conversion()` · `phenotypes_long/wide()` · `write_phenotypes()`.
+`phenotypes_long/wide()` · `write_phenotypes()`. (`format_conversion()` is internal.)
 
 ---
 

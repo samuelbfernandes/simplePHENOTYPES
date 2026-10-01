@@ -4,7 +4,7 @@ name: R-CMD-check
 # once it is green.
 on:
   push:
-    branches: [main, master, restructure]
+    branches: [main, master]
   pull_request:
 
 jobs:

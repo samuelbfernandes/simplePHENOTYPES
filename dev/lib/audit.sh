@@ -3,7 +3,10 @@
 # Records who/what/when so a result is reproducible and attributable to a run, not a
 # vibe. The audit dir is gitignored (local provenance, not shipped).
 
-audit_dir()  { echo "$(git rev-parse --show-toplevel)/dev/.audit"; }
+# AUDIT_DIR (env) pins the log location. debate.sh ISOLATE=1 exports it BEFORE cd-ing into
+# the throwaway worktree, so provenance is written to the main checkout and survives the
+# worktree's removal.
+audit_dir()  { echo "${AUDIT_DIR:-$(git rev-parse --show-toplevel)/dev/.audit}"; }
 audit_init() { mkdir -p "$(audit_dir)/transcripts"; }
 
 # Version of the rubric actually used (git blob hash of THEORY_REVIEW.md), so a verdict

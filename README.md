@@ -24,7 +24,7 @@ architectures, control of the genetic correlation between traits, and
 multi-generation crossing, so a mapping population can be simulated from
 real founders and then phenotyped.
 
-<a href="SP_logo.png"><img src="SP_logo.png" alt="simplePHENOTYPES logo" width="300" align="right" /></a>
+<a href="https://raw.githubusercontent.com/samuelbfernandes/simplePHENOTYPES/master/SP_logo.png"><img src="https://raw.githubusercontent.com/samuelbfernandes/simplePHENOTYPES/master/SP_logo.png" alt="simplePHENOTYPES logo" width="300" align="right" /></a>
 
 ### Contents
 

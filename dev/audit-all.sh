@@ -27,7 +27,7 @@ AUDIT_GROUPS=(
 "high|selection|R/select_ind.R R/select_ocs.R R/select_usefulness.R R/select_marker.R R/select_mabc.R"
 "high|prediction|R/select_blup.R R/select_combining.R R/select_progeny.R"
 "high|transcriptome|R/transcriptome_simulate.R R/transcriptome_layer.R R/transcriptome_counts.R R/transcriptome_mimic.R"
-"high|rust-core|src/rust/src/meiosis.rs src/rust/src/genome.rs src/rust/src/numeric.rs src/rust/src/lib.rs R/extendr-wrappers.R R/io_as_numeric.R"
+"high|rust-core|src/rust/src/meiosis.rs src/rust/src/genome.rs src/rust/src/numeric.rs src/rust/src/hash.rs src/rust/src/lib.rs R/extendr-wrappers.R R/io_as_numeric.R"
 "med|io-formats|R/io_read_formats.R R/io_detect_format.R R/io_format_conversion.R R/io_write.R R/qc_filter_geno.R"
 "legacy|legacy-core|R/legacy_create_phenotypes.R R/legacy_Phenotypes.R R/legacy_check_in.R R/legacy_constraint.R"
 "legacy|legacy-qtn|R/legacy_QTN_linkage.R R/legacy_QTN_pleiotropic.R R/legacy_QTN_partially_pleiotropic.R R/legacy_qtn_from_user.R R/legacy_genetic_effect.R R/legacy_vQTL.R"
@@ -55,7 +55,9 @@ for g in "${AUDIT_GROUPS[@]}"; do
   if [ "$DRY" = 1 ]; then printf "  %-18s %2d files: %s\n" "$label" "${#existing[@]}" "${existing[*]}"; continue; fi
   echo "=== auditing: $label (${#existing[@]} files) ==="
   tfile="$ADIR/audit-$label-$TS.md"
-  out="$(dev/dual.sh review "${existing[@]}" 2>>"$tfile.err" | tee "$tfile")" || true
+  # dual.sh writes the ONE transcript (to $tfile) and the ONE audit record for this group.
+  out="$(REVIEW_TRANSCRIPT="$tfile" REVIEW_LABEL="audit:$label" dev/dual.sh review "${existing[@]}" 2>>"$tfile.err")" || true
+  printf '%s\n' "$out"
   v="$(parse_verdict "$out")"
   s="$(verdict_json "$out" | jq -r '.summary // ""' 2>/dev/null || true)"
   o="$(verdict_json "$out" | jq -r '(.open // []) | join(",")' 2>/dev/null || true)"
@@ -85,7 +87,7 @@ if [ ${#results[@]} -gt 0 ]; then
   done
   block+="<!-- AUDIT:END -->
 "
-  tmp="$(mktemp)"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/audit-todo.XXXXXX")"   # bare mktemp ignores TMPDIR on macOS
   { printf '%s\n' "$block"; sed '/<!-- AUDIT:BEGIN -->/,/<!-- AUDIT:END -->/d' TODO.md; } > "$tmp" && mv "$tmp" TODO.md
   echo "→ TODO.md updated: $issues group(s) need attention (review & commit TODO.md yourself)"
 fi

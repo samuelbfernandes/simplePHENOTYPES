@@ -13,8 +13,14 @@ evals/run.sh --eval    # run the reviewer on each seeded bug + a clean control; 
 REVIEWER=claude evals/run.sh --eval    # swap the reviewer model
 ```
 
-`--eval` seeds each bug inside a throwaway **git worktree** (never your working tree),
-runs the reviewer, parses its **JSON verdict**, and records each result to `dev/.audit/`.
+`--eval` seeds each bug inside a throwaway **git worktree** under `$TMPDIR` (never your
+working tree: `run.sh` writes to no source file in either mode, and `--check` mutates
+temporary copies). The current contents of each target file, including uncommitted or
+untracked work, are copied into the worktree first. It then runs the reviewer there, parses
+its **JSON verdict**, and records each result to `dev/.audit/`. Every target is snapshotted
+first and verified byte-for-byte on exit (any mismatch is restored and reported); the
+worktree is removed on exit (`KEEP=1` keeps it). A reviewer that exits non-zero counts as
+an error (reported in the scorecard, non-zero exit), never a silent pass.
 
 ## The seeded bugs (all map to `docs/THEORY_REVIEW.md`)
 

@@ -47,23 +47,34 @@ dialogue is saved to a transcript file (path printed at start and end).
 
 > Why it works when `dual.sh` doesn't quite: it maintains a shared transcript (the
 > stateless CLIs get memory), gives the defender a real rebuttal turn, parses a structured
-> `VERDICT: AGREE|BLOCK` from both sides, caps rounds with a human-escalation referee, and
-> grounds every claim in executed R rather than persuasion.
+> JSON verdict (`{"verdict":"AGREE|BLOCK",...}`) from both sides, caps rounds with a
+> human-escalation referee, and grounds every claim in executed R rather than persuasion.
 
 By default `claude` implements and `codex` reviews. Swap with
 `IMPL=codex REVIEWER=claude dev/dual.sh ...`. **The implementer never reviews its own
 genetics change** — that independence is the whole point.
 
-The reviewer applies `docs/THEORY_REVIEW.md` and must end with `THEORY: PASS|FAIL`. The
-loop stops only when `devtools::test()` is green **and** the reviewer returns PASS. It
-never commits for you — you inspect the diff and commit.
+The reviewer applies `docs/THEORY_REVIEW.md` (per-item PASS / FAIL / UNVERIFIABLE) and must
+end with a fenced JSON verdict, `{"verdict":"AGREE|BLOCK","open":[...],"confidence":0-1,
+"summary":"..."}`. The loop stops only when `devtools::test()` is green **and** the
+reviewer's verdict is `AGREE`. It never commits for you — you inspect the diff and commit.
+
+> **The reviewer is read-only by contract, not by sandbox.** `codex` runs with
+> `-s workspace-write` (R needs temp files to produce executed evidence), so "do not edit
+> source" is enforced by the prompt only; the `claude` reviewer runs in
+> `--permission-mode plan`. After any review run `git status` / `git diff`, or use
+> `ISOLATE=1` so a stray edit lands in a throwaway worktree.
 
 ## Isolation, provenance, and structured verdicts
 
 - **Isolation** — `ISOLATE=1 dev/debate.sh --task "…"` runs the agent in a throwaway git
   worktree (created in `$TMPDIR`, on branch `agent/<ts>`); your working tree is never
-  touched until you merge that branch. Recommended for any run that edits code.
-- **Provenance** — every review/debate/eval run appends a JSON record (models + versions,
+  touched until you merge that branch. Recommended for any run that edits code. The
+  scripts default `TMPDIR` to `<repo>/.tmp` (the macOS per-user temp is unwritable in some
+  terminals), which on a OneDrive-synced checkout is inside the synced tree — set
+  `PIPELINE_TMPDIR` to a directory outside it to avoid the churn. Provenance is always
+  written to the main checkout's `dev/.audit/`, not into the worktree.
+- **Provenance** — every review/debate/eval run appends ONE JSON record (models + versions,
   rubric hash, verdict, commit, transcript path) to `dev/.audit/log.jsonl` and copies the
   transcript to `dev/.audit/transcripts/`. `dev/.audit/` is gitignored (local, not shipped).
 - **Structured verdicts** — reviewer/skeptic replies end in a fenced JSON
@@ -76,12 +87,19 @@ never commits for you — you inspect the diff and commit.
 ```bash
 evals/run.sh --check    # no model: golden set still applies (also runs in CI)
 evals/run.sh --eval     # score recall/precision of the reviewer on 5 seeded bugs
+                        # (bugs are seeded in a throwaway git worktree, never your tree)
 ```
 
 ## Guarantees
 
-- **No AI co-author, ever.** `.githooks/commit-msg` rejects any `Co-Authored-By` naming
-  an assistant, plus "generated with"/🤖 lines — whichever model wrote the message.
+- **No AI co-author, ever.** `.githooks/commit-msg` rejects any trailer
+  (`Co-Authored-By`, `Assisted-by`, `Generated-by`, `Reviewed-by`, `Signed-off-by`, ...)
+  naming an assistant, plus "generated/made/written with|by <assistant>" lines and 🤖 —
+  whichever model wrote the message. The patterns live in one file, `.githooks/ai-patterns`,
+  sourced by both the hook and the CI workflow (`attribution-guard.yml`) so they cannot
+  drift; `bash dev/test-attribution-guard.sh` checks 40+ sample messages. Human co-authors
+  (including GitHub `noreply` addresses) are allowed. Bypassable locally with
+  `--no-verify`; the CI guard is the backstop.
 - **Both models read the same rules.** `AGENTS.md` (committed) is canonical; `CLAUDE.md`
   (gitignored) just points to it, and Codex reads `AGENTS.md` natively. No drift.
 

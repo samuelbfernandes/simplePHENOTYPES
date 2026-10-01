@@ -275,12 +275,16 @@ simulate_phenotype(geno, h2 = 0.6, n_qtn = 5, model = "AD", seed = 7)
 
 # Writing results
 
-Phenotypes come back as an object; the exporters write them to disk in the
-format a downstream tool expects.
+Phenotypes come back as an object; `write_phenotypes()` writes them to a file you
+name, either as a long table (one row per individual and trait) or a wide one
+(one column per trait). `sep` sets the field separator.
 
-```{r exporters, eval = FALSE}
-write_phenotypes(ph, format = "long", dir = tempdir())
-write_phenotypes(ph, format = "gemma", dir = tempdir())
+```{r exporters}
+out_long <- file.path(tempdir(), "phenotypes_long.txt")
+out_wide <- file.path(tempdir(), "phenotypes_wide.csv")
+write_phenotypes(ph_pleio, file = out_long, format = "long")
+write_phenotypes(ph_pleio, file = out_wide, format = "wide", sep = ",")
+unlink(c(out_long, out_wide))
 ```
 
 ```{r wide}

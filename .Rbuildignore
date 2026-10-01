@@ -97,8 +97,9 @@
 ^TODO\.md$
 ^TODO_newfeatures\.md$
 ^_config\.yml$
+# The logo is not shipped in the tarball (1 MB); README.md/README.Rmd load it from
+# the GitHub raw URL instead, so the CRAN page still renders it.
 ^SP_logo\.png$
-^data-raw$
 
 # Purled vignette scripts and rendered HTML: build artifacts that would
 # otherwise ship stale copies of the vignette code.

@@ -2,9 +2,11 @@
 # worktree.sh — run an agent in an isolated git worktree so its edits never touch your
 # working tree until you choose to bring them in. Sourced, not executed.
 #
-# Worktrees are created OUTSIDE the repo (in $TMPDIR) so a OneDrive-synced project does
-# not churn on throwaway checkouts. A run lands on branch agent/<ts>; nothing merges
-# automatically — you review the branch and merge or delete it.
+# Worktrees are created under $TMPDIR. The pipeline scripts default TMPDIR to <repo>/.tmp
+# (gitignored) because the macOS per-user temp is unwritable in some terminals; on a
+# OneDrive-synced checkout that means the throwaway worktree is inside the synced tree —
+# set PIPELINE_TMPDIR to a directory outside it to avoid the churn. A run lands on branch
+# agent/<ts>; nothing merges automatically — you review the branch and merge or delete it.
 
 # wt_create -> prints "<worktree_path>|<branch>"
 wt_create() {
