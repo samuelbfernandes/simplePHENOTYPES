@@ -11,6 +11,17 @@
 #' partial pleiotropy by combining, for example, a "pleiotropy" model with an
 #' "independent" model.
 #'
+#' Every input must be a **complete** model, exactly as for [phenotypes_long()]:
+#' if an input set an `h2`, its layer proportions must fill it (otherwise
+#' `complex_phenotypes()` errors with the same "Incomplete h2 allocation"
+#' message). The result is **terminal**: it has no layers, so `additive()`,
+#' `dominance()`, `epistasis()`, `vqtl()` and `transcriptome()` refuse to extend
+#' it (build the full model first, then combine). It carries no per-input state:
+#' [mediation_split()] is `NULL` for a combined model (the environmental
+#' expression-mediated part of an input is discarded with the input's residual,
+#' so no split of the combined phenotype is defined), and breeding-value selection
+#' methods that need per-locus effects refuse it.
+#'
 #' @param ... two or more `phenotype_sim` objects.
 #' @param h2 requested genetic variance share (scalar or length `n_traits`).
 #' @return a combined `phenotype_sim` (architecture "complex").
@@ -29,7 +40,10 @@ complex_phenotypes <- function(..., h2) {
     stop("complex_phenotypes() needs at least two phenotype_sim objects.",
          call. = FALSE)
   }
-  for (m in models) .check_sim(m)
+  for (m in models) {
+    .check_sim(m)
+    .check_h2_complete(m)          # same completeness contract as every accessor
+  }
 
   nt <- models[[1]]$n_traits
   n  <- models[[1]]$n_ind
@@ -112,6 +126,19 @@ complex_phenotypes <- function(..., h2) {
   out$h2 <- h2v
   out$n_reps <- nr
   out$layers <- list()
+  # A combined model is terminal and has no per-input state: clear everything
+  # that describes model 1's construction so it cannot be read as the combined
+  # phenotype's (mediation split, one-call hint, baseline n_qtn, architecture
+  # arguments, expression sources, additive/dominance report).
+  out$mediation <- NULL
+  out$one_call <- NULL
+  out$ad_report <- NULL
+  out$expression <- NULL
+  out$genetic_expression <- NULL
+  out$expression_source <- NULL
+  out$n_qtn <- 0L
+  out$arch_args <- list()
+  out$vary_qtn <- any(vapply(models, function(m) isTRUE(m$vary_qtn), logical(1)))
   out$sources <- lapply(models, function(m) m$architecture)
   out$complex_genetic <- combined
   out$pheno <- do.call(rbind, long)

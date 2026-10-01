@@ -7,13 +7,15 @@
 #'   single `additive()` layer gets `prop = h2`. When `prop` is given and `h2`
 #'   is set, the layer `prop` values must sum to `h2`.
 #' @param n_qtn number of additive QTNs; overrides the baseline `n_qtn` from
-#'   [simulate_phenotype()] (with a warning when both are given).
+#'   [simulate_phenotype()] (with a warning when both are given). Ignored, with a
+#'   warning, when `qtn` fixes the loci.
 #' @param qtn optional user-supplied QTNs for this layer, so you can fix the
 #'   causal loci for one effect type while the others are drawn at random. Give
 #'   marker names (matched against the map) or column indices; a vector is used
 #'   for every trait, or a length-`n_traits` list sets each trait's loci
-#'   separately. `n_qtn` is then taken from what you supply. Fixed loci are not
-#'   redrawn by `vary_qtn`.
+#'   separately (every element the same length). `n_qtn` is then taken from what
+#'   you supply. Fixed loci are not redrawn by `vary_qtn`. (For [epistasis()],
+#'   `qtn` describes interacting sets; see there.)
 #' @param effect optional geometric base (scalar) or explicit effect series
 #'   (length `n_qtn`), used for every trait; or a length-`n_traits` list of these,
 #'   one per trait -- e.g. to re-score per-trait effects frozen from an earlier
@@ -56,6 +58,16 @@
 #' and scaled to `prop` of the phenotypic variance. This is a simulation
 #' convention, not Fisher's average-effect decomposition; for an additive-only
 #' model `prop` equals the narrow-sense h2 under Hardy-Weinberg.
+#'
+#' Combining this layer with [dominance()] on the same loci (the default) makes
+#' the realized genetic variance differ from `prop_A + prop_D` by
+#' `2Cov(c_A, c_D)` (with one additive and one dominance layer; several layers of
+#' one type add their mutual covariance to Var(c_A) or Var(c_D)), a structural
+#' term that depends on the allele frequencies and on which allele is coded +1
+#' (see [simulate_phenotype()]); the object reports the realized Var(A), Var(D)
+#' and 2Cov(A,D), and Var(c_A), Var(c_D) and 2Cov(c_A,c_D), in `$ad_report` and
+#' in `print()`.
+#' Use `orthogonal = TRUE` for a Fisher-orthogonal additive/dominance model.
 #'
 #' @section Orthogonal genotypic model (`orthogonal = TRUE`):
 #' Instead of the dosage coding above, the layer builds each locus's genotypic
@@ -190,6 +202,10 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
     }
   }
   user_qtn <- .resolve_qtn_arg(sim, qtn, "additive")
+  if (!is.null(user_qtn) && !is.null(n_qtn)) {
+    warning("additive(): `n_qtn` is ignored because `qtn` fixes the loci (",
+            length(user_qtn[[1]]), " QTNs).", call. = FALSE)
+  }
   # Fixing the additive loci is incompatible with the architectures that draw
   # their own loci to build a controlled cross-trait correlation. Under
   # "pleiotropy" the shared/specific partition and the multivariate (PleioArch)
@@ -270,12 +286,16 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
     # A nonzero dominance deviation at a locus with no heterozygotes is silently
     # inert (its het indicator is all zero), so require a heterozygote at *each*
     # locus whose d != 0 -- checked per locus, not collectively over the set.
-    if (.orthogonal_hetless_d(sim, layer$qtn, layer$d_effect)) {
+    active <- .expand_prop(prop, sim$n_traits) > 0     # prop = 0 traits are inert
+    if (.orthogonal_hetless_d(sim, layer$qtn[active], layer$d_effect[active])) {
       stop("additive(orthogonal = TRUE): a locus with a non-zero dominance ",
-           "deviation `d` has no heterozygous individuals, so that `d` cannot be ",
-           "simulated -- the genotype is (near-)inbred at the locus. Choose ",
-           "het-bearing loci (qtn =), pre-filter with filter_geno(hets = ",
-           "\"include\"), set that d = 0, or use an outbred / F2 population.",
+           "deviation `d` has no heterozygous individuals, or is heterozygous ",
+           "in every individual, so its heterozygote indicator is constant and ",
+           "that `d` cannot be simulated (no heterozygotes: the genotype is ",
+           "(near-)inbred at the locus; all heterozygous: an F1-like locus whose ",
+           "constant value is absorbed into the mean). Choose loci whose ",
+           "heterozygote status varies (qtn =), pre-filter with filter_geno(hets ",
+           "= \"include\"), set that d = 0, or use an outbred / F2 population.",
            call. = FALSE)
     }
   }
@@ -306,16 +326,35 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
 #' Add a dominance variance component
 #'
 #' @inheritParams additive
-#' @param same_as_add reuse the additive layer's QTNs (default `TRUE`).
+#' @param same_as_add reuse the additive layer's QTNs (default `TRUE`). Supplying
+#'   `qtn` fixes the loci instead, so `same_as_add` is then treated as `FALSE`
+#'   (the layer records and prints it as such).
+#' @param n_qtn number of dominance QTNs for a fresh draw
+#'   (`same_as_add = FALSE`); ignored, with a warning, when the loci are reused
+#'   (`same_as_add = TRUE`) or fixed by `qtn`.
 #' @return the updated `phenotype_sim`.
 #' @details
 #' Dominance is modelled as a deviation applied to heterozygotes (the het
 #' indicator), with its share of phenotypic variance set by `prop`. In this
 #' variance-partition grammar there is no separate "degree of dominance"
-#' argument: the ratio of dominance to additive variance is
-#' `prop_dominance / prop_additive`, set through the layer proportions. (A single
-#' degree-of-dominance scalar would be washed out by the per-component variance
-#' scaling and is therefore not offered.)
+#' argument (there is no `degree =`): the ratio of the *scaled components'*
+#' variances is `prop_dominance / prop_additive`, set through the layer
+#' proportions. (A single degree-of-dominance scalar would be washed out by the
+#' per-component variance scaling and is therefore not offered; for a per-locus
+#' degree of dominance `d / abs(a)` use `additive(orthogonal = TRUE, a =, d =)`.)
+#'
+#' **Additive + dominance on the same loci is not orthogonal.** The dosage and
+#' the heterozygote indicator covary by \eqn{-(2p - 1) 2pq} at each locus, so the
+#' realized genetic variance is `prop_A + prop_D + 2Cov(c_A, c_D)` for one
+#' additive and one dominance layer (several layers of a type add their mutual
+#' covariance to `Var(c_A)` or `Var(c_D)`) -- a structural,
+#' allele-coding-dependent bias, not a finite-sample effect; its per-locus sign is
+#' that of `1 - 2p` for the counted-allele frequency `p`, so it is one-signed
+#' across loci only when those frequencies are on one side of 0.5 -- and the
+#' classical Va:Vd of the block differs from `prop_A:prop_D`. The object reports
+#' the realized Var(A), Var(D) and 2Cov(A,D), and Var(c_A), Var(c_D) and
+#' 2Cov(c_A,c_D) (`$ad_report`, and the note printed by `print()`); use `additive(orthogonal = TRUE, a =, d =)` for a
+#' Fisher-orthogonal partition.
 #'
 #' Dominance needs heterozygotes to be identifiable: it is identically zero at a
 #' locus with no heterozygous individuals. If the selected loci carry none
@@ -395,6 +434,18 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
   }
 
   add_layer <- .last_layer_of_type(sim, "additive")
+  # User-supplied loci win over reusing the additive layer's: record that.
+  if (!is.null(user_qtn)) {
+    if (!is.null(n_qtn)) {
+      warning("dominance(): `n_qtn` is ignored because `qtn` fixes the loci (",
+              length(user_qtn[[1]]), " QTNs).", call. = FALSE)
+    }
+    same_as_add <- FALSE
+  } else if (isTRUE(same_as_add) && !is.null(n_qtn)) {
+    warning("dominance(): `n_qtn` is ignored because same_as_add = TRUE reuses ",
+            "the additive layer's QTNs; set same_as_add = FALSE to draw `n_qtn` ",
+            "fresh dominance loci.", call. = FALSE)
+  }
   if (isTRUE(same_as_add) && is.null(user_qtn) && is.null(add_layer)) {
     stop("dominance(same_as_add = TRUE) requires a prior additive() layer.",
          call. = FALSE)
@@ -424,7 +475,8 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
       # series per trait, which forced a dominance correlation of ~ +1.
       return(.pleio_nonadditive_draw(sim, .expand_prop(prop, sim$n_traits),
                                      rep_seed, "dominance", q = q,
-                                     n_units = nq))
+                                     n_units = nq,
+                                     shared = attr(q, "pleio_shared")))
     }
     e <- lapply(seq_len(sim$n_traits),
                 function(t) .effect_series(nq, dist))
@@ -437,19 +489,23 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
   # A dominance deviation is a heterozygote effect, so it is identically zero at
   # a locus with no heterozygotes. Rather than silently substitute loci, fail
   # with a clear message so the user knows the (near-inbred) data has none.
-  # every vary_qtn replication's loci, not just the canonical draw
-  qsets <- c(list(drawn$qtn), drawn$qtn_reps)
+  # every vary_qtn replication's loci, not just the canonical draw; traits with
+  # prop = 0 contribute nothing, so their loci are not judged
+  active <- .expand_prop(prop, sim$n_traits) > 0
+  qsets <- lapply(c(list(drawn$qtn), drawn$qtn_reps), function(q) q[active])
   if (any(vapply(qsets, function(q) .dom_hetless(sim, q), logical(1)))) {
-    stop("dominance(): the selected loci have no heterozygous individuals, so a ",
-         "dominance deviation (which acts on heterozygotes) cannot be ",
-         "simulated -- the genotype is (near-)inbred at those loci. Pre-filter ",
+    stop("dominance(): the selected loci have no heterozygous individuals (or ",
+         "are heterozygous in every individual), so the heterozygote indicator ",
+         "does not vary and a dominance deviation cannot be ",
+         "simulated -- the genotype is (near-)inbred (or an F1) at those loci. Pre-filter ",
          "to heterozygous markers with filter_geno(hets = \"include\"), choose ",
          "loci with heterozygotes via qtn =, or use an outbred / F2 population.",
          call. = FALSE)
   } else if (any(vapply(qsets, function(q) .dom_partial_hetless(sim, q),
                         logical(1)))) {
     warning("dominance(): some (but not all) selected loci have no heterozygous ",
-            "individuals, so those loci contribute nothing and the remaining ",
+            "individuals (or are all heterozygous), so those loci contribute ",
+            "nothing and the remaining ",
             "het-bearing loci absorb the layer's `prop` -- the realized ",
             "dominance rests on fewer loci than requested. Choose het-bearing ",
             "loci (qtn =) or pre-filter with filter_geno(hets = \"include\") if ",
@@ -477,6 +533,14 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
 #'
 #' @inheritParams additive
 #' @param n_pairs number of interacting QTN sets.
+#' @param qtn optional user-supplied interacting sets (marker names or column
+#'   indices): a matrix with one row per set and `interaction` columns, or a
+#'   vector whose length is a multiple of `interaction` (filled by row). A matrix
+#'   or vector is used for **every** trait. A **list** must have one element per
+#'   trait (as in [additive()]), each element that trait's sets (a matrix or
+#'   vector as above), and every trait must get the same number of sets -- a list
+#'   of length `n_traits` is never read as "one set per element". Rejected under
+#'   `architecture = "pleiotropy"` / `"ld"`.
 #' @param effect optional geometric base (scalar) or explicit effect series
 #'   (length `n_pairs`), used for every trait.
 #' @param interaction number of markers per epistatic QTN (default 2, pairwise).
@@ -553,6 +617,10 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
   user_pairs <- .resolve_epi_qtn(sim, qtn, interaction)
   if (!is.null(user_pairs)) interaction <- ncol(user_pairs[[1]])
   itype <- .resolve_interaction_type(interaction_type, interaction)
+  if (!is.null(user_pairs) && !is.null(n_pairs)) {
+    warning("epistasis(): `n_pairs` is ignored because `qtn` fixes the sets (",
+            nrow(user_pairs[[1]]), " sets).", call. = FALSE)
+  }
   np <- if (!is.null(user_pairs)) nrow(user_pairs[[1]]) else
     .resolve_n_qtn(sim, n_pairs, "epistasis", arg = "n_pairs")
   occ <- .type_occurrence(sim, "epistasis")
@@ -610,12 +678,24 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
   # makes the pair identically zero and it silently drops out while the rest
   # absorb `prop`. Warn (as dominance() does for its partial case) rather than
   # realize fewer effective pairs than requested without notice.
-  if (any(vapply(c(list(drawn$qtn), drawn$qtn_reps),
-                 function(q) .epi_hetless_d(sim, q, itype), logical(1)))) {
+  # (traits with prop = 0 contribute nothing, so their sets are not judged)
+  active <- .expand_prop(prop, sim$n_traits) > 0
+  dead <- vapply(c(list(drawn$qtn), drawn$qtn_reps),
+                 function(q) .epi_dead_status(sim, q[active], itype), 0L)
+  if (any(dead == 2L)) {
+    stop("epistasis(): every interacting set has a \"d\" position on a locus with ",
+         "no heterozygous individuals (or heterozygous in every individual), so ",
+         "every interaction term is constant and the layer cannot realize its ",
+         "`prop` -- the genotype is (near-)inbred (or an F1) at those loci. ",
+         "Choose het-bearing loci (qtn =), pre-filter with filter_geno(hets = ",
+         "\"include\"), set the interaction_type to \"a\", or use an outbred / ",
+         "F2 population.", call. = FALSE)
+  } else if (any(dead == 1L)) {
     warning("epistasis(): a \"d\" interaction position sits on a locus with no ",
-            "heterozygous individuals, so that interaction term is identically ",
-            "zero and its pair contributes nothing while the remaining pairs ",
-            "absorb `prop` -- the genotype is (near-)inbred at that locus. Choose ",
+            "heterozygous individuals (or all heterozygous), so that interaction ",
+            "term is identically zero and its pair contributes nothing while the ",
+            "remaining pairs absorb `prop` -- the genotype is (near-)inbred at ",
+            "that locus. Choose ",
             "het-bearing loci (qtn =), pre-filter with filter_geno(hets = ",
             "\"include\"), or set that position's interaction_type to \"a\" if ",
             "that is not intended.", call. = FALSE)
@@ -664,7 +744,10 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
 #' shared, not the formula used here.
 #'
 #' @inheritParams additive
-#' @param same_as_add reuse the additive layer's QTNs (default `TRUE`).
+#' @param same_as_add reuse the additive layer's QTNs (default `TRUE`). Supplying
+#'   `qtn` fixes the loci instead, so `same_as_add` is then treated as `FALSE`.
+#' @param n_qtn number of vQTL loci for a fresh draw (`same_as_add = FALSE`);
+#'   ignored, with a warning, when the loci are reused or fixed by `qtn`.
 #' @return the updated `phenotype_sim`.
 #' @references
 #' Ronnegard, L. and Valdar, W. (2011). Detecting major genetic loci
@@ -702,6 +785,17 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
   user_qtn <- .resolve_qtn_arg(sim, qtn, "vqtl")
 
   add_layer <- .last_layer_of_type(sim, "additive")
+  if (!is.null(user_qtn)) {
+    if (!is.null(n_qtn)) {
+      warning("vqtl(): `n_qtn` is ignored because `qtn` fixes the loci (",
+              length(user_qtn[[1]]), " QTNs).", call. = FALSE)
+    }
+    same_as_add <- FALSE
+  } else if (isTRUE(same_as_add) && !is.null(n_qtn)) {
+    warning("vqtl(): `n_qtn` is ignored because same_as_add = TRUE reuses the ",
+            "additive layer's QTNs; set same_as_add = FALSE to draw `n_qtn` ",
+            "fresh vQTL loci.", call. = FALSE)
+  }
   if (isTRUE(same_as_add) && is.null(user_qtn) && is.null(add_layer)) {
     stop("vqtl(same_as_add = TRUE) requires a prior additive() layer.",
          call. = FALSE)
@@ -722,7 +816,12 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
     } else {
       q <- .draw_qtn(sim, nq, rep_seed)
     }
-    e <- lapply(seq_len(sim$n_traits), function(t) .effect_series(nq, dist))
+    # One effect per RETAINED locus of each trait. Under architecture =
+    # "pleiotropy" the additive layer drops loci that carry exactly zero effect
+    # for a trait (pi_t = 0 or 1), so the per-trait locus counts can differ and
+    # a common `nq` would leave the effects longer than the loci.
+    e <- lapply(seq_len(sim$n_traits),
+                function(t) .effect_series(length(q[[t]]), dist))
     list(qtn = q, effect = e)
   }
 
@@ -821,12 +920,15 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
            call. = FALSE)
     }
     remaining <- .expand_prop(h2, nt) - spent
-    if (any(remaining <= 1e-10)) {
+    # A trait whose budget is already spent gets prop = 0; refuse only when no
+    # trait has anything left (prop = c(0.3, 0) is legal).
+    if (all(remaining <= 1e-10)) {
       stop("No heritability budget is left for the ", type, "() layer: h2 = ",
            paste(sprintf("%.3f", .expand_prop(h2, nt)), collapse = ", "),
            " is already fully allocated. Give the layers explicit `prop` ",
            "values that sum to h2.", .one_call_hint(sim), call. = FALSE)
     }
+    remaining[remaining <= 1e-10] <- 0
     return(remaining)
   }
 
@@ -850,6 +952,9 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
 }
 
 .add_layer <- function(sim, layer) {
+  if (identical(sim$architecture, "complex")) {
+    stop(.complex_terminal_msg(layer$type), call. = FALSE)
+  }
   nt <- sim$n_traits
   layer$prop <- .validate_proportion(layer$prop, "prop", nt)
   prospective <- .total_variance_prop(sim) + .expand_prop(layer$prop, nt)
@@ -898,13 +1003,28 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
   out
 }
 
+#' Per-locus flag: does the heterozygote indicator vary across individuals?
+#'
+#' FALSE for a locus with no heterozygous individual **and** for one that is
+#' heterozygous in every individual (constant indicator): in both cases the
+#' centered heterozygote indicator is identically zero, so the locus can carry no
+#' dominance deviation.
+#' @keywords internal
+#' @noRd
+.het_varies <- function(sim, idx) {
+  blk <- .geno_cols(sim, idx)
+  nh <- colSums(blk == 0, na.rm = TRUE)
+  nh > 0 & nh < nrow(blk)
+}
+
 #' TRUE when a reused QTN set cannot support any dominance deviation
 #'
-#' A dominance layer is a heterozygote effect, so a trait whose loci are *all*
-#' homozygous realizes exactly zero variance and cannot fill `prop` at all --
-#' that is an error. A set with *some* hetless loci can still realize `prop` from
-#' the rest, but the dead loci are silently inert; see [.dom_partial_hetless()],
-#' which warns for that case.
+#' A dominance layer is a heterozygote effect, so a trait whose loci *all* have a
+#' constant heterozygote indicator (no heterozygotes, or all heterozygous)
+#' realizes exactly zero variance and cannot fill `prop` at all -- that is an
+#' error. A set with *some* such loci can still realize `prop` from the rest, but
+#' the dead loci are silently inert; see [.dom_partial_hetless()], which warns for
+#' that case.
 #' @keywords internal
 #' @noRd
 .dom_hetless <- function(sim, q) {
@@ -912,7 +1032,7 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
     if (is.null(idx) || length(idx) == 0L) {
       return(FALSE)
     }
-    sum(.geno_cols(sim, idx) == 0, na.rm = TRUE) == 0
+    !any(.het_varies(sim, idx))
   }, logical(1)))
 }
 
@@ -928,14 +1048,14 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
     if (is.null(idx) || length(idx) < 2L) {
       return(FALSE)
     }
-    hl <- vapply(idx, function(j) {
-      sum(.geno_cols(sim, j) == 0, na.rm = TRUE) == 0
-    }, logical(1))
+    hl <- !.het_varies(sim, idx)
     any(hl) && !all(hl)
   }, logical(1)))
 }
 
-#' TRUE when any orthogonal locus carrying a non-zero `d` has no heterozygotes
+#' TRUE when any orthogonal locus carrying a non-zero `d` has a constant het indicator
+#'
+#' (no heterozygotes, or heterozygous in every individual).
 #'
 #' Unlike [.dom_hetless()] (which asks whether a whole reused set is homozygous),
 #' the orthogonal model attaches a dominance deviation to specific loci, so the
@@ -954,36 +1074,37 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
     if (length(nz) == 0L) {
       return(FALSE)
     }
-    any(vapply(idx[nz], function(j) {
-      sum(.geno_cols(sim, j) == 0, na.rm = TRUE) == 0
-    }, logical(1)))
+    any(!.het_varies(sim, idx[nz]))
   }, logical(1)))
 }
 
-#' TRUE when any epistasis pair carries a hetless locus at a `"d"` position
+#' Status of the "d"-position loci of a set of epistatic sets
 #'
 #' A `"d"` interaction position contributes a centered heterozygote indicator, so
-#' a locus with no heterozygotes makes that design column identically zero and
-#' silently inerts the whole pair -- the remaining pairs then absorb `prop`. The
-#' check is per locus at every `"d"` position, mirroring [.orthogonal_hetless_d()]
-#' and [.dom_hetless()]. `qtn` is a per-trait list of `n_pairs x interaction`
-#' index matrices; `itype` is the length-`interaction` "a"/"d" vector.
+#' a locus whose indicator is constant (no heterozygotes, or all heterozygous)
+#' makes that design column identically zero and inerts the whole pair. Returns
+#' 0 when no pair is affected, 2 when *every* pair (of some trait) is dead --
+#' the layer cannot realize `prop` -- and 1 when only some are, the remaining
+#' pairs then absorbing `prop`. `qtn` is a per-trait list of `n_pairs x
+#' interaction` index matrices; `itype` the length-`interaction` "a"/"d" vector.
 #' @keywords internal
 #' @noRd
-.epi_hetless_d <- function(sim, qtn, itype) {
+.epi_dead_status <- function(sim, qtn, itype) {
   d_pos <- which(itype == "d")
   if (length(d_pos) == 0L) {
-    return(FALSE)
+    return(0L)
   }
-  any(vapply(qtn, function(mat) {
+  status <- vapply(qtn, function(mat) {
     if (is.null(mat) || length(mat) == 0L) {
-      return(FALSE)
+      return(0L)
     }
     loci <- unique(as.integer(mat[, d_pos, drop = FALSE]))
-    any(vapply(loci, function(j) {
-      sum(.geno_cols(sim, j) == 0, na.rm = TRUE) == 0
-    }, logical(1)))
-  }, logical(1)))
+    ok <- stats::setNames(.het_varies(sim, loci), loci)
+    dead_pair <- apply(mat[, d_pos, drop = FALSE], 1L,
+                       function(r) any(!ok[as.character(r)]))
+    if (all(dead_pair)) 2L else if (any(dead_pair)) 1L else 0L
+  }, 0L)
+  if (length(status)) max(status) else 0L
 }
 
 #' A prior layer's QTNs for a given replication (per-rep if it varied)
@@ -1055,14 +1176,22 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
   rep(list(idx), nt)
 }
 
-#' Resolve a user-supplied epistatic `qtn` argument to an n_pairs x interaction
-#' matrix of indices, shared across traits
+#' Resolve a user-supplied epistatic `qtn` argument to per-trait set matrices
+#'
+#' A matrix (one row per set, `interaction` columns) or a vector (length a
+#' multiple of `interaction`, filled by row) is shared by every trait. A **list**
+#' must have one element per trait, each element that trait's sets (matrix or
+#' vector), and every trait must get the same number of sets -- exactly as for
+#' `additive(qtn = list(...))`. (Earlier versions read a list as "one set per
+#' element" and replicated the resulting matrix to every trait, which silently
+#' gave identical epistasis and a genetic correlation of 1.)
 #' @keywords internal
 #' @noRd
 .resolve_epi_qtn <- function(sim, qtn, interaction) {
   if (is.null(qtn)) {
     return(NULL)
   }
+  nt <- sim$n_traits
   to_idx <- function(v) {
     if (is.character(v)) {
       idx <- match(v, sim$map$snp)
@@ -1079,30 +1208,49 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
     }
     as.integer(v)
   }
-  m <- if (is.list(qtn)) {
-    do.call(rbind, lapply(qtn, to_idx))
-  } else if (is.matrix(qtn)) {
-    matrix(to_idx(as.vector(qtn)), nrow = nrow(qtn))
-  } else {
-    if (length(qtn) %% interaction != 0L) {
-      stop("epistasis(qtn=): the number of loci must be a multiple of ",
-           "`interaction` (", interaction, ").", call. = FALSE)
+  to_mat <- function(v) {
+    if (is.matrix(v)) {
+      matrix(to_idx(as.vector(v)), nrow = nrow(v))
+    } else {
+      if (length(v) %% interaction != 0L) {
+        stop("epistasis(qtn=): the number of loci must be a multiple of ",
+             "`interaction` (", interaction, ").", call. = FALSE)
+      }
+      matrix(to_idx(v), ncol = interaction, byrow = TRUE)
     }
-    matrix(to_idx(qtn), ncol = interaction, byrow = TRUE)
   }
-  if (ncol(m) != interaction) {
-    stop("epistasis(qtn=): each set must have `interaction` = ", interaction,
-         " markers; got ", ncol(m), ".", call. = FALSE)
+  if (is.list(qtn)) {
+    if (length(qtn) != nt) {
+      stop("epistasis(qtn=): a list must have one element per trait (", nt,
+           "); got ", length(qtn), ". Each element is that trait's interacting ",
+           "sets (a matrix with one row per set, or a vector); to give several ",
+           "sets to every trait pass one matrix instead of a list of sets.",
+           call. = FALSE)
+    }
+    mats <- lapply(qtn, to_mat)
+    nr <- vapply(mats, nrow, 0L)
+    if (length(unique(nr)) != 1L) {
+      stop("epistasis(qtn=): every trait must get the same number of sets; got ",
+           paste(nr, collapse = ", "), ".", call. = FALSE)
+    }
+  } else {
+    mats <- rep(list(to_mat(qtn)), nt)      # one matrix, shared by every trait
   }
-  if (!length(m) || any(m < 1L | m > sim$n_markers)) {
-    stop("epistasis(qtn=): index out of range (1..", sim$n_markers, ").",
-         call. = FALSE)
+  for (m in mats) {
+    if (ncol(m) != interaction) {
+      stop("epistasis(qtn=): each set must have `interaction` = ", interaction,
+           " markers; got ", ncol(m), ".", call. = FALSE)
+    }
+    if (!length(m) || any(m < 1L | m > sim$n_markers)) {
+      stop("epistasis(qtn=): index out of range (1..", sim$n_markers, ").",
+           call. = FALSE)
+    }
+    if (any(apply(m, 1, anyDuplicated) > 0L)) {
+      stop("epistasis(qtn=): a locus cannot appear twice in one interaction ",
+           "set.", call. = FALSE)
+    }
   }
-  if (any(apply(m, 1, anyDuplicated) > 0L)) {
-    stop("epistasis(qtn=): a locus cannot appear twice in one interaction ",
-         "set.", call. = FALSE)
-  }
-  rep(list(m), sim$n_traits)   # same interacting sets across traits
+  mats
 }
 
 #' Resolve an epistasis `interaction_type` to a length-`interaction` vector
@@ -1175,9 +1323,22 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
 #' @keywords internal
 #' @noRd
 .require_markers <- function(sim, fn) {
+  if (identical(sim$architecture, "complex")) {
+    stop(.complex_terminal_msg(fn), call. = FALSE)
+  }
   if (is.null(sim$n_markers) || sim$n_markers < 1L) {
     stop(fn, "() needs genotypes, but this phenotype was built from expression ",
          "alone (no `geno`). Use transcriptome() layers, or rebuild with `geno`.",
          call. = FALSE)
   }
+}
+
+#' Message for a layer added to a complex_phenotypes() result
+#' @keywords internal
+#' @noRd
+.complex_terminal_msg <- function(fn) {
+  paste0(fn, "(): a complex_phenotypes() result is terminal -- its genetic ",
+         "value is the rescaled sum of its inputs and it has no layers of its ",
+         "own, so a layer added afterwards would be silently ignored. Add the ",
+         "layer to one of the input models and combine again.")
 }

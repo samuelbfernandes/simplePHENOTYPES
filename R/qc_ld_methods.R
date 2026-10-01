@@ -1,14 +1,22 @@
-# Gabriel haplotype blocks, byte-exact to PLINK 1.9's Haploview --blocks. The
+# Gabriel haplotype blocks, following PLINK 1.9's Haploview-style --blocks. The
 # block detection lives in .plink_blocks_chrom()/.plink_blocks_classify()
 # (R/qc_filter_geno.R, sharing the two-locus ML EM); this file turns those block
-# definitions into a filter_geno() marker filter.
+# definitions into a filter_geno() marker filter. What is verified: the committed
+# fixture (inst/extdata/plink_parity/plink19_prune.rds, produced by PLINK
+# v1.9.0-b.8 on the bundled SNP55K_maize282_maf04 panel; see
+# tests/testthat/test-filter-geno-plink-parity.R) fixes the block partitions for
+# two configurations, which this code reproduces. Agreement on other data or
+# byte-level equivalence is not claimed; there is no randomized comparison.
 
 #' Gabriel et al. (2002) haplotype blocks, keeping one tag marker per block
 #'
-#' Detects blocks exactly as PLINK 1.9's `--blocks` (see `.plink_blocks_chrom()`)
-#' on the MAF >= 0.05 markers still in `keep` -- Haploview ignores rarer variants
-#' -- then collapses each block to a single tag marker (the highest-MAF member),
-#' dropping the rest. Markers in no block (including the MAF < 0.05 ones) are left
+#' Detects blocks with the algorithm of PLINK 1.9's `--blocks` (see
+#' `.plink_blocks_chrom()`) on the MAF >= 0.05 markers still in `keep` --
+#' Haploview ignores rarer variants -- then collapses each block to a single tag
+#' marker (the highest-MAF member, a package convention), dropping the rest. The
+#' block definitions agree with the PLINK v1.9.0-b.8 fixture on the bundled panel
+#' for the two configurations it holds (the only committed evidence); equivalence
+#' on other data has not been checked against PLINK. Markers in no block (including the MAF < 0.05 ones) are left
 #' untouched. `max_kb` bounds the block span. Returns the updated `keep`.
 #' @keywords internal
 #' @noRd

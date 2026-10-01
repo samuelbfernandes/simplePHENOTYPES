@@ -18,17 +18,68 @@
 #'
 #' Layer proportions are marginal sample variances after scaling. The simple
 #' -1/0/1 additive, heterozygote-indicator dominance, and centered-product
-#' epistatic designs are not a Fisher/NOIA-orthogonal decomposition. Their
-#' covariance can therefore make realized broad-sense heritability differ from
-#' the requested sum in a finite sample, especially when layers reuse linked
-#' loci. The object's print method reports realized H2 from the simulated
-#' genetic and phenotypic values rather than concealing that difference.
+#' epistatic designs are **not** a Fisher/NOIA-orthogonal decomposition, so the
+#' scaled components are generally correlated and the realized broad-sense
+#' heritability H2 = Var(g) / Var(P) is not, in general, the sum of the requested
+#' proportions. The clearest case is `additive()` + `dominance()` on the **same
+#' loci** (the default `same_as_add = TRUE`, and the one-call `model = "AD"`):
+#' with one layer of each type Var(g) = prop_A + prop_D + 2 Cov(c_A, c_D) (with
+#' several layers of a type Var(c_A), Var(c_D) also carry the covariance among
+#' those layers; the exact identity is Var(g) = Var(c_A) + Var(c_D) +
+#' 2 Cov(c_A, c_D)), and under Hardy-Weinberg
+#' Cov(dosage, heterozygote indicator) = -(2p - 1) 2pq at every locus (`p` = the
+#' frequency of the counted +1 allele). With the default geometric effect series
+#' every locus has the same effect sign, so each locus's cross term has the sign
+#' of `1 - 2p`: positive where the counted allele is the minor allele, negative
+#' where it is the major allele. The terms therefore reinforce, rather than
+#' cancel, when the counted-allele frequencies lie on one side of 0.5 (they
+#' partly cancel when the frequencies straddle 0.5, and `phase = "repulsion"`
+#' alternates the additive signs). The cross term is a **structural** bias that
+#' depends on the allele frequencies **and on which allele is coded +1** (on the same loci
+#' and seeds a panel with minor-allele frequencies 0.10-0.20 gave a realized H2
+#' of about 0.63 with the minor allele coded +1 and about 0.25 with the major
+#' allele coded +1, for a requested 0.5), not a finite-sample fluctuation that
+#' shrinks with n. The realized H2 printed by the object, and the `$ad_report`
+#' component (per trait: the requested share, the realized share, the
+#' realized Var(A), Var(D) and 2Cov(A,D) of the additive/dominance block as
+#' fractions of V_P, and the component variances Var(c_A), Var(c_D) and
+#' 2Cov(c_A,c_D), which also sum to the realized share; the gap to the request is
+#' `realized - requested/V_P`), report what was actually simulated whenever additive and
+#' dominance layers share loci; use
+#' `additive(orthogonal = TRUE, a =, d =)` when the additive/dominance partition
+#' must be Fisher-orthogonal. Epistatic products that share loci with other
+#' layers, and strong LD between causal loci, can likewise correlate components;
+#' no separate report is produced for those.
+#'
+#' Reproducibility: with a non-`NULL` `seed`, every layer draws its QTNs and
+#' effects under a sub-seed derived from `(seed, layer type, occurrence)`, where
+#' *occurrence* counts the earlier layers **of the same type** (0 for the first
+#' `additive()`, 1 for the second, ...); replication `r` of a `vary_qtn` layer and
+#' each trait's residual use the labelled variants `"<type>_rep<r>"` and
+#' `"residual_t<t>"`. The label is hashed position-sensitively, so labels that
+#' differ only by a permutation of characters (replications 12 and 21, traits 12
+#' and 21) get different sub-seeds, and distinct labels are collision-resistant
+#' over ordinary ranges of replications, traits and layers. A 31-bit sub-seed
+#' cannot be injective in general, so two very distant labels can in principle
+#' share one (found: with `seed = 123`, replication 106 of the first
+#' `transcriptome()` layer and the residual of trait 40160 in replication 4);
+#' this is far outside realistic use. Development versions before this rule summed
+#' character codes, which made e.g. replications 12 and 21 identical; every
+#' seeded value changed with the fix. Consequently adding,
+#' removing or reordering a layer of one type never changes the draws of layers of
+#' other types, but inserting another layer of the *same* type before an existing
+#' one shifts that layer's occurrence index and so changes its draws.
 #'
 #' @param geno genotype input: a simplePHENOTYPES numeric-format data frame
 #'   (first five columns `c("snp", "allele", "chr", "pos", "cm")`, e.g.
 #'   [SNP55K_maize282_maf04]), an individuals-by-markers numeric matrix coded
 #'   -1/0/1, or a [Population][as_population()] from [cross()], [selfcross()] or
-#'   [double_haploid()]. **Optional** when an expression basis is given: with
+#'   [double_haploid()]. At least **three** individuals are required (with two,
+#'   the exact-variance standardization forces the genetic value and residual to
+#'   be collinear and the realized heritability is meaningless); duplicate
+#'   `chr`/`pos` values are accepted (the map need not be unique); markers that are
+#'   monomorphic, or heterozygous in every individual (constant dosage), can never
+#'   be QTNs and are skipped. **Optional** when an expression basis is given: with
 #'   `geno = NULL` and an `expression` matrix (or a `transcriptome_sim` in
 #'   `transcriptome`), the phenotype is built from expression alone -- individuals
 #'   come from the expression source's columns, there are no markers, and only
@@ -62,11 +113,18 @@
 #'   set of QTNs and effects, so replications are distinct genetic architectures
 #'   rather than the same one with fresh residuals. Layers given an explicit
 #'   `qtn` keep their fixed loci across replications.
-#' @param seed RNG seed stored on the object and threaded to every layer.
+#' @param seed RNG seed stored on the object and threaded to every layer: each
+#'   layer, replication and residual draws under a sub-seed derived from
+#'   `(seed, layer type, occurrence of that type)`; see the reproducibility
+#'   paragraph above.
+#'   The caller's RNG state is left untouched.
 #' @param h2 optional requested genetic-variance share for one-call simulation.
 #'   For a single mean-effect layer this is the simulated broad-sense
-#'   heritability apart from finite-sample covariance with the residual. With
-#'   multiple non-orthogonal layers, see Details and the reported realized h2.
+#'   heritability (the genetic component is scaled to `h2` exactly; only its
+#'   sample covariance with the residual moves the realized ratio slightly). With
+#'   multiple non-orthogonal layers -- above all additive and dominance on shared
+#'   loci -- the realized value can differ structurally from the requested sum;
+#'   see Details and the reported realized H2 / `$ad_report`.
 #'   `h2` governs the **marker** genetic budget (additive + dominance +
 #'   epistasis `prop` must sum to it). A [transcriptome()] layer's `prop` is a
 #'   separate expression-mediated variance category and is **not** part of this
@@ -78,8 +136,9 @@
 #'   length `n_traits`). Genetic values stay centered; only the phenotype is
 #'   shifted.
 #' @param individuals optional subset of individuals to simulate, given as IDs
-#'   or indices. Marker minor-allele frequencies are recomputed on the subset,
-#'   and the genotypes are never copied -- only the selected rows are read.
+#'   or indices (at least three). Marker minor-allele frequencies are recomputed
+#'   on the subset, and the genotypes are never copied -- only the selected rows
+#'   are read.
 #' @param model one-call model string: "A" (additive, default), "AD"
 #'   (additive + dominance), "AE" (additive + epistasis).
 #' @param expression optional real/observed expression as a genes-by-individuals
@@ -98,7 +157,13 @@
 #'   window the linked causal pair must fall in; see [qtn_table()]). For
 #'   `"independent"`: `distinct_chr` (`TRUE` puts each trait's QTNs on disjoint
 #'   chromosomes). `ld_type` defaults to `"direct"` (the two traits' causal SNPs
-#'   are directly in LD).
+#'   are directly in LD). Under `"ld"`, `partner` chooses the trait-2 locus for a
+#'   `"direct"` pair (or the ordering of flanking candidates for `"indirect"`):
+#'   `"strongest"` (default) takes the in-window partner with the **highest**
+#'   r2 with a randomly drawn anchor SNP (so realized r2 skews toward `r2_max`),
+#'   `"random"` takes a uniformly random in-window partner. Perfectly collinear
+#'   markers (r2 = 1) are never used as a partner, and the window must satisfy
+#'   `0 < r2_max` and `r2_min < 1`.
 #'
 #'   `cor` is the target **genetic** correlation and works for any number of
 #'   traits: a scalar applied to every trait pair, or a full
@@ -138,7 +203,10 @@
 #'   `cor^2 <= pi_1 * pi_2` -- otherwise an error is raised rather than an
 #'   approximation returned. Using `cor` prints a citation notice once per
 #'   session.
-#' @return a `phenotype_sim` object.
+#' @return a `phenotype_sim` object. Beyond the realized `pheno` table and the
+#'   requested `var_budget`, it carries `ad_report` (a per-trait data frame of the
+#'   realized additive/dominance partition when additive and dominance layers
+#'   share loci in the variance-partition coding, else `NULL`).
 #' @export
 #' @examples
 #' data("SNP55K_maize282_maf04")
@@ -220,10 +288,11 @@ simulate_phenotype <- function(geno = NULL,
            "marker-based and needs `geno`; the genotype-free basis supports only ",
            "the default \"independent\" architecture.", call. = FALSE)
     }
-    norm <- .expression_foundation(colnames(src), individuals)
+    norm <- .expression_foundation(colnames(src), individuals, min_ind = 3L)
     geno_name <- "<expression>"
   } else {
-    norm <- .normalize_geno(geno, geno_name, individuals = individuals)
+    norm <- .normalize_geno(geno, geno_name, individuals = individuals,
+                            min_ind = 3L)
   }
 
   sim <- structure(
@@ -233,6 +302,7 @@ simulate_phenotype <- function(geno = NULL,
       kind         = norm$kind,
       map          = norm$map,
       maf          = norm$maf,
+      all_het      = norm$all_het,
       ids          = norm$ids,
       n_ind        = norm$n_ind,
       n_markers    = norm$n_markers,
@@ -303,7 +373,7 @@ simulate_phenotype <- function(geno = NULL,
   known <- list(
     pleiotropy  = c("cor", "pi", "pi_target", "pi_secondary",
                     "n_pleio_major", "prop_var_major"),
-    ld          = c("ld_type", "r2_max", "r2_min"),
+    ld          = c("ld_type", "r2_max", "r2_min", "partner"),
     independent = c("distinct_chr")
   )
   valid_here <- known[[architecture]]
@@ -346,6 +416,13 @@ simulate_phenotype <- function(geno = NULL,
     if (!is.null(arch_args$ld_type)) {
       match.arg(arch_args$ld_type, c("direct", "indirect"))
     }
+    if (!is.null(arch_args$partner)) {
+      if (!is.character(arch_args$partner) || length(arch_args$partner) != 1L ||
+          !arch_args$partner %in% c("strongest", "random")) {
+        stop("`partner` must be \"strongest\" (default) or \"random\".",
+             call. = FALSE)
+      }
+    }
     lo <- if (is.null(arch_args$r2_min)) 0.2 else arch_args$r2_min
     hi <- if (is.null(arch_args$r2_max)) 0.8 else arch_args$r2_max
     if (!is.numeric(lo) || length(lo) != 1L || !is.finite(lo) || lo < 0 ||
@@ -353,6 +430,12 @@ simulate_phenotype <- function(geno = NULL,
         hi < 0 || hi > 1 || lo > hi) {
       stop("`r2_min` and `r2_max` must be finite scalars satisfying ",
            "0 <= r2_min <= r2_max <= 1.", call. = FALSE)
+    }
+    if (hi <= 0 || lo >= 1) {
+      stop("The r2 window [r2_min, r2_max] must contain values strictly between ",
+           "0 and 1: r2 = 0 is no linkage at all and r2 = 1 would make the two ",
+           "traits' causal loci identical genotype columns (need r2_max > 0 and ",
+           "r2_min < 1).", call. = FALSE)
     }
   }
   invisible(TRUE)
@@ -445,7 +528,8 @@ simulate_phenotype <- function(geno = NULL,
 #' simulation only ever touched a handful of QTNs.
 #' @keywords internal
 #' @noRd
-.normalize_geno <- function(geno, geno_name = "geno", individuals = NULL) {
+.normalize_geno <- function(geno, geno_name = "geno", individuals = NULL,
+                            min_ind = 2L) {
   # Population first: one backed by a data frame would otherwise be caught by
   # the is.data.frame() branch below.
   if (inherits(geno, "Population")) {
@@ -523,9 +607,9 @@ simulate_phenotype <- function(geno = NULL,
   if (out$n_markers < 1L) {
     stop("`geno` must contain at least one marker.", call. = FALSE)
   }
-  if (out$n_ind < 2L) {
-    stop("`geno` must contain at least two individuals so variances can be ",
-         "defined.", call. = FALSE)
+  if (out$n_ind < min_ind) {
+    stop("`geno` must contain at least ", .n_word(min_ind), " individuals so ",
+         "variances can be defined", .min_ind_reason(min_ind), ".", call. = FALSE)
   }
   if (anyNA(out$map$snp) || any(!nzchar(out$map$snp)) ||
       anyDuplicated(out$map$snp)) {
@@ -537,9 +621,26 @@ simulate_phenotype <- function(geno = NULL,
          call. = FALSE)
   }
 
-  out <- .select_individuals(out, individuals)
-  out$maf <- .marker_maf_ref(out)
+  out <- .select_individuals(out, individuals, min_ind = min_ind)
+  stats <- .marker_stats_ref(out)
+  out$maf <- stats$maf
+  out$all_het <- stats$all_het
   out
+}
+
+#' Spell a small individual count and say why the minimum is what it is
+#' @keywords internal
+#' @noRd
+.n_word <- function(k) c("one", "two", "three")[k]
+
+.min_ind_reason <- function(min_ind) {
+  if (min_ind >= 3L) {
+    paste0(" (with two, the exact-variance standardization forces the genetic ",
+           "value and the residual to be collinear, so the realized ",
+           "heritability is undefined)")
+  } else {
+    ""
+  }
 }
 
 #' Resolve an optional individual subset on a normalized foundation
@@ -550,7 +651,7 @@ simulate_phenotype <- function(geno = NULL,
 #' foundation) and `.expression_foundation()` (genotype-free, expression basis).
 #' @keywords internal
 #' @noRd
-.select_individuals <- function(out, individuals) {
+.select_individuals <- function(out, individuals, min_ind = 2L) {
   full_ids <- out$ids
   if (is.null(individuals)) {
     out$ind_idx <- seq_along(full_ids)
@@ -576,9 +677,9 @@ simulate_phenotype <- function(geno = NULL,
     out$ids     <- full_ids[sel]
     out$n_ind   <- length(sel)
   }
-  if (out$n_ind < 2L) {
-    stop("At least two individuals must be selected so variances can be ",
-         "defined.", call. = FALSE)
+  if (out$n_ind < min_ind) {
+    stop("At least ", .n_word(min_ind), " individuals must be selected so ",
+         "variances can be defined", .min_ind_reason(min_ind), ".", call. = FALSE)
   }
   out
 }
@@ -591,7 +692,7 @@ simulate_phenotype <- function(geno = NULL,
 #' markers, so only `transcriptome()` layers are valid downstream.
 #' @keywords internal
 #' @noRd
-.expression_foundation <- function(ids, individuals = NULL) {
+.expression_foundation <- function(ids, individuals = NULL, min_ind = 2L) {
   if (is.null(ids)) {
     stop("simulate_phenotype(): the expression source has no individual (column) ",
          "names; name its columns so individuals can be identified.", call. = FALSE)
@@ -606,8 +707,9 @@ simulate_phenotype <- function(geno = NULL,
                      stringsAsFactors = FALSE),
     ids = ids, n_ind = length(ids), n_markers = 0L
   )
-  out <- .select_individuals(out, individuals)
+  out <- .select_individuals(out, individuals, min_ind = min_ind)
   out$maf <- numeric(0)
+  out$all_het <- logical(0)
   out
 }
 
@@ -640,15 +742,19 @@ simulate_phenotype <- function(geno = NULL,
   out
 }
 
-#' Per-marker minor allele frequency, computed in chunks
+#' Per-marker minor allele frequency and constant-heterozygote flag, in chunks
 #'
 #' Chunked so a large data set never has its whole genotype matrix in memory at
-#' once, which a single `colMeans()` over the full matrix would require.
+#' once, which a single `colMeans()` over the full matrix would require. Returns
+#' `maf` (minor allele frequency) and `all_het` (TRUE where every individual is
+#' heterozygous: MAF is then 0.5 but the dosage column is constant, so the marker
+#' carries no variance and can never be a QTN).
 #' @keywords internal
 #' @noRd
-.marker_maf_ref <- function(sim, chunk = 5000L) {
+.marker_stats_ref <- function(sim, chunk = 5000L) {
   n <- sim$n_markers
   p <- numeric(n)
+  all_het <- logical(n)
   start <- 1L
   while (start <= n) {
     stop_at <- min(start + chunk - 1L, n)
@@ -664,9 +770,17 @@ simulate_phenotype <- function(geno = NULL,
            "before calling simulate_phenotype().", call. = FALSE)
     }
     p[idx] <- colMeans((block + 1) / 2, na.rm = TRUE)
+    all_het[idx] <- colSums(block == 0) == nrow(block)
     start <- stop_at + 1L
   }
-  pmin(p, 1 - p)
+  list(maf = pmin(p, 1 - p), all_het = all_het)
+}
+
+#' Per-marker minor allele frequency, computed in chunks
+#' @keywords internal
+#' @noRd
+.marker_maf_ref <- function(sim, chunk = 5000L) {
+  .marker_stats_ref(sim, chunk)$maf
 }
 
 #' Deterministic per-layer sub-seed
@@ -674,19 +788,39 @@ simulate_phenotype <- function(geno = NULL,
 #' Derived from `(seed, layer_type, occurrence)` so that reordering layers of
 #' different types does not change any layer's draws (seed-threading
 #' invariance). `occurrence` is the 0-based count of prior layers of the same
-#' type.
+#' type; inserting a same-type layer before an existing one therefore shifts that
+#' layer's occurrence (documented in [simulate_phenotype()]). `layer_type` is the
+#' draw label (`"additive"`, `"additive_rep12"`, `"residual_t3"`, ...).
+#'
+#' The label is reduced with a position-sensitive polynomial rolling hash
+#' (`h <- (h * 257 + code) mod 2147483629`, a prime just below 2^31, in double
+#' precision), so that labels differing only by a permutation of characters --
+#' `additive_rep12` vs `additive_rep21`, `residual_t12` vs `residual_t21` --
+#' receive different sub-seeds. The earlier character-code *sum* was
+#' permutation-invariant and made those replications / traits byte-identical.
+#'
+#' The output is a 31-bit integer, so the map from `(seed, label, occurrence)` to
+#' a sub-seed cannot be injective; the property claimed is collision resistance
+#' over ordinary ranges, verified empirically (no duplicate on the production
+#' label families at several seeds). A real collision exists at `seed = 123`:
+#' `.layer_seed(123, "transcriptome_rep106", 0)` equals
+#' `.layer_seed(123, "residual_t40160", 3)` (2116039371), i.e. replication 106 of
+#' the first transcriptome layer vs the residual of trait 40160 in replication 4.
 #' @keywords internal
 #' @noRd
 .layer_seed <- function(seed, layer_type, occurrence = 0L) {
   if (is.null(seed)) {
     return(NULL)
   }
-  base <- sum(utf8ToInt(layer_type))
+  base <- 0
+  for (code in utf8ToInt(layer_type)) {
+    base <- (base * 257 + code) %% 2147483629
+  }
   # Do the mixing in double precision: a valid seed can be as large as
   # .Machine$integer.max, and `seed * 1009L` would overflow 32-bit integer
-  # arithmetic to NA. Doubles hold these products exactly (< 2^53), and the
-  # final %% brings the result back into integer range. For ordinary small
-  # seeds the value is identical to the previous integer computation.
+  # arithmetic to NA. Doubles hold these products exactly (base < 2^31, so
+  # base * 7919 < 2^44 << 2^53), and the final %% brings the result back into
+  # integer range.
   as.integer((as.double(seed) * 1009 + base * 7919 + occurrence * 104729) %%
                .Machine$integer.max)
 }
@@ -738,12 +872,12 @@ print.phenotype_sim <- function(x, ...) {
       }
       info <- switch(
         ly$type,
-        additive  = sprintf("%d QTNs, %s", ly$n_qtn, ly$dist),
+        additive  = sprintf("%s, %s", .qtn_count_label(ly), ly$dist),
         dominance = if (isTRUE(ly$same_as_add)) "same QTNs as additive"
-                    else sprintf("%d QTNs", ly$n_qtn),
+                    else .qtn_count_label(ly),
         epistasis = sprintf("%d pairs, %d-way", ly$n_pairs, ly$interaction),
         vqtl      = if (isTRUE(ly$same_as_add)) "same QTNs as additive"
-                    else sprintf("%d QTNs", ly$n_qtn),
+                    else .qtn_count_label(ly),
         ""
       )
       cat(sprintf("    %-11s %s   (%s)\n", ly$type, fmt(ly$prop), info))
@@ -763,6 +897,7 @@ print.phenotype_sim <- function(x, ...) {
           "budget is filled (SPEC 4.1).\n", sep = "")
     }
   }
+  .print_ad_report(x)
   if (!is.null(x$mediation)) {
     md <- x$mediation
     cat(sprintf(
@@ -776,6 +911,47 @@ print.phenotype_sim <- function(x, ...) {
         sep = "")
   }
   invisible(x)
+}
+
+#' Print the realized additive/dominance partition when the two layers share loci
+#'
+#' In the variance-partition coding the additive and dominance components are
+#' scaled separately. With one layer of each type the realized genetic variance
+#' is `prop_A + prop_D + 2Cov(c_A, c_D)`; with several layers of a type it also
+#' carries the covariance among those layers. The exact identity printed is
+#' `realized = Var(c_A) + Var(c_D) + 2Cov(c_A, c_D)` (all as shares of the
+#' realized V_P), and the request-to-realized gap is
+#' `realized - requested/V_P`, not `realized - requested` (see [.ad_report()]).
+#' The cross term depends on the allele frequencies and on which allele is coded
+#' +1 (see [simulate_phenotype()]). The report also shows the statistical
+#' partition Var(A), Var(D), 2Cov(A,D), and points to the orthogonal model.
+#' @keywords internal
+#' @noRd
+.print_ad_report <- function(x) {
+  ar <- x$ad_report
+  if (is.null(ar) || !nrow(ar)) {
+    return(invisible())
+  }
+  cat("  Additive + dominance share loci (variance-partition coding); realized\n",
+      "  shares of V_P for the A+D block:\n", sep = "")
+  for (i in seq_len(nrow(ar))) {
+    cat(sprintf(
+      "    %s: requested %.2f (unit-variance scale), realized %.2f\n",
+      ar$trait[i], ar$requested[i], ar$realized[i]))
+    cat(sprintf(
+      "      = Var(A) %.2f + Var(D) %.2f + 2Cov(A,D) %.2f\n",
+      ar$var_A[i], ar$var_D[i], ar$cov2_AD[i]))
+    cat(sprintf(
+      "      = Var(c_A) %.2f + Var(c_D) %.2f + 2Cov(c_A,c_D) %.2f\n",
+      ar$var_cA[i], ar$var_cD[i], ar$cov2_comp[i]))
+  }
+  cat("  ! realized - requested/V_P = (Var(c_A) + Var(c_D) - requested/V_P) +\n",
+      "    2Cov(c_A,c_D): the bracket is the covariance among same-type layers\n",
+      "    (0 for one additive and one dominance layer); the cross term depends\n",
+      "    on allele frequencies and on which allele is coded +1, and is not a\n",
+      "    finite-sample effect. For a Fisher-orthogonal additive/dominance split\n",
+      "    use additive(orthogonal = TRUE, a =, d =).\n", sep = "")
+  invisible()
 }
 
 #' Total genetic proportion per trait (vector of length n_traits)
@@ -815,4 +991,21 @@ print.phenotype_sim <- function(x, ...) {
          length(prop), ".", call. = FALSE)
   }
   prop
+}
+
+#' "N QTNs" label for a layer, showing the retained per-trait counts when they differ
+#'
+#' Under architecture = "pleiotropy" a trait with no shared (pi_t = 0) or no
+#' trait-specific (pi_t = 1) variance does not retain the loci that carry
+#' exactly zero effect for it, so the per-trait QTN counts can be smaller than
+#' the requested `n_qtn` and differ between traits.
+#' @keywords internal
+#' @noRd
+.qtn_count_label <- function(ly) {
+  cnt <- vapply(ly$qtn, length, integer(1))
+  if (length(cnt) && any(cnt != ly$n_qtn)) {
+    return(sprintf("%d QTNs requested; retained per trait: %s", ly$n_qtn,
+                   paste(cnt, collapse = "/")))
+  }
+  sprintf("%d QTNs", ly$n_qtn)
 }

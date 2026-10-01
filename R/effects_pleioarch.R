@@ -37,9 +37,15 @@
 #'
 #' Provenance: the associated manuscript (Prado et al.) is in preparation and has
 #' no public reference, so the authoritative definition of this algorithm is the
-#' bundled reference implementation in `context/PleioArch-main/Functions/`
-#' (`simulateEffects.R`, `scaleQTNEffects.R`), against which this port is
-#' checked. The covariance construction and the `1/sqrt(2*MAF*(1-MAF))` scaling
+#' reference implementation in `context/PleioArch-main/Functions/`
+#' (`simulateEffects.R`, `scaleQTNEffects.R`), against which this port was
+#' checked (that folder is a development-only resource: it is not in every
+#' checkout nor in the package tarball, so parity cannot be re-verified from the
+#' package alone). The parity is of the *algorithm*: the port draws the shared
+#' effects through a symmetric eigen square root of the covariance where the
+#' reference uses `chol()`, so the covariance agrees but the realized values are
+#' not bit-identical to the literal reference (no decision requires that).
+#' The covariance construction and the `1/sqrt(2*MAF*(1-MAF))` scaling
 #' documented here are self-contained; do not cite them to a published paper
 #' until one exists.
 #'
@@ -155,9 +161,22 @@
     eff_pleio <- c(eff_major[, t], eff_minor[, t]) * pleio_scale
     eff_t <- if (spec_n > 0) eff_spec[[t]] * scale_idx(spec_idx[[t]]) else
       numeric(0)
-    qtn[[t]] <- c(pleio_idx, spec_idx[[t]])
-    effect[[t]] <- c(eff_pleio, eff_t)
+    qtn_t <- c(pleio_idx, spec_idx[[t]])
+    effect_t <- c(eff_pleio, eff_t)
+    # A trait with no trait-specific variance (pi_t = 1) or no shared variance
+    # (pi_t = 0) is assigned loci that carry exactly zero effect. They were
+    # drawn (RNG order is unchanged) but are not causal for that trait, so they
+    # are not reported as its QTNs.
+    keep <- effect_t != 0
+    qtn[[t]] <- qtn_t[keep]
+    effect[[t]] <- effect_t[keep]
   }
+  # The per-trait retained sets can differ in length and, when a trait has no
+  # shared variance (pi_t = 0), no longer intersect in the shared loci. Record
+  # the shared loci so a layer that REUSES these loci (dominance) still knows
+  # which are shared; a vQTL reuse sizes its effects per trait from the
+  # retained sets.
+  attr(qtn, "pleio_shared") <- as.integer(pleio_idx)
 
   list(qtn = qtn, effect = effect)
 }
@@ -314,7 +333,10 @@
 #' variance on the simulated sample. With units uncorrelated with one another
 #' (linkage equilibrium, disjoint loci), the raw component `c_t` (before the
 #' layer is rescaled to `prop`) has, over effect draws, `E[Cov(c_1, c_2)] =
-#' Sigma_12` and `E[Var(c_t)] = Sigma_tt`, so the component targets `cor` in the
+#' Sigma_12` and `E[Var(c_t)] = V_t` (the shared units contribute
+#' `Sigma_tt = pi_t V_t` and the independent trait-specific units the remaining
+#' `(1 - pi_t) V_t`; only the covariance is carried by the shared units), so the
+#' component targets `cor` in the
 #' same sense as the additive layer: after rescaling its realized correlation is a
 #' random ratio that converges to `cor` as the units and the individuals grow
 #' (given that near-independence), is attenuated toward 0 on average with few
@@ -333,7 +355,10 @@
 #'
 #' `q = NULL` draws fresh units; a supplied `q` (e.g. dominance reusing the
 #' additive loci) is taken as given, with the shared units identified as those
-#' common to every trait.
+#' common to every trait -- or, when `shared` is supplied, as exactly those loci
+#' (the additive draw drops a trait's zero-effect loci, so a trait with `pi = 0`
+#' no longer holds the shared loci and the intersection would be empty).
+#' @param shared optional integer vector of the shared loci of a reused `q`.
 #' @param component "dominance" or "epistasis".
 #' @param n_units units per trait for a fresh draw.
 #' @param interaction markers per unit (1 for dominance).
@@ -345,7 +370,7 @@
 .pleio_nonadditive_draw <- function(sim, prop_vec, sub_seed, component,
                                     q = NULL, n_units = NULL,
                                     interaction = 1L, itype = NULL,
-                                    arg = "n_qtn") {
+                                    arg = "n_qtn", shared = NULL) {
   if (!is.null(sim$arch_args$cor)) {
     .cite_pleioarch()
   }
@@ -372,7 +397,7 @@
     function(loci) .epi_unit_column(sim, loci, itype)
   }
   eff <- .pleio_unit_effects(q, sigma, pi_vec, vg, unit_column, component,
-                             R = R, fresh = fresh)
+                             R = R, fresh = fresh, shared = shared)
   target <- attr(eff, "target_cor")
   attr(eff, "target_cor") <- NULL
   list(qtn = q, effect = eff, target_cor = target)
@@ -434,7 +459,7 @@
 #' @noRd
 .pleio_unit_effects <- function(q, sigma, pi_vec, vg, unit_column,
                                 component = "dominance", R = NULL,
-                                fresh = TRUE) {
+                                fresh = TRUE, shared = NULL) {
   nt <- length(q)
   is_set <- is.matrix(q[[1L]])
   as_units <- function(x) {
@@ -444,7 +469,8 @@
   keys_t  <- lapply(units_t, function(us) {
     vapply(us, paste, character(1), collapse = "-")
   })
-  shared <- Reduce(intersect, keys_t)
+  shared <- if (is.null(shared)) Reduce(intersect, keys_t) else
+    intersect(as.character(shared), unlist(keys_t, use.names = FALSE))
 
   flat_keys  <- unlist(keys_t, use.names = FALSE)
   flat_units <- unlist(units_t, recursive = FALSE, use.names = FALSE)

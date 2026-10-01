@@ -22,7 +22,7 @@
   cand <- .candidate_markers(sim)
   if (n_qtn > length(cand)) {
     stop("Requested n_qtn (", n_qtn, ") exceeds the number of polymorphic ",
-         "markers (", length(cand), ").", call. = FALSE)
+         "markers (", length(cand), ")", .candidate_hint(sim), ".", call. = FALSE)
   }
   old <- .Random.seed_safe()
   if (!is.null(sub_seed)) {
@@ -83,7 +83,7 @@
   need <- n_pairs * interaction
   if (need > length(cand)) {
     stop("Requested epistatic markers (", need, ") exceed candidate markers (",
-         length(cand), ").", call. = FALSE)
+         length(cand), ")", .candidate_hint(sim), ".", call. = FALSE)
   }
   old <- .Random.seed_safe()
   if (!is.null(sub_seed)) {
@@ -104,13 +104,33 @@
 
 #' Candidate marker columns for QTN selection
 #'
-#' Excludes monomorphic markers (no variation, so they can realize no variance
-#' component); use [filter_geno()] to constrain the pool further (MAF, LD,
-#' heterozygosity) before simulating.
+#' Excludes markers with a constant dosage column, which can realize no
+#' variance component: monomorphic markers (MAF = 0) and markers that are
+#' heterozygous in every individual (MAF = 0.5 but zero dosage variance, e.g. an
+#' F1). Polymorphic markers are unaffected. Use [filter_geno()] to constrain the
+#' pool further (MAF, LD, heterozygosity) before simulating.
 #' @keywords internal
 #' @noRd
 .candidate_markers <- function(sim) {
-  which(is.finite(sim$maf) & sim$maf > 0)
+  ok <- is.finite(sim$maf) & sim$maf > 0
+  if (!is.null(sim$all_het) && length(sim$all_het) == length(ok)) {
+    ok <- ok & !sim$all_het
+  }
+  which(ok)
+}
+
+#' Suffix explaining why the candidate pool may be smaller than the marker count
+#' @keywords internal
+#' @noRd
+.candidate_hint <- function(sim) {
+  n_het <- sum(sim$all_het, na.rm = TRUE)
+  if (n_het > 0L) {
+    paste0(" (", n_het, " marker(s) heterozygous in every individual have a ",
+           "constant dosage column and are excluded, as are monomorphic ",
+           "markers)")
+  } else {
+    ""
+  }
 }
 
 #' Count of prior layers of a given type (for sub-seed occurrence index)

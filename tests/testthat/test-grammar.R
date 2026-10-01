@@ -40,7 +40,10 @@ test_that("realized h2 tracks the sum of genetic proportions", {
 
   ph2 <- simulate_phenotype(G, seed = 7)
   ph2 <- additive(ph2, prop = 0.4, n_qtn = 4)
-  ph2 <- dominance(ph2, prop = 0.1, same_as_add = TRUE)
+  # some of these near-inbred loci have no heterozygotes: the partial-hetless
+  # warning is part of the contract (a warning-clean run needs het-bearing loci)
+  ph2 <- expect_warning(dominance(ph2, prop = 0.1, same_as_add = TRUE),
+                        "some \\(but not all\\)")
   expect_equal(sum(vapply(ph2$layers, function(l) l$prop, 0)), 0.5)
   expect_equal(stats::var(gen_mat(ph2)[, 1]) / stats::var(ph2$pheno$value),
                0.5, tolerance = 0.1)
@@ -135,9 +138,14 @@ test_that("pleiotropic share can vary by trait", {
     additive(prop = 0.5, n_qtn = 100)
   q <- ph$layers[[1]]$qtn
   expect_length(q, 3)
-  # Every trait keeps n_qtn loci; a shared core carries the covariance.
-  expect_true(all(vapply(q, length, 0L) == 100))
+  # Traits with trait-specific variance keep n_qtn loci; a shared core carries
+  # the covariance. Trait 1 has pi = 1 (no trait-specific variance): its
+  # trait-specific loci would carry exactly zero effect, so only the round(mean(pi)
+  # * n_qtn) shared loci are reported for it (audit EFF-F4).
+  n_shared <- as.integer(round(mean(c(1, 0.8, 0.7)) * 100))
+  expect_identical(vapply(q, length, 0L), c(n_shared, 100L, 100L))
   expect_gt(length(Reduce(intersect, q)), 0)
+  expect_true(all(unlist(ph$layers[[1]]$effect) != 0))
 })
 
 test_that("pleiotropy with n_traits = 1 errors", {
@@ -162,7 +170,8 @@ test_that("independent architecture draws distinct QTNs per trait", {
 test_that("same_as_add reuses the additive QTNs", {
   ph <- simulate_phenotype(G, seed = 3)
   ph <- additive(ph, prop = 0.4, n_qtn = 5)
-  ph <- dominance(ph, prop = 0.1, same_as_add = TRUE)
+  ph <- expect_warning(dominance(ph, prop = 0.1, same_as_add = TRUE),
+                       "some \\(but not all\\)")
   expect_identical(ph$layers[[1]]$qtn, ph$layers[[2]]$qtn)
 })
 
@@ -188,7 +197,9 @@ test_that("complex_phenotypes combines models and warns on differing seeds", {
 # ---------------------------------------------------------------------------
 test_that("genetic proportions summing above 1 error", {
   ph <- additive(simulate_phenotype(G, seed = 1), prop = 0.7, n_qtn = 3)
-  expect_error(dominance(ph, prop = 0.5, same_as_add = TRUE), "above 1")
+  expect_warning(
+    expect_error(dominance(ph, prop = 0.5, same_as_add = TRUE), "above 1"),
+    "some \\(but not all\\)")
 })
 
 test_that("per-layer n_qtn overriding the baseline warns", {

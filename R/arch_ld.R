@@ -19,6 +19,17 @@
 #'   cause -- become the two traits' causal loci. The correlation is mediated by
 #'   the unobserved locus.
 #'
+#' **Partner rule** (`partner`): by default (`"strongest"`) the partner of a
+#' randomly drawn anchor is its *strongest* in-window partner (highest r2 with the
+#' anchor among same-chromosome candidates inside `[r2_min, r2_max]`); for
+#' `"indirect"` the flanks are searched strongest-to-cause first. The realized r2
+#' therefore skews toward `r2_max` relative to a uniformly random in-window
+#' partner. `partner = "random"` takes a uniformly random in-window partner
+#' (random flank order for `"indirect"`). Only the random mode consumes extra RNG,
+#' so the default draws are unchanged. Markers whose r2 with the anchor is 0 or
+#' (numerically) 1 are never partners: r2 = 1 would make the two traits' causal
+#' loci identical genotype columns.
+#'
 #' r2 is the squared Pearson correlation of -1/0/1 dosage (the "composite"
 #' measure on this in-memory matrix); SNPRelate is not required. RNG stays in R
 #' (DECISION-006); the seed is already set by the caller `.draw_qtn()`.
@@ -43,6 +54,9 @@
     match.arg(a$ld_type, c("direct", "indirect"))
   r2_max <- if (is.null(a$r2_max)) 0.8 else a$r2_max
   r2_min <- if (is.null(a$r2_min)) 0.2 else a$r2_min
+  partner <- if (is.null(a$partner)) "strongest" else
+    match.arg(a$partner, c("strongest", "random"))
+  tol1 <- 1 - 1e-12          # r2 >= tol1: identical (or mirrored) dosage columns
   chr <- sim$map$chr
   pos <- sim$map$pos
   cand <- .candidate_markers(sim)
@@ -79,7 +93,8 @@
     fcol <- block[, match(f, on_chr), drop = TRUE]
     ocol <- block[, match(others, on_chr), drop = FALSE]
     r2v <- as.numeric(suppressWarnings(stats::cor(fcol, ocol)))^2
-    ok <- which(is.finite(r2v) & r2v >= r2_min & r2v <= r2_max)
+    ok <- which(is.finite(r2v) & r2v >= r2_min & r2v <= r2_max & r2v > 0 &
+                  r2v < tol1)
     data.frame(idx = others[ok], r2 = r2v[ok])
   }
 
@@ -111,7 +126,8 @@
       w <- window_partners(focal, used)
       if (ld_type == "direct") {
         if (nrow(w) > 0L) {
-          pick <- which.max(w$r2)
+          pick <- if (partner == "random") sample.int(nrow(w), 1L) else
+            which.max(w$r2)
           t1[i] <- focal
           t2[i] <- w$idx[pick]
           r2_1[i] <- w$r2[pick]
@@ -128,13 +144,19 @@
           # requires the *causal pair* (t1, t2) itself to have r2 in the window
           # (it is the linkage that drives the trait correlation). Search the
           # flanks -- strongest-to-cause first -- for a pair that satisfies it.
-          up <- up[order(-up$r2), , drop = FALSE]
-          dn <- dn[order(-dn$r2), , drop = FALSE]
+          if (partner == "random") {
+            up <- up[sample.int(nrow(up)), , drop = FALSE]
+            dn <- dn[sample.int(nrow(dn)), , drop = FALSE]
+          } else {
+            up <- up[order(-up$r2), , drop = FALSE]
+            dn <- dn[order(-dn$r2), , drop = FALSE]
+          }
           picked <- FALSE
           for (iu in seq_len(nrow(up))) {
             for (id in seq_len(nrow(dn))) {
               rp <- r2_pair(up$idx[iu], dn$idx[id])
-              if (is.finite(rp) && rp >= r2_min && rp <= r2_max) {
+              if (is.finite(rp) && rp >= r2_min && rp <= r2_max && rp > 0 &&
+                  rp < tol1) {
                 t1[i] <- up$idx[iu]
                 t2[i] <- dn$idx[id]
                 r2_1[i] <- up$r2[iu]

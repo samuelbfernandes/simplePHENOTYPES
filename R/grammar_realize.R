@@ -2,10 +2,13 @@
 #'
 #' Recomputes the realized phenotypes from the current ordered list of layers.
 #' Each mean-effect component is centered and scaled to its target marginal
-#' variance. The components and residuals are independent in the generating
-#' model, so their requested proportions sum to one in expectation; finite-
-#' sample covariances can make the realized phenotypic variance differ from one.
-#' Called after every layer so the object always carries realized values.
+#' variance, exactly, in the realized sample. The residual is a separate
+#' exact-variance draw, so the phenotypic variance is one only up to the
+#' sample covariance between the genetic value and the residual, and -- more
+#' importantly -- the realized genetic variance is the requested sum only up to
+#' the cross-covariances between components (structural for additive + dominance
+#' on shared loci; see [.ad_report()]). Called after every layer so the object
+#' always carries realized values.
 #'
 #' RNG (residual draws) stays in R. The residual sub-seed is
 #' independent of the layers, so adding a layer does not perturb other layers'
@@ -59,6 +62,7 @@
   sim$pheno <- do.call(rbind, long)
   sim$var_budget <- .variance_budget(sim)
   sim$mediation <- .mediation_budget(sim)   # NULL unless a derived transcriptome
+  sim$ad_report <- .ad_report(sim)          # NULL unless additive + dominance share loci
   sim
 }
 
@@ -75,7 +79,8 @@
   nt <- sim$n_traits
   rep <- .validate_rep(sim, rep)
   if (identical(sim$architecture, "complex")) {
-    return(sim$complex_genetic[, , rep, drop = FALSE][, , 1L])
+    # keep the n x n_traits shape for one trait too (a bare [, , r] drops it)
+    return(matrix(sim$complex_genetic[, , rep], nrow = n, ncol = nt))
   }
   # Marker-based genetic value: marker-based layers only. The transcriptome layer
   # is an expression-mediated component, reported separately (.transcriptome_matrix)
@@ -93,10 +98,13 @@
         comp <- comp / s * sqrt(prop_t)
       } else if (prop_t > 0) {
         stop("The ", ly$type, " layer for trait ", t, " has zero usable ",
-             "variation in replication ", rep, ". Its selected loci/effects ",
-             "cannot realize prop = ", prop_t, ". Choose polymorphic loci ",
-             "(and, for dominance terms, loci with heterozygotes).",
-             call. = FALSE)
+             "variation in replication ", rep, ": its component is constant, so ",
+             "it cannot realize prop = ", prop_t, ". Either every effect is zero, ",
+             "or every selected locus has a constant design column (a monomorphic ",
+             "or all-heterozygous locus; for dominance / \"d\" terms, a locus ",
+             "with no heterozygotes or only heterozygotes). Give non-zero ",
+             "effects and choose loci that vary (qtn =, or pre-filter with ",
+             "filter_geno()).", call. = FALSE)
       } else {
         comp <- rep(0, n)
       }
@@ -221,22 +229,36 @@
     if (length(loci) == 0L) {
       next
     }
-    bv_t <- numeric(n)
-    for (key in loci) {
-      j   <- as.integer(key)
-      xg  <- as.numeric(.geno_cols(sim, j)) + 1            # gene content 0/1/2
-      p   <- mean(xg) / 2
-      if (!is.finite(p) || p <= 0 || p >= 1) {
-        next                                               # monomorphic in sample
-      }
-      a_j   <- if (key %in% names(a)) a[[key]] else 0
-      d_j   <- if (key %in% names(d)) d[[key]] else 0
-      alpha <- .avg_effect(a_j, d_j, p)
-      bv_t  <- bv_t + alpha * (xg - 2 * p)                 # A_i += alpha*(x - 2p)
-    }
+    bv_t <- .bv_from_effects(sim, a, d)
     BV[, t] <- bv_t
   }
   BV
+}
+
+#' Breeding value from per-locus additive / dominance effects
+#'
+#' \eqn{A_i = \sum_j \alpha_j (x_{ij} - 2p_j)} with the average effect
+#' \eqn{\alpha_j = a_j + d_j(1 - 2p_j)} ([.avg_effect()]); `a` and `d` are named
+#' numeric vectors keyed by marker index (as character), on the realized
+#' genetic-value scale ([.layer_scaled_effects()]). Loci monomorphic in the sample
+#' contribute nothing. Shared by [.breeding_value_matrix()] and [.ad_report()].
+#' @keywords internal
+#' @noRd
+.bv_from_effects <- function(sim, a, d) {
+  bv <- numeric(sim$n_ind)
+  for (key in union(names(a), names(d))) {
+    j   <- as.integer(key)
+    xg  <- as.numeric(.geno_cols(sim, j)) + 1              # gene content 0/1/2
+    p   <- mean(xg) / 2
+    if (!is.finite(p) || p <= 0 || p >= 1) {
+      next                                                 # monomorphic in sample
+    }
+    a_j   <- if (key %in% names(a)) a[[key]] else 0
+    d_j   <- if (key %in% names(d)) d[[key]] else 0
+    alpha <- .avg_effect(a_j, d_j, p)
+    bv    <- bv + alpha * (xg - 2 * p)                     # A_i += alpha*(x - 2p)
+  }
+  bv
 }
 
 #' Per-locus effects of a set of layers, scaled to the realized variance
@@ -648,6 +670,119 @@
   add   <- stats::var(A) / vg                      # Var(A) / Var(g)
   dom   <- stats::var(g - A) / vg                  # realized Var(D) / Var(g)
   c(add = add, dom = dom, cov = 1 - add - dom)     # cov = 2 Cov(A, D) / Var(g)
+}
+
+#' Realized additive / dominance partition when the two layers share loci
+#'
+#' In the variance-partition coding each additive layer's component (dosage
+#' times effect) and each dominance layer's component (heterozygote indicator
+#' times effect) is scaled separately to its own `prop`. Write
+#' \eqn{c_A = \sum_k c_{A,k}} and \eqn{c_D = \sum_l c_{D,l}} for the sums over
+#' the additive and the dominance layers, and \eqn{g = c_A + c_D}. The realized
+#' genetic variance of the block is exactly
+#' \eqn{Var(g) = Var(c_A) + Var(c_D) + 2Cov(c_A, c_D)}. With ONE additive and
+#' ONE dominance layer, \eqn{Var(c_A) = prop_A} and \eqn{Var(c_D) = prop_D}, so
+#' \eqn{Var(g) = prop_A + prop_D + 2Cov(c_A, c_D)}; with several layers of the
+#' same type, \eqn{Var(c_A)} also carries the covariances among the additive
+#' layers (\eqn{Var(c_A) = \sum_k prop_{A,k} + 2\sum_{k<k'} Cov(c_{A,k},
+#' c_{A,k'})}, likewise for \eqn{c_D}), which is why the request-based sum is
+#' not the right-hand side in general. Under Hardy-Weinberg
+#' \eqn{Cov(x, h) = -(2p - 1) 2pq} at each locus (\eqn{x} = -1/0/1 dosage, \eqn{h}
+#' the heterozygote indicator, \eqn{p} the frequency of the +1 allele, \eqn{q =
+#' 1 - p}). Each locus's cross term therefore has the sign of \eqn{-(2p-1)}
+#' times the sign of the product of its additive and dominance effects: with the
+#' default all-positive geometric series it is positive where the counted
+#' allele is the minor allele (\eqn{p < 0.5}) and negative where it is the
+#' major allele, so it is one-signed across loci ONLY when every counted-allele
+#' frequency is on the same side of 0.5 (and phase = "repulsion" alternates the
+#' additive signs). Cross-locus terms (linkage disequilibrium) are not part of
+#' this per-locus expression. The bias is structural (it does not shrink with n)
+#' and its sign flips with the allele coding.
+#'
+#' Reported per trait (averaged over replications, as ratios to the realized
+#' phenotypic variance \eqn{V_P}): `requested` (the summed `prop`s, a nominal
+#' share of a unit-variance phenotype), `realized` (\eqn{Var(g)/V_P}), the
+#' statistical partition of \eqn{g} into the average-effect breeding value
+#' \eqn{A} and dominance deviation \eqn{D = g - A} (`var_A`, `var_D`, `cov2_AD` =
+#' \eqn{2Cov(A, D)/V_P}; these three sum to `realized`), and the component
+#' partition `var_cA` = \eqn{Var(c_A)/V_P}, `var_cD` = \eqn{Var(c_D)/V_P} and
+#' `cov2_comp` = \eqn{2Cov(c_A, c_D)/V_P}, which also sum exactly to `realized`.
+#' The exact link to the request is `realized - requested/V_P = (var_cA +
+#' var_cD - requested/V_P) + cov2_comp`: the first bracket is the
+#' within-additive and within-dominance layer covariance (zero for one layer of
+#' each type) and the second is the additive-dominance cross term. NB it is
+#' `requested/V_P`, not `requested`: `requested` is on the unit-variance scale
+#' while `realized` is a share of the realized \eqn{V_P}. Only non-orthogonal
+#' additive layers (the orthogonal model reports its own split in the variance
+#' budget) and traits whose additive and dominance loci overlap are included;
+#' `NULL` when there is nothing to report.
+#' @keywords internal
+#' @noRd
+.ad_report <- function(sim) {
+  if (identical(sim$architecture, "complex") || length(sim$layers) == 0L) {
+    return(NULL)
+  }
+  add_layers <- Filter(function(l) identical(l$type, "additive") &&
+                         !isTRUE(l$orthogonal), sim$layers)
+  dom_layers <- Filter(function(l) identical(l$type, "dominance"), sim$layers)
+  if (!length(add_layers) || !length(dom_layers)) {
+    return(NULL)
+  }
+  nt <- sim$n_traits
+  rows <- list()
+  for (t in seq_len(nt)) {
+    parts <- lapply(seq_len(sim$n_reps),
+                    function(r) .ad_partition(sim, add_layers, dom_layers, t, r))
+    parts <- Filter(Negate(is.null), parts)
+    if (!length(parts)) next
+    m <- rowMeans(do.call(cbind, parts))
+    rows[[length(rows) + 1L]] <- data.frame(
+      trait = paste0("Trait_", t), requested = m[["requested"]],
+      realized = m[["realized"]], var_A = m[["var_A"]], var_D = m[["var_D"]],
+      cov2_AD = m[["cov2_AD"]], var_cA = m[["var_cA"]], var_cD = m[["var_cD"]],
+      cov2_comp = m[["cov2_comp"]], stringsAsFactors = FALSE)
+  }
+  if (!length(rows)) NULL else do.call(rbind, rows)
+}
+
+#' One trait / replication of the additive + dominance partition, or NULL
+#' @keywords internal
+#' @noRd
+.ad_partition <- function(sim, add_layers, dom_layers, t, r) {
+  loci <- function(layers) unique(unlist(lapply(
+    layers, function(l) .layer_qtn_effect(l, t, r)$qtn)))
+  if (!length(intersect(loci(add_layers), loci(dom_layers)))) {
+    return(NULL)
+  }
+  nt <- sim$n_traits
+  scaled <- function(ly) {
+    prop_t <- .expand_prop(ly$prop, nt)[t]
+    comp <- .component_raw(ly, sim, t, r)
+    s <- stats::sd(comp)
+    if (is.finite(s) && s > 0 && prop_t > 0) comp / s * sqrt(prop_t) else
+      rep(0, sim$n_ind)
+  }
+  requested <- sum(vapply(c(add_layers, dom_layers),
+                          function(l) .expand_prop(l$prop, nt)[t], 0))
+  y <- sim$pheno$value[sim$pheno$trait == paste0("Trait_", t) &
+                       sim$pheno$rep == r]
+  vp <- stats::var(y)
+  if (requested <= 0 || !is.finite(vp) || vp <= 0) {
+    return(NULL)
+  }
+  cA <- Reduce(`+`, lapply(add_layers, scaled))
+  cD <- Reduce(`+`, lapply(dom_layers, scaled))
+  g <- cA + cD
+  a <- .layer_scaled_effects(add_layers, sim, t, r)
+  d <- .layer_scaled_effects(dom_layers, sim, t, r)
+  A <- .bv_from_effects(sim, a, d)
+  vg <- stats::var(g)
+  vA <- stats::var(A)
+  vD <- stats::var(g - A)
+  c(requested = requested, realized = vg / vp, var_A = vA / vp, var_D = vD / vp,
+    cov2_AD = (vg - vA - vD) / vp,
+    var_cA = stats::var(cA) / vp, var_cD = stats::var(cD) / vp,
+    cov2_comp = (vg - stats::var(cA) - stats::var(cD)) / vp)
 }
 
 #' Draw a residual under a fixed sub-seed, restoring the prior RNG state

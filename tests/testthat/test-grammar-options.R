@@ -30,8 +30,8 @@ test_that("vary_qtn redraws QTNs each replication", {
 
 test_that("vary_qtn dominance same_as_add follows the additive loci per rep", {
   ph <- simulate_phenotype(G, h2 = 0.5, n_reps = 2, vary_qtn = TRUE, seed = 1) |>
-    additive(prop = 0.4, n_qtn = 4) |>
-    dominance(prop = 0.1)
+    additive(prop = 0.4, n_qtn = 4)
+  ph <- expect_warning(dominance(ph, prop = 0.1), "some \\(but not all\\)")
   add <- ph$layers[[1]]$qtn_reps
   dom <- ph$layers[[2]]$qtn_reps
   expect_identical(add[[1]], dom[[1]])
@@ -101,7 +101,8 @@ test_that("qtn_table reports per-QTN variance for additive, NA for epistasis", {
 
 test_that("plot.phenotype_sim renders without error", {
   ph <- simulate_phenotype(G, n_traits = 2, h2 = 0.5, seed = 1) |>
-    additive(prop = 0.4, n_qtn = 6) |> dominance(prop = 0.1)
+    additive(prop = 0.4, n_qtn = 6)
+  ph <- expect_warning(dominance(ph, prop = 0.1), "some \\(but not all\\)")
   tmp <- tempfile(fileext = ".png")
   grDevices::png(tmp)
   expect_invisible(plot(ph))
@@ -175,8 +176,9 @@ test_that("dominance errors clearly when the selected loci have no heterozygotes
   # On the near-inbred maize panel this seed's additive QTNs carry no
   # heterozygotes, so same_as_add dominance cannot be realized: it must error
   # with a message naming the heterozygote problem, not silently substitute loci.
+  # (seed 23 under the position-sensitive sub-seed hash; was 60 with the old one)
   expect_error(
-    simulate_phenotype(G, h2 = 0.5, seed = 60) |>
+    simulate_phenotype(G, h2 = 0.5, seed = 23) |>
       additive(prop = 0.3, n_qtn = 5) |>
       dominance(prop = 0.2),
     "no heterozygous"

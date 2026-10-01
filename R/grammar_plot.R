@@ -125,6 +125,20 @@ plot.phenotype_sim <- function(x, which = c("variance", "hist", "effects",
   graphics::abline(h = 0, col = "grey70")
 }
 
+#' Requested genetic share for the one-trait heritability panel
+#'
+#' The layer proportions' total for an ordinary model; the requested `h2` for a
+#' [complex_phenotypes()] result, which has no layers of its own (the layer total
+#' would be 0).
+#' @keywords internal
+#' @noRd
+.plot_genetic_target <- function(x) {
+  if (identical(x$architecture, "complex")) {
+    return(.expand_prop(x$h2, x$n_traits))
+  }
+  .total_genetic_prop(x)
+}
+
 #' @keywords internal
 #' @noRd
 .plot_cor <- function(x) {
@@ -136,7 +150,7 @@ plot.phenotype_sim <- function(x, which = c("variance", "hist", "effects",
                                   stats::cor(g[, 1], g[, 2])))
   } else {
     realized <- .realized_h2(x)
-    target <- .total_genetic_prop(x)
+    target <- .plot_genetic_target(x)
     graphics::barplot(rbind(target, realized), beside = TRUE,
                       names.arg = "Trait_1", ylim = c(0, 1),
                       col = c("grey70", "grey30"), ylab = "h2",
