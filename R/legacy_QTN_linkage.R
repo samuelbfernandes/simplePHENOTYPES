@@ -244,6 +244,9 @@ qtn_linkage <-
           SNPRelate::snpgdsClose(genofile)
           sup[[z]] <- sup_temp
           inf[[z]] <- inf_temp
+          .ld_check_indirect(genotypes, vector_of_add_QTN, sup_temp, inf_temp, z,
+                            ld_method = ld_method, ld_min = ld_min, ld_max = ld_max,
+                            reported_sup = actual_ld_sup, reported_inf = actual_ld_inf)
           QTN_causing_ld[[z]] <-
             data.frame(
               type = "cause_of_LD",
@@ -254,7 +257,7 @@ qtn_linkage <-
             )
           add_gen_info_sup[[z]] <-
             data.frame(
-              type = "QTN_upstream",
+              type = "QTN_downstream",
               trait = "trait_1",
               genotypes[sup[[z]], ],
               check.names = FALSE,
@@ -262,7 +265,7 @@ qtn_linkage <-
             )
           add_gen_info_inf[[z]] <-
             data.frame(
-              type = "QTN_downstream",
+              type = "QTN_upstream",
               trait = "trait_2",
               genotypes[inf[[z]], ],
               check.names = FALSE,
@@ -276,10 +279,10 @@ qtn_linkage <-
             QTN_causing_ld[[z]][, "snp"],
             ld_min,
             ld_max,
-            actual_ld_inf,
             actual_ld_sup,
-            add_gen_info_inf[[z]][, "snp"],
+            actual_ld_inf,
             add_gen_info_sup[[z]][, "snp"],
+            add_gen_info_inf[[z]][, "snp"],
             ld_between_QTNs_temp,
             check.names = FALSE,
             fix.empty.names = FALSE
@@ -506,6 +509,9 @@ qtn_linkage <-
             SNPRelate::snpgdsClose(genofile)
             sup[[z]] <- sup_temp
             inf[[z]] <- inf_temp
+            .ld_check_indirect(genotypes, vector_of_add_QTN, sup_temp, inf_temp, z,
+                            ld_method = ld_method, ld_min = ld_min, ld_max = ld_max,
+                            reported_sup = actual_ld_sup, reported_inf = actual_ld_inf)
             QTN_causing_ld[[z]] <-
               data.frame(
                 type = "cause_of_LD",
@@ -516,7 +522,7 @@ qtn_linkage <-
               )
             add_gen_info_sup[[z]] <-
               data.frame(
-                type = "QTN_upstream",
+                type = "QTN_downstream",
                 trait = "trait_1",
                 genotypes[sup[[z]], ],
                 check.names = FALSE,
@@ -524,7 +530,7 @@ qtn_linkage <-
               )
             add_gen_info_inf[[z]] <-
               data.frame(
-                type = "QTN_downstream",
+                type = "QTN_upstream",
                 trait = "trait_2",
                 genotypes[inf[[z]], ],
                 check.names = FALSE,
@@ -538,10 +544,10 @@ qtn_linkage <-
               QTN_causing_ld[[z]][, "snp"],
               ld_min,
               ld_max,
-              actual_ld_inf,
               actual_ld_sup,
-              add_gen_info_inf[[z]][, "snp"],
+              actual_ld_inf,
               add_gen_info_sup[[z]][, "snp"],
+              add_gen_info_inf[[z]][, "snp"],
               ld_between_QTNs_temp,
               check.names = FALSE,
               fix.empty.names = FALSE
@@ -735,8 +741,13 @@ qtn_linkage <-
                   if (((!any(genotypes[sup_temp, - (1:5)] == 0) |
                         !any(genotypes[inf_temp, - (1:5)] == 0)) & dom) |
                       ldsup > ld_max | ldinf > ld_max | ldsup < ld_min | ldinf < ld_min) {
-                      seed_num[z] <- (seed * s) + z + rep
-                      set.seed(seed_num[z])
+                    SNPRelate::snpgdsClose(genofile)
+                    stop(
+                      "Indirect LD with dominance QTNs had to re-sample an intermediate marker (no heterozygote among the selected QTNs, or LD outside [ld_min, ld_max]); ",
+                      "this path is not supported (it would overwrite the additive marker vector and report wrong intermediate markers). ",
+                      "Try a different `seed`, a different LD window, `constraints = list(hets = \"include\")`, or `type_of_ld = \"direct\"`.",
+                      call. = F
+                    )
                     dif <- c(dif, vector_of_add_QTN, j)
                     j <-
                       sample(setdiff(index, dif), 1, replace = FALSE)
@@ -779,6 +790,9 @@ qtn_linkage <-
             SNPRelate::snpgdsClose(genofile)
             sup[[z]] <- sup_temp
             inf[[z]] <- inf_temp
+            .ld_check_indirect(genotypes, vector_of_dom_QTN, sup_temp, inf_temp, z,
+                            ld_method = ld_method, ld_min = ld_min, ld_max = ld_max,
+                            reported_sup = actual_ld_sup, reported_inf = actual_ld_inf)
             QTN_causing_ld[[z]] <-
               data.frame(
                 type = "cause_of_LD",
@@ -789,7 +803,7 @@ qtn_linkage <-
               )
             dom_gen_info_sup[[z]] <-
               data.frame(
-                type = "QTN_upstream",
+                type = "QTN_downstream",
                 trait = "trait_1",
                 genotypes[sup[[z]], ],
                 check.names = FALSE,
@@ -797,7 +811,7 @@ qtn_linkage <-
               )
             dom_gen_info_inf[[z]] <-
               data.frame(
-                type = "QTN_downstream",
+                type = "QTN_upstream",
                 trait = "trait_2",
                 genotypes[inf[[z]], ],
                 check.names = FALSE,
@@ -811,10 +825,10 @@ qtn_linkage <-
               QTN_causing_ld[[z]][, "snp"],
               ld_min,
               ld_max,
-              actual_ld_inf,
               actual_ld_sup,
-              dom_gen_info_inf[[z]][, "snp"],
+              actual_ld_inf,
               dom_gen_info_sup[[z]][, "snp"],
+              dom_gen_info_inf[[z]][, "snp"],
               ld_between_QTNs_temp,
               check.names = FALSE,
               fix.empty.names = FALSE
@@ -1092,10 +1106,12 @@ qtn_linkage <-
           SNPRelate::snpgdsClose(genofile)
           sup[[z]] <- sup_temp
           inf[[z]] <- vector_of_add_QTN
+          .ld_check_direct(genotypes, vector_of_add_QTN, sup_temp, ld_between_QTNs_temp,
+                           ld_method, ld_min, ld_max, z)
           add_gen_info_inf[[z]] <-
             data.frame(
               type = "QTN_selected",
-              trait = "trait_1",
+              trait = "trait_2",
               genotypes[vector_of_add_QTN, ],
               check.names = FALSE,
               fix.empty.names = FALSE
@@ -1103,7 +1119,7 @@ qtn_linkage <-
           add_gen_info_sup[[z]] <-
             data.frame(
               type = "QTN_in_LD",
-              trait = "trait_2",
+              trait = "trait_1",
               genotypes[sup[[z]], ],
               check.names = FALSE,
               fix.empty.names = FALSE
@@ -1115,8 +1131,8 @@ qtn_linkage <-
             ld_min,
             ld_max,
             ld_between_QTNs_temp,
-            add_gen_info_inf[[z]][, "snp"],
             add_gen_info_sup[[z]][, "snp"],
+            add_gen_info_inf[[z]][, "snp"],
             check.names = FALSE,
             fix.empty.names = FALSE
           )
@@ -1149,8 +1165,8 @@ qtn_linkage <-
         results <-
           data.frame(
             results[, 1:2],
-            additive_effect = unlist(add_effect),
-            dominance_effect = unlist(dom_effect),
+            additive_effect = unlist(add_effect[2:1]),
+            dominance_effect = unlist(dom_effect[2:1]),
             results[, 3:7],
             maf = maf,
             results[, - c(1:7)],
@@ -1330,10 +1346,12 @@ qtn_linkage <-
             }
             sup[[z]] <- sup_temp
             inf[[z]] <- new_vector_of_add_QTN
+            .ld_check_direct(genotypes, new_vector_of_add_QTN, sup_temp, ld_between_QTNs_temp,
+                             ld_method, ld_min, ld_max, z)
             add_gen_info_inf[[z]] <-
               data.frame(
                 type = "QTN_selected",
-                trait = "trait_1",
+                trait = "trait_2",
                 genotypes[new_vector_of_add_QTN, ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
@@ -1341,7 +1359,7 @@ qtn_linkage <-
             add_gen_info_sup[[z]] <-
               data.frame(
                 type = "QTN_in_LD",
-                trait = "trait_2",
+                trait = "trait_1",
                 genotypes[sup[[z]], ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
@@ -1353,8 +1371,8 @@ qtn_linkage <-
               ld_min,
               ld_max,
               ld_between_QTNs_temp,
-              add_gen_info_inf[[z]][, "snp"],
               add_gen_info_sup[[z]][, "snp"],
+              add_gen_info_inf[[z]][, "snp"],
               check.names = FALSE,
               fix.empty.names = FALSE
             )
@@ -1388,7 +1406,7 @@ qtn_linkage <-
           results_add <-
             data.frame(
               results_add[, 1:2],
-              additive_effect = unlist(add_effect),
+              additive_effect = unlist(add_effect[2:1]),
               results_add[, 3:7],
               maf = maf,
               results_add[, - c(1:7)],
@@ -1577,10 +1595,12 @@ qtn_linkage <-
             SNPRelate::snpgdsClose(genofile)
             sup[[z]] <- sup_temp
             inf[[z]] <- new_vector_of_dom_QTN
+            .ld_check_direct(genotypes, new_vector_of_dom_QTN, sup_temp, ld_between_QTNs_temp,
+                             ld_method, ld_min, ld_max, z)
             dom_gen_info_inf[[z]] <-
               data.frame(
                 type = "QTN_selected",
-                trait = "trait_1",
+                trait = "trait_2",
                 genotypes[new_vector_of_dom_QTN, ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
@@ -1588,7 +1608,7 @@ qtn_linkage <-
             dom_gen_info_sup[[z]] <-
               data.frame(
                 type = "QTN_in_LD",
-                trait = "trait_2",
+                trait = "trait_1",
                 genotypes[sup[[z]], ],
                 check.names = FALSE,
                 fix.empty.names = FALSE
@@ -1600,8 +1620,8 @@ qtn_linkage <-
               ld_min,
               ld_max,
               ld_between_QTNs_temp,
-              dom_gen_info_inf[[z]][, "snp"],
               dom_gen_info_sup[[z]][, "snp"],
+              dom_gen_info_inf[[z]][, "snp"],
               check.names = FALSE,
               fix.empty.names = FALSE
             )
@@ -1634,7 +1654,7 @@ qtn_linkage <-
           results_dom <-
             data.frame(
               results_dom[, 1:2],
-              dominance_effect = unlist(dom_effect),
+              dominance_effect = unlist(dom_effect[2:1]),
               results_dom[, 3:7],
               maf,
               results_dom[, - c(1:7)],
@@ -1740,3 +1760,165 @@ qtn_linkage <-
       ))
     }
   }
+
+# ---------------------------------------------------------------------------
+# LD-contract checks (audit v1-core, D1). The frozen selection walks are not
+# altered; the pairs they return are verified and rejected with an informative
+# message when the "distinct causal markers in LD" contract is not met.
+# ---------------------------------------------------------------------------
+
+#' Absolute LD between two marker rows of a numeric genotype frame
+#' @keywords internal
+#' @noRd
+.ld_pair <- function(genotypes, a, b, ld_method) {
+  g1 <- as.numeric(unlist(genotypes[a, -(1:5)])) + 1
+  g2 <- as.numeric(unlist(genotypes[b, -(1:5)])) + 1
+  abs(SNPRelate::snpgdsLDpair(g1, g2, method = ld_method))[1]
+}
+
+#' Marker key used to name genotype rows (Chr_<chr>_<pos>)
+#' @keywords internal
+#' @noRd
+.ld_key <- function(genotypes, idx) {
+  paste0("Chr_", genotypes$chr[idx], "_", genotypes$pos[idx])
+}
+
+#' Stop with the LD-contract message
+#' @keywords internal
+#' @noRd
+.ld_contract_stop <- function(reason, z, type_of_ld) {
+  stop(
+    "The LD contract could not be met for this seed and LD window (",
+    type_of_ld, " LD, replicate ", z, "): ", reason, ". ",
+    "Try a different `seed`, a different LD window (`ld_min`/`ld_max`), ",
+    if (type_of_ld == "indirect") "`type_of_ld = \"direct\"`, " else "",
+    "or a denser marker set.",
+    call. = FALSE
+  )
+}
+
+#' Verify indirect-LD selections: one distinct marker per trait and per pair
+#'
+#' Structural checks (distinct, non-shared QTNs on the intermediate marker's
+#' chromosome) always run. When `ld_method`, `ld_min` and `ld_max` are given
+#' the absolute LD of every (cause, downstream) and (cause, upstream) pair is
+#' recomputed and must lie in the inclusive window `[ld_min, ld_max]`, exactly
+#' as `.ld_check_direct()` does for direct LD; when `reported_sup` /
+#' `reported_inf` are given they must equal the recomputed LD. A cause marker
+#' that coincides with another triple's QTN is deliberately not rejected.
+#' @keywords internal
+#' @noRd
+.ld_check_indirect <- function(genotypes, cause, sup, inf, z,
+                               ld_method = NULL, ld_min = NULL, ld_max = NULL,
+                               reported_sup = NULL, reported_inf = NULL) {
+  if (anyDuplicated(sup) || anyDuplicated(inf) ||
+      anyDuplicated(.ld_key(genotypes, sup)) ||
+      anyDuplicated(.ld_key(genotypes, inf))) {
+    .ld_contract_stop("two intermediate markers resolved to the same neighbouring marker (or to markers sharing a chromosome position), so a trait would have a duplicated QTN",
+                      z, "indirect")
+  }
+  if (length(intersect(sup, inf))) {
+    .ld_contract_stop("the same marker was selected as a QTN for both traits",
+                      z, "indirect")
+  }
+  if (any(cause == sup | cause == inf)) {
+    .ld_contract_stop("an intermediate marker coincides with one of its own QTNs",
+                      z, "indirect")
+  }
+  chr_cause <- genotypes$chr[cause]
+  if (any(genotypes$chr[sup] != chr_cause | genotypes$chr[inf] != chr_cause)) {
+    .ld_contract_stop("a QTN lies on a different chromosome than its intermediate marker",
+                      z, "indirect")
+  }
+  if (!is.null(ld_method) && !is.null(ld_min) && !is.null(ld_max)) {
+    if (length(sup) != length(cause) || length(inf) != length(cause)) {
+      .ld_contract_stop("the numbers of intermediate and linked markers differ",
+                        z, "indirect")
+    }
+    pair_ld <- function(other) {
+      vapply(seq_along(cause), function(k) {
+        .ld_pair(genotypes, cause[k], other[k], ld_method)
+      }, numeric(1))
+    }
+    ld_sup <- pair_ld(sup)
+    ld_inf <- pair_ld(inf)
+    tol <- 1e-9
+    out <- function(l) anyNA(l) || any(l < ld_min - tol | l > ld_max + tol)
+    if (out(ld_sup) || out(ld_inf)) {
+      .ld_contract_stop("a selected marker has an absolute LD with its intermediate marker outside [ld_min, ld_max]",
+                        z, "indirect")
+    }
+    differs <- function(l, r) {
+      !is.null(r) && (length(r) != length(l) || any(abs(l - r) > 1e-6))
+    }
+    if (differs(ld_sup, reported_sup) || differs(ld_inf, reported_inf)) {
+      .ld_contract_stop("the LD reported for a marker pair differs from its actual LD",
+                        z, "indirect")
+    }
+  }
+  invisible(TRUE)
+}
+
+#' Verify direct-LD selections: distinct markers, same chromosome, LD in window
+#' @keywords internal
+#' @noRd
+.ld_check_direct <- function(genotypes, anchors, partners, reported,
+                             ld_method, ld_min, ld_max, z) {
+  if (length(anchors) != length(partners)) {
+    .ld_contract_stop("the numbers of selected and linked markers differ",
+                      z, "direct")
+  }
+  if (any(anchors == partners)) {
+    .ld_contract_stop("a marker was paired with itself", z, "direct")
+  }
+  if (anyDuplicated(anchors) || anyDuplicated(partners) ||
+      anyDuplicated(.ld_key(genotypes, anchors)) ||
+      anyDuplicated(.ld_key(genotypes, partners))) {
+    .ld_contract_stop("a trait would have a duplicated QTN", z, "direct")
+  }
+  if (length(intersect(anchors, partners))) {
+    .ld_contract_stop("the same marker was selected as a QTN for both traits",
+                      z, "direct")
+  }
+  if (any(genotypes$chr[anchors] != genotypes$chr[partners])) {
+    .ld_contract_stop("a pair spans two chromosomes", z, "direct")
+  }
+  ld <- vapply(seq_along(anchors), function(k) {
+    .ld_pair(genotypes, anchors[k], partners[k], ld_method)
+  }, numeric(1))
+  tol <- 1e-9
+  if (anyNA(ld) || any(ld < ld_min - tol | ld > ld_max + tol)) {
+    .ld_contract_stop("a selected pair has an absolute LD outside [ld_min, ld_max]",
+                      z, "direct")
+  }
+  if (length(reported) != length(ld) || any(abs(ld - reported) > 1e-6)) {
+    .ld_contract_stop("the LD reported for a pair differs from its actual LD",
+                      z, "direct")
+  }
+  invisible(TRUE)
+}
+
+#' qtn_linkage() with an informative message when the search runs off the
+#' marker set
+#'
+#' The neighbour search is row-index based: when an intermediate/selected
+#' marker sits at the first or last row (or the data set is tiny), the frozen
+#' code reads outside the GDS file and fails with `'start' is invalid`.
+#' @keywords internal
+#' @noRd
+.qtn_linkage_checked <- function(...) {
+  tryCatch(
+    qtn_linkage(...),
+    error = function(e) {
+      if (grepl("'start' is invalid", conditionMessage(e), fixed = TRUE)) {
+        stop(
+          "LD architecture: the search for a marker in LD ran past the first or last marker of the data set, ",
+          "so no partner within [ld_min, ld_max] was found. Use a larger and denser marker set, a wider LD window, ",
+          "or a different `seed`.",
+          call. = FALSE
+        )
+      }
+      stop(e)
+    }
+  )
+}

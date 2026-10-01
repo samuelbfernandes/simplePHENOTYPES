@@ -60,6 +60,8 @@
 #' @param quiet = FALSE,
 #' @param verbose = TRUE,
 #' @param RNGversion = '3.5.1'
+#' @param .rng internal environment created by `create_phenotypes()` that
+#'   records the caller's RNG kind and state (see `.v1_rng_capture()`).
 #' @return Phenotypes for ntraits traits
 #' @author Samuel Fernandes and Alexander Lipka. Last update: Apr 20, 2020
 #'
@@ -130,10 +132,23 @@ check_in <-
            SNP_impute = "Middle",
            quiet = FALSE,
            verbose = TRUE,
-           RNGversion = '3.5.1') {
+           RNGversion = '3.5.1',
+           .rng = NULL) {
+    #--- basic argument validation (audit v1-core, D1: reject bad inputs) ----
+    .v1_validate_basic(
+      rep = rep, ntraits = ntraits, model = model, architecture = architecture,
+      seed = seed, RNGversion = RNGversion, output_format = output_format,
+      to_r = to_r, SNP_effect = SNP_effect, SNP_impute = SNP_impute
+    )
     if (is.null(seed)) {
+      # The RNG version must be in force before anything is drawn, and the
+      # draw is the only use of the caller's RNG stream: create_phenotypes()
+      # restores the caller's RNG kind on exit and leaves the caller's stream
+      # advanced by exactly this one draw (see .v1_rng_capture()).
+      suppressWarnings(RNGversion(RNGversion))
       seed <- as.integer(runif(1, 0, 1000000))
-    } 
+      if (!is.null(.rng)) .rng$advanced <- .Random.seed_safe()
+    }
     #--- home_dir ----
     if (warning_file_saver & remove_QTN & vary_QTN) {
       yes_no <- "NO"
@@ -248,6 +263,13 @@ check_in <-
       same_add_dom_QTN <- FALSE
       QTN_list$dom <- NULL
     } else if (same_add_dom_QTN) {
+      if (!is.null(unlist(QTN_list))) {
+        stop(
+          "`same_add_dom_QTN = TRUE` cannot be combined with `QTN_list` (the dominance markers would silently replace the ones you listed). ",
+          "To use the same markers for additive and dominance effects, set `same_add_dom_QTN = FALSE` and list the same markers in both `QTN_list$add` and `QTN_list$dom`.",
+          call. = F
+        )
+      }
       dom_QTN_num <- add_QTN_num
       dom_effect <- lapply(add_effect, function(x) x * degree_of_dom)
       pleio_d <- pleio_a
@@ -267,6 +289,12 @@ check_in <-
       same_mv_QTN <- FALSE
       QTN_list$var <- NULL
     } else if (same_mv_QTN) {
+      if (!is.null(unlist(QTN_list))) {
+        stop(
+          "`same_mv_QTN = TRUE` cannot be combined with `QTN_list`. List the variance markers in `QTN_list$var` instead.",
+          call. = F
+        )
+      }
       var_QTN_num <- add_QTN_num
       var_effect <- add_effect
       QTN_list$var <- QTN_list$add
@@ -291,11 +319,52 @@ check_in <-
       )
     )
     if (architecture == "LD") {
+      if (!is.null(unlist(QTN_list))) {
+        stop(
+          "`QTN_list` cannot be combined with `architecture = \"LD\"`: user-specified markers are simulated as a plain user-defined architecture and `ld_min`, `ld_max` and `type_of_ld` would be silently ignored. ",
+          "Remove `QTN_list` to let create_phenotypes() select markers in LD, or use `architecture = \"pleiotropic\"` with `QTN_list`.",
+          call. = F
+        )
+      }
+      if (ntraits > 2) {
+        stop(
+          "`architecture = \"LD\"` simulates exactly two traits (ntraits = 2); `ntraits = ", ntraits, "` is not supported.",
+          call. = F
+        )
+      }
       ntraits <- 2
       if (type_of_ld != "indirect" & type_of_ld != "direct") {
         stop("Parameter \'type_of_ld\' should be either \'direct\' or \'indirect\'.",
              call. = F)
       }
+      .v1_validate_ld(ld_min, ld_max, ld_method)
+      if (type_of_ld == "indirect" && dom && !add) {
+        stop(
+          "`model = \"D\"` (dominance without additive effects) is not supported with `architecture = \"LD\"` and `type_of_ld = \"indirect\"`. ",
+          "Use `type_of_ld = \"direct\"`, or include additive effects (e.g. `model = \"AD\"`).",
+          call. = F
+        )
+      }
+    }
+    if (ntraits == 1 && dom && epi) {
+      stop(
+        "A single trait (`ntraits = 1`) cannot be simulated with both dominance and epistatic effects (models \"DE\" / \"ADE\") by create_phenotypes(): this combination is not supported. ",
+        "Use `model = \"AE\"` or `model = \"AD\"` for one trait, simulate two or more traits (`ntraits >= 2`), or use simulate_phenotype() with additive(), dominance() and epistasis().",
+        call. = F
+      )
+    }
+    if (ntraits == 1 && dom && same_add_dom_QTN) {
+      stop(
+        "`same_add_dom_QTN = TRUE` is not supported for a single trait (`ntraits = 1`) in create_phenotypes(). ",
+        "Simulate two or more traits (`ntraits >= 2`), select additive and dominance QTNs separately (`same_add_dom_QTN = FALSE`), or use simulate_phenotype() with additive() and dominance() on the same loci.",
+        call. = F
+      )
+    }
+    if (var && ntraits > 1) {
+      stop(
+        "Variance QTL (a model containing \"V\") is only implemented for a single trait (`ntraits = 1`).",
+        call. = F
+      )
     }
     
     #---- genotype ----
@@ -329,6 +398,13 @@ check_in <-
     } else {
       nonnumeric <- TRUE
     }
+    if (!nonnumeric && SNP_effect != "Add") {
+      stop(
+        "`SNP_effect = \"", SNP_effect, "\"` has no effect on a numeric `geno_obj` (already coded aa = -1, Aa = 0, AA = 1); ",
+        "it is only used to numericalize HapMap/VCF/PLINK/GDS input. Recode the numeric genotypes yourself or use the default \"Add\".",
+        call. = F
+      )
+    }
     path_out <- NULL
     
     #---- vary QTN ----
@@ -340,12 +416,24 @@ check_in <-
     #---- mean ----
     if (is.null(mean)) {
       mean <- rep(0, ntraits)
+    } else if (!is.numeric(mean) || anyNA(mean) || any(!is.finite(mean))) {
+      stop("Parameter \'mean\' should be a finite numeric vector with one value per trait.",
+           call. = F)
     } else if (length(mean) != ntraits) {
       stop("Parameter \'mean\' should have length = \'ntraits\'.",
            call. = F)
     }
     #---- h2 ----
+    if (is.null(h2)) {
+      stop("Please provide the heritability \'h2\' (a number between 0 and 1 for each trait).",
+           call. = F)
+    }
     h2 <- as.matrix(h2)
+    if (!is.numeric(h2) || anyNA(h2) || any(!is.finite(h2)) ||
+        any(h2 < 0) || any(h2 > 1)) {
+      stop("Parameter \'h2\' should contain finite heritabilities between 0 and 1 (h2 = 0 simulates traits without genetic effects).",
+           call. = F)
+    }
     if (ntraits > 1) {
       if (sum(dim(h2)) == 2) {
         h2 <- rep(h2, ntraits)
@@ -388,8 +476,34 @@ check_in <-
         null_setting <- TRUE
       }
     }
+    if (var && any(h2 == 0)) {
+      stop("Variance QTL (a model containing \"V\") requires h2 > 0 for the simulated trait.",
+           call. = F)
+    }
+    .v1_validate_seed_arith(seed = seed, rep = rep, h2 = h2,
+                            null_setting = null_setting,
+                            wide = (dom || epi || var),
+                            ld = identical(architecture, "LD"),
+                            n_qtn = c(add_QTN_num, dom_QTN_num, epi_QTN_num,
+                                      var_QTN_num))
+    if (to_r && nrow(h2) > 1 && (ntraits > 1 || vary_QTN)) {
+      stop(
+        "`to_r = TRUE` returns the simulated data of every row of `h2` only when a single trait is simulated with `vary_QTN = FALSE`; with several rows in `h2`, ",
+        if (ntraits > 1) "`ntraits > 1`" else "`vary_QTN = TRUE`",
+        " would return only the last row. Use `to_r = FALSE` and read the output files, or call create_phenotypes() once per row of `h2`.",
+        call. = F
+      )
+    }
     #----- QTN_list and QTN number -----
     if (!is.null(unlist(QTN_list))) {
+      if (ntraits == 1) {
+        stop(
+          "`QTN_list` cannot be used with `ntraits = 1`: a single trait cannot be simulated from a user-specified marker list by create_phenotypes() (this combination is not supported). ",
+          "Either select the QTNs at random (`add_QTN_num`, `dom_QTN_num`, ...), or simulate two or more traits and set `ntraits` to the number of marker vectors in each element of `QTN_list`, ",
+          "or use simulate_phenotype() with `qtn =` in additive()/dominance()/epistasis().",
+          call. = F
+        )
+      }
       if(is.null(names(QTN_list))){
         if (length(QTN_list) == 4){
           names(QTN_list) <- c("add", "dom", "epi", "var")
@@ -462,26 +576,8 @@ check_in <-
           call. = F
         )
       }
-      if (same_add_dom_QTN) {
-        if (is.null(unlist(QTN_list$dom))) {
-          QTN_list$dom <- QTN_list$add
-        } else if (!all.equal(QTN_list$dom, QTN_list$add)) {
-          stop(
-            "If \'same_add_dom_QTN = TRUE\', \'QTN_list$dom\'  should be NULL or identical to \'QTN_list$add\'. Instead, the QTNs in \'QTN_list$add\' will be used.",
-            call. = F
-          )
-        }
-      }
-      if (same_mv_QTN) {
-        if (is.null(unlist(QTN_list$var))) {
-          QTN_list$var <- QTN_list$add
-        } else if (!all.equal(QTN_list$var, QTN_list$add)) {
-          stop(
-            "If \'same_mv_QTN = TRUE\', \'QTN_list$var\' should be NULL or identical to \'QTN_list$add\'. Instead, the QTNs in \'QTN_list$add\' will be used.",
-            call. = F
-          )
-        }
-      }
+      # `same_add_dom_QTN` / `same_mv_QTN` together with `QTN_list` are rejected
+      # above, so no QTN_list$dom / QTN_list$var back-fill is needed here.
      if (is.null(QTN_list$add)) {
        add <- FALSE
      }
@@ -504,11 +600,10 @@ check_in <-
 
         
         if (length(QTN_list$add) != ntraits) {
-          ntraits <- length(QTN_list$add)
-          warning(
-            "Setting ntraits = length(QTN_list$add)!",
-            call. = F,
-            immediate. = T
+          stop(
+            "`ntraits` (", ntraits, ") does not match the number of trait-specific marker vectors in `QTN_list$add` (", length(QTN_list$add),
+            "). Set `ntraits = ", length(QTN_list$add), "` (and provide `h2`/`mean` for that many traits) or provide one marker vector per trait in `QTN_list$add`.",
+            call. = F
           )
         }
         dupa <- unlist(lapply(lapply(QTN_list$add, duplicated), any))
@@ -522,11 +617,10 @@ check_in <-
       }
       if (dom) {
         if (length(QTN_list$dom) != ntraits) {
-          ntraits <- length(QTN_list$dom)
-          warning(
-            "Setting ntraits = length(QTN_list$dom)!",
-            call. = F,
-            immediate. = T
+          stop(
+            "`ntraits` (", ntraits, ") does not match the number of trait-specific marker vectors in `QTN_list$dom` (", length(QTN_list$dom),
+            "). Set `ntraits = ", length(QTN_list$dom), "` (and provide `h2`/`mean` for that many traits) or provide one marker vector per trait in `QTN_list$dom`.",
+            call. = F
           )
         }
         dupd <- unlist(lapply(lapply(QTN_list$dom, duplicated), any))
@@ -539,17 +633,16 @@ check_in <-
         trait_spec_d_QTN_num <- NULL
       }
       if (epi) {
-        if (unique(lengths(QTN_list$epi) %% epi_interaction) != 0) {
+        if (any(lengths(QTN_list$epi) %% epi_interaction != 0)) {
           stop(paste("epi_interaction =", epi_interaction, "Please provide",epi_interaction, "Markers should be provided for each epistatic QTN."),
                call. = F)
         }
         
         if (length(QTN_list$epi) != ntraits) {
-          ntraits <- length(QTN_list$epi)
-          warning(
-            "Setting ntraits = length(QTN_list$epi)!",
-            call. = F,
-            immediate. = T
+          stop(
+            "`ntraits` (", ntraits, ") does not match the number of trait-specific marker vectors in `QTN_list$epi` (", length(QTN_list$epi),
+            "). Set `ntraits = ", length(QTN_list$epi), "` (and provide `h2`/`mean` for that many traits) or provide one marker vector per trait in `QTN_list$epi`.",
+            call. = F
           )
         }
         dupe <- unlist(lapply(lapply(QTN_list$epi, duplicated), any))
@@ -638,6 +731,29 @@ check_in <-
         }
       }
     }
+    #---- correlation matrices and output format ----
+    if (!is.null(cor)) {
+      if (ntraits == 1) {
+        warning("`cor` is ignored when a single trait is simulated (ntraits = 1).",
+                call. = F, immediate. = T)
+      } else {
+        .v1_validate_cor(cor, ntraits, "cor", positive_definite = TRUE)
+      }
+    }
+    if (!is.null(cor_res)) {
+      if (ntraits == 1) {
+        warning("`cor_res` is ignored when a single trait is simulated (ntraits = 1).",
+                call. = F, immediate. = T)
+      } else {
+        .v1_validate_cor(cor_res, ntraits, "cor_res", positive_definite = FALSE)
+      }
+    }
+    if (output_format == "wide" && ntraits > 1 && rep < 2) {
+      stop(
+        "`output_format = \"wide\"` needs at least two replicates (`rep >= 2`) when ntraits > 1; use `output_format = \"long\"` (or \"multi-file\") for a single replicate.",
+        call. = F
+      )
+    }
     #---- allelic effects ----
     if (!is.null(big_add_QTN_effect)) {
       if (length(big_add_QTN_effect) != ntraits) {
@@ -725,9 +841,22 @@ check_in <-
     }
     
     #----- geometric method -----    
-    if (sim_method != "geometric" & sim_method != "custom") {
+    if (!is.character(sim_method) || length(sim_method) != 1L ||
+        (sim_method != "geometric" & sim_method != "custom")) {
       stop("Parameter \'sim_method\' should be either \'geometric\' or \'custom\'!",
            call. = F)
+    }
+    if (sim_method == "geometric") {
+      .v1_validate_effects(
+        add = add, dom = dom, epi = epi, var = var,
+        add_effect = add_effect, dom_effect = dom_effect,
+        epi_effect = epi_effect, var_effect = var_effect,
+        len_a = if (add) len_a else NULL,
+        len_d = if (dom) len_d else NULL,
+        len_e = if (epi) len_e else NULL,
+        len_v = if (var) len_v else NULL,
+        big = !is.null(big_add_QTN_effect)
+      )
     }
     sm <- sim_method
       s1 = s2 = s3 = s4 <- NULL
@@ -1021,3 +1150,395 @@ check_in <-
     assign("print2", print2, envir = parent.frame())
   
   }
+# ---------------------------------------------------------------------------
+# Argument validation helpers for the frozen v1 engine (audit v1-core, D1:
+# bad inputs are rejected up front with a message that names the argument and
+# the remedy; valid inputs are never altered).
+# ---------------------------------------------------------------------------
+
+#' Scalar / choice validation shared by check_in()
+#' @keywords internal
+#' @noRd
+.v1_validate_basic <- function(rep, ntraits, model, architecture, seed,
+                               RNGversion, output_format, to_r,
+                               SNP_effect, SNP_impute) {
+  whole1 <- function(x) {
+    is.numeric(x) && length(x) == 1L && is.finite(x) && x >= 1 && x == round(x)
+  }
+  if (is.null(rep)) {
+    stop("Please provide the number of replicates `rep` (a whole number >= 1).",
+         call. = FALSE)
+  }
+  if (!whole1(rep)) {
+    stop("`rep` must be a single whole number >= 1.", call. = FALSE)
+  }
+  if (!whole1(ntraits)) {
+    stop("`ntraits` must be a single whole number >= 1.", call. = FALSE)
+  }
+  if (!is.null(model) &&
+      (!is.character(model) || length(model) != 1L || is.na(model) ||
+       !nzchar(model) || nchar(model) > 4L ||
+       any(!strsplit(model, "")[[1]] %in% c("A", "D", "E", "V")))) {
+    stop("Please assign a \'model\'. Options:\'A\', \'D\', \'E\', \'V\' or combinations such as \'ADE\' (upper case).",
+         call. = FALSE)
+  }
+  if (!is.character(architecture) || length(architecture) != 1L ||
+      !architecture %in% c("pleiotropic", "partially", "LD")) {
+    stop("The genetic architecture used is not valid! Please choose one of: \'pleiotropic\', \'partially\' or \'LD\' ",
+         call. = FALSE)
+  }
+  if (!is.null(seed) &&
+      (!is.numeric(seed) || length(seed) != 1L || !is.finite(seed))) {
+    stop("`seed` must be NULL or a single finite number.", call. = FALSE)
+  }
+  if (!is.character(RNGversion) || length(RNGversion) != 1L ||
+      is.na(RNGversion)) {
+    stop("`RNGversion` must be a single character string such as \'3.5.1\'.",
+         call. = FALSE)
+  }
+  if (!is.character(output_format) || length(output_format) != 1L ||
+      !output_format %in% c("multi-file", "long", "wide", "gemma")) {
+    stop("`output_format` must be one of \'multi-file\', \'long\', \'wide\' or \'gemma\'.",
+         call. = FALSE)
+  }
+  if (!(isTRUE(to_r) || isFALSE(to_r))) {
+    stop("`to_r` must be TRUE or FALSE.", call. = FALSE)
+  }
+  if (!is.character(SNP_effect) || length(SNP_effect) != 1L ||
+      !SNP_effect %in% c("Add", "Dom", "Left", "Right")) {
+    stop("`SNP_effect` must be one of \'Add\', \'Dom\', \'Left\' or \'Right\'.",
+         call. = FALSE)
+  }
+  if (!is.character(SNP_impute) || length(SNP_impute) != 1L ||
+      !SNP_impute %in% c("Major", "Middle", "Minor")) {
+    stop("`SNP_impute` must be one of \'Major\', \'Middle\' or \'Minor\'.",
+         call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+#' LD window validation
+#' @keywords internal
+#' @noRd
+.v1_validate_ld <- function(ld_min, ld_max, ld_method) {
+  ok <- function(x) is.numeric(x) && length(x) == 1L && is.finite(x)
+  if (!ok(ld_min) || !ok(ld_max)) {
+    stop("`ld_min` and `ld_max` must be single finite numbers.", call. = FALSE)
+  }
+  if (ld_min > ld_max) {
+    stop("`ld_min` (", ld_min, ") must not be larger than `ld_max` (", ld_max,
+         ").", call. = FALSE)
+  }
+  if (ld_max >= 1) {
+    stop("`ld_max` must be smaller than 1 (got ", ld_max, "): an absolute LD ",
+         "of 1 is met by a marker paired with itself, so the search would ",
+         "return the same marker for both traits. Use e.g. `ld_max = 0.99`.",
+         call. = FALSE)
+  }
+  if (!is.character(ld_method) || length(ld_method) != 1L ||
+      !ld_method %in% c("composite", "r", "dprime", "corr")) {
+    stop("`ld_method` must be one of \'composite\', \'r\', \'dprime\' or \'corr\'.",
+         call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+#' Seed arithmetic validation (residual seed is (seed + rep) * round(10 * h2))
+#'
+#' Besides the residual seed, the LD architecture derives retry seeds
+#' `seed * s + z (+ rep) (+ x)` with the retry counter `s` running up to 10
+#' (`z` <= `rep`, `x` <= the number of QTNs of one class), so its bound is
+#' about `10 * seed`. `ld = TRUE` adds that bound; `n_qtn` is the total number
+#' of QTNs requested (an upper bound for `x`).
+#' @keywords internal
+#' @noRd
+.v1_validate_seed_arith <- function(seed, rep, h2, null_setting, wide,
+                                    ld = FALSE, n_qtn = 0) {
+  mult <- 1
+  if (!null_setting) {
+    h1 <- h2[, 1]
+    bad <- h1 > 0 & round(h1 * 10) == 0
+    if (rep > 1 && any(bad)) {
+      stop(
+        "With `rep > 1`, every replicate would use the same residual seed (the ",
+        "residual seed is `(seed + replicate) * round(10 * h2[, 1])`, which is 0 ",
+        "for h2 <= 0.05, because round(10 * 0.05) is 0 under R\'s round-half-to-even ",
+        "rule): identical replicates would be returned. Use h2 > 0.05 ",
+        "(or `rep = 1`) for this simulation.",
+        call. = FALSE
+      )
+    }
+    mult <- max(1, round(h1 * 10))
+  }
+  if (!is.null(seed)) {
+    ld_mult <- if (ld) 10 else 1   # linkage retry seeds: seed * s, s <= 10
+    ld_extra <- if (ld) 2 * rep + max(0, sum(n_qtn, na.rm = TRUE)) else 0
+    worst_of <- function(sd) {
+      max(mult * abs(sd + rep),
+          (if (wide) 2 else 1) * abs(sd) + rep + 100,
+          ld_mult * abs(sd) + ld_extra)
+    }
+    if (worst_of(seed) > .Machine$integer.max) {
+      # exact inclusive magnitude bound: the largest a >= 0 such that both
+      # seed = a and seed = -a stay within R's integer range (the derived
+      # seeds grow with a, so a binary search on the predicate is exact)
+      ok <- function(a) {
+        worst_of(a) <= .Machine$integer.max &&
+          worst_of(-a) <= .Machine$integer.max
+      }
+      lo <- 0
+      hi <- .Machine$integer.max
+      centred <- ok(0)
+      if (centred) {
+        while (lo < hi) {
+          mid <- floor((lo + hi + 1) / 2)
+          if (ok(mid)) lo <- mid else hi <- mid - 1
+        }
+      }
+      head_msg <- paste0(
+        "`seed` (", format(seed, scientific = FALSE), ") is too large: the seeds derived from it ",
+        "(e.g. `(seed + rep) * round(10 * h2)`",
+        if (ld) paste0(" and, for `architecture = \"LD\"`, the marker-search ",
+                       "retry seeds `seed * s + ...` with `s` up to 10") else "",
+        ") would overflow R\'s integer range. ")
+      if (centred) {
+        stop(head_msg, "Use a seed with abs(seed) <= ",
+             format(lo, scientific = FALSE), " for this call.",
+             call. = FALSE)
+      }
+      # No acceptance interval centred at zero (a large `rep` shifts it, since
+      # the residual seed is (seed + rep) * round(10 * h2)): the accepted
+      # seeds are an interval [a, b] (each derived-seed bound is convex in the
+      # seed, so the feasible set is an interval). Solve the three bounds in
+      # closed form, then nudge to the exact integer boundaries of the real
+      # acceptance rule.
+      M <- .Machine$integer.max
+      a <- max(-rep - floor(M / mult),
+               -floor((M - rep - 100) / (if (wide) 2 else 1)),
+               -floor((M - ld_extra) / ld_mult))
+      b <- min(-rep + floor(M / mult),
+               floor((M - rep - 100) / (if (wide) 2 else 1)),
+               floor((M - ld_extra) / ld_mult))
+      accepted <- function(sd) worst_of(sd) <= M
+      if (a <= b) {
+        while (a <= b && !accepted(a)) a <- a + 1
+        while (a <= b && !accepted(b)) b <- b - 1
+        while (a > -M && accepted(a - 1)) a <- a - 1
+        while (b < M && accepted(b + 1)) b <- b + 1
+      }
+      if (a > b) {
+        stop(head_msg, "No seed is accepted for this call: the derived seeds ",
+             "overflow for every integer seed. Reduce `rep` (or `n_qtn`).",
+             call. = FALSE)
+      }
+      stop(head_msg, "For this call the accepted seeds are the integers in [",
+           format(a, scientific = FALSE), ", ", format(b, scientific = FALSE),
+           "] (this interval is not centred at 0, so a symmetric magnitude ",
+           "bound does not apply; `rep` is large). Use a seed in that ",
+           "range, or reduce `rep` / `n_qtn`.",
+           call. = FALSE)
+    }
+  }
+  invisible(TRUE)
+}
+
+#' Correlation-matrix validation for `cor` / `cor_res`
+#' @keywords internal
+#' @noRd
+.v1_validate_cor <- function(m, ntraits, name, positive_definite) {
+  if (is.data.frame(m)) m <- as.matrix(m)
+  if (!is.matrix(m) || !is.numeric(m) || nrow(m) != ntraits ||
+      ncol(m) != ntraits) {
+    stop("`", name, "` must be a numeric ", ntraits, " x ", ntraits,
+         " correlation matrix (one row and column per trait).", call. = FALSE)
+  }
+  if (anyNA(m) || any(!is.finite(m))) {
+    stop("`", name, "` contains missing or non-finite values.", call. = FALSE)
+  }
+  if (!isSymmetric(unname(m), tol = 1e-8)) {
+    stop("`", name, "` is not symmetric: the upper and lower triangles must ",
+         "agree.", call. = FALSE)
+  }
+  if (name == "cor_res" && any(abs(diag(m) - 1) > 1e-8)) {
+    stop("`cor_res` must be a correlation matrix (unit diagonal): a diagonal ",
+         "different from 1 would change the residual variances and hence the ",
+         "heritability.", call. = FALSE)
+  }
+  if (name == "cor" && any(abs(diag(m) - 1) > 1e-8)) {
+    warning("`cor` has a diagonal different from 1; it is treated as a ",
+            "covariance-like matrix and the realized correlation is ",
+            "cov2cor(cor).", call. = FALSE, immediate. = TRUE)
+  }
+  ev <- eigen(unname(m), symmetric = TRUE, only.values = TRUE)$values
+  if (positive_definite) {
+    ok <- all(ev > 0) && !inherits(try(chol(unname(m)), silent = TRUE),
+                                   "try-error")
+    if (!ok) {
+      stop("`", name, "` is not positive definite (smallest eigenvalue ",
+           format(min(ev), digits = 3), "), so the requested correlation ",
+           "cannot be realized. Supply a positive-definite correlation matrix ",
+           "(the v1 engine no longer repairs it silently).", call. = FALSE)
+    }
+  } else if (min(ev) < -1e-8) {
+    stop("`", name, "` is not positive semi-definite (smallest eigenvalue ",
+         format(min(ev), digits = 3), "). Supply a valid correlation matrix.",
+         call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+#' Effect-size specification validation (geometric method)
+#'
+#' Each effect vector must be either one value (base of a geometric series) or
+#' exactly one value per QTN (custom); the two styles cannot be mixed because
+#' one `sim_method` decision is taken for all effect classes.
+#' @keywords internal
+#' @noRd
+.v1_validate_effects <- function(add, dom, epi, var, add_effect, dom_effect,
+                                 epi_effect, var_effect, len_a, len_d, len_e,
+                                 len_v, big) {
+  kinds <- character(0)
+  chk <- function(eff, len, arg, count_arg, offset = 0) {
+    len <- pmax(len - offset, 0)
+    for (i in seq_along(eff)) {
+      n_exp <- len[min(i, length(len))]
+      n_eff <- length(eff[[i]])
+      custom_ok <- n_eff == n_exp
+      geom_ok <- n_eff == 1L
+      if (!custom_ok && !geom_ok) {
+        stop("`", arg, "` has ", n_eff, " value(s)",
+             if (length(eff) > 1L) paste0(" for trait ", i) else "",
+             " but ", n_exp, " QTN(s) need an effect. Provide either a single ",
+             "value (the base of a geometric series) or exactly one effect per ",
+             "QTN (", count_arg, if (offset > 0) " - 1, because `big_add_QTN_effect` fills the first QTN", ").",
+             call. = FALSE)
+      }
+      kinds <<- c(kinds, arg = if (n_exp == 0) "either" else
+        if (custom_ok && geom_ok) "either" else
+          if (custom_ok) "custom" else "geometric")
+      names(kinds)[length(kinds)] <<- arg
+    }
+  }
+  if (add) chk(add_effect, len_a, "add_effect", "`add_QTN_num`", if (big) 1 else 0)
+  if (dom) chk(dom_effect, len_d, "dom_effect", "`dom_QTN_num`")
+  if (epi) chk(epi_effect, len_e, "epi_effect", "`epi_QTN_num`")
+  if (var) chk(var_effect, len_v, "var_effect", "`var_QTN_num`")
+  if (any(kinds == "custom") && any(kinds == "geometric")) {
+    stop("Effect sizes are specified inconsistently: ",
+         paste(unique(names(kinds)[kinds == "custom"]), collapse = ", "),
+         " give one effect per QTN (custom) while ",
+         paste(unique(names(kinds)[kinds == "geometric"]), collapse = ", "),
+         " give a single geometric-series base. create_phenotypes() applies ",
+         "one `sim_method` to all effect classes, so a custom vector would be ",
+         "silently exponentiated. Give every effect class one value per QTN ",
+         "(with `sim_method = \"custom\"`), or a single base value each.",
+         call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+#' Record the caller's RNG kind and state (restored by .v1_rng_restore())
+#' @keywords internal
+#' @noRd
+.v1_rng_capture <- function() {
+  e <- new.env(parent = emptyenv())
+  e$kind <- RNGkind()
+  e$seed <- .Random.seed_safe()
+  e$advanced <- NULL
+  e
+}
+
+#' Restore the caller's RNG kind and state on exit from create_phenotypes()
+#'
+#' The legacy engine switches to `RNGversion("3.5.1")` (sample.kind
+#' "Rounding") and calls `set.seed()`. On exit the caller's kind (including
+#' `sample.kind`) and `.Random.seed` are put back. When the master seed was
+#' drawn (seed = NULL) the caller's stream is left advanced by that one draw,
+#' so successive calls with `seed = NULL` still differ. The engine's draw is
+#' made under `RNGversion()`, i.e. with the Mersenne-Twister generator; when the
+#' caller's generator is the same kind, its state after the draw is spliced back
+#' in. When the caller uses another generator (for example L'Ecuyer-CMRG, whose
+#' state has a different length) the engine's state cannot be reused, so the
+#' caller's own state is restored and then advanced by one `runif()` draw of the
+#' caller's own generator.
+#' @keywords internal
+#' @noRd
+.v1_rng_restore <- function(e) {
+  suppressWarnings(RNGkind(e$kind[1L], e$kind[2L], e$kind[3L]))
+  st <- e$seed
+  adv <- e$advanced
+  spliced <- FALSE
+  if (!is.null(st) && !is.null(adv) && length(adv) == length(st) &&
+      (adv[1L] %% 100L) == (st[1L] %% 100L)) {
+    st <- c(st[1L], adv[-1L])
+    spliced <- TRUE
+  }
+  .restore_seed(st)
+  if (!is.null(st) && !is.null(adv) && !spliced) {
+    # foreign generator: advance the caller's own stream by one draw
+    invisible(stats::runif(1L))
+  }
+  invisible(NULL)
+}
+
+#' Fail early when more QTNs are requested than the data set has markers
+#'
+#' Reads the (already validated) QTN counts that `check_in()` injected into the
+#' `create_phenotypes()` frame. Constraint-based filtering is checked later by
+#' the QTN-selection functions.
+#' @keywords internal
+#' @noRd
+.v1_check_qtn_capacity <- function(env, n_markers) {
+  g <- function(x) get0(x, envir = env, inherits = FALSE)
+  if (isTRUE(g("null_setting")) || !is.null(unlist(g("QTN_list")))) {
+    return(invisible(TRUE))
+  }
+  epi_w <- g("epi_interaction")
+  if (is.null(epi_w)) epi_w <- 2
+  need <- c(add = 0, dom = 0, epi = 0, var = 0)
+  if (identical(g("architecture"), "partially")) {
+    need["add"] <- sum(g("pleio_a"), g("trait_spec_a_QTN_num"))
+    need["dom"] <- sum(g("pleio_d"), g("trait_spec_d_QTN_num"))
+    need["epi"] <- epi_w * sum(g("pleio_e"), g("trait_spec_e_QTN_num"))
+  } else {
+    need["add"] <- sum(g("add_QTN_num"))
+    need["dom"] <- sum(g("dom_QTN_num"))
+    need["epi"] <- epi_w * sum(g("epi_QTN_num"))
+    need["var"] <- sum(g("var_QTN_num"))
+  }
+  worst <- which.max(need)
+  if (need[worst] > n_markers) {
+    stop("Not enough markers: ", need[worst], " ",
+         switch(names(worst), add = "additive", dom = "dominance",
+                epi = "epistatic (number of QTNs x `epi_interaction`)",
+                var = "variance"),
+         " QTN marker(s) were requested but the marker data has only ",
+         n_markers, ". Lower the number of QTNs or use a larger marker set.",
+         call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+#' Variance-QTL standard-deviation multiplier must not be negative
+#'
+#' The vQTL residual standard deviation is proportional to
+#' `1 + sum_i var_effect[i] * (dosage_i + 1)`; a negative value makes
+#' `rnorm(sd < 0)` return NaN for those individuals.
+#' @keywords internal
+#' @noRd
+.v1_check_vqtl_sd <- function(QTN, var_effect, var_QTN_num) {
+  if (is.null(QTN) || is.null(var_QTN_num) || length(var_QTN_num) != 1L) {
+    return(invisible(TRUE))
+  }
+  QTN <- as.matrix(QTN) + 1
+  sigma <- matrix(1, nrow(QTN), 1)
+  for (i in seq_len(min(var_QTN_num, ncol(QTN)))) {
+    sigma <- sigma + var_effect[i] * QTN[, i]
+  }
+  if (anyNA(sigma) || any(sigma < 0)) {
+    stop("Variance QTL: the standard-deviation multiplier 1 + sum(var_effect * (dosage + 1)) is negative (or missing) for some individuals, ",
+         "which would produce missing phenotypes. Use smaller or positive `var_effect` values.",
+         call. = FALSE)
+  }
+  invisible(TRUE)
+}

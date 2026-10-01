@@ -1,4 +1,49 @@
 #' Calculate genetic value based on QTN objects.
+#'
+#' Frozen v1 engine, multi-trait genetic values.
+#'
+#' @details
+#' \strong{How `cor` is imposed (v1 semantics, reproduced exactly).} The
+#' per-trait genetic values \eqn{G} (one column per trait, built by
+#' [genetic_effect()] from each trait's own effects) are standardized column
+#' by column, whitened with the inverse Cholesky factor of their sample
+#' covariance (after [make_pd()]), coloured with the Cholesky factor of `cor`
+#' (after [make_pd()]) and finally rescaled with each trait's original
+#' standard deviation and mean:
+#' \code{T = scale(G) L_cg^{-T} L_cor^T * sd(G) + mean(G)}. For a
+#' positive-definite `cor` with a unit diagonal this realizes the requested
+#' correlation exactly in the sample and preserves each trait's variance.
+#' Consequences to keep in mind:
+#' \itemize{
+#'   \item With a unit-diagonal `cor`, trait 1 is unchanged (its genetic value
+#'     is exactly the input value) and only trait \eqn{k >= 2} is a mixture:
+#'     a linear combination of the input values of traits \eqn{1, \dots, k}
+#'     (it is regressed onto the earlier traits). QTNs that were declared
+#'     specific to an earlier trait therefore leak into the later traits'
+#'     genetic values once `cor` is supplied; the reverse does not happen.
+#'   \item The per-trait effects written to the `*_QTNs.txt` files
+#'     (`add_eff_t2`, ...) and the `VA`/`VD`/`VE` and per-QTN PVE files are the
+#'     values \emph{before} the whitening/colouring step. For traits >= 2 they
+#'     are not the effective effects and not the effective PVE; the residual
+#'     variance and the reported heritability are computed from the
+#'     transformed genetic values and therefore are correct.
+#'   \item `cor` must be a full `ntraits x ntraits` matrix (a scalar is not
+#'     accepted). A covariance-valued matrix (diagonal different from 1) is
+#'     accepted and treated as covariance-like: the realized correlation is
+#'     `cov2cor(cor)` and the genetic variance of trait \eqn{k} is multiplied
+#'     by `cor[k, k]`, so trait 1 is \emph{rescaled} as well (for
+#'     `cor = [[4, 1], [1, 1]]` the standard deviation of trait 1 is doubled,
+#'     that of trait 2 is unchanged, and the realized correlation is 0.5).
+#'   \item A non-positive-definite `cor` is not realized as requested: see
+#'     [make_pd()] (the diagonal is raised, off-diagonals shrink).
+#'     `create_phenotypes()` rejects such input.
+#'   \item Traits whose genetic values are perfectly collinear (identical
+#'     effect series, or a single QTN shared by all traits) or have zero
+#'     variance cannot be whitened; this is reported with an informative error.
+#'   \item `sample_cor` is computed per replicate (it is `NULL` for a
+#'     replicate whose genetic values are all zero).
+#' }
+#'
 #' @param add_obj additive QTN object
 #' @param dom_obj dominance QTN object
 #' @param epi_obj epistatic QTN object
@@ -51,6 +96,9 @@ base_line_multi_traits <-
     }
     results <- vector("list", rep)
     for (z in 1:rep) {
+      # sample_cor is replicate-local: an all-zero replicate must not inherit
+      # the previous replicate's matrix.
+      sample_cor <- NULL
       if (!is.null(cor) & architecture != "LD") {
         if (architecture == "pleiotropic") {
           if (add) {
@@ -101,10 +149,12 @@ base_line_multi_traits <-
             }
           }
           sdg <- apply(genetic_value, 2, sd)
+          .check_cor_inputs(genetic_value, sdg, cor, ntraits)
           meang <- apply(genetic_value, 2, mean)
           genetic_s <- apply(genetic_value, 2, scale)
           cg <- cov(genetic_s)
-          cg <- make_pd(cg, verbose = verbose)
+          cg <- make_pd(cg, verbose = verbose,
+                        what = "sample covariance of the standardized genetic values")
           L <- t(chol(cg))
           G_white <- t(solve(L) %*% t(genetic_s))
           cor <- make_pd(cor, verbose = verbose)
@@ -176,10 +226,12 @@ base_line_multi_traits <-
             }
           }
           sdg <- apply(genetic_value, 2, sd)
+          .check_cor_inputs(genetic_value, sdg, cor, ntraits)
           meang <- apply(genetic_value, 2, mean)
           genetic_s <- apply(genetic_value, 2, scale)
           cg <- cov(genetic_s)
-          cg <- make_pd(cg, verbose = verbose)
+          cg <- make_pd(cg, verbose = verbose,
+                        what = "sample covariance of the standardized genetic values")
           L <- t(chol(cg))
           G_white <- t(solve(L) %*% t(genetic_s))
           cor <- make_pd(cor, verbose = verbose)
@@ -314,3 +366,26 @@ base_line_multi_traits <-
     }
     return(results)
   }
+
+#' Fail loudly on inputs the whitening/colouring step cannot handle
+#' @keywords internal
+#' @noRd
+.check_cor_inputs <- function(genetic_value, sdg, cor, ntraits) {
+  cm <- tryCatch(as.matrix(cor), error = function(e) NULL)
+  if (is.null(cm) || !is.numeric(cm) || nrow(cm) != ntraits ||
+      ncol(cm) != ntraits) {
+    stop("`cor` must be a numeric ", ntraits, " x ", ntraits,
+         " genetic correlation matrix (one row and column per trait); ",
+         "a scalar or a matrix of a different size is not supported.",
+         call. = FALSE)
+  }
+  bad <- which(!is.finite(sdg) | sdg == 0)
+  if (length(bad) > 0L) {
+    stop("Trait(s) ", paste(bad, collapse = ", "),
+         " have zero (or undefined) genetic variance, so the genetic ",
+         "correlation `cor` cannot be imposed. Check that the effects and ",
+         "QTN numbers give every trait a non-zero genetic value.",
+         call. = FALSE)
+  }
+  invisible(TRUE)
+}

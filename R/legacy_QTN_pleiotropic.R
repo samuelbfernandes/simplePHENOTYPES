@@ -1,4 +1,46 @@
 #' Select SNPs to be assigned as QTNs.
+#'
+#' Frozen v1 engine, fully pleiotropic architecture: one QTN set per effect
+#' type is drawn and shared by every trait (the traits differ only through
+#' their per-trait effects).
+#'
+#' @section QTN sets and seeds (v1 behaviour, kept for reproducibility):
+#' The additive, dominance, epistatic and variance QTN sets are drawn
+#' \emph{independently} of each other, each with `set.seed()` on its own seed
+#' (`i` = replicate index, `rep` = number of replicates when
+#' `rep_by = "QTN"`, otherwise 1):
+#' additive `seed + i`; dominance `seed + i + rep`; variance
+#' `2 * seed + i`; epistatic `2 * seed + i + rep`. There is no exclusion
+#' between effect classes, so:
+#' \itemize{
+#'   \item a marker can belong to several classes by chance, and
+#'   \item some seeds make two classes use the \emph{same} `set.seed()` value
+#'     (a "collision"): the additive and variance seed ranges overlap when
+#'     `seed < rep`; the dominance and epistatic ranges overlap when
+#'     `seed < rep` (for example `seed = 0`, one replicate: the dominance QTNs
+#'     are exactly the first epistatic loci); the dominance and variance ranges
+#'     overlap for `1 <= seed <= 2 * rep - 1`; additive/dominance and
+#'     epistatic/variance never overlap. Choosing `seed >= 2 * rep` avoids
+#'     every collision (`seed >= rep` is not enough: with `seed = rep = 2` the
+#'     dominance seeds `seed + i + rep` and the variance seeds `2 * seed + i`
+#'     are both 5 and 6).
+#'   \item a colliding seed gives an identical \emph{set} only when the two
+#'     classes draw the same number of QTNs from the same pool of markers (for
+#'     example equal `dom_QTN_num` and `var_QTN_num`); with unequal draw sizes
+#'     the two sets share a prefix of the same random stream, not the whole
+#'     set.
+#' }
+#' Changing these formulas would change every published v1 result and the
+#' frozen RDS references, so they are documented rather than "fixed". The seeds
+#' recorded in the `Seed_num_for_*` files are the ones listed above.
+#' When dominance is simulated the first draw is repeated (up to 10 times,
+#' from the not-yet-rejected markers) until the set contains at least one
+#' heterozygote anywhere in the panel columns; the accepted draw is the one
+#' reported.
+#'
+#' Duplicated marker positions (`chr_pos`) are allowed: QTN columns are
+#' addressed by position, never by name.
+#'
 #' @keywords internal
 #' @param genotypes = NULL,
 #' @param seed = NULL,
@@ -50,6 +92,12 @@ qtn_pleiotropic <-
            var = NULL,
            verbose = verbose) {
     #---------------------------------------------------------------------------
+    # Leave the caller's RNG stream untouched: every draw below is preceded by
+    # its own set.seed(), so restoring the snapshot cannot change any result.
+    if (!is.null(seed)) {
+      .rng_state <- .Random.seed_safe()
+      on.exit(.restore_seed(.rng_state), add = TRUE)
+    }
     add_ef_trait_obj <- NULL
     dom_ef_trait_obj <- NULL
     epi_ef_trait_obj <-  NULL
@@ -82,7 +130,8 @@ qtn_pleiotropic <-
         var_QTN_num <- 1
       }
     }
-    if (any(lengths(constraints) > 0)) {
+    constrained <- any(lengths(constraints) > 0)
+    if (constrained) {
       index <- constraint(
         genotypes = genotypes,
         maf_above = constraints$maf_above,
@@ -90,32 +139,27 @@ qtn_pleiotropic <-
         hets = constraints$hets,
         verbose = verbose
       )
-      if (add) {
-        if (length(index) < add_QTN_num) {
-          stop("Not enough SNP left after applying the selected constrain!",
-               call. = F)
-        }
-      }
-      if (dom) {
-        if (length(index) < dom_QTN_num) {
-          stop("Not enough SNP left after applying the selected constrain!",
-               call. = F)
-        }
-      }
-      if (epi) {
-        if (length(index) < epi_QTN_num) {
-          stop("Not enough SNP left after applying the selected constrain!",
-               call. = F)
-        }
-      }
-      if (var) {
-        if (length(index) < var_QTN_num) {
-          stop("Not enough SNP left after applying the selected constrain!",
-               call. = F)
-        }
-      }
     } else {
       index <- seq_len(nrow(genotypes))
+    }
+    # Pre-flight: every effect class is drawn from `index` on its own, so the
+    # demand is per class. Epistatic classes draw epi_interaction markers per
+    # interaction.
+    need <- c(if (add) add_QTN_num,
+              if (dom) dom_QTN_num,
+              if (epi) epi_QTN_num * epi_interaction,
+              if (var) var_QTN_num)
+    if (length(need) > 0 && length(index) < max(need)) {
+      if (constrained) {
+        stop("Not enough SNP left after applying the selected constrain! ",
+             "(", max(need), " distinct markers are needed for one effect ",
+             "class, ", length(index), " are eligible).", call. = F)
+      } else {
+        stop("Not enough markers: ", max(need), " distinct markers are ",
+             "needed for one effect class (for epistasis: ",
+             "epi_QTN_num * epi_interaction), but only ", length(index),
+             " are available.", call. = F)
+      }
     }
     if (verbose)
       message("* Selecting QTNs")

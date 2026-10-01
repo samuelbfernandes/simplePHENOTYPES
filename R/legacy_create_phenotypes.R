@@ -9,6 +9,58 @@
 #' wrapper over the v2 grammar (the two implementations coexist). For new work
 #' prefer the composable grammar: [simulate_phenotype()] with [additive()],
 #' [dominance()], [epistasis()], [vqtl()] and [complex_phenotypes()].
+#'
+#' @section Rejected inputs and unsupported combinations:
+#' The frozen engine validates its arguments up front and stops with a message
+#' that names the argument and the remedy, instead of failing cryptically or
+#' returning wrong numbers. Valid inputs produce exactly the numbers of earlier
+#' releases. Inner errors are re-signalled (earlier releases printed the message
+#' and returned `NULL`), and on error only the run folder created by the call is
+#' removed. The following are rejected:
+#' \itemize{
+#'   \item `QTN_list` with `ntraits = 1` (a single trait cannot be simulated
+#'   from a user-specified marker list; use random QTNs or
+#'   [simulate_phenotype()] with `qtn =`), with `same_add_dom_QTN = TRUE`, with
+#'   `architecture = "LD"`, or with a number of trait-specific marker vectors
+#'   different from `ntraits`.
+#'   \item Single-trait models combining dominance and epistasis (`"DE"`,
+#'   `"ADE"`) and single-trait `same_add_dom_QTN = TRUE`.
+#'   \item `architecture = "LD"` with `ntraits > 2`, with `ld_max >= 1` (an
+#'   absolute LD of 1 is met by a marker paired with itself) or
+#'   `ld_min > ld_max`, and `model = "D"` with `type_of_ld = "indirect"`.
+#'   When the LD search cannot deliver distinct, linked marker pairs inside
+#'   `[ld_min, ld_max]` for the chosen `seed` (indirect: a marker selected for
+#'   both traits or a duplicated QTN; direct: a pair outside the window, on
+#'   two chromosomes or paired with itself), the call stops with an "LD
+#'   contract" error: change `seed`, the LD window or `type_of_ld`. The
+#'   direct-LD dominance branches (`model` containing "D") meet the contract for
+#'   only a minority of seeds.
+#'   \item `h2` outside `[0, 1]`; `h2` positive but not above 0.05 (that is,
+#'   `0 < h2 <= 0.05`, including exactly 0.05) with `rep > 1` (see `seed`);
+#'   `to_r = TRUE` with several rows of `h2` unless a single trait is
+#'   simulated with `vary_QTN = FALSE`.
+#'   \item `cor` that is not a symmetric positive-definite `ntraits x ntraits`
+#'   matrix (it is no longer repaired silently) and `cor_res` that is not a
+#'   symmetric, positive semi-definite correlation matrix.
+#'   \item Effect sizes given as a mixture of one value per QTN and a single
+#'   geometric-series base, or with a length that is neither 1 nor the number
+#'   of QTNs.
+#'   \item Variance QTL (`"V"`) with `ntraits > 1`, with `h2 = 0`, or with
+#'   `var_effect` values that make the standard-deviation multiplier negative.
+#'   \item Unknown `output_format`, `output_format = "wide"` with `ntraits > 1`
+#'   and `rep = 1`, `rep`/`model`/`seed` that are missing or malformed, and
+#'   more QTNs than markers.
+#' }
+#'
+#' @section Duplicated marker positions:
+#' Duplicated marker positions (`chr_pos`, the same chromosome and position
+#' on several rows) are \emph{accepted} by the fully pleiotropic and the
+#' partially pleiotropic architectures: QTN columns are addressed by row
+#' position, never by the `Chr_<chr>_<pos>` name, so duplicated names cannot
+#' change which markers enter a genetic value (an epistatic interaction, for
+#' example, multiplies the intended columns). The `architecture = "LD"`
+#' searches are stricter: a duplicated QTN or a QTN pair sharing a chromosome
+#' position is reported as an "LD contract" error (see above).
 #' @export
 #' @import utils
 #' @import stats
@@ -27,7 +79,7 @@
 #' @param geno_path Path to a folder containing the marker data set
 #' file/files (e.g., separated by chromosome). Formats accepted are:
 #' Numeric, HapMap, VCF, GDS, and Plink Bed/Ped files
-#' @param QTN_list A list of specific markers to be used as QTNs. If one wants to specify the QTNs instead of selecting them randomly, at least one of the following elements should be provided: `QTN_list$add`, `QTN_list$dom`, and/or `QTN_list$epi`. The element `$add`, `$dom`, and `$epi` are lists containing a vector of markers for each of the traits to be simulated. For example, to simulate 2 traits controlled by 1 pleiotropic and 2 trait-specific additive QTNs, the user would create a list of marker names `marker_list <- list(add = list(trait1 = c("marker1", "marker2", "marker3"), trait2 = c("marker1", "marker4", "marker5")))` and set `QTN_list = marker_list`. On the other hand, to simulate a single trait controlled by 1 additive and 2 dominance QTNs, the marker list would be `marker_list <- list(add = list("marker1"), dom = list(c("marker2", "marker3")))`. Notice that these vectors with maker names is used in the order they appear. For instance, in the list `marker_list <- list(add = list(trait9 = c("marker1"), trait4 = c("marker5")))`, the vector names itself ("trait9" and "trait4") are ignored and "trait9" will be the vector of markers used to simulate the first trait and "trait4" will be the vector of markers used to simulate the second trait. Also, when using `QTN_list`, many parameters used for selecting QTNs will be ignored (e.g., `constraints`).
+#' @param QTN_list A list of specific markers to be used as QTNs. If one wants to specify the QTNs instead of selecting them randomly, at least one of the following elements should be provided: `QTN_list$add`, `QTN_list$dom`, and/or `QTN_list$epi`. The element `$add`, `$dom`, and `$epi` are lists containing a vector of markers for each of the traits to be simulated. For example, to simulate 2 traits controlled by 1 pleiotropic and 2 trait-specific additive QTNs, the user would create a list of marker names `marker_list <- list(add = list(trait1 = c("marker1", "marker2", "marker3"), trait2 = c("marker1", "marker4", "marker5")))` and set `QTN_list = marker_list`. On the other hand, to simulate a single trait controlled by 1 additive and 2 dominance QTNs, the marker list would be `marker_list <- list(add = list("marker1"), dom = list(c("marker2", "marker3")))`. Notice that these vectors with maker names is used in the order they appear. For instance, in the list `marker_list <- list(add = list(trait9 = c("marker1"), trait4 = c("marker5")))`, the vector names itself ("trait9" and "trait4") are ignored and "trait9" will be the vector of markers used to simulate the first trait and "trait4" will be the vector of markers used to simulate the second trait. Also, when using `QTN_list`, many parameters used for selecting QTNs will be ignored (e.g., `constraints`). `QTN_list` requires `ntraits >= 2` (a single trait cannot be simulated from a marker list: this combination is not supported and stops with an error) and cannot be combined with `same_add_dom_QTN = TRUE` (list the same markers in `QTN_list$add` and `QTN_list$dom` instead) or with `architecture = "LD"`. Every marker must exist in the marker data.
 #' @param prefix If `geno_path` points to a folder with files other than the
 #' marker data set, a part of the data set name may be used to select the desired
 #' files (e.g., prefix = "Chr" would read files Chr1.hmp.txt, ..., Chr10.hmp.txt
@@ -45,11 +97,18 @@
 #' will loop over the number of rows and will generate a result for each row.
 #' If a single trait is being simulated and h2 is a vector,
 #' one simulation of each heritability value will be conducted. Either none or
-#' all traits are expected to have `h2 = 0`.
+#' all traits are expected to have `h2 = 0`. Values must lie in `[0, 1]`. Only
+#' the first trait's heritability of a row enters the residual seed, and
+#' positive values of at most 0.05 (exactly 0.05 included, since
+#' `round(10 * 0.05)` is 0 in R) are rejected when `rep > 1`: use `h2 > 0.05`
+#' (see `seed`).
 #' @param mean A vector with the mean (intercept) value for each of the simulated traits. If omitted, the simulated traits will be centered to zero. 
 #' @param model The genetic model to be assumed. The options are
-#' "A" (additive), "D" (dominance), "E" (epistatic)
-#' as well as any combination of those models such as "AE", "DE" or "ADE".
+#' "A" (additive), "D" (dominance), "E" (epistatic), "V" (variance QTL)
+#' as well as any combination of those models such as "AE" or "AD" (upper case).
+#' For a single trait (`ntraits = 1`) the combinations "DE" and "ADE" are not
+#' supported and stop with an error (use two or more traits, `"AE"`/`"AD"`, or
+#' [simulate_phenotype()]).
 #' @param architecture The genetic architecture to be simulated. Should be provided
 #' if `ntraits` > 1. Possible options are: 'pleiotropic' (default), for traits being
 #' controlled by the same QTNs; 'partially', for traits being controlled by
@@ -95,13 +154,18 @@
 #' of length = `ntraits`, i.e., if `ntraits` > 1, a list with one vector of
 #' additive effects should be provided for each trait. Unless
 #' `big_add_QTN_effect` is provided, the length of each vector
-#' should be equal to the number of additive QTNs being simulated.
+#' should be equal to the number of additive QTNs being simulated. A single value
+#' per trait is the base of a geometric series; a vector with one value per QTN
+#' is used as is. All effect classes (`add_effect`, `dom_effect`, `epi_effect`,
+#' `var_effect`) must use the same style: mixing one style for one class and
+#' the other for another class, or any other length, is rejected.
 #' @param big_add_QTN_effect Additive effect size for one possible major
 #' effect quantitative trait nucleotide. If `ntraits` > 1,
 #' big_add_QTN_effect should have length equals `ntraits`.
 #' If `add_QTN_num` > 1, this large effect will be assigned to the fist QTN.
 #' @param same_add_dom_QTN A boolean for selecting markers to be both additive
-#' and dominance QTNs. Default FALSE.
+#' and dominance QTNs. Default FALSE. Not supported for a single trait
+#' (`ntraits = 1`) or together with `QTN_list`.
 #' @param same_mv_QTN A boolean for selecting markers to be both additive
 #' and variance QTNs. Default FALSE.
 #' @param dom_effect Similar to the `add_effect`, it could be either
@@ -127,10 +191,15 @@
 #' be the QTN for trait 2.
 #' @param ld_min Minimum Linkage disequilibrium for selecting QTNs when
 #' `architecture = LD`. The default is `ld_min = 0.2` (markers should have a minimum LD of
-#' 0.2 to be used as QTNs).
+#' 0.2 to be used as QTNs). LD is compared as an \emph{absolute value} on the
+#' scale of `ld_method` (for the default "composite" and for "corr" this is a
+#' correlation, not r^2). The window `[ld_min, ld_max]` is inclusive and
+#' `ld_min <= ld_max < 1` is required. Only the randomly drawn markers are
+#' subject to `constraints`; the linked partner markers are found by walking
+#' along the marker order and are not filtered.
 #' @param ld_max Maximum Linkage disequilibrium for selecting QTNs when
 #' `architecture = LD`. The default is `ld_max = 0.8` (markers should have an LD of
-#' at maximum 0.8 to be used as QTNs).
+#' at maximum 0.8 to be used as QTNs). It must be smaller than 1.
 #' @param ld_method Four methods can be used to calculate linkage disequilibrium values: "composite" for LD composite measure (Default), "r" for R coefficient (by EM algorithm assuming HWE, it could be negative), "dprime" for D', and "corr" for correlation coefficient (see snpgdsLDpair from package SNPRelate).
 #' @param sim_method Provide the method of simulating allelic effects.
 #' The options available are "geometric" and "custom". For multiple QTNs,
@@ -142,7 +211,10 @@
 #' experiment (`vary_QTN = FALSE`) or  if a different set of QTNs should be
 #' used for each replication (`vary_QTN = TRUE`).
 #' @param cor Option to simulate traits with a predefined genetic correlation.
-#' It should be a correlation matrix with a number of rows = `ntraits`.
+#' It should be a symmetric, positive-definite correlation matrix with a number
+#' of rows = `ntraits` (other matrices are rejected; the frozen eigenvalue
+#' clamp that used to repair them realized a different correlation and inflated
+#' the genetic variance). It is ignored, with a warning, when `ntraits = 1`.
 #' Default = NULL. Notice that when opting for controlling the correlation, the
 #' genetic effects are transformed using Cholesky decomposition. In this case,
 #' the correlation of genetic effects for different traits will be as provided, 
@@ -150,21 +222,39 @@
 #' traits may be different than the input allelic effect.
 #' @param cor_res Option to simulate traits with a predefined residual
 #' correlation. It should be a correlation matrix with number of
-#' rows = `ntraits`. If NULL, an identity matrix (independent residuals)
-#' will be used.
+#' rows = `ntraits` (symmetric, unit diagonal, positive semi-definite). If NULL,
+#' an identity matrix (independent residuals) will be used. The
+#' "Residual Correlation" printed in the log is this input matrix, not an
+#' estimate from the simulated residuals.
 #' @param QTN_variance Whether or not the percentage of the phenotypic variance
 #' explained by each QTN (QTN variance / phenotypic variance) should be
 #' exported. The default is FALSE. Notice that this is calculated prior to any
 #' transformation, such as the whitening/coloring transformation used to assign
 #' user-specified correlation to the genetic effect. In may not reflect the
 #' actual variance explained when the data is transformed.
-#' @param seed Value to be used by set.seed. If NULL (default),
-#' runif(1, 0, 1000000) will be used. Notice that at each sampling step,
-#' a different seed generated based on the `seed` parameter used.
-#' For example, if one uses `seed = 123`, when simulating the 10th replication
-#' of trait 1, the seed to be used is `round( (123 * 10 * 10) * 1)`. On the
-#' other hand, for simulating the 21st replication of trait 2, the seed to be
-#' used will be `round( (123 * 21 * 21) * 2)`. The master seed (unique value required to reproduce  results) is saved at the top of the log file. Unless verbose = FALSE the actual seed used in every  simulation is exported along with simulated phenotypes.
+#' @param seed Value to be used by set.seed. If NULL (default), a master seed
+#' is drawn with `runif(1, 0, 1000000)` from the caller's random-number stream;
+#' the caller's RNG kind (including `sample.kind`) and state are restored on
+#' exit, the stream being advanced by that one draw only. The master seed is
+#' saved at the top of the log file. Seeds for the individual sampling steps are
+#' derived from `seed` by adding replicate (and effect-class) offsets, and, unless
+#' `verbose = FALSE`, the seed actually used in every simulation is exported
+#' with the simulated phenotypes (`Seed_number_for_*` and `Seed_num_for_*`
+#' files). The \emph{residual} (environmental) seed of replicate `r` for row `i`
+#' of `h2` is `as.integer((seed + r) * round(10 * h2[i, 1]))`, i.e. it uses the
+#' heritability of the \emph{first trait} only, and `seed + r` when all
+#' heritabilities are 0. For example, `seed = 123`, `h2 = 0.5` and replicate 10
+#' use `(123 + 10) * 5 = 665`. Consequences: (1) `h2 <= 0.05` (positive) gives
+#' `round(10 * h2) = 0` (R rounds 0.5 to even, so exactly 0.05 is included),
+#' hence seed 0 for every replicate and identical replicates, so it is rejected
+#' when `rep > 1`; the accepted range is `h2 > 0.05`; (2) heritabilities that
+#' round to the same multiple of 0.1 (for example 0.26 and 0.34) share their
+#' random stream, so their residuals are perfectly correlated across rows of
+#' `h2`; (3) every derived seed must fit R's integer range, so very large
+#' seeds are rejected up front. For `architecture = "LD"` the marker search
+#' also uses retry seeds `seed * s + ...` with `s` up to 10, so the bound is
+#' about `.Machine$integer.max / 10` (about 214 million; the error message
+#' reports the exact limit for the call).
 #' @param home_dir Directory where files should be saved. It may be
 #' home_dir = getwd().
 #' @param output_dir Name of the folder created inside `home_dir` to hold this
@@ -174,7 +264,9 @@
 #' `"simplePHENOTYPES_output"`; if that folder already exists, a numbered
 #' variant such as `simplePHENOTYPES_output(1)` is created so earlier results
 #' are never overwritten. Use `output_dir = ""` to write directly into
-#' `home_dir`, which was the behavior before version 2.0.
+#' `home_dir`, which was the behavior before version 2.0. If a run fails, the
+#' run folder created by the call is removed (with `output_dir = ""` the new
+#' entries of `home_dir` are removed instead).
 #' @param export_gt If TRUE genotypes of selected QTNs will be saved at file.
 #' If FALSE (default), only the QTN information will be saved.
 #' @param output_format Four options are available for saving simulated
@@ -183,11 +275,13 @@
 #' last one (by row); 'wide', saves experiments by column (default for single
 #' trait) and 'gemma', saves .fam files to be used by gemma or other software
 #' that uses plink bed files. (renaming .fam file with the same name of the bim
-#' and bed files is necessary).
+#' and bed files is necessary). `'wide'` with `ntraits > 1` requires `rep >= 2`.
 #' @param to_r Option for outputting the simulated results as an R data.frame in
 #' addition to saving it to file. If TRUE, results need to be assigned to an
 #' R object (see vignette). If ntraits = 1 and length(h2) > 1, results for each
-#' h2 will be saved in a list.
+#' h2 will be saved in a list. Several rows of `h2` with `to_r = TRUE` are
+#' rejected when `ntraits > 1` or `vary_QTN = TRUE` (only the last row would be
+#' returned); read the output files instead.
 #' @param out_geno Optionally saves the numericalized genotype either as "numeric" (see
 #' vignettes for an example data), "BED" or "gds". The default is NULL.
 #' @param chr_prefix If input file format is VCF and out_geno = "BED", and a prefix
@@ -203,7 +297,10 @@
 #' @param constraints Set constraints for QTN selection. Currently, the options
 #' are maf_above (the minimum value of minor allele frequency, a double between
 #' 0 - 0.5), maf_below (the maximum value of minor allele frequency, a double
-#' between 0 - 0.5),and hets ('include' and 'remove'). All of these options
+#' between 0 - 0.5; both comparisons are strict, i.e. a marker whose MAF equals
+#' the bound is excluded), and hets ('include' and 'remove'). They filter only
+#' the randomly drawn QTNs, not the partner markers of the LD architecture. All
+#' of these options
 #' are NULL by default ('list(maf_above = NULL, maf_below = NULL, hets = NULL )'
 #' ). For instance, if the parameters used are 
 #' `constraints = list(maf_above = 0.3, maf_below = 0.44, hets = "include")`,
@@ -222,8 +319,12 @@
 #' @param SNP_effect Parameter used for numericalization. The options are: Add
 #' (AA = 1, Aa = 0, aa = -1),  Dom (AA = -1, Aa = 0, aa = -1), Left (AA = 1,
 #' Aa = -1, aa = -1), Right (AA = 1, Aa = 1, aa = -1). The default option is Add.
+#' It is used to numericalize file input (HapMap, VCF, PLINK, GDS) and is
+#' rejected, when not "Add", for a `geno_obj` that is already numeric.
 #' @param SNP_impute Naive imputation for HapMap numericalization. The options
 #' are: Major (NA <- 1), Middle (NA <- 0), and Minor (NA <- -1).
+#' Numeric `geno_obj` values must be coded -1/0/1 (or 0/1/2 dosage that
+#' includes the value 2); a 0/1-only matrix is ambiguous and rejected.
 #' @param quiet Whether or not the log file should pop up into R once the
 #' simulation is done.
 #' @param verbose If FALSE, suppress all prints and suppress individual seed numbers from being saved to file. The master seed (unique value required to reproduce results) is saved at the top of the log file.
@@ -332,6 +433,10 @@ create_phenotypes <-
       stop(.gds_needed("create_phenotypes() (the legacy engine)"),
            call. = FALSE)
     }
+    # Restore the caller's RNG kind (incl. sample.kind) and state on every exit
+    # path: the engine runs under RNGversion(RNGversion) and calls set.seed().
+    rng_env <- .v1_rng_capture()
+    on.exit(.v1_rng_restore(rng_env), add = TRUE)
     check_in(geno_obj = geno_obj,
                      geno_file = geno_file,
                      geno_path = geno_path,
@@ -391,18 +496,41 @@ create_phenotypes <-
                      SNP_impute = SNP_impute,
                      quiet = quiet,
                      verbose = verbose,
-                     RNGversion = RNGversion)
+                     RNGversion = RNGversion,
+                     .rng = rng_env)
     home_exit <- getwd()
+    files_in_dir <- dir(home_dir, full.names = T)
+    sunk <- FALSE
+    gdsfile <- NULL
+    # Remove what this run created (used by the error and interrupt handlers).
+    # With a run folder (`output_dir` non-empty) only that folder is removed;
+    # with `output_dir = ""` the files are written straight into `home_dir`,
+    # so entries that appeared there during the run are removed.
+    cleanup_outputs <- function() {
+      if (isTRUE(sunk)) {
+        sink()
+        try(close(zz), silent = TRUE)
+        sunk <<- FALSE
+      }
+      setwd(home_exit)
+      if (nzchar(output_dir)) {
+        if (dir.exists(tempdir)) unlink(tempdir, force = TRUE, recursive = TRUE)
+      } else {
+        dir <- dir(home_dir, full.names = T)
+        unlink(dir[!dir %in% files_in_dir], force = TRUE, recursive = TRUE)
+      }
+      if (!is.null(gdsfile)) {
+        if (out_geno != "gds" & file.exists(gdsfile)) {
+          unlink(gdsfile, force = TRUE)
+        }
+      }
+    }
     tryCatch({
-      sunk <- FALSE
-      gdsfile <- NULL
       input_format <- NULL
       suppressWarnings(RNGversion(RNGversion))
-      files_in_dir <- dir(home_dir, full.names = T)
       setwd(home_dir)
       on.exit({
         setwd(home_exit)
-        RNGversion(getRversion())
         if (sunk) {
           sink()
           close(zz)
@@ -412,7 +540,12 @@ create_phenotypes <-
       }, add = TRUE)
       out_name <- NULL
       if (!is.null(geno_obj)) {
+        # Under do.call() `substitute(geno_obj)` deparses the whole data set;
+        # fall back to a fixed name when it is not a short expression.
         out_name <- deparse(substitute(geno_obj))
+        if (length(out_name) != 1L || nchar(out_name) > 100L) {
+          out_name <- "geno_obj"
+        }
         }
       if (!is.null(geno_path) | !is.null(geno_file) | nonnumeric) {
         geno_obj <-
@@ -424,6 +557,7 @@ create_phenotypes <-
             na_string = na_string,
             prefix = prefix,
             maf_cutoff = maf_cutoff,
+            SNP_effect = SNP_effect,
             SNP_impute = SNP_impute,
             verbose = verbose,
             chr_prefix = chr_prefix
@@ -438,12 +572,28 @@ create_phenotypes <-
           message(paste0("File ", "\'", out_name,"\'", " loaded from memory."))
         dose <- 0
         counter <- 6
-        while (all(dose != 2) & all(dose != -1)) {
+        while (all(dose != 2, na.rm = TRUE) & all(dose != -1, na.rm = TRUE) &
+               counter <= ncol(geno_obj)) {
           dose <- unique(geno_obj[, counter])
           counter <- counter + 1
         }
-        if (all(dose != -1) | any(dose == 2)) {
+        if (all(dose != 2, na.rm = TRUE) & all(dose != -1, na.rm = TRUE)) {
+          stop(
+            "The numeric genotypes in `geno_obj` contain only the values 0 and 1 (no 2 and no -1), so the coding is ambiguous: ",
+            "it could be 0/1/2 dosage with no homozygote for the alternative allele, or -1/0/1 with no minor homozygote. ",
+            "Recode the markers as aa = -1, Aa = 0, AA = 1 (see data(SNP55K_maize282_maf04)) or as 0/1/2 dosage that includes the value 2.",
+            call. = F
+          )
+        }
+        if (all(dose != -1, na.rm = TRUE) | any(dose == 2, na.rm = TRUE)) {
           geno_obj[, -c(1:5)] <- geno_obj[, -c(1:5)] - 1
+        }
+        if (any(abs(as.matrix(geno_obj[, -c(1:5)])) > 1, na.rm = TRUE)) {
+          stop(
+            "The numeric genotypes in `geno_obj` contain values outside -1, 0, 1 after normalization (e.g. a mix of -1/0/1 and 0/1/2 coding, or dosages above 2). ",
+            "Recode the markers as aa = -1, Aa = 0, AA = 1.",
+            call. = F
+          )
         }
         isna <- is.na(geno_obj[, -c(1:5)])
         if (any(isna)) {
@@ -469,6 +619,17 @@ create_phenotypes <-
       } else {
         path_out <- home_dir
       }
+      if (out_geno == "gds" &&
+          file.exists(file.path(path_out, paste0(out_name, ".gds")))) {
+        stop(
+          "`out_geno = \"gds\"`: a file named ",
+          file.path(path_out, paste0(out_name, ".gds")),
+          " already exists in the output folder. Remove or rename it, or use a new `output_dir`/`home_dir`.",
+          call. = F
+        )
+      }
+      # Marker-count sanity check before any QTN is sampled.
+      .v1_check_qtn_capacity(env = environment(), n_markers = nrow(geno_obj))
       zz <- file("Log_Sim.txt", open = "wt")
       sink(zz, type = "output")
       sunk <- TRUE
@@ -632,7 +793,7 @@ create_phenotypes <-
         }
         if (ntraits > 1 & !any(architecture != "LD")) {
           QTN <-
-            qtn_linkage(
+            .qtn_linkage_checked(
               genotypes = geno_obj,
               seed = seed,
               add_QTN_num = add_QTN_num,
@@ -857,7 +1018,7 @@ create_phenotypes <-
                 hets <- lapply(QTN$add_ef_trait_obj,
                                function(x) {
                                  f <- apply(x, 2, function(b) {
-                                   b == 1
+                                   b == 0
                                  })
                                  hrow <- sum(apply(f, 1, sum)) > 0
                                  return(hrow)
@@ -867,7 +1028,7 @@ create_phenotypes <-
                                function(x) {
                                  lapply(x, function(x2) {
                                    f <- apply(x2, 2, function(b) {
-                                     b == 1
+                                     b == 0
                                    })
                                    hrow <- sum(apply(f, 1, sum)) > 0
                                    return(hrow)
@@ -878,7 +1039,7 @@ create_phenotypes <-
               hets <- lapply(QTN$add_ef_trait_obj,
                              function(x) {
                                f <- apply(x, 2, function(b) {
-                                 b == 1
+                                 b == 0
                                })
                                hrow <- sum(apply(f, 1, sum)) > 0
                                return(hrow)
@@ -891,7 +1052,7 @@ create_phenotypes <-
                 hets <- lapply(QTN$dom_ef_trait_obj,
                                function(x) {
                                  f <- apply(x, 2, function(b) {
-                                   b == 1
+                                   b == 0
                                  })
                                  hrow <- sum(apply(f, 1, sum)) > 0
                                  return(hrow)
@@ -901,7 +1062,7 @@ create_phenotypes <-
                                function(x) {
                                  lapply(x, function(x2) {
                                    f <- apply(x2, 2, function(b) {
-                                     b == 1
+                                     b == 0
                                    })
                                    hrow <- sum(apply(f, 1, sum)) > 0
                                    return(hrow)
@@ -912,7 +1073,7 @@ create_phenotypes <-
               hets <- lapply(QTN$dom_ef_trait_obj,
                              function(x) {
                                f <- apply(x, 2, function(b) {
-                                 b == 1
+                                 b == 0
                                })
                                hrow <- sum(apply(f, 1, sum)) > 0
                                return(hrow)
@@ -922,12 +1083,12 @@ create_phenotypes <-
           if (any(!unlist(hets))) {
             if (!add & !epi) {
               stop(
-                "All individuals are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
+                "All individuals are homozygote for the selected dominance QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs, or constraints = list(hets = \"include\").",
                 call. = F
               )
             } else {
               warning(
-                "Most individuals are homozygote for the selected QTNs. Dominance effect will be zero! Consider using a different seed number to select new QTNs.",
+                "None of the individuals is heterozygous at the selected dominance QTNs (in at least one trait or replicate). The dominance effect will be zero! Consider using a different seed number to select new QTNs, or constraints = list(hets = \"include\").",
                 call. = F,
                 immediate. = T
               )
@@ -1065,6 +1226,10 @@ create_phenotypes <-
       if (verbose)
         message("* Creating phenotypes")
       if (var) {
+        .v1_check_vqtl_sd(
+          if (same_mv_QTN) QTN$add_ef_trait_obj[[1]] else QTN$var_ef_trait_obj[[1]],
+          var_effect[[1]], var_QTN_num
+        )
         if (same_mv_QTN) { #same mqtn and vqtn
           results <- vQTL(QTN = QTN$add_ef_trait_obj[[1]],
                   var_QTN_num = var_QTN_num,
@@ -1174,7 +1339,7 @@ create_phenotypes <-
             }
           }
           if (ntraits > 30) {
-            cat("\nSample Residual Correlation saved as: \"Sample_residual_correlation.txt\"\n")
+            cat("\nResidual Correlation used in the simulation (as specified by `cor_res`) saved as: \"Sample_residual_correlation.txt\"\n")
             colnames(results$sample_cor) <- paste0("Trait_", 1:ntraits)
             rownames(results$sample_cor) <- paste0("Trait_", 1:ntraits)
             data.table::fwrite(results$sample_cor, "Sample_residual_correlation.txt",
@@ -1182,7 +1347,7 @@ create_phenotypes <-
                                quote = FALSE,
                                na = NA)
           } else {
-          cat("\nSample Residual Correlation \n")
+          cat("\nResidual Correlation used in the simulation (as specified by `cor_res`; not re-estimated from the simulated residuals) \n")
           colnames(results$sample_cor) <-
             paste0("Trait_", 1:ntraits)
           rownames(results$sample_cor) <-
@@ -1238,32 +1403,12 @@ create_phenotypes <-
       }
     },
     error = function(cnd) {
-      message(cnd)
-      dir <- dir(home_dir, full.names = T)
-      unlink(dir[!dir %in% files_in_dir], force = TRUE, recursive = TRUE) 
-      if (!is.null(gdsfile)) {
-        if (out_geno != "gds" & file.exists(gdsfile)) {
-          unlink(gdsfile, force = TRUE)
-        }
-      }
-      if (!is.null(gdsfile)) {
-        if (out_geno != "gds" & file.exists(gdsfile)) {
-          unlink(gdsfile, force = TRUE)
-        }
-      }
+      cleanup_outputs()
+      # Re-signal: the message is preserved and callers (and scripts) see a
+      # real error instead of a NULL return.
+      stop(cnd)
     },
     interrupt = function(int) {
-      dir <- dir(home_dir, full.names = T)
-      unlink(dir[!dir %in% files_in_dir], force = TRUE, recursive = TRUE) 
-      if (!is.null(gdsfile)) {
-        if (out_geno != "gds" & file.exists(gdsfile)) {
-          unlink(gdsfile, force = TRUE)
-        }
-      }
-      if (!is.null(gdsfile)) {
-        if (out_geno != "gds" & file.exists(gdsfile)) {
-          unlink(gdsfile, force = TRUE)
-        }
-      }
+      cleanup_outputs()
     })
   }

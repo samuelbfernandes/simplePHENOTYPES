@@ -5,6 +5,34 @@
 #' sample). Numericalization is delegated to [as_numeric()] /
 #' [format_conversion()], the single coding implementation in the package, so
 #' create_phenotypes() and the modern grammar code genotypes identically.
+#'
+#' @section Coding contract (v1):
+#' \itemize{
+#'   \item Output dosages are -1/0/1 (NA only with `SNP_impute = "None"`). For
+#'     HapMap/VCF/PLINK/GDS/FinalReport input, +1 is the homozygote of the
+#'     \emph{major} allele. When the two alleles are exactly tied (minor-allele
+#'     frequency 0.5 -- e.g. two AA and two GG samples) the allele listed
+#'     \emph{first} in the `alleles` (REF/ALT) column is coded +1, so the same
+#'     genotypes with the alleles listed in the other order get the opposite
+#'     sign at a tied marker.
+#'   \item Numeric input carries no allele information and is taken as coded.
+#'     A panel that contains -1 must be -1/0/1; a panel that contains 2 but no
+#'     -1 is 0/1/2 and is shifted by -1. A panel coded only 0/1 is
+#'     ambiguous (the shift cannot be decided) and is rejected, as is any other
+#'     value (fractional or out-of-range dosages, or -1 together with 2).
+#'   \item Missing calls: `SNP_impute = "Middle"` -> 0, `"Minor"` -> -1,
+#'     `"Major"` -> +1, `"None"` -> left as NA (a QTN with missing genotypes
+#'     is then rejected by the simulation). An entirely missing marker is
+#'     therefore imputed to the constant 0 / -1 / +1 (a monomorphic marker).
+#'     `maf_cutoff` is applied \emph{after} imputation: with `"Minor"` /
+#'     `"Major"` such a marker has MAF 0 and is dropped by any positive cutoff,
+#'     with `"Middle"` its constant 0 gives MAF 0.5 and it passes, and with
+#'     `"None"` its MAF is undefined and it is dropped. Remove all-missing
+#'     markers beforehand if that matters.
+#'   \item `maf_cutoff` keeps markers with MAF `>=` the cutoff (inclusive);
+#'     `constraints$maf_above` / `maf_below` of the QTN selection are strict
+#'     (`>` / `<`).
+#' }
 #' @keywords internal
 #' @param geno_obj In-memory data.frame (e.g. HapMap).
 #' @param geno_file Path to a single genotype file.
@@ -13,8 +41,11 @@
 #' @param na_string String representing missing values in HapMap text.
 #' @param prefix File-name prefix filter for geno_path.
 #' @param maf_cutoff Drop markers with minor-allele frequency below this.
-#' @param SNP_effect Genetic model: "Add", "Dom", "Left", "Right".
-#' @param SNP_impute Imputation: "Middle", "Minor", "Major", "None".
+#' @param SNP_effect Genetic model: "Add", "Dom", "Left", "Right". Applied when
+#'   non-numeric marker data are numericalized; ignored for input that is
+#'   already numeric.
+#' @param SNP_impute Imputation of missing calls: "Middle" (0), "Minor" (-1),
+#'   "Major" (+1), "None" (keep NA); see the coding contract above.
 #' @param verbose Print progress messages.
 #' @param chr_prefix Chromosome prefix string (accepted for backward
 #'   compatibility; VCF chromosome handling is managed by SNPRelate).
@@ -50,13 +81,39 @@ genotypes <-
       meta <- G[, 1:5, drop = FALSE]
       names(meta) <- c("snp", "allele", "chr", "pos", "cm")
       vals <- as.matrix(G[, -(1:5), drop = FALSE])
+      if (!is.numeric(vals) && !is.logical(vals)) {
+        stop("genotypes(): numeric marker data must contain numbers only ",
+             "(-1/0/1 or 0/1/2, NA for missing).", call. = FALSE)
+      }
       probe <- unique(as.vector(vals))
-      if (!any(probe == -1, na.rm = TRUE) && any(probe == 2, na.rm = TRUE)) {
+      probe <- probe[!is.na(probe)]
+      if (!any(probe == -1) && !any(probe == 2)) {
+        stop("genotypes(): the numeric marker data contain only the values ",
+             "0/1, which cannot be interpreted unambiguously (-1/0/1 or ",
+             "0/1/2 coding?). Recode the markers as -1/0/1 (or include the ",
+             "0/1/2 dosage 2) before calling create_phenotypes().",
+             call. = FALSE)
+      }
+      if (!any(probe == -1) && any(probe == 2)) {
         vals <- vals - 1L
       }
+      bad <- !is.na(vals) & !(vals %in% c(-1, 0, 1))
+      if (any(bad)) {
+        stop("genotypes(): numeric marker data must be coded -1/0/1 (or ",
+             "0/1/2); after normalization ", sum(bad), " value(s) are ",
+             "outside {-1, 0, 1} (for example ",
+             paste(utils::head(unique(vals[bad]), 3), collapse = ", "),
+             ").", call. = FALSE)
+      }
       if (any(is.na(vals))) {
-        vals[is.na(vals)] <- switch(SNP_impute, Middle = 0L, Minor = -1L,
-                                    Major = 1L, 0L)
+        if (!SNP_impute %in% c("Middle", "Minor", "Major", "None")) {
+          stop("genotypes(): SNP_impute must be one of \"Middle\", ",
+               "\"Minor\", \"Major\" or \"None\".", call. = FALSE)
+        }
+        if (SNP_impute != "None") {
+          vals[is.na(vals)] <- switch(SNP_impute, Middle = 0L, Minor = -1L,
+                                      Major = 1L)
+        }
       }
       cbind(meta, as.data.frame(vals, check.names = FALSE))
     }
@@ -107,7 +164,8 @@ genotypes <-
       vals <- as.matrix(df[, -(1:5), drop = FALSE])
       p    <- rowMeans((vals + 1) / 2, na.rm = TRUE)
       maf  <- pmin(p, 1 - p)
-      df   <- df[maf >= maf_cutoff, , drop = FALSE]
+      # which(): a marker whose MAF is undefined (all missing) is dropped
+      df   <- df[which(maf >= maf_cutoff), , drop = FALSE]
     }
 
     list(

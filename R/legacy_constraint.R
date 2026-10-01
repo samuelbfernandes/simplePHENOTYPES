@@ -2,11 +2,18 @@
 #' @keywords internal
 #' @param genotypes a numericalized genotype object (geno_obj).
 #' @param maf_above Threshold for the minimum value of minor allele frequency.
+#' The comparison is strict: a marker is kept only if its MAF is *greater than*
+#' `maf_above`.
 #' @param maf_below Threshold for the maximum value of minor allele frequency.
+#' The comparison is strict: a marker is kept only if its MAF is *smaller than*
+#' `maf_below`.
 #' @param hets Option of including (\'include\') and removing (\'remove\') only
 #' heterozygotes.
 #' @param verbose = verbose
-#' @return Return a filtered dataset to be used when selecting QTNs.
+#' @return Row indices of the markers that satisfy the constraints (all rows
+#' when no constraint is given). The frozen selection code applies them to the
+#' randomly drawn QTNs only: in the LD architectures the linked partner markers
+#' are found by walking along the marker order and are *not* filtered.
 #' Last update: Apr 20, 2020
 #'
 constraint <-
@@ -62,6 +69,9 @@ constraint <-
       selected_snps <- which(list_h)
     } else if (!is.null(list_maf)) {
       selected_snps <- which(list_maf)
+    } else {
+      # no constraint requested: every marker is eligible
+      selected_snps <- seq_len(nrow(genotypes))
     }
     return(selected_snps)
   }

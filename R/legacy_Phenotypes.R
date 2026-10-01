@@ -487,7 +487,7 @@ phenotypes <-
           }
           sample_cor <- stats::cov2cor(sample_cor / rep)
           if (verbose) {
-            cat("\nSample Correlation Matrix:\n")
+            cat("\nResidual correlation matrix (as specified by cor_res; not re-estimated from the simulated residuals):\n")
             print(round(sample_cor, 4))
           }
         } else {
@@ -1116,7 +1116,7 @@ phenotypes <-
                     paste("QTN", 1:lqtna, sep = "_")
                   for (p in 1:rep) {
                     add_var_per_QTN_temp[p, ] <-
-                      base_line_trait[[1]]$QTN_var$var_add[[u]] /
+                      base_line_trait[[p]]$QTN_var$var_add[[u]] /
                       vp[p, u]
                   }
                   data.table::fwrite(
@@ -1143,7 +1143,7 @@ phenotypes <-
                     paste("QTN", 1:lqtnd, sep = "_")
                   for (p in 1:rep) {
                     dom_var_per_QTN_temp[p, ] <-
-                      base_line_trait[[1]]$QTN_var$var_dom[[u]] /
+                      base_line_trait[[p]]$QTN_var$var_dom[[u]] /
                       vp[p, u]
                   }
                   data.table::fwrite(
@@ -1170,7 +1170,7 @@ phenotypes <-
                     paste("QTN", 1:lqtne, sep = "_")
                   for (p in 1:rep) {
                     epi_var_per_QTN_temp[p, ] <-
-                      base_line_trait[[1]]$QTN_var$var_epi[[u]] /
+                      base_line_trait[[p]]$QTN_var$var_epi[[u]] /
                       vp[p, u]
                   }
                   data.table::fwrite(
@@ -1339,7 +1339,7 @@ phenotypes <-
           }
           sample_cor <- stats::cov2cor(sample_cor / rep)
           if (verbose) {
-            cat("\nSample Correlation Matrix:\n")
+            cat("\nResidual correlation matrix (as specified by cor_res; not re-estimated from the simulated residuals):\n")
             print(round(sample_cor, 4))
           }
         } else {

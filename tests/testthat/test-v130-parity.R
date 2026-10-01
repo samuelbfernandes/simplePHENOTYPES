@@ -240,3 +240,63 @@ test_that("v1.3.0 regression: partial pleiotropy, structural (seed = 42)", {
     label = paste("add QTN count: got =", got_n, "ref =", ref_n)
   )
 })
+
+# ---------------------------------------------------------------------------
+# Audit v1-core additions (tests only; the references above are untouched).
+# The guards above compare QTN identity and the first trait; these compare
+# EVERY simulated trait column, and the LD pairs by role, so that a change to
+# trait ordering, residual seeding or pair assignment cannot pass unnoticed.
+# ---------------------------------------------------------------------------
+.compare_all_traits <- function(ref, got) {
+  ref_ord <- ref$phenotypes[order(ref$phenotypes[[1L]]), ]
+  got_ord <- got$phenotypes[order(got$phenotypes[[1L]]), ]
+  trait_cols <- setdiff(names(ref_ord), c("<Trait>", "Rep"))
+  expect_true(length(trait_cols) >= 1L)
+  expect_equal(names(got_ord), names(ref_ord))
+  for (cn in trait_cols) {
+    expect_equal(got_ord[[cn]], ref_ord[[cn]], tolerance = 1e-10, label = cn)
+  }
+}
+
+test_that("v1.3.0 regression (all traits): pleiotropy 3 traits (seed = 10)", {
+  ref <- .ref("pleiotropy")
+  data("SNP55K_maize282_maf04")
+  got <- .run_legacy(SNP55K_maize282_maf04, list(
+    add_QTN_num = 3, dom_QTN_num = 4, h2 = c(0.2, 0.4, 0.4),
+    add_effect = c(0.04, 0.2, 0.1), dom_effect = c(0.04, 0.2, 0.1),
+    ntraits = 3, rep = 1, vary_QTN = FALSE, architecture = "pleiotropic",
+    seed = 10, model = "AD", sim_method = "geometric"
+  ))
+  .compare_all_traits(ref, got)
+  expect_equal(sort(got$qtns$dom$snp[got$qtns$dom$rep == 1]),
+               sort(ref$qtns$dom$snp[ref$qtns$dom$rep == 1]))
+})
+
+test_that("v1.3.0 regression (all traits, pairs by role): LD indirect and direct (seed = 200)", {
+  data("SNP55K_maize282_maf04")
+  for (ty in c("indirect", "direct")) {
+    ref <- .ref(paste0("ld_", ty))
+    got <- .run_legacy(SNP55K_maize282_maf04, list(
+      add_QTN_num = 3, h2 = c(0.2, 0.4), add_effect = c(0.02, 0.05),
+      rep = 1, seed = 200, architecture = "LD", model = "A",
+      ld_max = 0.8, ld_min = 0.2, ld_method = "composite", type_of_ld = ty
+    ))
+    .compare_all_traits(ref, got)
+    ra <- ref$qtns$add[ref$qtns$add$rep == 1, ]
+    ga <- got$qtns$add[got$qtns$add$rep == 1, ]
+    if (ty == "indirect") {
+      # the intermediate (cause) markers, and the trait-1 / trait-2 QTN sets
+      expect_equal(sort(ga$snp[ga$type == "cause_of_LD"]),
+                   sort(ra$snp[ra$type == "cause_of_LD"]))
+      for (tr in c("trait_1", "trait_2")) {
+        expect_equal(sort(ga$snp[ga$trait == tr]), sort(ra$snp[ra$trait == tr]))
+      }
+    } else {
+      # role names (selected / linked marker) are unchanged; only the trait
+      # labels attached to them were corrected (V1C-F6)
+      for (ty2 in c("QTN_selected", "QTN_in_LD")) {
+        expect_equal(sort(ga$snp[ga$type == ty2]), sort(ra$snp[ra$type == ty2]))
+      }
+    }
+  }
+})

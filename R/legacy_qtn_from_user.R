@@ -1365,6 +1365,23 @@ qtn_from_user <-
                 call. = F
               )
             }
+            missing_snps <- setdiff(i, genotypes$snp)
+            if (length(missing_snps) > 0) {
+              stop(
+                "The following markers in QTN_list$add were not found in the genotypic dataset: ",
+                paste(missing_snps, collapse = ", "),
+                ". Please verify the marker names.",
+                call. = F
+              )
+            }
+            if (anyDuplicated(genotypes$snp[selected_snps]) > 0) {
+              stop(
+                "The genotypic dataset contains duplicated marker names among the markers listed in QTN_list$add: ",
+                paste(unique(genotypes$snp[selected_snps][duplicated(genotypes$snp[selected_snps])]), collapse = ", "),
+                ". Marker names must be unique.",
+                call. = F
+              )
+            }
             a <- genotypes[selected_snps,]
             rownames(a) <- a$snp
             a <- a[i,]
@@ -1454,6 +1471,23 @@ qtn_from_user <-
                 call. = F
               )
             }
+            missing_snps <- setdiff(i, genotypes$snp)
+            if (length(missing_snps) > 0) {
+              stop(
+                "The following markers in QTN_list$dom were not found in the genotypic dataset: ",
+                paste(missing_snps, collapse = ", "),
+                ". Please verify the marker names.",
+                call. = F
+              )
+            }
+            if (anyDuplicated(genotypes$snp[selected_snps]) > 0) {
+              stop(
+                "The genotypic dataset contains duplicated marker names among the markers listed in QTN_list$dom: ",
+                paste(unique(genotypes$snp[selected_snps][duplicated(genotypes$snp[selected_snps])]), collapse = ", "),
+                ". Marker names must be unique.",
+                call. = F
+              )
+            }
             a <- genotypes[selected_snps,]
             rownames(a) <- a$snp
             a <- a[i,]
@@ -1524,6 +1558,23 @@ qtn_from_user <-
                 call. = F
               )
             }
+            missing_snps <- setdiff(i, genotypes$snp)
+            if (length(missing_snps) > 0) {
+              stop(
+                "The following markers in QTN_list$epi were not found in the genotypic dataset: ",
+                paste(missing_snps, collapse = ", "),
+                ". Please verify the marker names.",
+                call. = F
+              )
+            }
+            if (anyDuplicated(genotypes$snp[selected_snps]) > 0) {
+              stop(
+                "The genotypic dataset contains duplicated marker names among the markers listed in QTN_list$epi: ",
+                paste(unique(genotypes$snp[selected_snps][duplicated(genotypes$snp[selected_snps])]), collapse = ", "),
+                ". Marker names must be unique.",
+                call. = F
+              )
+            }
             a <- genotypes[selected_snps,]
             rownames(a) <- a$snp
             a <- a[i,]
@@ -1541,7 +1592,7 @@ qtn_from_user <-
               QTN = rep(1:e_len[i], each = epi_interaction),
               type = "user_specified",
               trait = paste0("trait_", i),
-              epistatic_effect = rep(epi_effect[[i]], each = e_len[i]),
+              epistatic_effect = rep(epi_effect[[i]], each = epi_interaction),
               epi_ef_trait_obj[[1]][[i]][, 1:5],
               maf = maf,
               epi_ef_trait_obj[[1]][[i]][, -1:-5],
@@ -1588,11 +1639,28 @@ qtn_from_user <-
       }
       if (var & !same_mv_QTN) {
         var_ef_trait_obj <-
-          lapply(QTN_list$var[[1]], function(i) {
+          lapply(QTN_list$var, function(i) {
             selected_snps <- genotypes$snp %in% i
             if (sum(selected_snps) == 0) {
               stop(
                 "None of the markers provided where found in the genotypic dataset (for at least one of the traits). \nPlease verify that QTN_list$var contain markers that are present in the marker dataset.",
+                call. = F
+              )
+            }
+            missing_snps <- setdiff(i, genotypes$snp)
+            if (length(missing_snps) > 0) {
+              stop(
+                "The following markers in QTN_list$var were not found in the genotypic dataset: ",
+                paste(missing_snps, collapse = ", "),
+                ". Please verify the marker names.",
+                call. = F
+              )
+            }
+            if (anyDuplicated(genotypes$snp[selected_snps]) > 0) {
+              stop(
+                "The genotypic dataset contains duplicated marker names among the markers listed in QTN_list$var: ",
+                paste(unique(genotypes$snp[selected_snps][duplicated(genotypes$snp[selected_snps])]), collapse = ", "),
+                ". Marker names must be unique.",
                 call. = F
               )
             }
