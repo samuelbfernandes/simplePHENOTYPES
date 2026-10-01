@@ -27,6 +27,12 @@ names, repeated copies of one parent are given disambiguated ids (\code{"A"},
 \code{"A_1"}, \code{"A_2"}, ...) while carrying identical genotypes. With
 \code{"allocate"}, individuals whose \code{n * contribution} is below one may receive no
 slot when \code{n} is small; use a larger \code{n} if every contributor must be kept.
+The returned object carries attribute \code{source}, a data frame with one row per
+slot, in slot (draw) order: \code{slot} (1..\code{n}, the position in the returned
+\code{Population}), \code{id} (the parent's id in \code{pop}, before the copies are
+disambiguated), \code{index} (its position in \code{pop}) and \code{name} (the unique id the
+slot has in the returned \code{Population}). It is the same for both methods and is
+dropped by operations that rebuild the \code{Population} (\code{c()}, subsetting).
 }
 \description{
 Turns continuous \code{\link[=optimum_contribution]{optimum_contribution()}} contributions into a concrete set of

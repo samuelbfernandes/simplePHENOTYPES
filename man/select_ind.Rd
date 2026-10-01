@@ -21,7 +21,8 @@ select_ind(
   family_relationship = 0.25,
   rep = 1L,
   culling = NULL,
-  sequential = FALSE
+  sequential = FALSE,
+  n_per_family = NULL
 )
 }
 \arguments{
@@ -80,13 +81,32 @@ Details.}
 \item{sequential}{for \code{method = "culling"}: \code{FALSE} (default) culls every trait
 on the whole population at once; \code{TRUE} culls the traits in order, each among
 the survivors of the previous ones.}
+
+\item{n_per_family}{for \code{method = "within_family"} only: the number of
+individuals to keep \strong{in each family}, in place of the proportional
+allocation of a total \code{n}. One whole number >= 1 keeps that many from every
+family; a numeric vector keeps a family-specific number (whole numbers >= 0),
+either \strong{named by family label} (every family must be named, none twice or
+unknown) or unnamed with one value per family in the order of the sorted
+family labels (\code{sort(unique(as.character(family)))}, the order of
+\code{split()}). \code{n_per_family} replaces \code{n}, \code{prop} and \code{intensity}: giving
+either with it is an error, as is using it with another method. A family
+with fewer individuals than requested is an error naming the family (the
+count is never capped silently). Within each family the top-scoring
+individuals on the criterion are kept; the selection differential S and the
+intensity \code{i = S / sd(criterion)} are the same quantities as for the other
+methods (the mean of the kept scores minus the mean of all candidates, over
+the sample SD of all candidates). The default \code{NULL} keeps the proportional
+allocation. The scheme wrappers \code{\link[=pedigree]{pedigree()}} and \code{\link[=recurrent_selection]{recurrent_selection()}} use
+mass selection only and do not forward it.}
 }
 \value{
 the selected individuals as a \code{Population} (when \code{sim} is
 Population-backed) or their ids, carrying attributes \code{selected} (ids),
 \code{differential} (selection differential S on the criterion), \code{intensity}
 (realized standardized i = S / sample SD of the criterion), \code{criterion} and
-\code{method}. A criterion whose scores, differential or SD overflow to a
+\code{method} (plus \code{n_per_family}, the realized named count per family, when that
+argument was used). A criterion whose scores, differential or SD overflow to a
 non-finite value is an error.
 }
 \description{
@@ -230,7 +250,9 @@ methods need a \code{family} grouping with no missing labels (\code{NA} is an er
 returns \emph{at least} \code{n} -- often more -- and \code{intensity} describes that whole
 set; \code{"within_family"} allocates exactly \code{n} across families in proportion to
 family size by largest remainder (remainder ties follow the character sort order
-of the family labels). The count from \code{prop} is \code{round(prop * N)} (R's
+of the family labels), or, with \code{n_per_family}, keeps a stated number from every
+family (see that argument; this is the form for unequal families). The count
+from \code{prop} is \code{round(prop * N)} (R's
 half-to-even rounding) with a minimum of 1. The reported \code{intensity} is
 \code{S / sd(criterion)} with the sample (n - 1) standard deviation.
 }

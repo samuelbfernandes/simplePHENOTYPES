@@ -201,7 +201,9 @@ bulk <- function(x, generations = 5L, n = NULL, seed = NULL) {
 #'   of traits, one per generation (recycled): **tandem selection**, improving one
 #'   trait at a time; the history then records the trait selected on. Every
 #'   requested trait must exist in the phenotype callback's simulation.
-#'   `direction` is one `"high"` or `"low"` (a vector is an error).
+#'   `direction` is one `"high"` or `"low"` (a vector is an error). This scheme
+#'   selects on the criterion alone (mass selection), so the family methods and
+#'   `n_per_family` of [select_ind()] are not forwarded.
 #' @return a `Population`, carrying attribute `history`: a data frame with one
 #'   row per generation and columns `generation`, `n_selected`, `differential`
 #'   (the selection differential S) and `intensity` (the standardized selection

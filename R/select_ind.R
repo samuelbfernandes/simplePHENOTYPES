@@ -142,7 +142,9 @@
 #' returns *at least* `n` -- often more -- and `intensity` describes that whole
 #' set; `"within_family"` allocates exactly `n` across families in proportion to
 #' family size by largest remainder (remainder ties follow the character sort order
-#' of the family labels). The count from `prop` is `round(prop * N)` (R's
+#' of the family labels), or, with `n_per_family`, keeps a stated number from every
+#' family (see that argument; this is the form for unequal families). The count
+#' from `prop` is `round(prop * N)` (R's
 #' half-to-even rounding) with a minimum of 1. The reported `intensity` is
 #' `S / sd(criterion)` with the sample (n - 1) standard deviation.
 #'
@@ -186,11 +188,29 @@
 #' @param sequential for `method = "culling"`: `FALSE` (default) culls every trait
 #'   on the whole population at once; `TRUE` culls the traits in order, each among
 #'   the survivors of the previous ones.
+#' @param n_per_family for `method = "within_family"` only: the number of
+#'   individuals to keep **in each family**, in place of the proportional
+#'   allocation of a total `n`. One whole number >= 1 keeps that many from every
+#'   family; a numeric vector keeps a family-specific number (whole numbers >= 0),
+#'   either **named by family label** (every family must be named, none twice or
+#'   unknown) or unnamed with one value per family in the order of the sorted
+#'   family labels (`sort(unique(as.character(family)))`, the order of
+#'   `split()`). `n_per_family` replaces `n`, `prop` and `intensity`: giving
+#'   either with it is an error, as is using it with another method. A family
+#'   with fewer individuals than requested is an error naming the family (the
+#'   count is never capped silently). Within each family the top-scoring
+#'   individuals on the criterion are kept; the selection differential S and the
+#'   intensity `i = S / sd(criterion)` are the same quantities as for the other
+#'   methods (the mean of the kept scores minus the mean of all candidates, over
+#'   the sample SD of all candidates). The default `NULL` keeps the proportional
+#'   allocation. The scheme wrappers [pedigree()] and [recurrent_selection()] use
+#'   mass selection only and do not forward it.
 #' @return the selected individuals as a `Population` (when `sim` is
 #'   Population-backed) or their ids, carrying attributes `selected` (ids),
 #'   `differential` (selection differential S on the criterion), `intensity`
 #'   (realized standardized i = S / sample SD of the criterion), `criterion` and
-#'   `method`. A criterion whose scores, differential or SD overflow to a
+#'   `method` (plus `n_per_family`, the realized named count per family, when that
+#'   argument was used). A criterion whose scores, differential or SD overflow to a
 #'   non-finite value is an error.
 #' @references
 #' Truncation response and selection intensity: Falconer DS, Mackay TFC (1996)
@@ -244,7 +264,7 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
                                   "random", "culling"),
                        family = NULL, weights = NULL, quad_weights = NULL,
                        h2 = NULL, family_relationship = 0.25, rep = 1L,
-                       culling = NULL, sequential = FALSE) {
+                       culling = NULL, sequential = FALSE, n_per_family = NULL) {
   .check_sim(sim)
   # Selecting on a phenotype whose requested h2 was never fully allocated would
   # silently select at the wrong heritability; enforce the same completeness
@@ -259,6 +279,16 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
   # yields an all-NA criterion and silently "selects" arbitrary individuals.
   rep <- .validate_rep(sim, rep)
   method <- match.arg(method)
+  if (!is.null(n_per_family)) {
+    if (method != "within_family") {
+      stop("`n_per_family` applies to method = \"within_family\" only.",
+           call. = FALSE)
+    }
+    if (!is.null(n) || !is.null(prop) || !is.null(intensity)) {
+      stop("`n_per_family` replaces `n`, `prop` and `intensity`; give only ",
+           "`n_per_family`.", call. = FALSE)
+    }
+  }
   if (method == "culling") {
     return(.select_culling(sim, n, prop, intensity, on, trait,
                            if (missing(direction)) "high" else direction,
@@ -280,7 +310,9 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
   ids <- sim$ids
   n_ind <- sim$n_ind
 
-  keep_n <- .resolve_keep(n, prop, intensity, n_ind)
+  keep_n <- if (is.null(n_per_family)) {
+    .resolve_keep(n, prop, intensity, n_ind)
+  } else NA_integer_                      # fixed by the per-family counts below
 
   fam <- if (method %in% c("within_family", "among_family", "combined")) {
     if (is.null(family) || length(family) != n_ind) {
@@ -296,6 +328,7 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
     }
     as.character(family)
   } else NULL
+  fam_alloc <- if (!is.null(n_per_family)) .resolve_n_per_family(n_per_family, fam)
 
   # The multi-trait index methods score on all traits' breeding values, so a
   # single per-individual `on` cannot feed them; warn rather than silently
@@ -347,7 +380,7 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
   if (direction == "low") score <- -score
 
   sel_idx <- switch(method,
-    within_family = .sel_within_family(score, fam, keep_n),
+    within_family = .sel_within_family(score, fam, keep_n, alloc = fam_alloc),
     among_family  = .sel_among_family(score, fam, keep_n),
     .sel_top(score, keep_n))               # mass, combined, index, random
 
@@ -385,7 +418,68 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
   attr(out, "criterion") <- if (is.function(on)) "custom" else
     if (is.numeric(on)) "custom" else on
   attr(out, "method") <- method
+  if (!is.null(fam_alloc)) attr(out, "n_per_family") <- fam_alloc
   out
+}
+
+#' Resolve `n_per_family` to one kept count per family
+#'
+#' Returns a named integer vector in the order `split()` uses for `fam` (sorted
+#' family labels). Errors on a malformed value, on names that do not match the
+#' family labels, and on a family smaller than its requested count.
+#' @keywords internal
+#' @noRd
+.resolve_n_per_family <- function(n_per_family, fam) {
+  groups <- split(seq_along(fam), fam)
+  lv <- names(groups)
+  sizes <- lengths(groups)
+  v <- n_per_family
+  if (!is.numeric(v) || !length(v) || anyNA(v) || any(!is.finite(v)) ||
+      any(v != floor(v)) || any(v < 0)) {
+    stop("`n_per_family` must be a whole number >= 0 (or a vector of them), ",
+         "with no NA.", call. = FALSE)
+  }
+  nm <- names(v)
+  if (length(v) == 1L && is.null(nm)) {
+    v <- stats::setNames(rep(as.numeric(v), length(lv)), lv)
+  } else if (!is.null(nm)) {
+    if (anyNA(nm) || any(!nzchar(nm)) || anyDuplicated(nm)) {
+      stop("`n_per_family` names must be non-empty and unique family labels.",
+           call. = FALSE)
+    }
+    unknown <- setdiff(nm, lv)
+    missing_f <- setdiff(lv, nm)
+    if (length(unknown) || length(missing_f)) {
+      stop("`n_per_family` names must match the family labels exactly",
+           if (length(unknown)) paste0("; unknown: ", paste(unknown, collapse = ", ")),
+           if (length(missing_f)) paste0("; missing: ",
+                                         paste(missing_f, collapse = ", ")),
+           ".", call. = FALSE)
+    }
+    v <- v[lv]
+  } else {
+    if (length(v) != length(lv)) {
+      stop("An unnamed `n_per_family` needs one value (same count everywhere) ",
+           "or one value per family (", length(lv), ", in sorted family-label ",
+           "order); got ", length(v), ". Name the vector by family label to ",
+           "avoid depending on the order.", call. = FALSE)
+    }
+    names(v) <- lv
+  }
+  v <- v[lv]
+  if (sum(v) < 1) {
+    stop("`n_per_family` keeps no individual at all; ask for at least one.",
+         call. = FALSE)
+  }
+  short <- which(v > sizes)
+  if (length(short)) {
+    stop("`n_per_family` asks for more individuals than the family holds in: ",
+         paste0(lv[short], " (wants ", v[short], ", has ", sizes[short], ")",
+                collapse = "; "),
+         ". Lower the count for these families; it is not capped silently.",
+         call. = FALSE)
+  }
+  stats::setNames(as.integer(v), lv)
 }
 
 #' Resolve n / prop / intensity to a count to keep
@@ -723,10 +817,23 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
 #' Within-family truncation: keep the top fraction inside each family
 #' @keywords internal
 #' @noRd
-.sel_within_family <- function(score, fam, keep_n) {
+.sel_within_family <- function(score, fam, keep_n, alloc = NULL) {
   groups <- split(seq_along(score), fam)
   sizes  <- lengths(groups)
   ntot   <- length(score)
+  if (!is.null(alloc)) {
+    # explicit per-family counts (n_per_family), already validated against the
+    # family sizes and given in split() order
+    out <- integer(0)
+    for (g in seq_along(groups)) {
+      k <- alloc[[g]]
+      if (k > 0L) {
+        ix <- groups[[g]]
+        out <- c(out, ix[order(score[ix], decreasing = TRUE)[seq_len(k)]])
+      }
+    }
+    return(out)
+  }
   # Allocate exactly keep_n across families in proportion to family size
   # (largest-remainder), capped at each family's membership. The old code kept
   # max(1, round(frac * size)) per family, which forces >= 1 from every family
