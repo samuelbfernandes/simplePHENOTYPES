@@ -389,24 +389,32 @@ Source: BD `docs/BREEDING_METHODS_CATALOG.md` ("Engine:" notes).
 
 ## Block 3C — Post-audit follow-ups (independent dual-model audit, 2026-09/10)
 
-Status 2026-10-01: audit and review rounds 1-4 are on master (NEWS "Audit fixes",
-DECISION-033 to 037). The SPEC-0020 engine requests (items 1, 2, 3, 5, 6, 7, 8 above, the
-interference propagation, and their review fixes) are in **PR #13**
-(`feat/spec0020-engine-requests`, DECISION-038 to 041): full test suite green (63 files, 5761
-expectations), local `R CMD check` 0 errors / 0 warnings, Codex re-reviews fixed.
+Status 2026-10-01: audit and review rounds 1-4 and the SPEC-0020 engine requests (items 1, 2,
+3, 5, 6, 7, 8 above, the interference propagation and their review fixes; DECISION-033 to 041)
+are all on `master` (PR #13 merged, CI green including vignettes and the installed-package
+tests). Local suite: 63 files, 5761 expectations, 0 failures; local `R CMD check` 0 errors /
+0 warnings.
 
 **Housekeeping (do first)**
-- [ ] Merge PR #13 once CI is green (the session's auto-fix watcher may not survive archiving;
-  re-check `gh pr checks 13`). After merging, the main checkout's uncommitted `TODO.md` edits are
-  already contained in this file (copied 2026-09-30): discard them (`git checkout TODO.md`)
-  before `git pull`.
+- [ ] Update the main checkout: it is still on the old master with an uncommitted `TODO.md`
+  that is already contained here. Run `git checkout TODO.md && git pull` there (the untracked
+  `docs/ARCHITECTURE_DIAGRAM*`, `man/figures/legacy_SP_logo.png` and `tests/testthat/_problems/`
+  are not part of any commit: commit or delete them).
+- [ ] Unmerged work of another session: worktree `.claude/worktrees/dominance-argument-effect-44d5c8`
+  (branch `mac/dominance-argument-effect-44d5c8`, based on the old master) has UNCOMMITTED edits to
+  `NEWS.md`, `R/grammar_layers.R`, `R/qc_filter_geno.R`, `docs/SPEC.md`, `man/dominance.Rd`. It will
+  conflict with the merged work (grammar and NEWS/SPEC changed): rebase on `master`, run the suite
+  and the installed-package tests, then open its own PR.
 - [ ] Items **4** (G x E trait layer) and **9** (coalescent founders) in the PRIORITY list are
   NOT implemented: waiting for the maintainer's instructions.
 - [ ] Evidence is gitignored and lives only in the audit worktree
   (`.claude/worktrees/kind-shamir-c7d1df/.tmp/`): copy `.tmp/audit-2026-09-29/` (reports,
   equation-to-code PDF) and `.tmp/codex-review*/` to a permanent folder before the worktree is
   deleted.
-- [ ] Remove the leftover agent worktree/branch `worktree-agent-abf14fefa4d4acf18`.
+- [ ] Delete merged branches and leftover worktrees: local `mac/project-audit-theory-mapping-c597aa`,
+  `mac/ultrareview-mode-benefits-2da369`, `feat/spec0020-engine-requests` (also on `origin`), the
+  agent worktree/branch `worktree-agent-abf14fefa4d4acf18` (its changes are already merged) and, after
+  the evidence is copied, the worktree `kind-shamir-c7d1df`.
 
 **Reviews still owed (the other model must review genetics changes, AGENTS.md)**
 - [ ] Codex re-review of the round-4 changes (script to write, adapt
@@ -422,9 +430,12 @@ expectations), local `R CMD check` 0 errors / 0 warnings, Codex re-reviews fixed
 - [ ] Add the interference rubric item (M4) to `docs/THEORY_REVIEW.md` after the review (no
   exact text was proposed yet); verify the cited McPeek & Speed (1995) and Housworth & Stahl
   (2003) references in `?cross` (author/year/journal only, unverified).
-- [ ] Pre-PR gate: a full `R CMD check` **with vignettes** (needs pandoc). The `v1-to-v2`
-  vignette failure escaped the test suite and local no-vignette checks; consider a test that
-  evaluates every vignette's code.
+- [ ] Pre-PR gate: CI found two failures the local suite could not (2026-10-01): the `v1-to-v2`
+  vignette (a seed that picked homozygous loci) and 8 tests that assume a source checkout or
+  undeclared packages. Before opening a PR run (a) a full `R CMD check` **with vignettes**
+  (needs pandoc), and (b) the tests against an INSTALLED copy (tests must skip when `R/`,
+  `docs/`, `benchmarks/` are absent: use `skip_if_no_source()`; declare or avoid optional
+  packages); consider a test that evaluates every vignette's code.
 
 **Open follow-ups from the new features**
 - [ ] `.stable_key()` in `R/cross_pedigree.R` could be vectorised (~2 ms of ~23 ms per call).
