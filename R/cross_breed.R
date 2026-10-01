@@ -227,6 +227,8 @@ heterosis <- function(pop, breeds, qtn, a, d = 0) {
 #' @param sire_breed for `"terminal"`: the name of the terminal sire breed
 #'   (default the last breed).
 #' @param seed optional RNG seed; the caller's RNG state is restored on exit.
+#' @param interference `NULL` (default, Poisson crossovers) or `list(nu = , p = )`,
+#'   the crossover interference model of [cross()], applied to every generation.
 #' @return The final generation as a `Population`, with attribute `history`: a
 #'   data frame with one row per generation (`generation`, `sire_breed` and the
 #'   mean expected breed fraction per breed).
@@ -243,8 +245,9 @@ heterosis <- function(pop, breeds, qtn, a, d = 0) {
 crossbreed <- function(breeds, system = c("two_way", "backcross", "three_way",
                                           "terminal", "rotational"),
                        n_progeny, generations = 1L, sire_breed = NULL,
-                       seed = NULL) {
+                       seed = NULL, interference = NULL) {
   system <- match.arg(system)
+  interference <- .check_interference(interference, "crossbreed")
   .check_breeds(breeds)
   n_progeny <- .validate_count(n_progeny, "n_progeny", minimum = 1L)
   nb <- length(breeds); bn <- names(breeds)
@@ -274,7 +277,8 @@ crossbreed <- function(breeds, system = c("two_way", "backcross", "three_way",
                           n_crosses = n_progeny)
     plan$mother_pool <- "dams"; plan$father_pool <- "sires"
     out <- mate(plan, dams = dams, sires = sire_pop,
-                prefix = paste0(system, "_g", gen))
+                prefix = paste0(system, "_g", gen),
+                interference = interference)
     record(gen, out, sire_name)
     out
   }

@@ -26,6 +26,23 @@
 #' The populations must share one marker map and the allele coded `+1` (see
 #' [cross()] on allele orientation).
 #'
+#' All rows are executed in one pass through the Rust core: the meioses of the
+#' rows are drawn one row after the other (so the random stream, and every
+#' progeny, pedigree key and id, are exactly those of calling [cross()],
+#' [selfcross()] or [double_haploid()] row by row), and the progeny of every row
+#' are assembled in a single integer-in, integer-out call. This is the way to
+#' produce many families at once: a plan with `design = "dh"` and one row per
+#' parent gives the doubled haploids of all parents in one call. The per-call
+#' overhead of serialising the parents and pooling the results is paid once, not
+#' once per row, and the random draws -- which must follow R's stream -- are the
+#' main cost that remains (on a 14,000-marker, 20-chromosome map, 100 families of
+#' 100 doubled haploids take about 2 s, against about 14 s before the batched
+#' path).
+#'
+#' With the `interference` option each row's meioses follow the two-pathway
+#' gamma model of crossover interference (see the section "Crossover
+#' interference" of [cross()]); the same option applies to every row.
+#'
 #' @param plan a data frame with columns `mother`, `father` (individual ids) and
 #'   `n` (progeny per row, a positive whole number), as produced by
 #'   [mating_design()]. With several pools, add `mother_pool` and `father_pool`
@@ -39,6 +56,9 @@
 #' @param prefix progeny id prefix; progeny are named `<prefix>_1`, `<prefix>_2`,
 #'   ... in plan order. Default: the pool name(s) involved, joined by `x`
 #'   (e.g. `"A"` or `"AxB"`), or `"prog"` for a single unnamed population.
+#' @param interference `NULL` (default: Poisson crossovers, the isqg stream) or
+#'   `list(nu = , p = )`, the two-pathway gamma model of crossover interference
+#'   applied to every row; see [cross()].
 #' @return A `Population` of all progeny, in plan order, with attribute `plan`
 #'   (the plan with the progeny ids of each row in a list column `progeny`).
 #' @seealso [mating_design()], [cross()], [parentage()], [families()]
@@ -49,7 +69,7 @@
 #' plan <- mating_design(pop, design = "half_diallel", progeny_per_cross = 2)
 #' prog <- mate(plan, pop, seed = 1)
 #' table(families(prog, "full_sib"))
-mate <- function(plan, ..., seed = NULL, prefix = NULL) {
+mate <- function(plan, ..., seed = NULL, prefix = NULL, interference = NULL) {
   pools <- list(...)
   if (!length(pools) || !all(vapply(pools, inherits, logical(1), "Population"))) {
     stop("mate(): give the parent Population(s) in `...`.", call. = FALSE)
@@ -94,6 +114,13 @@ mate <- function(plan, ..., seed = NULL, prefix = NULL) {
     stop("mate(): `prefix` must be a single string.", call. = FALSE)
   }
 
+  interference <- .check_interference(interference, "mate")
+  # One parent object per (pool, individual): a mother or father that recurs in
+  # the plan is selected, and its pedigree traced, once.
+  n_rows <- nrow(plan)
+  cache <- new.env(parent = emptyenv())
+  parents <- list()
+  parent_pool <- character()
   pick <- function(pool, id) {
     p <- pools[[pool]]
     j <- match(id, p$ids)
@@ -103,22 +130,27 @@ mate <- function(plan, ..., seed = NULL, prefix = NULL) {
            "(plan row ", which(plan$mother == id | plan$father == id)[1], ").",
            call. = FALSE)
     }
-    p[j]
+    key <- paste0(pool, "\r", j)
+    u <- cache[[key]]
+    if (is.null(u)) {
+      u <- length(parents) + 1L
+      parents[[u]] <<- .ensure_pedigree(p[j])
+      parent_pool[u] <<- pool
+      cache[[key]] <- u
+    }
+    u
   }
-  if (!is.null(seed)) {
-    # restore the caller's RNG state on exit
-    old_seed <- .Random.seed_safe()
-    on.exit(.restore_seed(old_seed), add = TRUE)
-    set.seed(seed)
-  }
-  kids <- vector("list", nrow(plan))
-  resolved <- character(nrow(plan))
-  for (k in seq_len(nrow(plan))) {
-    mo <- pick(plan$mother_pool[k], plan$mother[k])
-    fa <- pick(plan$father_pool[k], plan$father[k])
+  # Resolve every row first (no random number is drawn here), so a malformed
+  # plan fails before any meiosis is simulated.
+  u1 <- integer(n_rows)
+  u2 <- integer(n_rows)
+  resolved <- character(n_rows)
+  for (k in seq_len(n_rows)) {
+    u1[k] <- pick(plan$mother_pool[k], plan$mother[k])
+    u2[k] <- pick(plan$father_pool[k], plan$father[k])
     # self vs cross by pedigree identity, not display id: the same individual
     # under two ids (e.g. after c(pop, pop)) is a self
-    same <- identical(.ensure_pedigree(mo)$keys, .ensure_pedigree(fa)$keys)
+    same <- identical(parents[[u1[k]]]$keys, parents[[u2[k]]]$keys)
     if (is.null(plan$design) || is.na(plan$design[k])) {
       design_k <- if (same) "self" else "cross"
     } else {
@@ -133,20 +165,83 @@ mate <- function(plan, ..., seed = NULL, prefix = NULL) {
       }
     }
     resolved[k] <- design_k
-    kids[[k]] <- switch(design_k,
-      cross = cross(mo, fa, n = plan$n[k]),
-      self  = selfcross(mo, n = plan$n[k]),
-      dh    = double_haploid(mo, n = plan$n[k])
-    )
   }
-  out <- do.call(c, kids)
-  ids <- paste0(prefix, "_", seq_len(n_individuals(out)))
-  out <- .relabel(out, ids)
-  out$origin <- paste0("mate(", nrow(plan), " row", if (nrow(plan) > 1L) "s", ")")
-  plan$design <- resolved
+  # what pooling the rows with c() used to check, and what each cross checked:
+  # one marker map, one allele orientation, for the pools actually mated
+  # (parents of one pool share its map, so each pool, and each pair of pools,
+  # is compared once)
+  ref_map <- parents[[u1[1L]]]$map
+  for (pl in unique(parent_pool[u1])) {
+    if (pl == parent_pool[u1[1L]]) next
+    pm <-parents[[match(pl, parent_pool)]]$map
+    if (!.same_map(pm, ref_map)) {
+      stop("c.Population(): populations have different marker maps (snp, chr, ",
+           "pos or cm differ); only populations sharing an identical map can ",
+           "be pooled.", call. = FALSE)
+    }
+    .check_orientation(ref_map, pm)
+  }
+  pair_pools <- unique(data.frame(m = parent_pool[u1], f = parent_pool[u2],
+                                  stringsAsFactors = FALSE))
+  for (r in seq_len(nrow(pair_pools))) {
+    if (pair_pools$m[r] == pair_pools$f[r]) next
+    pm <- parents[[match(pair_pools$m[r], parent_pool)]]$map
+    pf <- parents[[match(pair_pools$f[r], parent_pool)]]$map
+    if (!.same_map(pm, pf)) {
+      stop("The two parents carry different marker maps; they must come from ",
+           "the same Population.", call. = FALSE)
+    }
+    .check_orientation(pm, pf)
+  }
+  .cite_isqg()
+  if (!is.null(seed)) {
+    # restore the caller's RNG state on exit
+    old_seed <- .Random.seed_safe()
+    on.exit(.restore_seed(old_seed), add = TRUE)
+    set.seed(seed)
+  }
+
+  # All rows in one pass (SPEC-0020 item 2): the meioses are drawn row by row, in
+  # plan order, exactly as the same calls to cross() / selfcross() /
+  # double_haploid() would draw them, and the Rust core assembles every progeny
+  # in a single call.
+  internal <- unname(c(cross = "cross", self = "selfcross", dh = "dh")[resolved])
+  strands <- matrix(0L, nrow(ref_map), 2L * length(parents))
+  for (u in seq_along(parents)) {
+    strands[, 2L * u - 1L] <- parents[[u]]$cis[, 1L]
+    strands[, 2L * u]      <- parents[[u]]$trans[, 1L]
+  }
+  crossed <- resolved == "cross"
+  idx <- cbind(2L * u1 - 1L, 2L * u1,
+               ifelse(crossed, 2L * u2 - 1L, 2L * u1 - 1L),
+               ifelse(crossed, 2L * u2, 2L * u1))
+  res <- .mate_many(ref_map, strands, idx, plan$n, internal, interference)
+
+  n_total <- sum(plan$n)
+  ids <- paste0(prefix, "_", seq_len(n_total))
   ends <- cumsum(plan$n)
-  plan$progeny <- lapply(seq_len(nrow(plan)), function(k) {
-    ids[seq.int(ends[k] - plan$n[k] + 1L, ends[k])]
+  starts <- ends - plan$n + 1L
+  keys <- character(n_total)
+  peds <- vector("list", n_rows)
+  for (k in seq_len(n_rows)) {
+    cols <- seq.int(starts[k], ends[k])
+    mp <- .mating_pedigree(parents[[u1[k]]], parents[[u2[k]]], internal[[k]],
+                           list(rng_state = res$rng_state[[k]],
+                                rng_after = res$rng_after[[k]],
+                                draws = res$draws[[k]]), ids[cols])
+    keys[cols] <- mp$keys
+    peds[[k]] <- mp$pedigree
+  }
+  cis <- res$cis
+  trans <- res$trans
+  dimnames(cis) <- dimnames(trans) <- list(ref_map$snp, ids)
+  ped <- .pedigree_relabel(do.call(.pedigree_union, peds), keys, ids)
+  out <- .new_population(ref_map, cis, trans, ids,
+                         paste0("mate(", n_rows, " row", if (n_rows > 1L) "s", ")"),
+                         keys = keys, pedigree = ped)
+  plan$design <- resolved
+  plan$progeny <- lapply(seq_len(n_rows), function(k) {
+    ids[seq.int(starts[k], ends[k])]
   })
   if (identical(nm, ".single")) {
     plan$mother_pool <- NULL

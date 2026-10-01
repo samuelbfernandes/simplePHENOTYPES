@@ -4,7 +4,7 @@
 \alias{selfcross}
 \title{Self-pollinate an individual}
 \usage{
-selfcross(parent, n = 1, seed = NULL)
+selfcross(parent, n = 1, seed = NULL, interference = NULL)
 }
 \arguments{
 \item{parent}{a single-individual \code{Population}.}
@@ -15,6 +15,13 @@ selfcross(parent, n = 1, seed = NULL)
 before the call works equally well. With a \code{seed} the caller's RNG state is
 restored on exit (a seeded call does not disturb the ambient stream); with
 \code{seed = NULL} the draws consume the ambient stream.}
+
+\item{interference}{\code{NULL} (default: Poisson crossovers, no interference, the
+isqg random stream) or \code{list(nu = , p = )} for the two-pathway gamma model
+of crossover interference (see the section "Crossover interference").
+\code{nu >= 1} is the interference strength (1 = none), \code{p} in \verb{[0, 1]} (default
+0 when omitted) the share of chiasmata that do not interfere. The expected
+number of crossovers per Morgan is unchanged.}
 }
 \value{
 A \code{Population} of \code{n} progeny.
