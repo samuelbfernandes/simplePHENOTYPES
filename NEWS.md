@@ -69,8 +69,12 @@ G x E traits (item 4) and native coalescent founders (item 9) are not implemente
   alleles; a `counted` column of the wrong type (including all-`NA` numeric or logical) is
   rejected. Default output file names of `as_numeric()` for inline objects or unusual
   symbols are sanitized, capped at 100 characters, and carry an 8-character hash of the
-  original label whenever sanitization changed it, so different labels no longer overwrite
-  each other (ordinary names such as `hmp_numeric.txt` are unchanged). The interference
+  original label whenever sanitization changed it (ordinary names such as
+  `hmp_numeric.txt` are unchanged). A default name can still coincide for different inputs
+  (same-stem files, same-shape inline objects, labels that differ only in case on a
+  case-insensitive filesystem), so when a default-named output file already exists it is
+  still overwritten but a warning names it; pass `file_name` to choose another name. A
+  `counted` value with a dimension (a character matrix) is rejected. The interference
   option rejects `nu > 1e6` and the renewal draw cannot loop forever. The `reps`
   documentation states that the phenotype residual value is divided by `sqrt(reps)`
   (its variance by `reps`).
