@@ -14,6 +14,13 @@
 //! Everything here is the deterministic remainder: the XOR chain that turns
 //! chiasmata into an ancestry mask, and the assembly of gametes into progeny.
 //!
+//! The kernel does not care how the chiasmata were distributed: with the
+//! default Poisson draws above, or with the optional two-pathway gamma
+//! interference model (R's `.draw_meiosis_interference()`, SPEC-0020 item 3), R
+//! hands it sorted positions in `[0, L]` and the same `counts`/`flips`
+//! contract. `mate_many_core()` is the batched, integer-in/integer-out entry
+//! point (SPEC-0020 item 2): many matings, one shared event stream, no strings.
+//!
 //! # Error handling
 //!
 //! **Nothing in this module panics on bad input.** On the toolchains where the
@@ -388,6 +395,140 @@ pub fn mate_core(
     Ok(out)
 }
 
+/// One mating of a batch (see [`mate_many`]): which parental strands it uses,
+/// its design and its number of progeny.
+#[derive(Clone, Copy, Debug)]
+pub struct Mating {
+    pub p1_cis: usize,
+    pub p1_trans: usize,
+    pub p2_cis: usize,
+    pub p2_trans: usize,
+    pub design: Design,
+    pub n_prog: usize,
+}
+
+/// Produce the progeny of a whole batch of matings in one call.
+///
+/// The batched, integer-I/O form of [`mate_haplotypes`]: every mating draws
+/// its meiosis events from one shared [`EventStream`], consecutively and in
+/// plan order (a mating of design `d` with `n` progeny consumes
+/// `n * d.events_per_progeny()` events, progeny-major, parent-minor, exactly as
+/// [`mate_haplotypes`]), so a batch is the same computation as running its
+/// matings one after the other with their draws concatenated.
+///
+/// `strands` holds `n_strands` parental strands of `layout.n_loci()` 0/1
+/// entries each, strand after strand, in the CALLER's marker order; `order[j]`
+/// is the caller's index of the locus with ascending map rank `j`, so the
+/// output is in the caller's order too and no permutation is needed on the R
+/// side. Returns `(cis, trans)`, each `n_loci * total_progeny` integers, one
+/// progeny per column (progeny of the matings concatenated in order).
+pub fn mate_many(
+    layout: &GenomeLayout,
+    order: &[usize],
+    strands: &[i32],
+    n_strands: usize,
+    matings: &[Mating],
+    events: &EventStream,
+) -> Result<(Vec<i32>, Vec<i32>), String> {
+    let n = layout.n_loci();
+    if order.len() != n {
+        return Err(format!(
+            "order has {} entries but the layout has {} loci",
+            order.len(),
+            n
+        ));
+    }
+    let mut seen = vec![false; n];
+    for &o in order {
+        if o >= n || seen[o] {
+            return Err("order must be a permutation of the loci".to_string());
+        }
+        seen[o] = true;
+    }
+    if n_strands.checked_mul(n) != Some(strands.len()) {
+        return Err(format!(
+            "strands has {} entries but {} strands of {} loci need {}",
+            strands.len(),
+            n_strands,
+            n,
+            n_strands.saturating_mul(n)
+        ));
+    }
+    if let Some(k) = strands.iter().position(|&v| v != 0 && v != 1) {
+        return Err(format!(
+            "parental strands must hold only 0 and 1 (strand {} locus {} does not)",
+            k / n.max(1) + 1,
+            k % n.max(1) + 1
+        ));
+    }
+    let mut needed = 0usize;
+    let mut total = 0usize;
+    for (k, m) in matings.iter().enumerate() {
+        for &s in &[m.p1_cis, m.p1_trans, m.p2_cis, m.p2_trans] {
+            if s >= n_strands {
+                return Err(format!(
+                    "mating {} refers to strand {} but only {} strands were supplied",
+                    k + 1,
+                    s + 1,
+                    n_strands
+                ));
+            }
+        }
+        needed = m
+            .n_prog
+            .checked_mul(m.design.events_per_progeny())
+            .and_then(|e| needed.checked_add(e))
+            .ok_or_else(|| "n_prog is too large".to_string())?;
+        total = total
+            .checked_add(m.n_prog)
+            .ok_or_else(|| "n_prog is too large".to_string())?;
+    }
+    if events.n_events() != needed {
+        return Err(format!(
+            "the matings need {} meiosis events but {} were supplied",
+            needed,
+            events.n_events()
+        ));
+    }
+    let cells = n
+        .checked_mul(total)
+        .ok_or_else(|| "n_prog is too large".to_string())?;
+
+    // Gamete from a parent's strand pair under an ancestry mask, written into
+    // `out` (one progeny's strand, caller's marker order).
+    let gamete = |mask: &Bits, cis: usize, trans: usize, out: &mut [i32]| {
+        let c = &strands[cis * n..(cis + 1) * n];
+        let t = &strands[trans * n..(trans + 1) * n];
+        for (j, &o) in order.iter().enumerate() {
+            out[o] = if mask.get(j) { c[o] } else { t[o] };
+        }
+    };
+
+    let mut cis_out = vec![0i32; cells];
+    let mut trans_out = vec![0i32; cells];
+    let mut ev = 0usize;
+    let mut col = 0usize;
+    for m in matings {
+        for _ in 0..m.n_prog {
+            let range = col * n..(col + 1) * n;
+            if m.design == Design::Dh {
+                let mask = genome_mask(layout, events, ev);
+                ev += 1;
+                gamete(&mask, m.p1_cis, m.p1_trans, &mut cis_out[range.clone()]);
+                trans_out[range.clone()].copy_from_slice(&cis_out[range]);
+            } else {
+                let mask_a = genome_mask(layout, events, ev);
+                let mask_b = genome_mask(layout, events, ev + 1);
+                ev += 2;
+                gamete(&mask_a, m.p1_cis, m.p1_trans, &mut cis_out[range.clone()]);
+                gamete(&mask_b, m.p2_cis, m.p2_trans, &mut trans_out[range]);
+            }
+            col += 1;
+        }
+    }
+    Ok((cis_out, trans_out))
+}
+
 // ---------------------------------------------------------------------------
 // extendr boundary — argument marshalling and validation only.
 // ---------------------------------------------------------------------------
@@ -529,9 +670,95 @@ pub fn mate_haplotypes_core(
     Ok(out)
 }
 
+/// Progeny of a whole batch of matings in one call, integer in and out.
+///
+/// The vectorised, string-free form of `mate_haplotypes_core()` (SPEC-0020 item 2):
+/// `strands` is an integer 0/1 vector of `n_strands` parental strands of
+/// `length(positions)` loci each (strand after strand), in the caller's marker
+/// order; `order` (1-based) maps ascending map rank to the caller's index, so
+/// the progeny come back in the caller's order. `mating` holds, per mating, the
+/// 1-based strand indices `p1_cis, p1_trans, p2_cis, p2_trans` (4 consecutive
+/// entries); `design` and `n_prog` have one entry per mating. The meiosis events
+/// are shared and consumed in mating order (`n_prog * (1 for "dh", else 2)` per
+/// mating, progeny-major), so the result equals running the matings one by one
+/// with their draws concatenated. The kernel draws nothing (DECISION-012).
+///
+/// @param loci_per_chr Integer vector of loci counts, chromosomes ascending.
+/// @param positions    Map positions in Morgans, ascending map order, concatenated.
+/// @param order        1-based permutation: caller index of the locus with each map rank.
+/// @param strands      Integer 0/1 vector, `n_strands` strands of n_loci entries.
+/// @param n_strands    Number of parental strands in `strands`.
+/// @param mating       4 * n_matings 1-based strand indices (p1_cis, p1_trans, p2_cis, p2_trans).
+/// @param design       Character vector, one of "cross", "selfcross", "dh" per mating.
+/// @param n_prog       Progeny per mating.
+/// @param chiasmata    Concatenated crossover positions, each within [0, L] of its chromosome.
+/// @param counts       Crossovers per (event, chromosome).
+/// @param flips        0/1 strand-choice per (event, chromosome).
+/// @return `list(cis, trans)`: integer vectors of n_loci * sum(n_prog) 0/1 entries, one progeny per column.
+/// @noRd
+#[extendr]
+#[allow(clippy::too_many_arguments)]
+pub fn mate_many_core(
+    loci_per_chr: &[i32],
+    positions: &[f64],
+    order: &[i32],
+    strands: &[i32],
+    n_strands: i32,
+    mating: &[i32],
+    design: Vec<String>,
+    n_prog: &[i32],
+    chiasmata: &[f64],
+    counts: &[i32],
+    flips: &[i32],
+) -> std::result::Result<List, String> {
+    let layout = GenomeLayout::try_new(loci_per_chr, positions)?;
+    let events = EventStream::try_new(&layout, chiasmata, counts, flips)?;
+    let n_matings = n_prog.len();
+    if design.len() != n_matings || mating.len() != 4 * n_matings {
+        return Err(format!(
+            "{} matings need {} designs and {} strand indices, got {} and {}",
+            n_matings,
+            n_matings,
+            4 * n_matings,
+            design.len(),
+            mating.len()
+        ));
+    }
+    let to_index = |v: i32, what: &str| -> Result<usize, String> {
+        if v >= 1 {
+            Ok((v - 1) as usize)
+        } else {
+            Err(format!(
+                "{} must be a positive 1-based index, got {}",
+                what, v
+            ))
+        }
+    };
+    let order = order
+        .iter()
+        .map(|&v| to_index(v, "order"))
+        .collect::<Result<Vec<_>, _>>()?;
+    let n_strands = usize::try_from(n_strands)
+        .map_err(|_| format!("n_strands must be non-negative, got {}", n_strands))?;
+    let mut matings = Vec::with_capacity(n_matings);
+    for k in 0..n_matings {
+        matings.push(Mating {
+            p1_cis: to_index(mating[4 * k], "mating")?,
+            p1_trans: to_index(mating[4 * k + 1], "mating")?,
+            p2_cis: to_index(mating[4 * k + 2], "mating")?,
+            p2_trans: to_index(mating[4 * k + 3], "mating")?,
+            design: Design::parse(&design[k])?,
+            n_prog: progeny_count(n_prog[k])?,
+        });
+    }
+    let (cis, trans) = mate_many(&layout, &order, strands, n_strands, &matings, &events)?;
+    Ok(list!(cis = cis, trans = trans))
+}
+
 extendr_module! {
     mod meiosis;
     fn meiosis_core;
+    fn mate_many_core;
     fn mate_haplotypes_core;
     fn gamete_masks_core;
 }
@@ -915,6 +1142,142 @@ mod tests {
             &[0, 0],
             "bogus",
             1,
+        );
+        assert!(r.is_err());
+    }
+
+    // ---- mate_many: the batched integer-I/O path ---------------------------
+
+    fn bits_to_i32(b: &Bits) -> Vec<i32> {
+        (0..b.len()).map(|j| b.get(j) as i32).collect()
+    }
+
+    /// Two chromosomes, 7 loci, an UNSORTED caller order, two matings (a cross
+    /// of strands (0,1)x(2,3) with 2 progeny, then a dh of strands (4,5) with
+    /// 2 progeny): a batch must equal the matings run one at a time.
+    #[test]
+    fn mate_many_equals_sequential_mate_haplotypes() {
+        let loci = [4i32, 3];
+        let positions = [0.0, 0.2, 0.5, 0.9, 0.1, 0.4, 1.0];
+        let l = layout(&loci, &positions);
+        // the caller stores the loci in a scrambled order
+        let order = [3usize, 0, 5, 1, 6, 2, 4]; // order[rank] = caller index
+        let strand_codes = [
+            "1010110", "0110011", "1111000", "0001111", "1001001", "0110110",
+        ];
+        let n = 7;
+        // caller-order strands: caller index order[rank] holds the code char at rank
+        let mut strands = vec![0i32; 6 * n];
+        for (s, code) in strand_codes.iter().enumerate() {
+            for (rank, ch) in code.chars().enumerate() {
+                strands[s * n + order[rank]] = (ch == '1') as i32;
+            }
+        }
+        // events: mating 1 = 2 progeny x 2 events, mating 2 = 2 progeny x 1 event
+        let counts = [
+            1i32, 0, 2, 1, 0, 0, 1, 1, // mating 1, events 0..3 (2 chr each)
+            0, 2, 1, 0, // mating 2, events 0..1
+        ];
+        let chiasmata = [0.3, 0.2, 0.6, 0.5, 0.35, 0.8, 0.2, 0.7, 0.9];
+        let flips = [0i32, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0];
+        let total: i32 = counts.iter().sum();
+        assert_eq!(total as usize, chiasmata.len());
+        let ev = stream(&l, &chiasmata, &counts, &flips);
+        let matings = [
+            Mating {
+                p1_cis: 0,
+                p1_trans: 1,
+                p2_cis: 2,
+                p2_trans: 3,
+                design: Design::Cross,
+                n_prog: 2,
+            },
+            Mating {
+                p1_cis: 4,
+                p1_trans: 5,
+                p2_cis: 4,
+                p2_trans: 5,
+                design: Design::Dh,
+                n_prog: 2,
+            },
+        ];
+        let (cis, trans) = mate_many(&l, &order, &strands, 6, &matings, &ev).unwrap();
+        assert_eq!(cis.len(), n * 4);
+
+        // reference: the same events through mate_haplotypes, mating by mating
+        let ev1 = stream(&l, &chiasmata[..6], &counts[..8], &flips[..8]);
+        let p1 = Parents::parse(&l, "1010110", "0110011", "1111000", "0001111").unwrap();
+        let r1 = mate_haplotypes(&l, &p1, &ev1, Design::Cross, 2).unwrap();
+        let ev2 = stream(&l, &chiasmata[6..], &counts[8..], &flips[8..]);
+        let p2 = Parents::parse(&l, "1001001", "0110110", "1001001", "0110110").unwrap();
+        let r2 = mate_haplotypes(&l, &p2, &ev2, Design::Dh, 2).unwrap();
+        let expect: Vec<(Bits, Bits)> = r1.into_iter().chain(r2).collect();
+        for (col, (c, t)) in expect.iter().enumerate() {
+            let (c, t) = (bits_to_i32(c), bits_to_i32(t));
+            for rank in 0..n {
+                assert_eq!(cis[col * n + order[rank]], c[rank], "cis col {col}");
+                assert_eq!(trans[col * n + order[rank]], t[rank], "trans col {col}");
+            }
+        }
+    }
+
+    #[test]
+    fn mate_many_rejects_inconsistent_inputs() {
+        let l = layout(&[3], &[0.0, 0.5, 1.0]);
+        let ev = stream(&l, &[], &[0i32, 0], &[0i32, 0]);
+        let m = |design, n_prog| Mating {
+            p1_cis: 0,
+            p1_trans: 1,
+            p2_cis: 0,
+            p2_trans: 1,
+            design,
+            n_prog,
+        };
+        let strands = [1i32, 0, 1, 0, 1, 0];
+        let id = [0usize, 1, 2];
+        assert!(mate_many(&l, &id, &strands, 2, &[m(Design::Cross, 1)], &ev).is_ok());
+        // event budget
+        assert!(mate_many(&l, &id, &strands, 2, &[m(Design::Cross, 2)], &ev).is_err());
+        assert!(mate_many(&l, &id, &strands, 2, &[m(Design::Dh, 1)], &ev).is_err());
+        // order is not a permutation / wrong length
+        assert!(mate_many(&l, &[0, 0, 2], &strands, 2, &[m(Design::Cross, 1)], &ev).is_err());
+        assert!(mate_many(&l, &[0, 1], &strands, 2, &[m(Design::Cross, 1)], &ev).is_err());
+        // strand bookkeeping and alphabet
+        assert!(mate_many(&l, &id, &strands, 3, &[m(Design::Cross, 1)], &ev).is_err());
+        assert!(mate_many(&l, &id, &[1, 2, 1, 0, 1, 0], 2, &[m(Design::Cross, 1)], &ev).is_err());
+        let mut bad = m(Design::Cross, 1);
+        bad.p2_trans = 2;
+        assert!(mate_many(&l, &id, &strands, 2, &[bad], &ev).is_err());
+    }
+
+    #[test]
+    fn mate_many_core_returns_errors_not_panics() {
+        let r = mate_many_core(
+            &[3],
+            &[0.0, 0.1, 0.2],
+            &[1, 2, 3],
+            &[1, 0, 1, 0, 1, 0],
+            2,
+            &[1, 2, 1, 2],
+            vec!["bogus".to_string()],
+            &[1],
+            &[],
+            &[0, 0],
+            &[0, 0],
+        );
+        assert!(r.is_err());
+        let r = mate_many_core(
+            &[3],
+            &[0.0, 0.1, 0.2],
+            &[0, 2, 3],
+            &[1, 0, 1, 0, 1, 0],
+            2,
+            &[1, 2, 1, 2],
+            vec!["cross".to_string()],
+            &[1],
+            &[],
+            &[0, 0],
+            &[0, 0],
         );
         assert!(r.is_err());
     }

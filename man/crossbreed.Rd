@@ -10,7 +10,8 @@ crossbreed(
   n_progeny,
   generations = 1L,
   sire_breed = NULL,
-  seed = NULL
+  seed = NULL,
+  interference = NULL
 )
 }
 \arguments{
@@ -27,6 +28,9 @@ as the list).}
 (default the last breed).}
 
 \item{seed}{optional RNG seed; the caller's RNG state is restored on exit.}
+
+\item{interference}{\code{NULL} (default, Poisson crossovers) or \code{list(nu = , p = )},
+the crossover interference model of \code{\link[=cross]{cross()}}, applied to every generation.}
 }
 \value{
 The final generation as a \code{Population}, with attribute \code{history}: a

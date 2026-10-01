@@ -388,6 +388,12 @@ print.ocs <- function(x, ...) {
 #'   `"A_1"`, `"A_2"`, ...) while carrying identical genotypes. With
 #'   `"allocate"`, individuals whose `n * contribution` is below one may receive no
 #'   slot when `n` is small; use a larger `n` if every contributor must be kept.
+#'   The returned object carries attribute `source`, a data frame with one row per
+#'   slot, in slot (draw) order: `slot` (1..`n`, the position in the returned
+#'   `Population`), `id` (the parent's id in `pop`, before the copies are
+#'   disambiguated), `index` (its position in `pop`) and `name` (the unique id the
+#'   slot has in the returned `Population`). It is the same for both methods and is
+#'   dropped by operations that rebuild the `Population` (`c()`, subsetting).
 #' @seealso [optimum_contribution()], [recurrent_selection()].
 #' @export
 #' @examples
@@ -429,6 +435,7 @@ sample_parents <- function(ocs, pop, n, seed = NULL,
     # parent are not adjacent for downstream pairing; the counts are fixed.
     drawn <- drawn[sample.int(length(drawn))]
   }
+  source_id <- pop$ids[drawn]                    # before copies are renamed
   sampled <- pop[drawn]
   # Repeated slots of the same parent carry duplicate ids, which violates the
   # unique-name invariant every downstream primitive (cross/selfcross/
@@ -439,6 +446,11 @@ sample_parents <- function(ocs, pop, n, seed = NULL,
     colnames(sampled$cis) <- colnames(sampled$trans) <- uid
     sampled$ids <- uid
   }
+  # Which individual of `pop` filled each slot, in draw order (a pure record of
+  # the draw above; it consumes no RNG).
+  attr(sampled, "source") <- data.frame(
+    slot = seq_along(drawn), id = source_id, index = as.integer(drawn),
+    name = sampled$ids, stringsAsFactors = FALSE)
   sampled
 }
 

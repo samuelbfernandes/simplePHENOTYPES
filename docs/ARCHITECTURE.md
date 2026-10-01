@@ -198,6 +198,16 @@ Summary:
 | Rust: is Rust / done / RNG / frozen legacy / profile first / glue | 5 / 3 / 52 / 14 / 41 / 159 |
 | Parity: v1.3.0 / PLINK / isqg / none | 36 / 12 / 4 / 222 |
 
+Added after the audit (SPEC-0020, 2026-09-30; the counts above are not recomputed): the two exports
+`population_from_haplotypes()` and `haplotypes()` (`cross_haplotypes.R`, DECISION-039), the internal
+helpers `.check_pool()` and `.make_map()` factored out of `as_population()`, and the Rust entry point
+`mate_many_core()` (the batched integer-strand meiosis core, DECISION-040). `.mate_many()`,
+`.meiosis_layout()`, `.check_interference()` and `.draw_meiosis_interference()` (`cross_mating.R`,
+DECISION-040/041), `.geno_label()` / `.small_expr()` / `.validate_reps()` (`grammar_simulate_phenotype.R`,
+DECISION-038) and `.resolve_n_per_family()` (`select_ind.R`, DECISION-015) are internal and not listed
+individually. `mate_many_core()` is not isqg-parity-critical: the isqg draw order is pinned through
+`.draw_meiosis()` and the string cores, and the batched path is tested against the sequential one (`test-feat-crossing.R`).
+
 Notes:
 
 - The audit found one dead function, `.causal_loci()`, and removed it. The only functions
@@ -372,8 +382,12 @@ Notes:
 | `.pedigree_relabel` | cross_pedigree.R | no | indirect | cross | no — glue | — |
 | `parentage` | cross_pedigree.R | yes | direct | cross | no — glue | — |
 | `families` | cross_pedigree.R | yes | direct | cross | no — glue | — |
+| `population_from_haplotypes` | cross_haplotypes.R | yes | direct | cross | no — glue | — |
+| `haplotypes` | cross_haplotypes.R | yes | direct | cross | no — glue | — |
 | `as_population` | cross_population.R | yes | direct | cross | no — glue | — |
 | `.new_population` | cross_population.R | no | indirect | cross | no — glue | — |
+| `.check_pool` | cross_population.R | no | indirect | cross | no — glue | — |
+| `.make_map` | cross_population.R | no | indirect | cross | no — glue | — |
 | `.check_map` | cross_population.R | no | indirect | cross | no — glue | — |
 | `n_individuals` | cross_population.R | yes | direct | cross | no — glue | — |
 | `[.Population` | cross_population.R | S3 | indirect | cross | no — glue | — |
@@ -483,6 +497,7 @@ Notes:
 | `numericalize_core` | extendr-wrappers.R | no | direct | rust (generated) | is Rust | v1.3.0 |
 | `meiosis_core` | extendr-wrappers.R | no | direct | rust (generated) | is Rust | isqg |
 | `mate_haplotypes_core` | extendr-wrappers.R | no | direct | rust (generated) | is Rust | isqg |
+| `mate_many_core` | extendr-wrappers.R | no | direct | rust (generated) | is Rust | — |
 | `gamete_masks_core` | extendr-wrappers.R | no | direct | rust (generated) | is Rust | isqg |
 | `stable_hash_core` | extendr-wrappers.R | no | direct | rust (generated) | is Rust | — |
 | `.onAttach` | zzz.R | no | no | package | no — glue | — |

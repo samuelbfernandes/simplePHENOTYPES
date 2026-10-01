@@ -26,9 +26,10 @@
 #' 100 to give Morgans for meiosis). A map whose largest position is at most
 #' 5 across 20 or more markers looks like Morgans (or a proportion) and draws a
 #' warning: crossovers would be 100 times too rare. `cm` may start anywhere on a
-#' chromosome: the number of crossovers on a chromosome is Poisson with mean
-#' equal to its **last** map position in Morgans (the isqg convention, see
-#' [cross()]), which is not its span `max(cm) - min(cm)` when the first marker is
+#' chromosome: with `interference = NULL` (the default; see the
+#' `interference` option of [cross()]) the number of crossovers on a chromosome
+#' is Poisson with mean equal to its **last** map position in Morgans (the isqg
+#' convention, see [cross()]), which is not its span `max(cm) - min(cm)` when the first marker is
 #' not at 0. Chromosomes are processed, and their random draws are consumed, in
 #' a fixed **canonical order that does not depend on the storage type of `chr`
 #' or on the locale**: labels that are numbers first, in numeric order
@@ -79,17 +80,7 @@
 #' pop <- as_population(SNP55K_maize282_maf04, individuals = c("33-16", "38-11"))
 #' pop
 as_population <- function(geno, individuals = NULL, pool = NA_character_) {
-  if (length(pool) != 1L || !is.atomic(pool) ||
-      !(is.na(pool) || is.character(pool))) {
-    stop("`pool` must be a single character label (or NA).", call. = FALSE)
-  }
-  # every missing label (NA of any type, NaN) is the same "no pool"
-  if (is.na(pool)) pool <- NA_character_
-  if (!is.na(pool) && (!nzchar(pool) || pool == "<unassigned>")) {
-    stop("`pool` must be a non-empty label other than \"<unassigned>\" ",
-         "(reserved for founders without a label); use NA for none.",
-         call. = FALSE)
-  }
+  pool <- .check_pool(pool)
   meta <- c("snp", "allele", "chr", "pos", "cm")
   if (!is.data.frame(geno) || ncol(geno) < 6 ||
       any(colnames(geno)[1:5] != meta)) {
@@ -98,29 +89,15 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
          "See data(SNP55K_maize282_maf04).", call. = FALSE)
   }
 
-  map <- data.frame(
-    snp = as.character(geno$snp),
-    chr = geno$chr,
-    pos = geno$pos,
-    cm  = as.numeric(geno$cm),
-    stringsAsFactors = FALSE
-  )
-  .check_map(map)
-  .check_cm_units(map)
   # The allele column is kept (when informative) so crossing can compare the
-  # allele orientation of two populations (`.check_orientation()`). It is
-  # deliberately not part of the map identity (`.same_map()`).
-  allele <- as.character(geno$allele)
-  if (!all(is.na(allele))) map$allele <- allele
-  # The counted (+1) allele, when as_numeric() recorded it (the "counted_allele"
-  # attribute of its result), is what the orientation check compares; numeric
-  # data without it (older files, subsetted or rebuilt data frames) keeps the
-  # label-only check.
-  counted <- attr(geno, "counted_allele", exact = TRUE)
-  if (is.character(counted) && length(counted) == nrow(geno) &&
-      !all(is.na(counted))) {
-    map$counted <- toupper(counted)
-  }
+  # allele orientation of two populations (`.check_orientation()`). The counted
+  # (+1) allele, when as_numeric() recorded it (the "counted_allele" attribute of
+  # its result), is what the orientation check compares; numeric data without
+  # it (older files, subsetted or rebuilt data frames) keeps the label-only check.
+  counted <- .check_counted(attr(geno, "counted_allele", exact = TRUE),
+                            geno$allele, nrow(geno),
+                            "attr(geno, \"counted_allele\")")
+  map <- .make_map(geno$snp, geno$chr, geno$pos, geno$cm, geno$allele, counted)
 
   geno_values <- geno[, -(1:5), drop = FALSE]
   if (!all(vapply(geno_values, is.numeric, logical(1)))) {
@@ -176,6 +153,117 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
   fp <- .founder_pedigree(colnames(dose), cis, trans, pool)
   .new_population(map, cis, trans, colnames(dose), "founder",
                   keys = fp$keys, pedigree = fp$pedigree)
+}
+
+#' Validate a founder-pool label (shared by `as_population()` and
+#' `population_from_haplotypes()`); returns it with every missing label as NA.
+#' @keywords internal
+#' @noRd
+.check_pool <- function(pool) {
+  if (length(pool) != 1L || !is.atomic(pool) ||
+      !(is.na(pool) || is.character(pool))) {
+    stop("`pool` must be a single character label (or NA).", call. = FALSE)
+  }
+  # every missing label (NA of any type, NaN) is the same "no pool"
+  if (is.na(pool)) pool <- NA_character_
+  if (!is.na(pool) && (!nzchar(pool) || pool == "<unassigned>")) {
+    stop("`pool` must be a non-empty label other than \"<unassigned>\" ",
+         "(reserved for founders without a label); use NA for none.",
+         call. = FALSE)
+  }
+  pool
+}
+
+#' Build and validate the marker map of a Population
+#'
+#' The one place a `Population` map is assembled, so every constructor
+#' (`as_population()`, `population_from_haplotypes()`) validates it identically:
+#' `snp`, `chr`, `pos`, `cm` (checked by `.check_map()` and `.check_cm_units()`),
+#' plus the `allele` label (kept when informative) and the `counted` (+1) allele
+#' (kept when it names at least one allele). The allele columns are deliberately
+#' not part of the map identity (`.same_map()`).
+#' @keywords internal
+#' @noRd
+.make_map <- function(snp, chr, pos, cm, allele = NULL, counted = NULL) {
+  map <- data.frame(
+    snp = as.character(snp),
+    chr = chr,
+    pos = pos,
+    cm  = as.numeric(cm),
+    stringsAsFactors = FALSE
+  )
+  .check_map(map)
+  .check_cm_units(map)
+  if (!is.null(allele)) {
+    allele <- as.character(allele)
+    if (!all(is.na(allele))) map$allele <- allele
+  }
+  if (is.character(counted) && length(counted) == nrow(map) &&
+      !all(is.na(counted))) {
+    counted <- toupper(counted)
+    counted[!is.na(counted) & !nzchar(trimws(counted))] <- NA_character_
+    if (!all(is.na(counted))) map$counted <- counted
+  }
+  map
+}
+
+#' Validate the `counted` (+1) allele column of a map
+#'
+#' `counted` must be a character vector (or all `NA`, which means unknown) with
+#' one entry per marker. Each non-`NA` entry is a single non-empty token (no
+#' whitespace, no `/`) and, when the marker's `allele` label names two alleles
+#' (`"A/G"`), one of them (case-insensitively). `""` and numeric values are
+#' rejected: they would otherwise silently disable the orientation guard.
+#' Returns the upper-cased character vector (or `NULL` when all `NA`).
+#' @param counted the column as given.
+#' @param allele the `allele` column of the same map, or `NULL`.
+#' @param n expected length (number of markers).
+#' @param what name used in the message.
+#' @keywords internal
+#' @noRd
+.check_counted <- function(counted, allele = NULL, n = length(counted),
+                           what = "map$counted") {
+  if (is.null(counted)) return(NULL)
+  if (!is.null(dim(counted))) {
+    stop("`", what, "` must be a plain character vector with one allele ",
+         "symbol per marker, not a ", class(counted)[1L], " with dim (",
+         paste(dim(counted), collapse = " x "), ").", call. = FALSE)
+  }
+  if (length(counted) != n) {
+    stop("`", what, "` must have one entry per marker (", n, "); got ",
+         length(counted), ".", call. = FALSE)
+  }
+  # the type is checked first: an all-NA numeric/logical column is rejected
+  # too (only NULL, or a character vector with NA for unknown, is accepted)
+  if (!is.character(counted)) {
+    stop("`", what, "` must be a character vector of allele symbols (the ",
+         "allele the value +1 stands for; NA where unknown), not ",
+         class(counted)[1L], ".", call. = FALSE)
+  }
+  if (all(is.na(counted))) return(NULL)
+  ok <- !is.na(counted)
+  cc <- toupper(counted)
+  bad <- ok & (!nzchar(trimws(cc)) | grepl("[[:space:]/]", cc))
+  if (any(bad)) {
+    stop("`", what, "` entries must be a single non-empty allele symbol (or ",
+         "NA for unknown); entry ", which(bad)[1L], " is \"",
+         counted[which(bad)[1L]], "\".", call. = FALSE)
+  }
+  if (!is.null(allele) && length(allele) == n) {
+    al <- toupper(as.character(allele))
+    parts <- strsplit(al, "/", fixed = TRUE)
+    off <- vapply(seq_len(n), function(i) {
+      ok[i] && !is.na(al[i]) && length(parts[[i]]) == 2L &&
+        !cc[i] %in% parts[[i]]
+    }, logical(1))
+    if (any(off)) {
+      i <- which(off)[1L]
+      stop("`", what, "` must be one of the two alleles of the marker's ",
+           "`allele` label; entry ", i, " is \"", counted[i],
+           "\" but the label is \"", allele[i], "\".", call. = FALSE)
+    }
+  }
+  cc
 }
 
 #' Construct a Population
@@ -310,6 +398,37 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
   match(lab, u[o])
 }
 
+#' The counted alleles of a map that can vouch for orientation
+#'
+#' A counted token covers a marker only when it is a non-empty character token
+#' naming one of the marker's two alleles in its `allele` label
+#' (case-insensitive); anything else is returned as `NA` (unknown).
+#' @keywords internal
+#' @noRd
+.valid_counted <- function(counted, allele, n) {
+  out <- rep(NA_character_, n)
+  if (!is.character(counted) || length(counted) != n) return(out)
+  cc <- toupper(counted)
+  ok <- !is.na(cc) & nzchar(trimws(cc)) & !grepl("[[:space:]/]", cc)
+  if (is.character(allele) || is.factor(allele)) {
+    al <- toupper(as.character(allele))
+    if (length(al) == n) {
+      parts <- strsplit(al, "/", fixed = TRUE)
+      # a token covers a marker only when it names one of its two alleles
+      member <- vapply(seq_len(n), function(i) {
+        !is.na(al[i]) && length(parts[[i]]) == 2L && cc[i] %in% parts[[i]]
+      }, logical(1))
+      ok <- ok & member
+    } else {
+      ok[] <- FALSE
+    }
+  } else {
+    ok[] <- FALSE
+  }
+  out[ok] <- cc[ok]
+  out
+}
+
 #' The allele orientation of two populations, compared per marker
 #'
 #' Called when two populations are crossed or pooled. Two separately converted
@@ -329,8 +448,12 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
   has_counted <- !is.null(cx) && !is.null(cy) && length(cx) == length(cy)
   covered <- rep(FALSE, length(a$snp))
   if (has_counted) {
-    cx <- toupper(as.character(cx))
-    cy <- toupper(as.character(cy))
+    # A counted token only "covers" a marker when it is a non-empty character
+    # token that is one of that marker's two alleles in its `allele` label
+    # (case-insensitively); anything else is unknown and falls back to the
+    # label comparison below, so malformed metadata can never hide a mismatch.
+    cx <- .valid_counted(cx, a$allele, length(a$snp))
+    cy <- .valid_counted(cy, b$allele, length(b$snp))
     covered <- !is.na(cx) & !is.na(cy)
     opposite <- which(covered & cx != cy)
     if (length(opposite)) {

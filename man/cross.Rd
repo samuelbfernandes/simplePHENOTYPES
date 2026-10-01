@@ -4,7 +4,7 @@
 \alias{cross}
 \title{Cross two individuals}
 \usage{
-cross(mother, father, n = 1, seed = NULL)
+cross(mother, father, n = 1, seed = NULL, interference = NULL)
 }
 \arguments{
 \item{mother, father}{single-individual \code{Population}s (use \code{[} to select one).
@@ -19,6 +19,13 @@ it as one (\code{design = "self"}, see \code{\link[=parentage]{parentage()}}).}
 before the call works equally well. With a \code{seed} the caller's RNG state is
 restored on exit (a seeded call does not disturb the ambient stream); with
 \code{seed = NULL} the draws consume the ambient stream.}
+
+\item{interference}{\code{NULL} (default: Poisson crossovers, no interference, the
+isqg random stream) or \code{list(nu = , p = )} for the two-pathway gamma model
+of crossover interference (see the section "Crossover interference").
+\verb{1 <= nu <= 1e6} is the interference strength (1 = none), \code{p} in \verb{[0, 1]} (default
+0 when omitted) the share of chiasmata that do not interfere. The expected
+number of crossovers per Morgan is unchanged.}
 }
 \value{
 A \code{Population} of \code{n} progeny.
@@ -29,7 +36,8 @@ recombinant gamete from each parent, so the two parents contribute one
 homologue apiece.
 }
 \details{
-Recombination follows the count-location model: the number of crossovers on
+By default (\code{interference = NULL}) recombination follows the count-location
+model: the number of crossovers on
 a chromosome is Poisson with mean equal to its length in Morgans, and their
 positions are uniform along it. That length is the chromosome's \strong{last} map
 position (\code{cm / 100}), not its span \code{max(cm) - min(cm)}: positions are used as
@@ -56,6 +64,48 @@ Chromosomes are processed, and their random draws consumed, in a canonical
 order that does not depend on the storage type of \code{chr} or on the locale (see
 \code{\link[=as_population]{as_population()}}).
 }
+\section{Crossover interference}{
+
+By default (\code{interference = NULL}) crossovers are Poisson, i.e. there is no
+interference, and the random draws are exactly isqg's. Give
+\code{interference = list(nu = , p = )} for a two-pathway gamma model of
+interference (\code{nu} plays the role of AlphaSimR's \code{v}, whose default \code{2.6}
+approximates Kosambi's map function):
+\itemize{
+\item The four-strand bivalent carries chiasmata at an average of 2 per Morgan.
+A gamete takes part in each chiasma independently with probability 1/2
+(no chromatid interference), so it carries one crossover per Morgan on
+average: \strong{the genetic map (\code{cm}) keeps its meaning for every \code{nu} and
+\code{p}}, as under Haldane.
+\item A share \code{p} of the chiasmata (intensity \eqn{2p} per Morgan) is
+non-interfering: a Poisson process.
+\item The rest (intensity \eqn{2(1 - p)}) is interfering: a stationary renewal
+process whose gaps are gamma distributed with shape \code{nu} and rate
+\eqn{2 \nu (1 - p)} per Morgan (mean gap \eqn{1 / (2 (1 - p))} Morgans).
+\verb{1 <= nu <= 1e6} is the interference strength (larger values are rejected:
+the gamma gaps are then numerically a fixed spacing); \code{nu = 1} is
+exponential gaps, i.e. no interference. The first chiasma is drawn from the stationary
+(equilibrium) distribution, so the process does not "start" at the
+chromosome end.
+\item The two pathways are independent; the gamete's crossovers are the union.
+}
+
+The recombination fraction between two loci \eqn{d} Morgans apart is then
+\eqn{r(d) = [1 - P_0(d)] / 2}, with \eqn{P_0(d)} the probability of no
+chiasma in the interval: \eqn{P_0(d) = e^{-2pd} \{1 - F_{\nu+1}(y) -
+(y / \nu) [1 - F_\nu(y)]\}}, \eqn{y = 2 \nu (1 - p) d}, \eqn{F_a} the
+Gamma(\code{a}, 1) distribution function. With \code{nu = 1}, or \code{p = 1}, the model is
+Poisson in distribution (Haldane), although it then uses its own random
+stream, not isqg's. \code{p} is in \verb{[0, 1]}; \code{nu} must be in \verb{[1, 1e6]} (negative
+interference is not modelled). The gamma model of interference is that of
+McPeek and Speed (1995, \emph{Genetics}) and the two-pathway extension that of
+Housworth and Stahl (2003, \emph{American Journal of Human Genetics}) (author,
+year and journal only; the formulas above were derived and are checked
+numerically in this package's tests, not copied from either paper or from
+AlphaSimR). The draws are made in R; the Rust core only applies the drawn
+crossovers and is unchanged.
+}
+
 \examples{
 data("SNP55K_maize282_maf04")
 pop <- as_population(SNP55K_maize282_maf04, individuals = c("33-16", "38-11"))

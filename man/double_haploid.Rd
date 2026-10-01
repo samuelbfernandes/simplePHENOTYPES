@@ -4,7 +4,7 @@
 \alias{double_haploid}
 \title{Produce doubled haploids from an individual}
 \usage{
-double_haploid(parent, n = 1, seed = NULL)
+double_haploid(parent, n = 1, seed = NULL, interference = NULL)
 }
 \arguments{
 \item{parent}{a single-individual \code{Population}.}
@@ -15,6 +15,13 @@ double_haploid(parent, n = 1, seed = NULL)
 before the call works equally well. With a \code{seed} the caller's RNG state is
 restored on exit (a seeded call does not disturb the ambient stream); with
 \code{seed = NULL} the draws consume the ambient stream.}
+
+\item{interference}{\code{NULL} (default: Poisson crossovers, no interference, the
+isqg random stream) or \code{list(nu = , p = )} for the two-pathway gamma model
+of crossover interference (see the section "Crossover interference").
+\verb{1 <= nu <= 1e6} is the interference strength (1 = none), \code{p} in \verb{[0, 1]} (default
+0 when omitted) the share of chiasmata that do not interfere. The expected
+number of crossovers per Morgan is unchanged.}
 }
 \value{
 A \code{Population} of \code{n} fully homozygous progeny.
@@ -25,6 +32,18 @@ and then doubled, so every individual is completely homozygous at every
 marker. This is the one-generation route to a fully inbred line, and the
 result contains no heterozygotes at all.
 }
+\section{Many doubled-haploid families in one call}{
+
+\code{double_haploid()} takes one parent. To make doubled haploids from many
+parents (or many families from one) call \code{\link[=mate]{mate()}} with a plan whose rows have
+\code{design = "dh"}, e.g.
+\code{mate(data.frame(mother = ids, father = ids, n = 100, design = "dh"), pop)}:
+all rows are executed in one pass through the Rust core, with the same random
+draws, in the same order, and the same progeny and pedigree as calling
+\code{double_haploid()} on each parent in turn under one seed, at a fraction of the
+cost per call (see \code{\link[=mate]{mate()}}).
+}
+
 \examples{
 data("SNP55K_maize282_maf04")
 pop <- as_population(SNP55K_maize282_maf04, individuals = c("33-16", "38-11"))

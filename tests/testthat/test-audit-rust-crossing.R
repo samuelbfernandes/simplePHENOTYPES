@@ -14,9 +14,9 @@
 
 .probe_preamble <- function() {
   if (requireNamespace("pkgload", quietly = TRUE) &&
-      pkgload::is_dev_package("simplePHENOTYPES")) {
+      getExportedValue("pkgload", "is_dev_package")("simplePHENOTYPES")) {
     sprintf("suppressMessages(pkgload::load_all(%s, quiet = TRUE, compile = FALSE))",
-            deparse(as.character(pkgload::pkg_path())))
+            deparse(as.character(getExportedValue("pkgload", "pkg_path")())))
   } else {
     "suppressMessages(library(simplePHENOTYPES))"
   }

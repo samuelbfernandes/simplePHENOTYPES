@@ -6,8 +6,8 @@
 # Keep in sync with docs/BACKEND_CONTRACT.md.
 backend_contract <- c(
   # Populations & crossing
-  "as_population", "cross", "selfcross", "double_haploid", "dosages",
-  "n_individuals", "synthetic_map",
+  "as_population", "population_from_haplotypes", "haplotypes", "cross",
+  "selfcross", "double_haploid", "dosages", "n_individuals", "synthetic_map",
   # Phenotype grammar
   "simulate_phenotype", "additive", "dominance", "epistasis", "vqtl",
   "complex_phenotypes", "genetic_values", "qtn_table",
@@ -75,18 +75,20 @@ test_that("the crossing contract signatures are frozen (names, order, defaults)"
                            else paste(deparse(x), collapse = ""), character(1))
   }
   expect_identical(sig("cross"), c(mother = "<none>", father = "<none>", n = "1",
-                                   seed = "NULL"))
-  expect_identical(sig("selfcross"), c(parent = "<none>", n = "1", seed = "NULL"))
-  expect_identical(sig("double_haploid"), c(parent = "<none>", n = "1", seed = "NULL"))
+                                   seed = "NULL", interference = "NULL"))
+  expect_identical(sig("selfcross"), c(parent = "<none>", n = "1", seed = "NULL",
+                                       interference = "NULL"))
+  expect_identical(sig("double_haploid"), c(parent = "<none>", n = "1", seed = "NULL",
+                                            interference = "NULL"))
   expect_identical(names(sig("as_population")), c("geno", "individuals", "pool"))
   expect_identical(sig("as_population")[["pool"]], "NA_character_")
-  expect_identical(names(sig("mate")), c("plan", "...", "seed", "prefix"))
+  expect_identical(names(sig("mate")), c("plan", "...", "seed", "prefix", "interference"))
   expect_identical(names(sig("mating_design")),
                    c("mothers", "fathers", "design", "n_crosses", "progeny_per_cross",
                      "mothers_per_father", "allow_self", "seed"))
   expect_identical(names(sig("crossbreed")),
                    c("breeds", "system", "n_progeny", "generations", "sire_breed",
-                     "seed"))
+                     "seed", "interference"))
   expect_identical(names(sig("heterosis")), c("pop", "breeds", "qtn", "a", "d"))
   expect_identical(names(sig("synthetic_map")),
                    c("chr", "pos", "total_cm", "cm_per_mb", "centromere",

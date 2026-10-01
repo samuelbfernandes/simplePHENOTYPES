@@ -73,6 +73,11 @@ c.Population <- function(...) {
 #'   ambient RNG stream is used) or one non-negative whole number. When given, the
 #'   caller's RNG state is restored on exit, so a seeded scheme does not disturb
 #'   the surrounding random stream.
+#' @param interference `NULL` (default: Poisson crossovers, no interference, the
+#'   isqg stream, bit-identical to earlier versions) or `list(nu = , p = )`, the
+#'   two-pathway gamma model of crossover interference of [cross()] (see its
+#'   section "Crossover interference"). It is applied to every meiosis the scheme
+#'   runs, in every generation, so a whole scheme can use one meiosis model.
 #' @return a `Population` of inbred lines.
 #' @references Bernardo R (2020) \emph{Breeding for Quantitative Traits in
 #'   Plants}, 3rd ed. Stemma Press, Woodbury, Minnesota.
@@ -85,9 +90,11 @@ c.Population <- function(...) {
 #' ril <- single_seed_descent(f1, generations = 5, seed = 2)
 #' # Heterozygosity is driven down by repeated selfing:
 #' mean(dosages(ril) == 0)
-single_seed_descent <- function(x, generations = 5L, seed = NULL) {
+single_seed_descent <- function(x, generations = 5L, seed = NULL,
+                                interference = NULL) {
   pop <- .as_founder_pop(x)
   generations <- .validate_count(generations, "generations", minimum = 1L)
+  interference <- .check_interference(interference, "single_seed_descent")
   seed <- .validate_seed(seed)
   if (!is.null(seed)) {
     old <- .Random.seed_safe()
@@ -95,7 +102,8 @@ single_seed_descent <- function(x, generations = 5L, seed = NULL) {
     set.seed(seed)
   }
   for (g in seq_len(generations)) {
-    pop <- .self_each(pop, n_each = 1L, tag = paste0("g", g))
+    pop <- .self_each(pop, n_each = 1L, tag = paste0("g", g),
+                      interference = interference)
   }
   pop
 }
@@ -124,9 +132,11 @@ single_seed_descent <- function(x, generations = 5L, seed = NULL) {
 #' f1  <- cross(pop[1], pop[2], n = 30, seed = 1)
 #' bk  <- bulk(f1, generations = 4, n = 30, seed = 2)
 #' n_individuals(bk)
-bulk <- function(x, generations = 5L, n = NULL, seed = NULL) {
+bulk <- function(x, generations = 5L, n = NULL, seed = NULL,
+                 interference = NULL) {
   pop <- .as_founder_pop(x)
   generations <- .validate_count(generations, "generations", minimum = 1L)
+  interference <- .check_interference(interference, "bulk")
   size <- if (is.null(n)) n_individuals(pop) else
     .validate_count(n, "n", minimum = 1L)
   seed <- .validate_seed(seed)
@@ -143,7 +153,8 @@ bulk <- function(x, generations = 5L, n = NULL, seed = NULL) {
     # deterministic, a "multiple-seed descent"). Only the parents that contribute
     # are selfed, once each into their drawn number of seeds.
     counts <- .bulk_counts(n_individuals(pop), size)
-    pop <- .self_each(pop, n_each = counts, tag = paste0("bulk_g", g))
+    pop <- .self_each(pop, n_each = counts, tag = paste0("bulk_g", g),
+                      interference = interference)
     # Line identity is not tracked in a bulk; give anonymous bulk ids rather
     # than carrying the parent lineage embedded in the id string.
     pop <- .relabel(pop, paste0("bulk_g", g, "_", seq_len(n_individuals(pop))))
@@ -201,7 +212,9 @@ bulk <- function(x, generations = 5L, n = NULL, seed = NULL) {
 #'   of traits, one per generation (recycled): **tandem selection**, improving one
 #'   trait at a time; the history then records the trait selected on. Every
 #'   requested trait must exist in the phenotype callback's simulation.
-#'   `direction` is one `"high"` or `"low"` (a vector is an error).
+#'   `direction` is one `"high"` or `"low"` (a vector is an error). This scheme
+#'   selects on the criterion alone (mass selection), so the family methods and
+#'   `n_per_family` of [select_ind()] are not forwarded.
 #' @return a `Population`, carrying attribute `history`: a data frame with one
 #'   row per generation and columns `generation`, `n_selected`, `differential`
 #'   (the selection differential S) and `intensity` (the standardized selection
@@ -236,9 +249,10 @@ bulk <- function(x, generations = 5L, n = NULL, seed = NULL) {
 pedigree <- function(x, phenotype, generations = 5L, prop = 0.1,
                      n_select = NULL, pop_size = NULL,
                      on = "pheno", trait = 1L, direction = "high",
-                     seed = NULL) {
+                     seed = NULL, interference = NULL) {
   pop <- .as_founder_pop(x)
   .check_phenotyper(phenotype)
+  interference <- .check_interference(interference, "pedigree")
   generations <- .validate_count(generations, "generations", minimum = 1L)
   size <- if (is.null(pop_size)) n_individuals(pop) else
     .validate_count(pop_size, "pop_size", minimum = 1L)
@@ -274,7 +288,7 @@ pedigree <- function(x, phenotype, generations = 5L, prop = 0.1,
     if (length(trait) > 1L) history[[g]]$trait <- tr
     # each selected line -> an equal family; pool and trim to the grown size
     prog <- .self_each(sel, n_each = max(1L, ceiling(size / ns)),
-                       tag = paste0("ped_g", g))
+                       tag = paste0("ped_g", g), interference = interference)
     if (n_individuals(prog) > size) prog <- prog[sort(sample.int(
       n_individuals(prog), size))]
     pop <- prog
@@ -319,9 +333,10 @@ pedigree <- function(x, phenotype, generations = 5L, prop = 0.1,
 recurrent_selection <- function(x, phenotype, cycles = 3L, n_parents = 10L,
                                 n_crosses = NULL, progeny_per_cross = 10L,
                                 on = "pheno", trait = 1L, direction = "high",
-                                seed = NULL) {
+                                seed = NULL, interference = NULL) {
   pop <- .as_founder_pop(x)
   .check_phenotyper(phenotype)
+  interference <- .check_interference(interference, "recurrent_selection")
   cycles <- .validate_count(cycles, "cycles", minimum = 1L)
   n_parents <- .validate_count(n_parents, "n_parents", minimum = 2L)
   progeny_per_cross <- .validate_count(progeny_per_cross, "progeny_per_cross",
@@ -374,7 +389,7 @@ recurrent_selection <- function(x, phenotype, cycles = 3L, n_parents = 10L,
     )
     if (length(trait) > 1L) history[[cy]]$trait <- tr
     pop <- .intermate(parents, n_crosses, progeny_per_cross,
-                      tag = paste0("cyc", cy))
+                      tag = paste0("cyc", cy), interference = interference)
   }
   attr(pop, "history") <- do.call(rbind, history)
   pop
@@ -479,14 +494,14 @@ recurrent_selection <- function(x, phenotype, cycles = 3L, n_parents = 10L,
 #' Progeny ids embed the parent id and a tag so the pedigree stays legible.
 #' @keywords internal
 #' @noRd
-.self_each <- function(pop, n_each = 1L, tag = "self") {
+.self_each <- function(pop, n_each = 1L, tag = "self", interference = NULL) {
   n <- n_individuals(pop)
   n_each <- rep_len(as.integer(n_each), n)
   kids <- vector("list", n)
   for (j in seq_len(n)) {
     k <- n_each[j]
     if (k < 1L) next
-    prog <- selfcross(pop[j], n = k, seed = NULL)
+    prog <- selfcross(pop[j], n = k, seed = NULL, interference = interference)
     prog <- .relabel(prog, paste0(pop$ids[j], "_", tag,
                                   if (k > 1L) paste0("_", seq_len(k))
                                   else ""))
@@ -499,7 +514,8 @@ recurrent_selection <- function(x, phenotype, cycles = 3L, n_parents = 10L,
 #' Intercross selected parents: n_crosses random pairs, progeny_per_cross each.
 #' @keywords internal
 #' @noRd
-.intermate <- function(parents, n_crosses, progeny_per_cross, tag = "cyc") {
+.intermate <- function(parents, n_crosses, progeny_per_cross, tag = "cyc",
+                       interference = NULL) {
   np <- n_individuals(parents)
   if (np < 2L) {
     stop("Recurrent selection needs at least two parents to intercross; ",
@@ -509,7 +525,8 @@ recurrent_selection <- function(x, phenotype, cycles = 3L, n_parents = 10L,
   for (k in seq_len(n_crosses)) {
     pair <- sample.int(np, 2L)
     prog <- cross(parents[pair[1]], parents[pair[2]],
-                  n = progeny_per_cross, seed = NULL)
+                  n = progeny_per_cross, seed = NULL,
+                  interference = interference)
     prog <- .relabel(prog, paste0(tag, "_x", k, "_",
                                   seq_len(progeny_per_cross)))
     kids[[k]] <- prog

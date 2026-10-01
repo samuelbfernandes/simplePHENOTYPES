@@ -149,7 +149,8 @@ plot.phenotype_sim <- function(x, which = c("variance", "hist", "effects",
                    main = sprintf("Genetic values (r = %.2f)",
                                   stats::cor(g[, 1], g[, 2])))
   } else {
-    realized <- .realized_h2(x)
+    # like-for-like with the requested (single-record) share, whatever `reps` is
+    realized <- .realized_h2(x, scale = "record")
     target <- .plot_genetic_target(x)
     graphics::barplot(rbind(target, realized), beside = TRUE,
                       names.arg = "Trait_1", ylim = c(0, 1),

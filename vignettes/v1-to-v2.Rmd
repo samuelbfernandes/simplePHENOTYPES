@@ -104,7 +104,7 @@ target:
 
 ```{r v2-pleio}
 ph <- simulate_phenotype(geno, architecture = "pleiotropy", n_traits = 3,
-                         cor = 0.5, seed = 10) |>
+                         cor = 0.5, seed = 11) |>
   additive(prop = 0.3, n_qtn = 3) |>
   dominance(prop = 0.1, same_as_add = TRUE)
 round(cor(genetic_values(ph)), 2)

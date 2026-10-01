@@ -13,7 +13,8 @@ cross_usefulness(
   select_top = 0.1,
   trait = 1L,
   direction = c("high", "low"),
-  seed = NULL
+  seed = NULL,
+  interference = NULL
 )
 }
 \arguments{
@@ -42,6 +43,13 @@ horizon: one value in (0, 1) (default 0.1; smaller = a more elite target).}
 \item{seed}{optional RNG seed for the whole evaluation: one non-negative whole
 number. The caller's RNG state is restored on exit; with \code{seed = NULL} the
 ambient RNG is used (and advanced).}
+
+\item{interference}{\code{NULL} (default: Poisson crossovers, no interference, the
+isqg stream, bit-identical to earlier versions) or \code{list(nu = , p = )}, the
+two-pathway gamma model of crossover interference of \code{\link[=cross]{cross()}} (see its
+section "Crossover interference"). It is applied to every meiosis of every
+simulated family (the F1 and each progeny generation), so the family
+variance, and with it \code{sd} and \code{usefulness}, reflects interference.}
 }
 \value{
 a data frame with \code{parent1}, \code{parent2}, \code{mean}, \code{sd}, \code{usefulness},

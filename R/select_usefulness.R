@@ -77,6 +77,12 @@
 #' @param seed optional RNG seed for the whole evaluation: one non-negative whole
 #'   number. The caller's RNG state is restored on exit; with `seed = NULL` the
 #'   ambient RNG is used (and advanced).
+#' @param interference `NULL` (default: Poisson crossovers, no interference, the
+#'   isqg stream, bit-identical to earlier versions) or `list(nu = , p = )`, the
+#'   two-pathway gamma model of crossover interference of [cross()] (see its
+#'   section "Crossover interference"). It is applied to every meiosis of every
+#'   simulated family (the F1 and each progeny generation), so the family
+#'   variance, and with it `sd` and `usefulness`, reflects interference.
 #' @return a data frame with `parent1`, `parent2`, `mean`, `sd`, `usefulness`,
 #'   sorted best first, carrying attribute `intensity` (the `i` used).
 #' @references Zhong S, Jannink J-L (2007) Using quantitative trait loci results to
@@ -97,8 +103,10 @@ cross_usefulness <- function(sim, pairs = NULL,
                              scheme = c("dh", "selfcross", "cross"),
                              n_progeny = 100L, generations = 5L,
                              select_top = 0.1, trait = 1L,
-                             direction = c("high", "low"), seed = NULL) {
+                             direction = c("high", "low"), seed = NULL,
+                             interference = NULL) {
   .check_sim(sim)
+  interference <- .check_interference(interference, "cross_usefulness")
   pop <- .as_founder_pop(sim)
   scheme <- match.arg(scheme)
   direction <- match.arg(direction)
@@ -122,7 +130,7 @@ cross_usefulness <- function(sim, pairs = NULL,
   for (k in seq_len(nrow(pairs))) {
     a <- pop[pairs[k, 1]]
     b <- pop[pairs[k, 2]]
-    fam <- .make_family(a, b, scheme, n_progeny, generations)
+    fam <- .make_family(a, b, scheme, n_progeny, generations, interference)
     gv <- .additive_gv(fam, model)
     mu <- mean(gv)
     sdev <- stats::sd(gv)
@@ -279,18 +287,22 @@ cross_usefulness <- function(sim, pairs = NULL,
 #' Simulate one progeny family from parents a, b under the chosen scheme
 #' @keywords internal
 #' @noRd
-.make_family <- function(a, b, scheme, n_progeny, generations) {
+.make_family <- function(a, b, scheme, n_progeny, generations,
+                         interference = NULL) {
   if (scheme == "cross") {
-    return(cross(a, b, n = n_progeny, seed = NULL))
+    return(cross(a, b, n = n_progeny, seed = NULL, interference = interference))
   }
-  f1 <- cross(a, b, n = 1L, seed = NULL)
+  f1 <- cross(a, b, n = 1L, seed = NULL, interference = interference)
   if (scheme == "dh") {
-    return(double_haploid(f1, n = n_progeny, seed = NULL))
+    return(double_haploid(f1, n = n_progeny, seed = NULL,
+                          interference = interference))
   }
-  fam <- selfcross(f1, n = n_progeny, seed = NULL)          # F2
+  fam <- selfcross(f1, n = n_progeny, seed = NULL,
+                   interference = interference)          # F2
   generations <- .validate_count(generations, "generations", minimum = 1L)
   if (generations > 1L) {
-    fam <- single_seed_descent(fam, generations = generations - 1L, seed = NULL)
+    fam <- single_seed_descent(fam, generations = generations - 1L, seed = NULL,
+                               interference = interference)
   }
   fam
 }

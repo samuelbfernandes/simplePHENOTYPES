@@ -478,6 +478,21 @@ Methods), per the standing instruction, so the code and paper cannot drift.
   callback's phenotype; a `simulate_phenotype()` callback re-standardises the
   genetic layer per generation (see DECISION-021), so the fixed-scale response is
   obtained by ranking on `phenotype_value()` through `on`.
+
+**Addendum 2026-09-30 (SPEC-0020 items 7 and 8; no equation changed):** `within_family`
+accepts an explicit per-family count (`n_per_family`, the last argument of `select_ind()`): one
+whole number applied to every family, or a vector named by family label (or unnamed in sorted
+family-label order). It is exclusive with `n`/`prop`/`intensity` and with every method other
+than `within_family`, and it is never capped silently: a family smaller than the request is an
+error. Within each family the top scores (after `direction`) are kept; S and i keep their
+definitions on the pooled candidates (S = mean(selected) - mean(all), i = S / sd(score)), so with
+unequal per-family counts S is the realized differential of the pooled selected set. The result
+carries the realized counts as attribute `n_per_family` only when the argument is used.
+`pedigree()`/`recurrent_selection()` stay mass-selection only (they have no `family`) and do not
+forward it. `sample_parents()` returns a `source` attribute (data frame `slot`, `id`, `index`,
+`name`, one row per slot in draw order): a pure record attached after the draw, no RNG consumed,
+the draws unchanged for both `method = "allocate"` and `"multinomial"`.
+
 **Reaffirms:** DECISION-006 (RNG in R, meiosis in Rust), DECISION-004
 (multi-generation stays in-package).
 **Date:** 2026-09-10
@@ -1524,6 +1539,12 @@ the record behaves as before. Persistence through numeric text files is out of s
 cannot carry the attribute; row-subsetting a data frame drops it). Documented in `?as_numeric`,
 `?as_population` and `docs/BACKEND_CONTRACT.md`.
 
+**Addendum (round 6, Codex G5):** the default output file name of `as_numeric()` for an inline object
+(DECISION-038 `.geno_label()`) is sanitized: characters outside `[A-Za-z0-9._-]` become `_` and the ends are
+trimmed (a symbol `hmp` gives `hmp_numeric.txt`; an inline data frame
+`inline_data.frame_1077_x_670_numeric.txt`), so the label's `<`/`>` no longer reach the file system. The
+written content is unchanged. The `counted_allele` validation of the haplotype constructor is in DECISION-039.
+
 **Date:** 2026-09-30
 
 ---
@@ -1535,6 +1556,140 @@ markers in the fully pleiotropic and partially pleiotropic architectures (no err
 `?create_phenotypes`, section "Duplicated marker positions"); the `"LD"` architecture keeps its own
 stricter check and rejects them with an "LD contract" error. The v2 grammar
 (`simulate_phenotype()`, one-call and layered) also accepts duplicated `chr`/`pos`.
+
+**Date:** 2026-09-30
+
+---
+
+## DECISION-038: entry-mean replication (`reps`) in the grammar
+
+**Status:** accepted (round 5, breedingDesigner SPEC-0020 item 6).
+
+**Context:** AlphaSimR `setPheno(varE, reps)` gives each individual a phenotype that is the mean of
+`reps` independent records of the same genotype, so the error variance is `varE / reps`. The grammar
+could only produce single-record phenotypes.
+
+**Decision:** `simulate_phenotype(reps = 1)` and `complex_phenotypes(reps = 1)` take a positive whole
+number (scalar or one per trait). The residual of trait t, including the vqtl heterogeneity component,
+is drawn exactly as for `reps = 1` (same sub-seed, same number of draws) and then multiplied by
+`1/sqrt(reps[t])`; `reps = 1` skips the multiplication (bit-identical output). The realized residual is
+therefore the `reps = 1` realized residual divided by `sqrt(reps[t])`, so its realized variance is the
+`reps = 1` residual variance divided by `reps[t]`: for a vqtl trait `[V0 + Vv + 2Cov(e0,ev)]/reps[t]`, not
+the nominal `V_E/reps[t]`, because the two standardized components have a non-zero sample covariance. The
+genetic value and the transcriptome component are not rescaled (the expression-mediated environmental part is a
+persistent property of the entry, not record noise).
+
+**Scales:** `h2`, every layer `prop`, `var_budget` and the printed residual share are single-record
+(`V_G + V_E = 1`). Target (expected) heritabilities: single-record `h2 = V_G/(V_G+V_E)` (what `h2`
+requests) and entry-mean `V_G/(V_G + V_E/reps)`; the allocation formula is a target. Realized
+heritabilities are `Var(G)/Var(y)` from the realized values: entry-mean
+`Var(y_bar) = V_G + V_E/reps + 2Cov(G,e)/sqrt(reps)`, record `Var(y) = V_G + V_E + 2Cov(G,e)`; the
+allocation formula is the realized value only when the sample `Cov(G,e) = 0`. The stored phenotype is the
+entry mean, so `.realized_h2()` and the shares "of V_P" (`$ad_report`, `mediation_split()`) are entry-mean;
+the single-record realized value is reconstructed as `Var(G)/Var(y + (sqrt(reps)-1)e)` and printed
+alongside when `reps > 1`. `print()` shows `reps (per trait) = [1, 4, 1]` when `reps` varies.
+`complex_phenotypes()` ignores its inputs' own `reps` (their residuals are discarded); its own `reps`
+scales the common residual.
+
+**Records and the transcriptome:** without a transcriptome layer, records are independent given the
+genotype (no shared permanent environment is modelled). With a derived transcriptome layer, the
+environmental transcriptome component `Tx_env` is a persistent entry-level quantity that is NOT redrawn
+per record: replication is conditional on the fixed transcriptome covariate, and only the phenotype
+residual is rescaled (its value by `1/sqrt(reps)`, its variance by `1/reps`). The realized denominator is `Var` of the full stored phenotype
+(`G_marker + Tx_total + e/sqrt(reps) + mu`). Alternative considered and rejected for now: redraw `Tx_env`
+per record (would change numbers; revisit if a repeated-measures model is wanted).
+
+**Rust boundary:** unaffected (the stochastic draw stays in R; the rescale is deterministic arithmetic in R).
+
+**Naming cost (item 1, same round):** `simulate_phenotype()` (and `as_numeric()`) named the genotype input
+with `deparse(substitute(geno))`, which renders a whole inline `Population` when called through
+`do.call()` (9 s for 2000 x 14000). A constant-time `.geno_label()` replaces it: a symbol keeps its name,
+a small call keeps its old first deparse line, anything carrying a large embedded object gets a type label
+such as `"<inline Population>"`. No change to any simulated value.
+
+**Date:** 2026-09-30
+
+---
+
+## DECISION-039: phased-haplotype constructor `population_from_haplotypes()` (SPEC-0020 item 5)
+
+**Decision:** `population_from_haplotypes(cis, trans, map, ids, pool, individuals_in_rows)` is the public
+constructor for known-phase founders and `haplotypes()` its inverse. Layout is markers x individuals by
+default (the `Population` convention; `individuals_in_rows = TRUE` accepts the individuals x markers
+layout, and a transposed input without the flag errors). Entries are 0/1 with 1 = the counted (+1)
+allele, dosage = `cis + trans - 1` (the `as_population()` encoding; heterozygote phase is the caller's, not
+guessed; `cis`/`trans` carry no maternal/paternal meaning). The map is validated by the helpers
+`as_population()` uses (`.check_map`, the cM-units check, now also the internal `.make_map()` and
+`.check_pool()`). `map$counted` is recorded only when the supplied map has a `counted` column (for
+example `pop$map`); it is never inferred from the `allele` label, which does not say which allele is
+counted (DECISION-036), so without it the cross-pool guard stays label-only. `as_population()` ->
+`haplotypes()` -> `population_from_haplotypes()` is `identical()` to the original and seeded
+`cross()`/`selfcross()`/`double_haploid()` are bit-identical. No RNG, no Rust. `as_population(haplotypes =)`
+was not added (a separate function leaves the `as_population()` signature untouched).
+
+**Addendum (round 6, Codex H1):** a supplied `map$counted` is validated by `.check_counted()`: one entry
+per marker; character (a numeric column is rejected); each non-`NA` entry one non-empty allele symbol (`""`
+is rejected) and, when the `allele` label names two alleles, one of them. Only `NA` means unknown; the
+internal `.make_map()` and the orientation guard `.check_orientation()` also treat `""` as unknown, so a
+malformed record can no longer silently disable the guard (DECISION-036).
+
+**Date:** 2026-09-30
+
+---
+
+## DECISION-040: batched, integer-I/O crossing core (SPEC-0020 item 2)
+
+**Decision:** the meiosis core gains `mate_many_core()`: parental strands as 0/1 integer vectors in the
+caller's marker order, a marker-rank permutation, a table of matings (strand indices, design, n) and one
+shared event stream (the draws of the matings concatenated in plan order); it returns the progeny strands
+as integer vectors in the caller's marker order. Every crossing function goes through `.mate_many()`;
+`mate()` executes all plan rows in one call. R still draws every random quantity, row by row in plan order,
+exactly as the same sequence of `cross()` / `selfcross()` / `double_haploid()` calls would (the batch equals
+the sequential run draw for draw, bit for bit, including pedigree keys); Rust draws nothing
+(DECISION-006/012). The string kernel entry points (`mate_haplotypes_core`, `meiosis_core`,
+`gamete_masks_core`) stay untouched for the parity tests.
+
+**Measured** (14,000 markers, 20 chromosomes, one heterozygous parent, 100 calls of `double_haploid(parent,
+n = 100)`): 14.1 s to 2.3 s through the single-call API (6.1x), 14.3 s to 2.1 s through one 100-row
+`mate()` plan (6.9x); what remains per call is the R draws (must follow R's stream), the pedigree-key
+hashing and a few ms of Rust.
+
+**Rejected:** moving the draws to Rust (breaks R-seed reproducibility); vectorising the Poisson draw
+(changes the isqg stream).
+
+**Date:** 2026-09-30
+
+---
+
+## DECISION-041: crossover interference as an option of the meiosis draws (SPEC-0020 item 3)
+
+**Decision:** `interference = NULL` (default: Poisson, isqg stream, bit-identical) or `list(nu, p)`
+appended to `cross()`, `selfcross()`, `double_haploid()`, `mate()` and `crossbreed()`: the two-pathway
+gamma model on the bivalent. Chiasmata live on the four-strand bivalent with intensity 2 per Morgan; a
+share `p` is a non-interfering Poisson pathway, the rest a stationary renewal process with
+Gamma(shape `nu`, rate `2 nu (1-p)`) gaps and equilibrium start `U * Gamma(nu+1, rate)`; a gamete keeps each
+chiasma independently with probability 1/2 (no chromatid interference). The map keeps its meaning:
+expected crossovers per Morgan = 1 for every `nu`, `p`. The draws are made in R and handed to the unchanged
+Rust core as sorted chiasma positions in [0, L]. `nu = 1` or `p = 1` is Poisson in distribution but uses its
+own stream, not isqg's. `1 <= nu <= 1e6` (negative interference is not modelled; larger `nu` made the renewal draw hang, so the
+rate is computed as `nu * (2 * (1 - p))` and the renewal loop is guarded against zero progress), `p` in [0, 1]. The recombination
+fraction is `r(d) = (1 - P0(d))/2` (closed forms in SPEC section 4.6), `nu = 2.6, p = 0` lies within 0.001 of
+Kosambi over 0-1 M. Applies to all rows of a `mate()` plan. Citations in `?cross` (McPeek & Speed 1995, Genetics; Housworth & Stahl 2003, Am. J. Hum.
+Genet.) are author/year/journal only and unverified; it is not claimed that AlphaSimR's code uses exactly
+this construction.
+
+**Propagation (round 6, maintainer note 2026-09-30):** the `interference` option is a property of the
+meiosis model, not of one function; every function that draws meiosis forwards it: `single_seed_descent()`,
+`bulk()`, `pedigree()`, `recurrent_selection()`, `cross_usefulness()`, `combining_ability(method =
+"simulated")` and `progeny_test()`, in addition to `cross()`, `selfcross()`, `double_haploid()`, `mate()` and
+`crossbreed()`. It is the last formal, default `NULL` = isqg stream (bit-identical), validated up front by
+`.check_interference()` with the caller's name, and captured once so every generation or cycle of a scheme
+uses it (`cross_usefulness()` also passes it to its nested `single_seed_descent()`).
+`combining_ability(method = "expected")` errors on a non-`NULL` value rather than ignoring it. Functions that
+do not run meiosis (`select_ind()`, `select_ocs()`, `optimum_contribution()`, `sample_parents()`,
+`predict_ebv()`, `marker_select()`, `mabc_select()` scoring, `g_matrix()`, `a_matrix()`, the grammar) do not
+take it. Rationale: a scheme with a single `interference` value must not silently mix models. The Rust
+boundary is unchanged (R draws every event). The legacy `create_phenotypes()` is untouched (DECISION-008).
 
 **Date:** 2026-09-30
 
@@ -1580,3 +1735,7 @@ stricter check and rejects them with an "LD contract" error. The v2 grammar
 | 035 | Transcriptome `genes$h2_realized` = realized `Var(G)/Var(P)` (includes `2Cov(G,R)`, not bounded by 1); `h2_var_ratio` = identical alias; bounded allocation `Var(G)/(Var(G)+Var(R))` renamed `h2_allocated` (not a heritability); mimic GREML guard on the intercept-projected spectrum of K | locked (2026-09-30) |
 | 036 | `as_numeric()` records the `+1`-counted allele per marker as the `counted_allele` attribute (no dosage, column or label change); `as_population()` keeps `map$counted`; cross-pool guard errors on disagreement, else label-only fallback; not persisted through text files | locked (2026-09-30) |
 | 037 | v1 `create_phenotypes()`: duplicated `chr_pos` accepted in pleiotropic / partially pleiotropic, rejected ("LD contract") in `"LD"`; the grammar also accepts duplicated `chr`/`pos` | locked (2026-09-30) |
+| 038 | Entry-mean replication in the grammar: `reps` divides the residual (incl. vqtl) by `sqrt(reps)` after the unchanged draw (target residual variance `V_E/reps`; realized: residual value = `reps = 1` realized residual / `sqrt(reps)`, so its variance is the `reps = 1` realized variance / `reps`; vqtl `[V0+Vv+2Cov]/reps`); `h2`/props stay single-record targets; realized H2 = `Var(G)/Var(y)` (includes `2Cov(G,e)/sqrt(reps)`) on the entry-mean scale with the single-record value alongside; replication is conditional on a fixed transcriptome covariate; `reps = 1` bit-identical; constant-time `.geno_label()` replaces `deparse(substitute(geno))` | locked (2026-09-30) |
+| 039 | `population_from_haplotypes()` / `haplotypes()`: known-phase 0/1 constructor (1 = counted allele, dosage = cis + trans - 1, markers x individuals), `map$counted` only if supplied (validated: character, non-empty symbol, `NA` = unknown), same map validation as `as_population()`, no RNG, no Rust | locked (2026-09-30) |
+| 040 | Batched integer-I/O crossing core `mate_many_core()`; `mate()` runs every plan row in one call; R draws in plan order so the batch equals the sequential run bit for bit; ~6x cheaper per call at 14,000 markers | locked (2026-09-30) |
+| 041 | Crossover interference `interference = NULL \| list(nu, p)` (`1 <= nu <= 1e6`) on `cross`/`selfcross`/`double_haploid`/`mate`/`crossbreed` and, by propagation, `single_seed_descent`/`bulk`/`pedigree`/`recurrent_selection`/`cross_usefulness`/`combining_ability` (simulated only)/`progeny_test`: two-pathway gamma model on the bivalent, 1/2 thinning to the gamete, expected crossovers per Morgan unchanged, drawn in R, default NULL = Poisson/isqg stream bit-identical | locked (2026-09-30) |

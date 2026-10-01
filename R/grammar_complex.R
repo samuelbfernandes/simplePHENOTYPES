@@ -23,7 +23,20 @@
 #' methods that need per-locus effects refuse it.
 #'
 #' @param ... two or more `phenotype_sim` objects.
-#' @param h2 requested genetic variance share (scalar or length `n_traits`).
+#' @param h2 requested genetic variance share (scalar or length `n_traits`), on
+#'   the **single-record** scale `V_G / (V_G + V_E)`.
+#' @param reps number of independent records averaged into each entry's
+#'   phenotype (default 1; entry-mean replication, as in [simulate_phenotype()]):
+#'   a positive whole number or one per trait. The common residual drawn here is
+#'   divided by `sqrt(reps)`, so the phenotype is an entry mean. `h2` stays the
+#'   single-record target share `V_G / (V_G + V_E)`; the entry-mean target is
+#'   `V_G / (V_G + V_E / reps)`. The realized H2 reported is
+#'   `Var(G) / Var(y_bar)` from the realized values, with
+#'   `Var(y_bar) = V_G + V_E / reps + 2 Cov(G, e) / sqrt(reps)` (record scale
+#'   `V_G + V_E + 2 Cov(G, e)`): it equals the allocation formula only when the
+#'   sample covariance `Cov(G, e)` is zero. The inputs' own `reps` are not used
+#'   (their residuals are discarded); with `reps = 1` the result is bit-identical
+#'   to a call without it.
 #' @return a combined `phenotype_sim` (architecture "complex").
 #' @export
 #' @examples
@@ -34,7 +47,7 @@
 #' indep <- simulate_phenotype(SNP55K_maize282_maf04, n_traits = 2, seed = 11)
 #' indep <- additive(indep, prop = 0.3, n_qtn = 3)
 #' both <- complex_phenotypes(pleio, indep, h2 = 0.5)
-complex_phenotypes <- function(..., h2) {
+complex_phenotypes <- function(..., h2, reps = 1) {
   models <- list(...)
   if (length(models) < 2) {
     stop("complex_phenotypes() needs at least two phenotype_sim objects.",
@@ -89,6 +102,7 @@ complex_phenotypes <- function(..., h2) {
   }
 
   h2v <- .validate_proportion(h2, "h2", nt)
+  reps <- .validate_reps(reps, nt)
   h2v <- .expand_prop(h2v, nt)
   combined <- array(0, dim = c(n, nt, nr))
   for (r in seq_len(nr)) {
@@ -111,6 +125,9 @@ complex_phenotypes <- function(..., h2) {
     for (t in seq_len(nt)) {
       seed_r <- .layer_seed(seed, paste0("complex_resid_t", t), r - 1L)
       e <- .seeded_residual(seed_r, n, max(0, 1 - h2v[t]))
+      if (reps[t] != 1L) {
+        e <- e / sqrt(reps[t])     # entry mean of `reps` records: residual / sqrt(reps)
+      }
       k <- k + 1L
       long[[k]] <- data.frame(
         id = ids, trait = paste0("Trait_", t), rep = r,
@@ -124,6 +141,7 @@ complex_phenotypes <- function(..., h2) {
   out$architecture <- "complex"
   out$seed <- seed
   out$h2 <- h2v
+  out$reps <- reps
   out$n_reps <- nr
   out$layers <- list()
   # A combined model is terminal and has no per-input state: clear everything

@@ -4,7 +4,7 @@
 \alias{mate}
 \title{Execute a mating plan}
 \usage{
-mate(plan, ..., seed = NULL, prefix = NULL)
+mate(plan, ..., seed = NULL, prefix = NULL, interference = NULL)
 }
 \arguments{
 \item{plan}{a data frame with columns \code{mother}, \code{father} (individual ids) and
@@ -23,6 +23,10 @@ several must be named, and the names are the pools the plan refers to.}
 \item{prefix}{progeny id prefix; progeny are named \verb{<prefix>_1}, \verb{<prefix>_2},
 ... in plan order. Default: the pool name(s) involved, joined by \code{x}
 (e.g. \code{"A"} or \code{"AxB"}), or \code{"prog"} for a single unnamed population.}
+
+\item{interference}{\code{NULL} (default: Poisson crossovers, the isqg stream) or
+\code{list(nu = , p = )}, the two-pathway gamma model of crossover interference
+applied to every row; see \code{\link[=cross]{cross()}}.}
 }
 \value{
 A \code{Population} of all progeny, in plan order, with attribute \code{plan}
@@ -53,6 +57,23 @@ RNG state is restored on exit.
 
 The populations must share one marker map and the allele coded \code{+1} (see
 \code{\link[=cross]{cross()}} on allele orientation).
+
+All rows are executed in one pass through the Rust core: the meioses of the
+rows are drawn one row after the other (so the random stream, and every
+progeny, pedigree key and id, are exactly those of calling \code{\link[=cross]{cross()}},
+\code{\link[=selfcross]{selfcross()}} or \code{\link[=double_haploid]{double_haploid()}} row by row), and the progeny of every row
+are assembled in a single integer-in, integer-out call. This is the way to
+produce many families at once: a plan with \code{design = "dh"} and one row per
+parent gives the doubled haploids of all parents in one call. The per-call
+overhead of serialising the parents and pooling the results is paid once, not
+once per row, and the random draws -- which must follow R's stream -- are the
+main cost that remains (on a 14,000-marker, 20-chromosome map, 100 families of
+100 doubled haploids take about 2 s, against about 14 s before the batched
+path).
+
+With the \code{interference} option each row's meioses follow the two-pathway
+gamma model of crossover interference (see the section "Crossover
+interference" of \code{\link[=cross]{cross()}}); the same option applies to every row.
 }
 \examples{
 data("SNP55K_maize282_maf04")

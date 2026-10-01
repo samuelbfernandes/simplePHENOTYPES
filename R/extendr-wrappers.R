@@ -81,6 +81,34 @@ meiosis_core <- function(loci_per_chr, positions, p1_cis, p1_trans, p2_cis, p2_t
 #' @noRd
 mate_haplotypes_core <- function(loci_per_chr, positions, p1_cis, p1_trans, p2_cis, p2_trans, chiasmata, counts, flips, design, n_prog) .unwrap_extendr(.Call(wrap__mate_haplotypes_core, loci_per_chr, positions, p1_cis, p1_trans, p2_cis, p2_trans, chiasmata, counts, flips, design, n_prog), "mate_haplotypes_core")
 
+#' Progeny of a whole batch of matings in one call, integer in and out.
+#'
+#' The vectorised, string-free form of `mate_haplotypes_core()` (SPEC-0020 item 2):
+#' `strands` is an integer 0/1 vector of `n_strands` parental strands of
+#' `length(positions)` loci each (strand after strand), in the caller's marker
+#' order; `order` (1-based) maps ascending map rank to the caller's index, so
+#' the progeny come back in the caller's order. `mating` holds, per mating, the
+#' 1-based strand indices `p1_cis, p1_trans, p2_cis, p2_trans` (4 consecutive
+#' entries); `design` and `n_prog` have one entry per mating. The meiosis events
+#' are shared and consumed in mating order (`n_prog * (1 for "dh", else 2)` per
+#' mating, progeny-major), so the result equals running the matings one by one
+#' with their draws concatenated. The kernel draws nothing (DECISION-012).
+#'
+#' @param loci_per_chr Integer vector of loci counts, chromosomes ascending.
+#' @param positions    Map positions in Morgans, ascending map order, concatenated.
+#' @param order        1-based permutation: caller index of the locus with each map rank.
+#' @param strands      Integer 0/1 vector, `n_strands` strands of n_loci entries.
+#' @param n_strands    Number of parental strands in `strands`.
+#' @param mating       4 * n_matings 1-based strand indices (p1_cis, p1_trans, p2_cis, p2_trans).
+#' @param design       Character vector, one of "cross", "selfcross", "dh" per mating.
+#' @param n_prog       Progeny per mating.
+#' @param chiasmata    Concatenated crossover positions, each within [0, L] of its chromosome.
+#' @param counts       Crossovers per (event, chromosome).
+#' @param flips        0/1 strand-choice per (event, chromosome).
+#' @return `list(cis, trans)`: integer vectors of n_loci * sum(n_prog) 0/1 entries, one progeny per column.
+#' @noRd
+mate_many_core <- function(loci_per_chr, positions, order, strands, n_strands, mating, design, n_prog, chiasmata, counts, flips) .unwrap_extendr(.Call(wrap__mate_many_core, loci_per_chr, positions, order, strands, n_strands, mating, design, n_prog, chiasmata, counts, flips), "mate_many_core")
+
 #' Raw ancestry masks, one '0'/'1' string per meiosis event.
 #'
 #' Parity hook mirroring isqg's `spc$gamete()`. Unlike the -1/0/1 genotype —

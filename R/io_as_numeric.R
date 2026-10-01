@@ -118,6 +118,20 @@
 #'     \item{`from`}{input format, when automatic detection is not wanted.}
 #'     \item{`verbose`}{print progress messages.}
 #'   }
+#' @details When `to_file = TRUE` and no `file_name` is given, the default
+#'   output name is `<label>_numeric.txt`, where the label is the name of the
+#'   object passed as `x` (for a file input, the input file's name without its
+#'   extension). A label that is not already a portable file name (other
+#'   characters replaced, or longer than 100 characters) is sanitized and gets
+#'   a short hash of the original label appended; this makes accidental clashes
+#'   unlikely but does not make names unique. Different inputs can still map to
+#'   the same default name (labels that differ only in case on a
+#'   case-insensitive file system, files such as `same.hmp.txt` and `same.txt`
+#'   in one directory, or two inline objects of the same class and size, whose
+#'   generic label is built from class and dimensions). A default-named file
+#'   that already exists is overwritten, with a warning naming the file; an
+#'   explicit `file_name` is used as given, without a warning. Pass `file_name`
+#'   to choose the output path.
 #' @return The genotypes in numeric format: five metadata columns
 #'   (`snp`, `allele`, `chr`, `pos`, `cm`) followed by one column per
 #'   individual. Returned as a data frame when `to_r = TRUE`, otherwise written
@@ -169,7 +183,7 @@ as_numeric <-
       }
       f_name <- NULL
     } else {
-      f_name <- deparse(substitute(x))
+      f_name <- .geno_label(substitute(x))
     }
     format_conversion(file = x, to = "numeric", f_name = f_name, ...)
   }

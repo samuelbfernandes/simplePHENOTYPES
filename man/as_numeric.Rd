@@ -40,6 +40,22 @@ simulation function in the package expects. HapMap, VCF, GDS and PLINK
 bed/ped input are recognized automatically, from a file path or from an
 object already in memory.
 }
+\details{
+When \code{to_file = TRUE} and no \code{file_name} is given, the default
+output name is \verb{<label>_numeric.txt}, where the label is the name of the
+object passed as \code{x} (for a file input, the input file's name without its
+extension). A label that is not already a portable file name (other
+characters replaced, or longer than 100 characters) is sanitized and gets
+a short hash of the original label appended; this makes accidental clashes
+unlikely but does not make names unique. Different inputs can still map to
+the same default name (labels that differ only in case on a
+case-insensitive file system, files such as \code{same.hmp.txt} and \code{same.txt}
+in one directory, or two inline objects of the same class and size, whose
+generic label is built from class and dimensions). A default-named file
+that already exists is overwritten, with a warning naming the file; an
+explicit \code{file_name} is used as given, without a warning. Pass \code{file_name}
+to choose the output path.
+}
 \section{Which allele becomes 1}{
 
 By default (\code{method = "frequency"}) the \strong{most frequent allele is the
