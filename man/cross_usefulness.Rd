@@ -20,9 +20,9 @@ cross_usefulness(
 \item{sim}{a realized, Population-backed \code{phenotype_sim} whose candidate parents
 are its individuals and whose additive layer supplies the scoring model.}
 
-\item{pairs}{a two-column matrix or data frame of parent pairs (ids or
-positions). \code{NULL} (default) uses all pairwise combinations of the parents ---
-guard the count yourself for large panels.}
+\item{pairs}{a two-column matrix or data frame of parent pairs (ids, or whole
+positions), at least one row. \code{NULL} (default) uses all pairwise combinations
+of the parents --- guard the count yourself for large panels.}
 
 \item{scheme}{how the progeny family is derived: \code{"dh"} (doubled haploids, fully
 inbred in one step), \code{"selfcross"} (self to near-inbred over \code{generations}), or
@@ -33,13 +33,15 @@ inbred in one step), \code{"selfcross"} (self to near-inbred over \code{generati
 \item{generations}{selfing generations for \code{scheme = "selfcross"}.}
 
 \item{select_top}{fraction of progeny whose intensity \code{i} sets the usefulness
-horizon (default 0.1; smaller = a more elite target).}
+horizon: one value in (0, 1) (default 0.1; smaller = a more elite target).}
 
 \item{trait}{trait index to evaluate (default 1).}
 
 \item{direction}{\code{"high"} (default) adds \code{i*sigma}; \code{"low"} subtracts it.}
 
-\item{seed}{optional RNG seed for the whole evaluation.}
+\item{seed}{optional RNG seed for the whole evaluation: one non-negative whole
+number. The caller's RNG state is restored on exit; with \code{seed = NULL} the
+ambient RNG is used (and advanced).}
 }
 \value{
 a data frame with \code{parent1}, \code{parent2}, \code{mean}, \code{sd}, \code{usefulness},
@@ -63,6 +65,31 @@ approximation that can exceed the realized top-fraction mean (and even the
 family maximum). Use it as a \emph{ranking} criterion under that assumption; read
 the realized family from the returned \code{mean}/\code{sd} (or simulate the family
 directly with \code{\link[=cross]{cross()}}/\code{\link[=selfcross]{selfcross()}}) if you need the exact tail mean.
+
+The intensity is the infinite-population normal value
+\eqn{i = \varphi(\Phi^{-1}(1-p))/p} for \code{select_top = p} (1.755 at \code{p = 0.1});
+the mean of the top \code{p} of a \emph{finite} family is slightly smaller (about 1.73 for
+the top 10 of 100), and a family with \code{n_progeny * select_top < 1} selects less
+than one progeny, so \code{U} is then only a normal-theory ranking score. Prefer
+\code{n_progeny * select_top >= 1}, in practice a few tens of progeny at least.
+
+\strong{Heterozygous parents and \code{"dh"} / \code{"selfcross"}.} These schemes derive each
+family from a \emph{single} F1 individual of the cross (one draw of the two
+parental gametes), then double or self it. For inbred (homozygous) parents that
+F1 is unique, so the family-generating distribution is that of the cross itself
+(no conditioning on a random F1). The returned \code{mean} and \code{sd} are nevertheless
+Monte Carlo estimates from \code{n_progeny} simulated progeny (meiosis and, for
+\code{"selfcross"}, the selfing draws remain random), so they still vary with \code{seed}
+and converge to the cross's moments only as \code{n_progeny} grows. For a
+\strong{heterozygous} parent the F1 is also one random draw, so the reported \code{mean}
+and \code{sd} are additionally conditional on which F1 was drawn: they change with
+\code{seed} for that reason as well, and the standard deviation \code{sd} (its square, the
+family variance, likewise) is on average lower than the F1-averaged (many-F1)
+value. The
+function warns once per call when a parent in \code{pairs} is heterozygous at a
+scoring locus under these schemes. Use inbred parents, or \code{scheme = "cross"}
+(which draws every progeny from an independent meiosis of the parents), when
+the parents are not inbred; the sampling scheme itself is unchanged.
 
 Progeny are scored on the additive QTN effects already realized in \code{sim} (the
 template), applied on a common scale, so the means and standard deviations are

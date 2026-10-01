@@ -42,6 +42,258 @@
   converges to it only as QTNs and individuals grow, for causal loci in
   approximate linkage equilibrium and without major QTNs.
 
+## Audit fixes (independent dual-model audit, 2026-09)
+
+Fixes for the defects confirmed by a two-model theory and implementation audit
+(reports in the maintainers' `.tmp/audit-2026-09-29/`). Items that change seeded
+output or reject previously accepted input are marked **(behaviour)**.
+
+**Simulation grammar**
+* **(behaviour)** Sub-seeds now use a position-sensitive hash of the draw label
+  (DECISION-032). Replications 12/21, 13/31, ... and traits 12/21 used to share a
+  sub-seed and returned identical QTNs, effects and residuals. Every seeded
+  `simulate_phenotype()` result changes. The rule is (seed, layer type, occurrence
+  of that type); inserting a same-type layer shifts later same-type layers.
+* `additive()` + `dominance()` on shared loci report the realized Var(A), Var(D)
+  and 2Cov(A, D) (`$ad_report`, and a note in `print()`). The realized-H2 gap is
+  a coding-dependent term, not finite-sample noise; `additive(orthogonal = TRUE,
+  ...)` is the recommended model (DECISION-033).
+* **(behaviour)** `simulate_phenotype()` needs at least three individuals.
+  `complex_phenotypes()` needs h2-complete inputs, is terminal (adding a layer
+  errors) and no longer carries model-1 state (`mediation_split()` is `NULL`).
+  `epistasis(qtn = list(...))` is one element per trait. Markers heterozygous in
+  every individual are no longer drawn as QTNs.
+* Under `architecture = "ld"`: the strongest-partner rule is documented, with an
+  opt-in `partner = "random"`; r2 = 0 / 1 partners are never used. Geometric
+  series that overflow or underflow are rejected.
+
+**Genotype input**
+* **(behaviour)** HapMap: the `alleles` column is validated against the observed
+  calls; a mismatch warns and the orientation comes from the calls (previously the
+  two homozygote classes could collapse to one code).
+* **(behaviour)** All readers share one raw-allele contract (first-listed allele =
+  allele 1). On tied (MAF = 0.5) markers a VCF read from a path and from a data
+  frame now gives identical dosages; the tie rule is documented in `?as_numeric`.
+  PLINK BED `allele` labels are `A1/A2` in file order.
+* FinalReport literal `NA` alleles are no-calls (were a called homozygote). Calls
+  are matched case-insensitively and the default `hets` is the full 18-code set.
+  Duplicated marker or sample IDs are an error; `filter_geno()` validates its
+  thresholds.
+
+**Selection, relationship and prediction**
+* **(behaviour)** `select_ind(trait = c(1, 2))` is an error (it used to be
+  recycled into an alternating-trait criterion). Index scores match phenotypes to
+  individuals by id. `bulk()` draws its seeds at random from the pooled progeny
+  (seeded results change). `recurrent_selection()` errors when `n_parents` is at
+  least the number of plants. Scheme wrappers restore the caller's RNG.
+* `g_matrix()` / `optimum_contribution()` work on a subset `phenotype_sim`.
+  `optimum_contribution()` needs a named `G`, warns for an unattainable target and
+  centres merit internally, so constant offsets and very large merit spreads are
+  handled. **(behaviour)** `sample_parents()` now
+  allocates parent slots by largest remainder (`method = "allocate"`, default), so
+  each individual's count stays within one slot of `n * c_i` (marginal count error
+  is controlled); this approximates but does not preserve the group coancestry
+  0.5 c'Gc, whose error depends on `n` and `G` (e.g. `n = 1`, `G = I`,
+  `c = (0.5, 0.5)`: optimum 0.25, realized 0.5). In the F2 example the target
+  coancestry is 0.0521 and the allocation gives 0.0518 at `n = 30` versus a
+  multinomial mean of 0.0672; this is problem dependent, not a general guarantee
+  (counterexample `c = (0.6, 0.4)`, `n = 1`, `G = diag(1, 3/7)`: allocation error
+  0.286 versus multinomial 0.171); the previous independent weighted draw is
+  `method = "multinomial"` (same results for the same seed). `cross_usefulness()`
+  warns when a `"dh"`/`"selfcross"` family is built from heterozygous parents.
+* `a_matrix()` gains `founder_f` for inbred-line founders. Several `predict_ebv()`,
+  `prediction_accuracy()`, `combining_ability()` and `progeny_test()` inputs that
+  were silently accepted are now errors. `template_effects()` errors instead of
+  silently omitting a transcriptome layer.
+
+**Transcriptome**
+* **(behaviour)** `genes$h2_realized` is the realized heritability Var(G)/Var(P)
+  computed from the realized genetic values and expression (it includes 2Cov(G, R)
+  and is not bounded by 1 at small n); `h2_var_ratio` is kept as an identical alias.
+  The bounded allocation Var(G)/(Var(G)+Var(R)), which equals the target on the
+  reference panel by construction, is now `h2_allocated` (it is not a heritability).
+  The mimic GREML identifiability guard now tests the spectrum of K after
+  projecting out the intercept (a warning is issued and h2 is set to 0). The
+  marginal-epistasis-share doc now gives epsilon/(epsilon+(1-epsilon)/s_ct^2).
+  `cis_fraction_realized` is the realized
+  share v_cis/Var(G) (it used to restate the target); new `epistasis_realized`.
+  `mimic` estimates kappa without double counting genetic trans structure.
+  `observe_counts()` returns integer counts.
+
+**Crossing and Rust core**
+* A malformed call to the Rust kernel is now an ordinary R error instead of aborting
+  the R session (macOS gcc builds). Minimum supported Rust is 1.71.
+* **(behaviour)** Chromosome order (and the seeded random stream) no longer depends
+  on the storage type of `chr` or the locale; only character/factor `chr` that used
+  to sort differently (e.g. `"1"`, `"10"`, `"2"`) changes.
+* **(behaviour)** Seeded crossing (`cross()`, `selfcross()`, `double_haploid()`,
+  `mate()`, `crossbreed()`) restores the caller's RNG state.
+* `as_population()` warns when the map looks like Morgans; `cross()` warns when
+  two panels list a marker's alleles in opposite order; `heterosis()` checks breed
+  membership and states the Hardy-Weinberg condition of its retention fractions.
+
+**Frozen v1 `create_phenotypes()` (bad inputs are rejected; valid output is unchanged)**
+* **(behaviour)** Errors are re-signalled (the function used to print the message
+  and return `NULL`) and the caller's RNG kind and state are restored.
+* **(behaviour)** Rejected with an informative message (previously a cryptic error,
+  `NULL`, `NA` phenotypes or silently wrong numbers): `QTN_list` with `ntraits = 1`;
+  single-trait `"DE"`/`"ADE"`; `model = "D"` with indirect LD; `ld_max >= 1`; `h2`
+  outside [0, 1] or below 0.05 with `rep > 1`; non-positive-definite `cor` (it is no
+  longer repaired by the eigenvalue clamp); effect vectors of the wrong length;
+  vQTL with several traits or `h2 = 0`; 0/1-only numeric genotypes.
+* LD pairs that share a marker between traits, span chromosomes or fall outside
+  `[ld_min, ld_max]` stop with an "LD contract" error. LD diagnostic files carry the
+  right trait labels, and `Epistatic_QTNs.txt` lists each trait's own effects.
+* The `create_phenotypes()` help now states the residual-seed formula the code
+  actually uses and its consequences.
+
+**Tooling**
+* `evals/run.sh` never modifies working-tree sources; the commit-message and CI
+  attribution guard share one pattern file (`.githooks/ai-patterns`) with a
+  self-test (`dev/test-attribution-guard.sh`); the vignette uses the real
+  `write_phenotypes()` signature; benchmarks write to a temporary directory.
+
+### Review round 2 (Codex review of the audit fixes)
+
+An independent Codex review of the fixes above found further defects; they are
+fixed here. Items that change output or reject previously accepted input are
+marked **(behaviour)**.
+
+**Simulation grammar**
+* `vqtl(same_as_add = TRUE)` after a `pleiotropy` additive layer whose traits retain
+  different numbers of loci (e.g. `pi = c(1, 0.5)`) no longer errors "non-conformable
+  arguments"; a reused dominance layer keeps the shared loci when a trait has
+  `pi = 0`; `print()` shows the retained per-trait QTN counts.
+* `$ad_report` gains `var_cA`, `var_cD` (aggregate component variances) so
+  `realized = var_cA + var_cD + cov2_comp` closes for any number of additive/dominance
+  layers; the printed note states `realized - requested/V_P` (not
+  `realized - requested`) and that the cross term is one-signed across loci only when
+  counted-allele frequencies lie on one side of 0.5.
+* The orthogonal-model `d` guard names both causes (no heterozygotes, or heterozygous
+  in every individual).
+* Documentation: the layer sub-seed is collision-resistant over ordinary ranges, not
+  injective (31-bit); duplicate `chr`/`pos` markers are accepted.
+
+**Selection, relationship and prediction**
+* `optimum_contribution()` is now invariant to a constant added to all merits (merit
+  is centred before tuning), and a `target_coancestry` above the unconstrained
+  optimum by any floating-point-resolvable margin (e.g. 0.5000005 vs 0.5) warns and
+  uses `lambda = 0`; `select_ind()` validates a scalar `trait` for every non-culling
+  method.
+* `a_matrix(founder_f = )` accepts pedigree keys; a display id shared by founders in
+  different pools is an ambiguity error.
+* `prediction_accuracy()` rejects duplicated names when only one of `ebv`/`truth` is
+  named.
+* Supplied-`K` symmetrization no longer flushes subnormal entries to zero.
+
+**Transcriptome**
+* See the `h2_realized` / `h2_allocated` / `h2_var_ratio` entry under Transcriptome
+  above, which is corrected in this round.
+
+**Genotype input and crossing**
+* `as_numeric()` now records the allele coded `+1` per marker in the
+  `"counted_allele"` attribute of its result (dosages unchanged). `as_population()`
+  keeps it and `cross()`/`c.Population()` stop when two populations count different
+  alleles at a marker, which the `allele` label alone could not reveal (an all-`AA`
+  and an all-`GG` panel converted separately both encode `+1`). The record is not
+  written to text files.
+* `as_numeric()` on a VCF file path now applies the same complete-diploid, biallelic
+  rule as an in-memory VCF: haploid, partially missing and multiallelic calls become
+  missing with a counted warning (previously SNPRelate kept them, and the valid
+  diploids at that marker could be coded with the wrong sign).
+* Numeric-format input (file or data frame) is normalized to the schema every reader
+  emits (`snp`/`allele`/`chr` character, `pos` integer, `cm` double); a table with no
+  positions no longer round-trips with a logical `pos`.
+* A 9- or 10-column HapMap prefix is no longer detected as HapMap.
+* `.same_map()` is symmetric (crossing A x B and B x A agree on map identity), and
+  chromosome labels that tie numerically (`"1"`, `"01"`) are ordered by label, so a
+  seeded mating no longer depends on row order.
+* `heterosis()` documentation: the one-half retention of F1 heterosis holds per
+  locus under exact criteria. A backcross to breed A retains 1/2 iff A is in
+  Hardy-Weinberg proportions at the locus; an F2 retains 1/2 iff the two
+  Hardy-Weinberg deviations sum to zero (e.g. deviations -0.12 and +0.12 with
+  neither breed in HWE). A single fixed inbred line qualifies; a mixture of
+  inbred lines is not sufficient.
+
+**Frozen v1 `create_phenotypes()`**
+* `create_phenotypes(seed = NULL)` under a non-Mersenne caller generator (e.g.
+  L'Ecuyer-CMRG) now advances the caller's random-number stream, so two successive
+  calls give different results; explicit seeds still restore the caller's RNG kind
+  and state exactly.
+* `create_phenotypes(architecture = "LD")` rejects seeds above about
+  `.Machine$integer.max / 10` up front (the marker search derives retry seeds
+  `seed * s + ...`, s <= 10); other architectures are unaffected.
+* The indirect-LD contract check now also verifies the LD magnitude of every selected
+  pair against `[ld_min, ld_max]` and against the reported LD (previously latent; no
+  valid public output changed: 15/30 successes for model "A" seeds 1-30 are
+  identical).
+* Corrected help: `h2 = 0.05` is rejected when `rep > 1` (accepted range is
+  `h2 > 0.05`); the seed-collision rule of the fully pleiotropic QTN draw is
+  `seed >= 2 * rep`; `cor` semantics (trait 1 unchanged only for a unit diagonal); NA
+  dosages error; duplicated `chr_pos` documented as accepted by the pleiotropic and
+  partially pleiotropic architectures.
+* Removed a false "none of the dominance QTNs has a heterozygous individual" warning
+  for a locus that is heterozygous in every individual.
+
+### Review round 3 (Codex re-review of round 2)
+
+A second independent review closed the following; items that change output or
+reject previously accepted input are marked **(behaviour)**.
+
+* `optimum_contribution()`: centring the merit no longer overflows for huge finite
+  merit ranges, and the band that detects a `target_coancestry` above the
+  unconstrained optimum is relative to the target and optimum coancestries (round 4
+  removes the `max(1, .)` floor that remained in this band).
+* Supplied-`K` symmetrization uses the correctly rounded mean for near-symmetric
+  subnormal entries.
+* Transcriptome `genes$h2_realized`, `h2_var_ratio`, `h2_allocated`,
+  `cis_fraction_realized` and `epistasis_realized` are scale-free in
+  `simulate_transcriptome()` and `predict()` (the absolute 1e-12 cutoff is removed;
+  an exactly zero denominator still reports 0).
+* The orientation label fallback (cross-pool allele guard) is case-insensitive.
+* An 11-column HapMap-like object without sample columns is no longer detected as
+  HapMap.
+* Whole-number double genotype columns are converted to integer.
+* The v1 seed-overflow error message states the inclusive magnitude bound
+  `abs(seed) <= N` when the accepted seeds include 0 (the ordinary case); see round 4
+  for calls whose accepted range is not centred at 0.
+* Documentation corrections: the `sample_parents()` coancestry comparison is an
+  empirical statement about the F2 example only (problem dependent); multi-generation
+  scheme accuracy under per-generation re-standardization stays near sqrt(h2) for additive-only
+  architectures and declines with dominance; `heterosis()` retention criteria are
+  exact (backcross needs only the recurrent breed in HWE; F2 needs the two HWE
+  deviations to sum to zero); `Var(g) = prop_A + prop_D + 2Cov(c_A, c_D)` is for one
+  additive and one dominance layer (general: `Var(c_A) + Var(c_D) + 2Cov(c_A, c_D)`);
+  `h2_realized = h2/(1 + gr_cov)` holds only when `Var(G) + Var(R) = 1` (general
+  form `Var(G)/(Var(G) + Var(R) + gr_cov)`, not bounded by 1); the marginal
+  epistasis-share formula holds for the nondegenerate blend (the exact-cancellation
+  fallback gives the target epsilon).
+
+### Review round 4 (Codex re-review of round 3)
+
+* **(behaviour, message only)** The v1 seed-overflow error no longer claims an
+  inclusive magnitude bound when none applies. When the residual seed
+  `(seed + rep) * round(10 * h2)` makes the accepted seeds an interval not centred at
+  0 (for example `rep = 429496730`, `h2 = 0.5`, where seed 0 is rejected but
+  -429496730 is accepted), the message states the accepted integers as `[lo, hi]`
+  (or that no seed is accepted) and asks to reduce `rep` / `n_qtn`. The ordinary
+  message `abs(seed) <= N` is unchanged and valid V1 outputs are bit-identical.
+* `optimum_contribution()`: the band that detects a `target_coancestry` above the
+  unconstrained optimum is now purely relative (16 machine epsilons times the larger
+  of the target and the optimum coancestry), with no absolute floor, so tiny-scale
+  `G` matrices are judged on their own scale.
+* `simulate_transcriptome(mimic = )`: the per-gene rescale always hits the requested
+  per-gene variance whenever the realized unit-scale variance is finite and
+  positive (no absolute cutoff); a warning is issued when that realized variance is
+  tiny (< 1e-12) and the rescale is ill-conditioned (it amplifies rounding noise).
+  Only an exactly zero or non-finite realized variance keeps the unscaled fallback.
+* Documentation: the `select_ind(on = "pheno")` response
+  `R = i * Cov(A, P) / sigma_P` is stated as the linear-regression prediction (exact
+  only if `E[A | P]` is linear, e.g. joint normality), reducing to `i * h2 * sigma_P`
+  only when `Cov(A, P - A) = 0` (all non-additive parts, including epistasis under
+  linkage disequilibrium, uncorrelated with the breeding value); `docs/DECISIONS.md`,
+  `docs/THEORY_REVIEW.md` and `docs/ROADMAP.md` mirror the wording.
+
 # simplePHENOTYPES 2.0.0
 
 Version 2.0 is the release line that introduces the v2 simulation grammar and
@@ -72,7 +324,7 @@ backend contract in `docs/BACKEND_CONTRACT.md`.
 
 # simplePHENOTYPES 1.4.0
 ## Major changes
-Implemented vQTL simulaiton
+Implemented vQTL simulation
 removed "Selected" from QTN output file name.
 
 ## Minor changes

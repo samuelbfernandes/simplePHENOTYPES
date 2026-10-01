@@ -30,9 +30,9 @@ ignored).}
 
 \item{allow_self}{allow a parent to be mated with itself.}
 
-\item{seed}{optional RNG seed for \code{"random"}. The other designs are
-deterministic, draw nothing and leave the RNG untouched, so \code{seed} is
-ignored for them.}
+\item{seed}{optional RNG seed for \code{"random"}; the caller's RNG state is
+restored on exit. The other designs are deterministic, draw nothing and
+leave the RNG untouched, so \code{seed} is ignored for them.}
 }
 \value{
 A data frame with columns \code{mother}, \code{father}, \code{n}, ready for \code{\link[=mate]{mate()}}
@@ -47,12 +47,17 @@ standard mating designs.
 \item \code{"random"}: \code{n_crosses} pairs drawn at random (a mother from \code{mothers}, a
 father from \code{fathers}; with one parent set, two distinct individuals).
 Without selfs, a mother is drawn among those with at least one father other
-than herself, then one of those fathers.
+than herself, then one of those fathers. The draw is uniform over mothers and
+then over each mother's admissible fathers, so it is uniform over the
+admissible \emph{pairs} only when every mother has the same number of admissible
+fathers; pairs drawn with replacement, a parent can recur.
 \item \code{"factorial"}: every mother with every father (North Carolina Design II).
 \item \code{"nested"}: each father with its own set of \code{mothers_per_father} distinct
 mothers, no mother shared between fathers (North Carolina Design I).
-\item \code{"diallel"}: every ordered pair of distinct parents, reciprocals included.
-\item \code{"half_diallel"}: every unordered pair of distinct parents, once.
+\item \code{"diallel"}: every ordered pair of distinct parents, reciprocals included
+(Griffing's method 3; with \code{allow_self = TRUE}, method 1).
+\item \code{"half_diallel"}: every unordered pair of distinct parents, once (Griffing's
+method 4; with \code{allow_self = TRUE}, method 2).
 }
 
 Designs pair individuals by id. A pair of the same \strong{individual} is a self,
@@ -72,6 +77,11 @@ data("SNP55K_maize282_maf04")
 pop <- as_population(SNP55K_maize282_maf04, individuals = 1:4)
 mating_design(pop, design = "half_diallel")
 mating_design(pop[1:2], pop[3:4], design = "factorial", progeny_per_cross = 5)
+}
+\references{
+Griffing, B. (1956). Concept of general and specific combining ability in
+relation to diallel crossing systems. \emph{Australian Journal of Biological
+Sciences} 9(4), 463--493. \doi{10.1071/BI9560463}
 }
 \seealso{
 \code{\link[=mate]{mate()}}

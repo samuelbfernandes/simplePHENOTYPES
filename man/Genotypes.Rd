@@ -33,9 +33,12 @@ genotypes(
 
 \item{maf_cutoff}{Drop markers with minor-allele frequency below this.}
 
-\item{SNP_effect}{Genetic model: "Add", "Dom", "Left", "Right".}
+\item{SNP_effect}{Genetic model: "Add", "Dom", "Left", "Right". Applied when
+non-numeric marker data are numericalized; ignored for input that is
+already numeric.}
 
-\item{SNP_impute}{Imputation: "Middle", "Minor", "Major", "None".}
+\item{SNP_impute}{Imputation of missing calls: "Middle" (0), "Minor" (-1),
+"Major" (+1), "None" (keep NA); see the coding contract above.}
 
 \item{verbose}{Print progress messages.}
 
@@ -52,6 +55,36 @@ sample). Numericalization is delegated to \code{\link[=as_numeric]{as_numeric()}
 \code{\link[=format_conversion]{format_conversion()}}, the single coding implementation in the package, so
 create_phenotypes() and the modern grammar code genotypes identically.
 }
+\section{Coding contract (v1)}{
+
+\itemize{
+\item Output dosages are -1/0/1 (NA only with \code{SNP_impute = "None"}). For
+HapMap/VCF/PLINK/GDS/FinalReport input, +1 is the homozygote of the
+\emph{major} allele. When the two alleles are exactly tied (minor-allele
+frequency 0.5 -- e.g. two AA and two GG samples) the allele listed
+\emph{first} in the \code{alleles} (REF/ALT) column is coded +1, so the same
+genotypes with the alleles listed in the other order get the opposite
+sign at a tied marker.
+\item Numeric input carries no allele information and is taken as coded.
+A panel that contains -1 must be -1/0/1; a panel that contains 2 but no
+-1 is 0/1/2 and is shifted by -1. A panel coded only 0/1 is
+ambiguous (the shift cannot be decided) and is rejected, as is any other
+value (fractional or out-of-range dosages, or -1 together with 2).
+\item Missing calls: \code{SNP_impute = "Middle"} -> 0, \code{"Minor"} -> -1,
+\code{"Major"} -> +1, \code{"None"} -> left as NA (a QTN with missing genotypes
+is then rejected by the simulation). An entirely missing marker is
+therefore imputed to the constant 0 / -1 / +1 (a monomorphic marker).
+\code{maf_cutoff} is applied \emph{after} imputation: with \code{"Minor"} /
+\code{"Major"} such a marker has MAF 0 and is dropped by any positive cutoff,
+with \code{"Middle"} its constant 0 gives MAF 0.5 and it passes, and with
+\code{"None"} its MAF is undefined and it is dropped. Remove all-missing
+markers beforehand if that matters.
+\item \code{maf_cutoff} keeps markers with MAF \code{>=} the cutoff (inclusive);
+\code{constraints$maf_above} / \code{maf_below} of the QTN selection are strict
+(\code{>} / \code{<}).
+}
+}
+
 \author{
 Samuel Fernandes and Alexander Lipka.
 }

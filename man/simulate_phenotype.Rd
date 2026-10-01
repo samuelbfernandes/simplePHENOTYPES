@@ -26,7 +26,12 @@ simulate_phenotype(
 (first five columns \code{c("snp", "allele", "chr", "pos", "cm")}, e.g.
 \link{SNP55K_maize282_maf04}), an individuals-by-markers numeric matrix coded
 -1/0/1, or a \link[=as_population]{Population} from \code{\link[=cross]{cross()}}, \code{\link[=selfcross]{selfcross()}} or
-\code{\link[=double_haploid]{double_haploid()}}. \strong{Optional} when an expression basis is given: with
+\code{\link[=double_haploid]{double_haploid()}}. At least \strong{three} individuals are required (with two,
+the exact-variance standardization forces the genetic value and residual to
+be collinear and the realized heritability is meaningless); duplicate
+\code{chr}/\code{pos} values are accepted (the map need not be unique); markers that are
+monomorphic, or heterozygous in every individual (constant dosage), can never
+be QTNs and are skipped. \strong{Optional} when an expression basis is given: with
 \code{geno = NULL} and an \code{expression} matrix (or a \code{transcriptome_sim} in
 \code{transcriptome}), the phenotype is built from expression alone -- individuals
 come from the expression source's columns, there are no markers, and only
@@ -66,12 +71,19 @@ set of QTNs and effects, so replications are distinct genetic architectures
 rather than the same one with fresh residuals. Layers given an explicit
 \code{qtn} keep their fixed loci across replications.}
 
-\item{seed}{RNG seed stored on the object and threaded to every layer.}
+\item{seed}{RNG seed stored on the object and threaded to every layer: each
+layer, replication and residual draws under a sub-seed derived from
+\verb{(seed, layer type, occurrence of that type)}; see the reproducibility
+paragraph above.
+The caller's RNG state is left untouched.}
 
 \item{h2}{optional requested genetic-variance share for one-call simulation.
 For a single mean-effect layer this is the simulated broad-sense
-heritability apart from finite-sample covariance with the residual. With
-multiple non-orthogonal layers, see Details and the reported realized h2.
+heritability (the genetic component is scaled to \code{h2} exactly; only its
+sample covariance with the residual moves the realized ratio slightly). With
+multiple non-orthogonal layers -- above all additive and dominance on shared
+loci -- the realized value can differ structurally from the requested sum;
+see Details and the reported realized H2 / \verb{$ad_report}.
 \code{h2} governs the \strong{marker} genetic budget (additive + dominance +
 epistasis \code{prop} must sum to it). A \code{\link[=transcriptome]{transcriptome()}} layer's \code{prop} is a
 separate expression-mediated variance category and is \strong{not} part of this
@@ -85,8 +97,9 @@ length \code{n_traits}). Genetic values stay centered; only the phenotype is
 shifted.}
 
 \item{individuals}{optional subset of individuals to simulate, given as IDs
-or indices. Marker minor-allele frequencies are recomputed on the subset,
-and the genotypes are never copied -- only the selected rows are read.}
+or indices (at least three). Marker minor-allele frequencies are recomputed
+on the subset, and the genotypes are never copied -- only the selected rows
+are read.}
 
 \item{model}{one-call model string: "A" (additive, default), "AD"
 (additive + dominance), "AE" (additive + epistasis).}
@@ -109,7 +122,13 @@ only): \code{ld_type} (\code{"indirect"}/\code{"direct"}), \code{r2_min}, \code{
 window the linked causal pair must fall in; see \code{\link[=qtn_table]{qtn_table()}}). For
 \code{"independent"}: \code{distinct_chr} (\code{TRUE} puts each trait's QTNs on disjoint
 chromosomes). \code{ld_type} defaults to \code{"direct"} (the two traits' causal SNPs
-are directly in LD).
+are directly in LD). Under \code{"ld"}, \code{partner} chooses the trait-2 locus for a
+\code{"direct"} pair (or the ordering of flanking candidates for \code{"indirect"}):
+\code{"strongest"} (default) takes the in-window partner with the \strong{highest}
+r2 with a randomly drawn anchor SNP (so realized r2 skews toward \code{r2_max}),
+\code{"random"} takes a uniformly random in-window partner. Perfectly collinear
+markers (r2 = 1) are never used as a partner, and the window must satisfy
+\code{0 < r2_max} and \code{r2_min < 1}.
 
 \code{cor} is the target \strong{genetic} correlation and works for any number of
 traits: a scalar applied to every trait pair, or a full
@@ -151,7 +170,10 @@ approximation returned. Using \code{cor} prints a citation notice once per
 session.}
 }
 \value{
-a \code{phenotype_sim} object.
+a \code{phenotype_sim} object. Beyond the realized \code{pheno} table and the
+requested \code{var_budget}, it carries \code{ad_report} (a per-trait data frame of the
+realized additive/dominance partition when additive and dominance layers
+share loci in the variance-partition coding, else \code{NULL}).
 }
 \description{
 \code{simulate_phenotype()} is the entry point of the composable v2 grammar. It
@@ -173,11 +195,57 @@ Otherwise it returns the h2 = 0 foundation, ready to be completed with layers.
 
 Layer proportions are marginal sample variances after scaling. The simple
 -1/0/1 additive, heterozygote-indicator dominance, and centered-product
-epistatic designs are not a Fisher/NOIA-orthogonal decomposition. Their
-covariance can therefore make realized broad-sense heritability differ from
-the requested sum in a finite sample, especially when layers reuse linked
-loci. The object's print method reports realized H2 from the simulated
-genetic and phenotypic values rather than concealing that difference.
+epistatic designs are \strong{not} a Fisher/NOIA-orthogonal decomposition, so the
+scaled components are generally correlated and the realized broad-sense
+heritability H2 = Var(g) / Var(P) is not, in general, the sum of the requested
+proportions. The clearest case is \code{additive()} + \code{dominance()} on the \strong{same
+loci} (the default \code{same_as_add = TRUE}, and the one-call \code{model = "AD"}):
+with one layer of each type Var(g) = prop_A + prop_D + 2 Cov(c_A, c_D) (with
+several layers of a type Var(c_A), Var(c_D) also carry the covariance among
+those layers; the exact identity is Var(g) = Var(c_A) + Var(c_D) +
+2 Cov(c_A, c_D)), and under Hardy-Weinberg
+Cov(dosage, heterozygote indicator) = -(2p - 1) 2pq at every locus (\code{p} = the
+frequency of the counted +1 allele). With the default geometric effect series
+every locus has the same effect sign, so each locus's cross term has the sign
+of \verb{1 - 2p}: positive where the counted allele is the minor allele, negative
+where it is the major allele. The terms therefore reinforce, rather than
+cancel, when the counted-allele frequencies lie on one side of 0.5 (they
+partly cancel when the frequencies straddle 0.5, and \code{phase = "repulsion"}
+alternates the additive signs). The cross term is a \strong{structural} bias that
+depends on the allele frequencies \strong{and on which allele is coded +1} (on the same loci
+and seeds a panel with minor-allele frequencies 0.10-0.20 gave a realized H2
+of about 0.63 with the minor allele coded +1 and about 0.25 with the major
+allele coded +1, for a requested 0.5), not a finite-sample fluctuation that
+shrinks with n. The realized H2 printed by the object, and the \verb{$ad_report}
+component (per trait: the requested share, the realized share, the
+realized Var(A), Var(D) and 2Cov(A,D) of the additive/dominance block as
+fractions of V_P, and the component variances Var(c_A), Var(c_D) and
+2Cov(c_A,c_D), which also sum to the realized share; the gap to the request is
+\code{realized - requested/V_P}), report what was actually simulated whenever additive and
+dominance layers share loci; use
+\code{additive(orthogonal = TRUE, a =, d =)} when the additive/dominance partition
+must be Fisher-orthogonal. Epistatic products that share loci with other
+layers, and strong LD between causal loci, can likewise correlate components;
+no separate report is produced for those.
+
+Reproducibility: with a non-\code{NULL} \code{seed}, every layer draws its QTNs and
+effects under a sub-seed derived from \verb{(seed, layer type, occurrence)}, where
+\emph{occurrence} counts the earlier layers \strong{of the same type} (0 for the first
+\code{additive()}, 1 for the second, ...); replication \code{r} of a \code{vary_qtn} layer and
+each trait's residual use the labelled variants \code{"<type>_rep<r>"} and
+\code{"residual_t<t>"}. The label is hashed position-sensitively, so labels that
+differ only by a permutation of characters (replications 12 and 21, traits 12
+and 21) get different sub-seeds, and distinct labels are collision-resistant
+over ordinary ranges of replications, traits and layers. A 31-bit sub-seed
+cannot be injective in general, so two very distant labels can in principle
+share one (found: with \code{seed = 123}, replication 106 of the first
+\code{transcriptome()} layer and the residual of trait 40160 in replication 4);
+this is far outside realistic use. Development versions before this rule summed
+character codes, which made e.g. replications 12 and 21 identical; every
+seeded value changed with the fix. Consequently adding,
+removing or reordering a layer of one type never changes the draws of layers of
+other types, but inserting another layer of the \emph{same} type before an existing
+one shifts that layer's occurrence index and so changes its draws.
 }
 \examples{
 data("SNP55K_maize282_maf04")

@@ -38,10 +38,12 @@ and flanking markers and those in \code{exclude_interval}.}
 \item{exclude_interval}{optional genomic interval(s) removed from the
 background, typically the target region, whose donor segment foreground
 selection deliberately keeps: a list or data frame with \code{chr}, \code{from}, \code{to}
-in centiMorgans (the map's \code{cm}). Several rows give several intervals.
+in centiMorgans (the map's \code{cm}). Several rows give several intervals. The
+bounds are inclusive (a marker at exactly \code{from} or \code{to} is excluded).
 Markers inside are dropped, and with \code{marker_weights = "interval"} the
 interval's length is also removed from the genome the remaining markers
-represent. Target and flanking markers leave the background too, but the
+represent; with the default equal weights only the markers are removed and
+the excluded region's genome share is \emph{not} taken out of the denominator. Target and flanking markers leave the background too, but the
 genome around them stays represented by the neighbouring background markers
 unless an interval covers it.}
 
@@ -99,13 +101,13 @@ is not identity by descent.
 
 For an unselected cohort from \code{t} successive backcrosses to the recurrent
 parent after the F1 (\code{t = 0} for the F1), the expected donor genome proportion
-in BC\code{t} is \code{1/2^(t + 1)} (Frisch & Melchinger 2005, Introduction), so the
+in BC\code{t} is \code{1/2^(t + 1)} (Frisch & Melchinger 2005), so the
 expected recovery is \code{R_t = 1 - (1/2)^(t + 1)}: 0.5, 0.75, 0.875, 0.9375 at F1,
 BC1, BC2, BC3. It follows from Mendelian transmission -- each backcross joins
 one fully recurrent gamete to a gamete carrying, on average, the backcrossed
 parent's recurrent fraction, so \code{R_0 = 1/2} and \code{R_t = 1/2 + R_(t-1)/2}.
-Background-selected individuals are meant to exceed their cohort's mean. The staged foreground / recombinant / background
-procedure follows Frisch & Melchinger (2001); the weighted marker estimator of
+Background-selected individuals are meant to exceed their cohort's mean. The
+staged foreground / recombinant / background procedure follows Frisch & Melchinger (2001); the weighted marker estimator of
 recovery is this package's definition. Plain truncation selection with
 \code{\link[=select_ind]{select_ind()}} on a phenotype is not marker-assisted backcrossing.
 

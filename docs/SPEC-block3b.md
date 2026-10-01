@@ -542,8 +542,14 @@ caveat below).
 ### Genetic theory
 *Progeny mean as a predictor.* With mates a random sample of a random-mating population,
 the expected half-sib progeny mean is `½ A_i` plus a constant (item 1, `p_T = p`);
-dominance does not enter a half-sib mean under HWE but contributes to a full-sib family
-mean. The accuracy of a progeny test with `n` half-sib progeny, from
+dominance enters the parent-dependent part of a half-sib mean (the part that ranks
+parents) only through the average effect
+`α = a + d(1 − 2p)` (= `a + d(q − p)`, at the mates' frequencies; the breeding value `A_i`
+is written with these `α`), while the parent's own dominance deviation does not, and
+the full-sib family mean additionally carries the cross's dominance deviation.
+Dominance also remains in the constant common to all parents, `a(p − q) + 2dpq` per
+locus under HWE, so at `p = ½` the `d(1 − 2p)` term of `α` vanishes but the common
+mean does not (a = 0, d = 1, p = ½: every parent's expected mean is 0.5). The accuracy of a progeny test with `n` half-sib progeny, from
 `Cov(A_i, ȳ) = ½ σ²_A` and `Var(ȳ) = σ²_P [1 + (n − 1) t]/n` with `t = h²/4`, is
 ```
 r_PT = sqrt( n h² / (4 + (n − 1) h²) )        (package derivation)
@@ -589,8 +595,13 @@ from id strings.
    mass selection at the same proportion over 30 seeds (Falconer & Mackay's qualitative
    ordering); at `h2 = 0.9` the ordering reverses.
 5. **Review must confirm:** `r_PT`; the selfed-family `family_relationship` question
-   above; that dominance is absent from half-sib means and present in full-sib means in
-   the simulated data.
+   above; that dominance enters a half-sib mean only in the parent-dependent part through
+   `α = a + d(1 − 2p)` (a
+   half-sib mean regressed on a dominance-free breeding value shows no separate
+   parental-dominance term, and the `d(1 − 2p)` contribution vanishes at `p = ½`; the
+   common mean constant `a(p − q) + 2dpq` does not), and
+   that a full-sib mean also carries the cross's own dominance deviation, in the
+   simulated data.
 
 ### Dependencies / risks / effort
 F1, F2, item 1. **Effort S** (`families()`) **+ M** (`mating_design()` + `progeny_test()`).

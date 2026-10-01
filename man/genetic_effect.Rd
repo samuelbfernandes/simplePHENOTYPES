@@ -45,8 +45,59 @@ genetic_effect(
 A vector of Genetic values
 }
 \description{
-Calculate genetic value based on QTN objects.
+Frozen v1 engine. Builds one trait's genetic value from the additive,
+dominance and epistatic QTN genotype matrices and the per-QTN effect
+vectors.
 }
+\section{v1 conventions (reproduced exactly; a re-implementation may rely on them)}{
+
+\describe{
+\item{Dosage coding}{Genotypes are the numeric dosages \eqn{x \in
+    \{-1, 0, 1\}}: +1 is the homozygote for the allele coded as major by
+the numericalization step, 0 is the heterozygote and -1 the other
+homozygote (a numeric 0/1/2 panel is shifted by -1 on input).}
+\item{Additive}{\eqn{\sum_k x_{ik} a_k}, with \eqn{a_k} the effect of
+QTN \eqn{k}.}
+\item{Dominance}{\eqn{\sum_k \mathbf{1}[x_{ik} = 0]\, d_k}: a
+heterozygote \emph{indicator} times the dominance effect (homozygotes
+get 0). It is not the \eqn{\pm a / d} genotypic-value
+parameterization. A dominance QTN without any heterozygote contributes
+0 (and 0 variance).}
+\item{Epistasis}{\eqn{\sum_m e_m \prod_{l \in m} x_{il}}: the product
+of the \emph{raw, uncentred} dosages of the \code{epi_interaction} loci of
+interaction \eqn{m}, so a heterozygote at any locus of the group zeroes
+the term. Loci are grouped by position (consecutive columns), so
+duplicated marker names cannot change which columns are multiplied.}
+\item{Effect series}{With \code{sim_method = "geometric"} (built in
+\code{check_in()}, not here) the k-th effect of a series is \eqn{a^k},
+\eqn{k = 1, \dots, n} (the first QTN gets \eqn{a}, not \eqn{a^0}); a
+big-effect additive QTN is prepended and the series then has
+\eqn{n - 1} terms. The same series is used for dominance, epistatic and
+variance effects. With \code{"custom"} the user's vector is used as given.
+This function only receives the final, per-QTN vector and stops if its
+length differs from the number of QTNs (no recycling).}
+\item{Centring}{The total genetic value is mean-centred
+(\code{scale(., scale = FALSE)}); the trait mean is added later, so the
+expected phenotype equals \code{mean} in every replicate.}
+\item{Variances}{\code{VA}, \code{VD}, \code{VE} are \code{var()} (n - 1 denominator) of each
+component. \code{var_add}, \code{var_dom}, \code{var_epi} are the marginal variances of
+each QTN's own contribution; they do not add up to \code{VA}/\code{VD}/\code{VE} when
+QTNs are in linkage disequilibrium and they refer to the genetic values
+\emph{before} any \code{cor} whitening/colouring (see
+\code{base_line_multi_traits()}).}
+\item{QTN sets}{The additive, dominance, epistatic and variance QTN sets
+are drawn independently by \code{qtn_pleiotropic()} /
+\code{qtn_partially_pleiotropic()} (different seeds, no mutual exclusion),
+so a marker can belong to several effect classes; see the notes in those
+functions.}
+\item{Unused argument}{\code{sim_method} is accepted for interface symmetry
+and has no effect here.}
+}
+NA dosages are rejected with an error (they would otherwise turn the
+genetic values into NA); they can only reach this function when
+\code{SNP_impute} leaves missing values in the QTN columns of the marker data.
+}
+
 \author{
 Samuel Fernandes. Last update: Apr 20, 2020
 }

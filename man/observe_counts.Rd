@@ -32,8 +32,11 @@ non-negative number or one per gene. \code{0} gives a Poisson limit. Default \co
 }
 \value{
 the \code{transcriptome_sim} with a \code{counts} matrix (genes x individuals,
-integer) and a \code{count_model} list (the per-gene/per-individual parameters and
-the realized mean matrix \code{mu}).
+R storage type \code{integer} on both the Poisson and negative-binomial paths) and
+a \code{count_model} list (the per-gene/per-individual parameters and the realized
+mean matrix \code{mu}). Counts must fit R's integer range: a mean above \code{1e9}, or
+a draw above \code{.Machine$integer.max}, is an error rather than a silently
+huge double.
 }
 \description{
 Maps the normalized latent expression of a \code{transcriptome_sim} to integer
@@ -58,6 +61,15 @@ data("SNP55K_maize282_maf04")
 tx <- simulate_transcriptome(SNP55K_maize282_maf04, n_genes = 50, seed = 1)
 tx <- observe_counts(tx, seed = 2)
 tx$counts[1:5, 1:5]
+}
+\references{
+The \verb{Var = mu + phi mu^2} negative-binomial parameterization and its use for
+RNA-seq counts follow the edgeR convention: McCarthy DJ, Chen Y, Smyth GK
+(2012) \emph{Nucleic Acids Res.} 40(10):4288-4297,
+\doi{10.1093/nar/gks042}; Robinson MD, Smyth GK (2008) \emph{Biostatistics}
+9(2):321-332, \doi{10.1093/biostatistics/kxm030} (page-level equation
+numbers not verified). The log-link to the latent expression and the
+library-size factor are this package's own design.
 }
 \seealso{
 \code{\link[=simulate_transcriptome]{simulate_transcriptome()}}.

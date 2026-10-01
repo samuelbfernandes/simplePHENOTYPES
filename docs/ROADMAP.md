@@ -401,7 +401,8 @@ against it. These are open questions to resolve, not settled decisions.
   implementation must pass a deep review of the **theoretical correctness** of every
   method before release — not just "the tests pass," but that each estimator/optimizer
   matches its published definition. Concretely: (a) selection response tracks the
-  breeder's equation R = i·h²·σ_P across intensities and heritabilities; (b) the
+  breeder's equation R = i·h²·σ_P across intensities and heritabilities (additive
+  models; in general R = i·Cov(A, P)/σ_P under linear E[A | P]); (b) the
   combined-index and Smith–Hazel weights reproduce worked textbook examples;
   (c) OCS contributions match a reference solver (e.g. `optiSel`) on the same G and
   merit, and realized ΔF matches the constraint; (d) `g_matrix()` matches an
@@ -435,8 +436,10 @@ against it. These are open questions to resolve, not settled decisions.
       variance is exhausted. Symptom in the breeding designer (`program_metrics()`
       recurrent DAG execution, review O1): genomic `on = "gv"` selection is correct
       (rescaling is monotone within a population, so the ranking is unchanged), but
-      `on = "pheno"` selection keeps its genetic share at `prop` every cycle, so
-      selection accuracy does not decay and late-cycle response is optimistic. A
+      `on = "pheno"` selection keeps its genetic share at `prop` every cycle; for
+      an additive-only trait accuracy then stays near sqrt(h2) (0.695-0.714 vs 0.707 in
+      the review run) and it declines when dominance / non-orthogonal components are
+      present (0.564 -> 0.538 -> 0.477), so late-cycle response can be optimistic. A
       `phenotype_value(x, qtn, effect, h2, ...)` (fixed genetic scale + residual
       draw) — or an option on the existing scorer to skip the per-population
       rescale — would let the designer drive faithful phenotypic selection.

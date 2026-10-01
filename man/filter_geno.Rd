@@ -25,19 +25,25 @@ filter_geno(
 individuals-by-markers \code{-1/0/1} matrix). Convert other formats with
 \code{\link[=as_numeric]{as_numeric()}} first.}
 
-\item{maf_above}{keep markers with minor-allele frequency \verb{>= maf_above}.}
+\item{maf_above}{keep markers with minor-allele frequency \verb{>= maf_above}. A
+single finite number in \verb{[0, 0.5]} (a vector or \code{NA} is an error).}
 
-\item{maf_below}{keep markers with minor-allele frequency \verb{<= maf_below}.}
+\item{maf_below}{keep markers with minor-allele frequency \verb{<= maf_below}. A
+single finite number in \verb{[0, 0.5]}, and not smaller than \code{maf_above}.}
 
 \item{hets}{\code{"any"} (no heterozygosity filter, default), \code{"include"} (keep
 only markers that have at least one heterozygote -- needed for a dominance
 layer on a near-inbred panel), or \code{"remove"} (keep only markers with no
 heterozygotes).}
 
-\item{remove_monomorphic}{drop markers with no variation (default \code{TRUE}).}
+\item{remove_monomorphic}{drop markers with no variation (default \code{TRUE});
+must be \code{TRUE} or \code{FALSE}.}
 
 \item{indep_pairwise}{optional \code{c(window, step, r2)} for composite-r^2 pairwise
-pruning (see the LD section). \code{NULL} skips it.}
+pruning (see the LD section). \code{NULL} skips it. \code{window} and \code{step} are
+positive whole numbers of markers (\code{window} may be fractional in
+kilobases when \code{window_unit = "kb"}), \code{r2} is in \verb{(0, 1]}; the same holds
+for \code{indep_pairphase}, and \code{indep} takes a \code{vif} of at least 1.}
 
 \item{indep_pairphase}{optional \code{c(window, step, r2)} for haplotypic-r^2
 pairwise pruning (EM-phased; see the LD section). \code{NULL} skips it.}
@@ -46,7 +52,7 @@ pairwise pruning (EM-phased; see the LD section). \code{NULL} skips it.}
 pruning (PLINK's \code{--indep}; see the LD section). \code{NULL} skips it.}
 
 \item{blocks}{\code{TRUE} to define Gabriel et al. (2002) haplotype blocks and keep
-one tag marker per block (default \code{FALSE}).}
+one tag marker per block (default \code{FALSE}); must be \code{TRUE} or \code{FALSE}.}
 
 \item{block_max_kb}{maximum block span in kilobases for \code{blocks} (default
 500).}
@@ -76,7 +82,10 @@ coded \code{-1/0/1}, and returns the same object with the failing markers droppe
 \details{
 Filters are applied in order: monomorphic removal, minor-allele frequency,
 heterozygosity, then LD pruning. A marker must pass every requested filter to
-be kept.
+be kept. There is no call-rate filter (PLINK's \code{--geno} / \code{--mind}) and no
+Hardy-Weinberg test: a marker with no called genotype is kept unless
+\code{remove_monomorphic = TRUE} (its minor-allele frequency is then 0), so drop
+or impute such markers beforehand if they matter.
 }
 \section{LD pruning and haplotype blocks}{
 
@@ -84,12 +93,15 @@ The three sliding-window pruners take the same three-number specification used
 by PLINK (\code{c(window, step, threshold)}); \code{window_unit} sets whether \code{window}
 counts markers (default) or kilobases (\code{"kb"}, using the \code{pos} column).
 \code{indep_pairwise}, \code{indep} and \code{indep_pairphase} reproduce PLINK 1.9's
-\code{--indep-pairwise}, \code{--indep} and \code{--indep-pairphase} \strong{byte-for-byte for
+\code{--indep-pairwise}, \code{--indep} and \code{--indep-pairphase} \strong{marker-for-marker for
 ordinary use}: on complete-call \strong{autosomal} genotypes, with \code{step <= window},
-the kept and removed marker sets match PLINK 1.9 marker-for-marker (verified
-against PLINK v1.9.0-b.8 -- the whole bundled panel genome-wide, plus
-randomized differential testing; see
-\code{tests/testthat/test-filter-geno-plink-parity.R}). This holds for variant
+the kept marker set (and hence the removed set) matches PLINK 1.9. The
+committed evidence is a set of golden PLINK v1.9.0-b.8 results on the bundled
+\code{SNP55K_maize282_maf04} panel (nine prune configurations genome-wide, plus
+\verb{--blocks no-pheno-req} at 200 and 500 kb), compared in the same marker order
+by \code{tests/testthat/test-filter-geno-plink-parity.R}, together with hard-coded
+threshold-epsilon and monomorphic corner cases; there is no PLINK run on other
+panels or on randomly generated genotypes. This holds for variant
 windows (all three) and kb windows (\code{indep_pairwise}); \code{blocks = TRUE} likewise
 reproduces the block definitions of PLINK's \verb{--blocks no-pheno-req} at a
 matching \code{--blocks-max-kb} (simplePHENOTYPES imposes no phenotype requirement,
@@ -119,6 +131,11 @@ Missing calls (\code{NA}) are handled per pair on the complete observations (a
 \code{pairwise.complete.obs} correlation for \code{indep_pairwise}/\code{indep}, complete
 pairs only for \code{indep_pairphase}) and are \strong{not} claimed identical to PLINK's
 missing-data path; drop or impute missing genotypes first for PLINK parity.
+Variant windows (\code{window_unit = "variants"}) tolerate missing \code{chr}/\code{pos} (for
+example genotypes converted from a nucleotide table): markers with a missing
+\code{chr} form one group, ordered as supplied. \code{window_unit = "kb"} and
+\code{blocks = TRUE} need a physical map, so they stop with an error when \code{chr} or
+\code{pos} is missing for any marker.
 \describe{
 \item{\code{indep_pairwise = c(window, step, r2)}}{PLINK \code{--indep-pairwise}: drop
 one marker of every pair whose composite genotype r^2 (squared correlation
@@ -166,7 +183,11 @@ human genome. \emph{Science} 296, 2225--2229. \doi{10.1126/science.1069424}
 (the haplotype-block definition).\cr
 Hill, W.G. and Robertson, A. (1968). Linkage disequilibrium in finite
 populations. \emph{Theor. Appl. Genet.} 38, 226--231.
-\doi{10.1007/BF01245622} (the phased r^2 used by \code{indep_pairphase}).
+\doi{10.1007/BF01245622} (the phased r^2 used by \code{indep_pairphase}).\cr
+Gaunt, T.R., Rodriguez, S. and Day, I.N.M. (2007). Cubic exact solutions for
+the estimation of pairwise haplotype frequencies. \emph{BMC Bioinformatics}
+8, 428. \doi{10.1186/1471-2105-8-428} (the exact cubic solution for two-locus
+haplotype frequencies behind the phased r^2 of \code{indep_pairphase}).
 }
 \seealso{
 \code{\link[=as_numeric]{as_numeric()}}, \code{\link[=simulate_phenotype]{simulate_phenotype()}}, \code{\link[=dominance]{dominance()}}.

@@ -12,7 +12,10 @@ used).}
 
 \item{generations}{number of selfing generations.}
 
-\item{seed}{optional RNG seed for the whole scheme.}
+\item{seed}{optional RNG seed for the whole scheme: \code{NULL} (default; the
+ambient RNG stream is used) or one non-negative whole number. When given, the
+caller's RNG state is restored on exit, so a seeded scheme does not disturb
+the surrounding random stream.}
 }
 \value{
 a \code{Population} of inbred lines.

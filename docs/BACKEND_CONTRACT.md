@@ -85,6 +85,54 @@ parental SCA/GCA estimate, and not the transmissible breeding value
 ### Genotype ingestion / QC
 `as_numeric`, `filter_geno`.
 
+## Crossing-layer preconditions and error contract
+
+- **Errors, never crashes.** Every input the Rust kernel cannot honour (strand
+  length or alphabet against the marker layout, a meiosis-event budget different
+  from `n_prog * events_per_progeny`, non-finite or out-of-range chiasmata, flips
+  other than 0/1, an unknown `design`, `code_as`, `model` or `impute`, a short or
+  missing `flip`, raw dosages outside 0/1/2/NA) is an ordinary R error, raised
+  before any output exists. A Rust panic would abort the R process on toolchains
+  whose unwinder cannot cross R's frames (e.g. a gcc-linked macOS build), so the
+  kernel entry points return `Result` (extendr feature `result_list`) and
+  `R/extendr-wrappers.R` re-raises the error; regenerating that file with
+  `rextendr::document()` drops the unwrapping and is caught by
+  `tests/testthat/test-audit-rust-crossing.R`.
+- **Allele orientation.** The -1/0/1 dosages are relative to the allele
+  `as_numeric()` coded `+1` (by default the most frequent allele of that data
+  set). `as_numeric()` records that allele per marker in the `"counted_allele"`
+  attribute of its result (absent under `model = "Dom"`; `NA` where unknown);
+  `as_population()` keeps it as `map$counted`. `cross()`, `c.Population()` and the
+  selection schemes stop when both populations carry it and count different alleles
+  at any marker. Without the record on both sides (numeric files read back from
+  text, row-subsetted data frames, other software) the numeric `allele` label is
+  compared (warning on opposite order, error on disjoint alleles). The record is
+  R-object-only: it is not written to numeric text files. Crossing separately
+  converted panels is still unsafe unless they are converted jointly or with the
+  same `ref_allele` (`as_numeric(method = "reference", ref_allele = )`). The map
+  identity judgement (`.same_map()`) uses a symmetric relative tolerance
+  (`1e-8 * max(1, |x|, |y|)`).
+- **Map identity.** Two populations share a map when marker names, chromosome
+  labels (compared as text) and `pos`/`cm` (element-wise relative tolerance 1e-8, symmetric in the two maps) agree; the
+  `allele` column is not part of it. The same judgement is used for crossing,
+  breed lists and pooling.
+- **Chromosome order and the seeded stream.** Chromosomes are processed in a
+  canonical, locale-independent order (numeric labels first, in numeric order;
+  then other labels by prefix in byte order and trailing number), so integer and
+  text `chr` give the same seeded progeny. Labels that tie on every canonical key
+  (`"1"`, `"01"`) are ordered by the label in byte order, so the order is total. Text labels that used to sort as
+  `"1", "10", "2"` are now `1, 2, 10`: seeded output changes only for such maps.
+- **Length of a chromosome** for the Poisson crossover count is its *last* map
+  position in Morgans (isqg convention), not its span; `cm` must be in
+  centiMorgans (a map that looks like Morgans draws a warning).
+- **RNG.** `cross`, `selfcross`, `double_haploid`, `mate`, `mating_design(random)`
+  and `crossbreed` restore the caller's RNG state when `seed =` is given.
+- **Build profiles.** The development build (`DEBUG` set at install) is the debug
+  profile and keeps `debug_assert!` live; the CRAN build is release. Validation
+  is explicit and profile-independent, so both behave identically on invalid
+  input. The declared minimum Rust version is 1.71 (that of the pinned
+  `extendr-api 0.9.0`); `DESCRIPTION` must state the same.
+
 ## Not part of the contract
 
 - `create_phenotypes()` — frozen v1 legacy (DECISION-008), bugfix-only. Consumers

@@ -12,7 +12,9 @@ selfcross(parent, n = 1, seed = NULL)
 \item{n}{number of progeny.}
 
 \item{seed}{optional RNG seed. All randomness is drawn in R, so \code{set.seed()}
-before the call works equally well.}
+before the call works equally well. With a \code{seed} the caller's RNG state is
+restored on exit (a seeded call does not disturb the ambient stream); with
+\code{seed = NULL} the draws consume the ambient stream.}
 }
 \value{
 A \code{Population} of \code{n} progeny.

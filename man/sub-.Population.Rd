@@ -9,7 +9,10 @@
 \arguments{
 \item{x}{a \code{Population}.}
 
-\item{i}{individuals to keep, by name, position or logical mask.}
+\item{i}{individuals to keep, by name, position or logical mask. A repeated
+subscript selects the same individual again: the copies get unique ids
+(\code{"P1"}, \code{"P1_1"}, ...) and share one pedigree key (they are the same
+individual). An empty subscript gives an empty \code{Population}.}
 }
 \value{
 A \code{Population} with the selected individuals.

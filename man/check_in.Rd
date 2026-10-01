@@ -64,7 +64,8 @@ check_in(
   SNP_impute = "Middle",
   quiet = FALSE,
   verbose = TRUE,
-  RNGversion = "3.5.1"
+  RNGversion = "3.5.1",
+  .rng = NULL
 )
 }
 \arguments{
@@ -187,6 +188,9 @@ check_in(
 \item{verbose}{= TRUE,}
 
 \item{RNGversion}{= '3.5.1'}
+
+\item{.rng}{internal environment created by \code{create_phenotypes()} that
+records the caller's RNG kind and state (see \code{.v1_rng_capture()}).}
 }
 \value{
 Phenotypes for ntraits traits

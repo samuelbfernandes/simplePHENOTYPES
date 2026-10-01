@@ -14,8 +14,8 @@ format_conversion(
   file_name = NULL,
   f_name = NULL,
   code_as = "-101",
-  hets = c("R", "Y", "S", "W", "K", "M", "AG", "CT", "CG", "AT", "GT", "AC"),
-  homo = c("A", "AA", "T", "TT", "C", "CC", "G", "GG"),
+  hets = .HETS,
+  homo = .HOMO,
   model = "Add",
   impute = "None",
   method = "frequency",
@@ -49,9 +49,14 @@ complement of \code{to_r}.}
 \item{code_as}{Numeric coding scheme: \code{"-101"} (major = 1, het = 0,
 minor = -1; default) or \code{"012"} (major = 2, het = 1, minor = 0).}
 
-\item{hets}{Character vector of heterozygote codes for nucleotide tables.}
+\item{hets}{Character vector of heterozygote codes for nucleotide tables
+(default: the IUPAC ambiguity codes and both orders of every digraph, the
+same set HapMap input uses). Matching is case-insensitive.}
 
-\item{homo}{Character vector of homozygote codes for nucleotide tables.}
+\item{homo}{Character vector of homozygote codes for nucleotide tables
+(default: single letters and doubled letters). Matching is
+case-insensitive; a call that is in neither \code{hets}, \code{homo} nor the missing
+codes is set to missing and reported in a warning.}
 
 \item{model}{Genetic model: \code{"Add"} (default), \code{"Dom"},
 \code{"Left"}, or \code{"Right"}.}

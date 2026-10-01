@@ -4,13 +4,22 @@
 \alias{a_matrix}
 \title{Numerator relationship matrix from the recorded pedigree}
 \usage{
-a_matrix(pop, ids = NULL)
+a_matrix(pop, ids = NULL, founder_f = 0)
 }
 \arguments{
 \item{pop}{a \code{Population}.}
 
 \item{ids}{optional character ids (of \code{pop}'s individuals) to return;
 default all.}
+
+\item{founder_f}{inbreeding coefficient of the founders, in \eqn{[0, 1]}: one
+value for every founder (default \code{0}, non-inbred), or a numeric vector named
+by founder (founders not named keep \code{0}). A name is a pedigree key (the
+\code{key} column of \code{parentage(pop, ancestors = TRUE)}, unique by construction)
+or a founder's display id. Display ids may repeat across founder pools, so an
+id shared by several founders is ambiguous and is an error naming the
+pedigree keys to use instead; names must be distinct and identify pedigree
+founders. \code{1} is a fully inbred line.}
 }
 \value{
 A symmetric matrix with dimnames \code{ids}.
@@ -22,9 +31,25 @@ built from its recorded pedigree (see \code{\link[=parentage]{parentage()}}) by 
 processing individuals parents-first, \eqn{A_{ij} = (A_{i,m(j)} + A_{i,f(j)}) / 2}
 and \eqn{A_{jj} = 1 + F_j} with \eqn{F_j = A_{m(j) f(j)} / 2}. A self has both
 parents equal, so \eqn{F = (1 + F_P) / 2}; a doubled haploid is fully inbred,
-\eqn{A_{jj} = 2}, and relates to others as its parent does. Founders are the
-base: non-inbred and unrelated. Ancestors not in \code{pop} still enter through the
-pedigree.
+\eqn{A_{jj} = 2}, and relates to others as its parent does. Ancestors not in
+\code{pop} still enter through the pedigree.
+}
+\details{
+Founders are the base of the pedigree: unrelated to each other, and by
+default \strong{non-inbred} (\code{founder_f = 0}, \eqn{A_{jj} = 1}), which is right for
+outbred (random-mating) founders. Inbred founders -- e.g. the bundled maize
+inbred lines -- are not: their inbreeding coefficient enters the base as
+\eqn{A_{jj} = 1 + F_j} and their relationships with descendants, so pass
+\code{founder_f = 1} for fully inbred lines (a founder \eqn{P} crossed to another
+inbred line then has \eqn{A_{P,F1} = 1} and the two founders' \eqn{F1} sibs
+\eqn{A = 1}, against \eqn{0.5} with the default). Leaving the default on inbred
+founders halves those relationships and disagrees systematically with the
+genomic matrix of \code{\link[=g_matrix]{g_matrix()}}, whose founder diagonal is close to 2 for inbred
+lines. Downstream individuals follow from the recursion; selfing and doubled-haploid
+rules are not altered by \code{founder_f}. Note that a \code{Population} in which the same
+individual appears twice (e.g. \code{c(pop, pop[1])}) lists that individual under
+two ids with a relationship equal to its own diagonal; \code{a_matrix()} does not
+refuse it.
 }
 \examples{
 data("SNP55K_maize282_maf04")
@@ -32,6 +57,8 @@ pop <- as_population(SNP55K_maize282_maf04, individuals = 1:2)
 f1 <- cross(pop[1], pop[2], n = 2, seed = 1)
 s1 <- selfcross(f1[1], n = 2, seed = 2)
 a_matrix(c(f1, s1))
+# the bundled lines are inbred: declare it (A between a line and its F1 is 1)
+a_matrix(c(pop, f1), founder_f = 1)
 }
 \references{
 Wright S (1922) Coefficients of inbreeding and relationship. \emph{The American

@@ -26,6 +26,18 @@ exactly orthogonal. This recreates
 partial pleiotropy by combining, for example, a "pleiotropy" model with an
 "independent" model.
 }
+\details{
+Every input must be a \strong{complete} model, exactly as for \code{\link[=phenotypes_long]{phenotypes_long()}}:
+if an input set an \code{h2}, its layer proportions must fill it (otherwise
+\code{complex_phenotypes()} errors with the same "Incomplete h2 allocation"
+message). The result is \strong{terminal}: it has no layers, so \code{additive()},
+\code{dominance()}, \code{epistasis()}, \code{vqtl()} and \code{transcriptome()} refuse to extend
+it (build the full model first, then combine). It carries no per-input state:
+\code{\link[=mediation_split]{mediation_split()}} is \code{NULL} for a combined model (the environmental
+expression-mediated part of an input is discarded with the input's residual,
+so no split of the combined phenotype is defined), and breeding-value selection
+methods that need per-locus effects refuse it.
+}
 \examples{
 data("SNP55K_maize282_maf04")
 pleio <- simulate_phenotype(SNP55K_maize282_maf04, architecture = "pleiotropy",

@@ -28,11 +28,17 @@ and \code{merit} supplied).}
 numeric vector (named by id or in order), or a function \code{merit(sim)} --- the
 same hook as \code{\link[=select_ind]{select_ind()}}, so genomic/phenomic EBVs plug straight in.
 Meuwissen's OCS maximizes the \emph{transmissible} merit of the parents' progeny,
-so the default is the additive breeding value \code{"bv"} (the Fisher average-effect
-projection), not the total genotypic value \code{"gv"}: with \code{"gv"} a
-non-transmissible dominance/epistasis advantage (e.g. an overdominant
-heterozygote) would be chased even though it is not passed on. \code{"bv"} is
-unavailable for \code{architecture = "complex"}; pass numeric merit there.}
+so the default is the additive breeding value \code{"bv"}, not the total
+genotypic value \code{"gv"}: with \code{"gv"} a non-transmissible dominance/epistasis
+advantage (e.g. an overdominant heterozygote) would be chased even though it
+is not passed on. \code{"bv"} is the \emph{transmitting} average effect, computed
+analytically from the simulation's own effects as
+\eqn{\alpha_j = a_j + d_j(q_j - p_j)} per locus (DECISION-019; the same
+quantity as \code{select_ind(on = "bv")}) -- not a least-squares (Fisher
+statistical) projection of the genotypic value, which differs off
+Hardy-Weinberg. It is refused (an error) for a model with an epistasis layer
+and for \code{architecture = "complex"}, because those have no per-locus
+\eqn{a}/\eqn{d}; pass a numeric \code{merit} there.}
 
 \item{trait}{trait index when \code{merit} is \code{"gv"}/\code{"pheno"} (default 1).}
 
@@ -43,27 +49,40 @@ and lowers coancestry. Give exactly one of \code{lambda}, \code{target_coancestr
 \code{max_coancestry}.}
 
 \item{target_coancestry}{desired group coancestry \eqn{\tfrac12 c'Gc}; the
-penalty is tuned to meet it (or the minimum attainable, with a warning).}
+penalty is tuned to meet it (or the minimum attainable, with a warning). A
+target above the coancestry of the unconstrained (merit-only) optimum cannot
+be met by a non-negative penalty: a warning is issued and \code{lambda = 0} is
+used.}
 
 \item{max_coancestry}{as \code{target_coancestry}, but only enforced if the
 unconstrained optimum exceeds it.}
 
 \item{G}{optional precomputed relationship matrix (from \code{\link[=g_matrix]{g_matrix()}}); built
-from \code{x} when omitted.}
+from \code{x} when omitted. A supplied \code{G} must be a symmetric positive
+semi-definite matrix with the individual ids as identical row and column
+names (an unnamed matrix is an error: merit is aligned to \code{G} by name).}
 
 \item{rep}{replication to read merit from (default 1).}
 
 \item{min_contribution}{contributions below this are treated as zero when
 listing selected parents (default 1e-4).}
 
-\item{max_iter, tol}{Iteration cap (default 10000) and duality-gap tolerance
-for the away-step Frank-Wolfe optimizer. A warning is issued if it does not
-reach \code{tol} within \code{max_iter}, meaning the contributions may be sub-optimal.}
+\item{max_iter, tol}{Iteration cap (default 10000; a whole number >= 1) and
+duality-gap tolerance (positive) for the away-step Frank-Wolfe optimizer. A
+warning is issued if it does not reach \code{tol} within \code{max_iter}, meaning the
+contributions may be sub-optimal. \code{tol} is on the merit scale; when a
+coancestry target is tuned and the merit spread is extreme (outside
+1e-6..1e6) the search and the final solve use merit rescaled to unit spread,
+which leaves the contributions unchanged (the penalty scales linearly with
+merit).}
 }
 \value{
 an \code{ocs} object: \code{contributions} (named, summing to 1), \code{parents} (ids
 with contribution above \code{min_contribution}), \code{n_parents}, \code{merit} (expected
-\eqn{c'g}), \code{coancestry} (\eqn{\tfrac12 c'Gc}), and \code{lambda}.
+\eqn{c'g}, on the original merit scale), \code{coancestry}
+(\eqn{\tfrac12 c'Gc}), and \code{lambda}. The contributions do not depend on a
+constant added to every merit (the optimum lies on the simplex
+\eqn{\sum c = 1}); merit is centred internally before the penalty is tuned.
 }
 \description{
 Chooses how much each candidate should contribute to the next generation to

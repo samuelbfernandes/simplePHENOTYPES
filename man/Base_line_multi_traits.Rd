@@ -63,7 +63,49 @@ base_line_multi_traits(
 A matrix of Genetic values for multiple traits
 }
 \description{
-Calculate genetic value based on QTN objects.
+Frozen v1 engine, multi-trait genetic values.
+}
+\details{
+\strong{How \code{cor} is imposed (v1 semantics, reproduced exactly).} The
+per-trait genetic values \eqn{G} (one column per trait, built by
+\code{\link[=genetic_effect]{genetic_effect()}} from each trait's own effects) are standardized column
+by column, whitened with the inverse Cholesky factor of their sample
+covariance (after \code{\link[=make_pd]{make_pd()}}), coloured with the Cholesky factor of \code{cor}
+(after \code{\link[=make_pd]{make_pd()}}) and finally rescaled with each trait's original
+standard deviation and mean:
+\code{T = scale(G) L_cg^{-T} L_cor^T * sd(G) + mean(G)}. For a
+positive-definite \code{cor} with a unit diagonal this realizes the requested
+correlation exactly in the sample and preserves each trait's variance.
+Consequences to keep in mind:
+\itemize{
+\item With a unit-diagonal \code{cor}, trait 1 is unchanged (its genetic value
+is exactly the input value) and only trait \eqn{k >= 2} is a mixture:
+a linear combination of the input values of traits \eqn{1, \dots, k}
+(it is regressed onto the earlier traits). QTNs that were declared
+specific to an earlier trait therefore leak into the later traits'
+genetic values once \code{cor} is supplied; the reverse does not happen.
+\item The per-trait effects written to the \verb{*_QTNs.txt} files
+(\code{add_eff_t2}, ...) and the \code{VA}/\code{VD}/\code{VE} and per-QTN PVE files are the
+values \emph{before} the whitening/colouring step. For traits >= 2 they
+are not the effective effects and not the effective PVE; the residual
+variance and the reported heritability are computed from the
+transformed genetic values and therefore are correct.
+\item \code{cor} must be a full \verb{ntraits x ntraits} matrix (a scalar is not
+accepted). A covariance-valued matrix (diagonal different from 1) is
+accepted and treated as covariance-like: the realized correlation is
+\code{cov2cor(cor)} and the genetic variance of trait \eqn{k} is multiplied
+by \code{cor[k, k]}, so trait 1 is \emph{rescaled} as well (for
+\verb{cor = [[4, 1], [1, 1]]} the standard deviation of trait 1 is doubled,
+that of trait 2 is unchanged, and the realized correlation is 0.5).
+\item A non-positive-definite \code{cor} is not realized as requested: see
+\code{\link[=make_pd]{make_pd()}} (the diagonal is raised, off-diagonals shrink).
+\code{create_phenotypes()} rejects such input.
+\item Traits whose genetic values are perfectly collinear (identical
+effect series, or a single QTN shared by all traits) or have zero
+variance cannot be whitened; this is reported with an informative error.
+\item \code{sample_cor} is computed per replicate (it is \code{NULL} for a
+replicate whose genetic values are all zero).
+}
 }
 \author{
 Samuel Fernandes

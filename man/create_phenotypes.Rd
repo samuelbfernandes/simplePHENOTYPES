@@ -86,7 +86,7 @@ files, the dosage information will be converted to the opposite value.}
 file/files (e.g., separated by chromosome). Formats accepted are:
 Numeric, HapMap, VCF, GDS, and Plink Bed/Ped files}
 
-\item{QTN_list}{A list of specific markers to be used as QTNs. If one wants to specify the QTNs instead of selecting them randomly, at least one of the following elements should be provided: \code{QTN_list$add}, \code{QTN_list$dom}, and/or \code{QTN_list$epi}. The element \verb{$add}, \verb{$dom}, and \verb{$epi} are lists containing a vector of markers for each of the traits to be simulated. For example, to simulate 2 traits controlled by 1 pleiotropic and 2 trait-specific additive QTNs, the user would create a list of marker names \code{marker_list <- list(add = list(trait1 = c("marker1", "marker2", "marker3"), trait2 = c("marker1", "marker4", "marker5")))} and set \code{QTN_list = marker_list}. On the other hand, to simulate a single trait controlled by 1 additive and 2 dominance QTNs, the marker list would be \code{marker_list <- list(add = list("marker1"), dom = list(c("marker2", "marker3")))}. Notice that these vectors with maker names is used in the order they appear. For instance, in the list \code{marker_list <- list(add = list(trait9 = c("marker1"), trait4 = c("marker5")))}, the vector names itself ("trait9" and "trait4") are ignored and "trait9" will be the vector of markers used to simulate the first trait and "trait4" will be the vector of markers used to simulate the second trait. Also, when using \code{QTN_list}, many parameters used for selecting QTNs will be ignored (e.g., \code{constraints}).}
+\item{QTN_list}{A list of specific markers to be used as QTNs. If one wants to specify the QTNs instead of selecting them randomly, at least one of the following elements should be provided: \code{QTN_list$add}, \code{QTN_list$dom}, and/or \code{QTN_list$epi}. The element \verb{$add}, \verb{$dom}, and \verb{$epi} are lists containing a vector of markers for each of the traits to be simulated. For example, to simulate 2 traits controlled by 1 pleiotropic and 2 trait-specific additive QTNs, the user would create a list of marker names \code{marker_list <- list(add = list(trait1 = c("marker1", "marker2", "marker3"), trait2 = c("marker1", "marker4", "marker5")))} and set \code{QTN_list = marker_list}. On the other hand, to simulate a single trait controlled by 1 additive and 2 dominance QTNs, the marker list would be \code{marker_list <- list(add = list("marker1"), dom = list(c("marker2", "marker3")))}. Notice that these vectors with maker names is used in the order they appear. For instance, in the list \code{marker_list <- list(add = list(trait9 = c("marker1"), trait4 = c("marker5")))}, the vector names itself ("trait9" and "trait4") are ignored and "trait9" will be the vector of markers used to simulate the first trait and "trait4" will be the vector of markers used to simulate the second trait. Also, when using \code{QTN_list}, many parameters used for selecting QTNs will be ignored (e.g., \code{constraints}). \code{QTN_list} requires \code{ntraits >= 2} (a single trait cannot be simulated from a marker list: this combination is not supported and stops with an error) and cannot be combined with \code{same_add_dom_QTN = TRUE} (list the same markers in \code{QTN_list$add} and \code{QTN_list$dom} instead) or with \code{architecture = "LD"}. Every marker must exist in the marker data.}
 
 \item{prefix}{If \code{geno_path} points to a folder with files other than the
 marker data set, a part of the data set name may be used to select the desired
@@ -108,13 +108,20 @@ or a matrix with ncol equals to \code{ntraits}. If the later is used, the simula
 will loop over the number of rows and will generate a result for each row.
 If a single trait is being simulated and h2 is a vector,
 one simulation of each heritability value will be conducted. Either none or
-all traits are expected to have \code{h2 = 0}.}
+all traits are expected to have \code{h2 = 0}. Values must lie in \verb{[0, 1]}. Only
+the first trait's heritability of a row enters the residual seed, and
+positive values of at most 0.05 (exactly 0.05 included, since
+\code{round(10 * 0.05)} is 0 in R) are rejected when \code{rep > 1}: use \code{h2 > 0.05}
+(see \code{seed}).}
 
 \item{mean}{A vector with the mean (intercept) value for each of the simulated traits. If omitted, the simulated traits will be centered to zero.}
 
 \item{model}{The genetic model to be assumed. The options are
-"A" (additive), "D" (dominance), "E" (epistatic)
-as well as any combination of those models such as "AE", "DE" or "ADE".}
+"A" (additive), "D" (dominance), "E" (epistatic), "V" (variance QTL)
+as well as any combination of those models such as "AE" or "AD" (upper case).
+For a single trait (\code{ntraits = 1}) the combinations "DE" and "ADE" are not
+supported and stop with an error (use two or more traits, \code{"AE"}/\code{"AD"}, or
+\code{\link[=simulate_phenotype]{simulate_phenotype()}}).}
 
 \item{architecture}{The genetic architecture to be simulated. Should be provided
 if \code{ntraits} > 1. Possible options are: 'pleiotropic' (default), for traits being
@@ -174,7 +181,11 @@ geometric series, \code{sim_method = "geometric"}) or a list
 of length = \code{ntraits}, i.e., if \code{ntraits} > 1, a list with one vector of
 additive effects should be provided for each trait. Unless
 \code{big_add_QTN_effect} is provided, the length of each vector
-should be equal to the number of additive QTNs being simulated.}
+should be equal to the number of additive QTNs being simulated. A single value
+per trait is the base of a geometric series; a vector with one value per QTN
+is used as is. All effect classes (\code{add_effect}, \code{dom_effect}, \code{epi_effect},
+\code{var_effect}) must use the same style: mixing one style for one class and
+the other for another class, or any other length, is rejected.}
 
 \item{dom_effect}{Similar to the \code{add_effect}, it could be either
 a vector or a list. Optional if \code{same_add_dom_QTN = TRUE}.}
@@ -190,7 +201,8 @@ a vector or a list.}
 mean effect.}
 
 \item{same_add_dom_QTN}{A boolean for selecting markers to be both additive
-and dominance QTNs. Default FALSE.}
+and dominance QTNs. Default FALSE. Not supported for a single trait
+(\code{ntraits = 1}) or together with \code{QTN_list}.}
 
 \item{same_mv_QTN}{A boolean for selecting markers to be both additive
 and variance QTNs. Default FALSE.}
@@ -216,11 +228,16 @@ be the QTN for trait 2.}
 
 \item{ld_min}{Minimum Linkage disequilibrium for selecting QTNs when
 \code{architecture = LD}. The default is \code{ld_min = 0.2} (markers should have a minimum LD of
-0.2 to be used as QTNs).}
+0.2 to be used as QTNs). LD is compared as an \emph{absolute value} on the
+scale of \code{ld_method} (for the default "composite" and for "corr" this is a
+correlation, not r^2). The window \verb{[ld_min, ld_max]} is inclusive and
+\verb{ld_min <= ld_max < 1} is required. Only the randomly drawn markers are
+subject to \code{constraints}; the linked partner markers are found by walking
+along the marker order and are not filtered.}
 
 \item{ld_max}{Maximum Linkage disequilibrium for selecting QTNs when
 \code{architecture = LD}. The default is \code{ld_max = 0.8} (markers should have an LD of
-at maximum 0.8 to be used as QTNs).}
+at maximum 0.8 to be used as QTNs). It must be smaller than 1.}
 
 \item{ld_method}{Four methods can be used to calculate linkage disequilibrium values: "composite" for LD composite measure (Default), "r" for R coefficient (by EM algorithm assuming HWE, it could be negative), "dprime" for D', and "corr" for correlation coefficient (see snpgdsLDpair from package SNPRelate).}
 
@@ -236,7 +253,10 @@ experiment (\code{vary_QTN = FALSE}) or  if a different set of QTNs should be
 used for each replication (\code{vary_QTN = TRUE}).}
 
 \item{cor}{Option to simulate traits with a predefined genetic correlation.
-It should be a correlation matrix with a number of rows = \code{ntraits}.
+It should be a symmetric, positive-definite correlation matrix with a number
+of rows = \code{ntraits} (other matrices are rejected; the frozen eigenvalue
+clamp that used to repair them realized a different correlation and inflated
+the genetic variance). It is ignored, with a warning, when \code{ntraits = 1}.
 Default = NULL. Notice that when opting for controlling the correlation, the
 genetic effects are transformed using Cholesky decomposition. In this case,
 the correlation of genetic effects for different traits will be as provided,
@@ -245,8 +265,10 @@ traits may be different than the input allelic effect.}
 
 \item{cor_res}{Option to simulate traits with a predefined residual
 correlation. It should be a correlation matrix with number of
-rows = \code{ntraits}. If NULL, an identity matrix (independent residuals)
-will be used.}
+rows = \code{ntraits} (symmetric, unit diagonal, positive semi-definite). If NULL,
+an identity matrix (independent residuals) will be used. The
+"Residual Correlation" printed in the log is this input matrix, not an
+estimate from the simulated residuals.}
 
 \item{QTN_variance}{Whether or not the percentage of the phenotypic variance
 explained by each QTN (QTN variance / phenotypic variance) should be
@@ -255,13 +277,29 @@ transformation, such as the whitening/coloring transformation used to assign
 user-specified correlation to the genetic effect. In may not reflect the
 actual variance explained when the data is transformed.}
 
-\item{seed}{Value to be used by set.seed. If NULL (default),
-runif(1, 0, 1000000) will be used. Notice that at each sampling step,
-a different seed generated based on the \code{seed} parameter used.
-For example, if one uses \code{seed = 123}, when simulating the 10th replication
-of trait 1, the seed to be used is \code{round( (123 * 10 * 10) * 1)}. On the
-other hand, for simulating the 21st replication of trait 2, the seed to be
-used will be \code{round( (123 * 21 * 21) * 2)}. The master seed (unique value required to reproduce  results) is saved at the top of the log file. Unless verbose = FALSE the actual seed used in every  simulation is exported along with simulated phenotypes.}
+\item{seed}{Value to be used by set.seed. If NULL (default), a master seed
+is drawn with \code{runif(1, 0, 1000000)} from the caller's random-number stream;
+the caller's RNG kind (including \code{sample.kind}) and state are restored on
+exit, the stream being advanced by that one draw only. The master seed is
+saved at the top of the log file. Seeds for the individual sampling steps are
+derived from \code{seed} by adding replicate (and effect-class) offsets, and, unless
+\code{verbose = FALSE}, the seed actually used in every simulation is exported
+with the simulated phenotypes (\verb{Seed_number_for_*} and \verb{Seed_num_for_*}
+files). The \emph{residual} (environmental) seed of replicate \code{r} for row \code{i}
+of \code{h2} is \code{as.integer((seed + r) * round(10 * h2[i, 1]))}, i.e. it uses the
+heritability of the \emph{first trait} only, and \code{seed + r} when all
+heritabilities are 0. For example, \code{seed = 123}, \code{h2 = 0.5} and replicate 10
+use \code{(123 + 10) * 5 = 665}. Consequences: (1) \code{h2 <= 0.05} (positive) gives
+\code{round(10 * h2) = 0} (R rounds 0.5 to even, so exactly 0.05 is included),
+hence seed 0 for every replicate and identical replicates, so it is rejected
+when \code{rep > 1}; the accepted range is \code{h2 > 0.05}; (2) heritabilities that
+round to the same multiple of 0.1 (for example 0.26 and 0.34) share their
+random stream, so their residuals are perfectly correlated across rows of
+\code{h2}; (3) every derived seed must fit R's integer range, so very large
+seeds are rejected up front. For \code{architecture = "LD"} the marker search
+also uses retry seeds \code{seed * s + ...} with \code{s} up to 10, so the bound is
+about \code{.Machine$integer.max / 10} (about 214 million; the error message
+reports the exact limit for the call).}
 
 \item{home_dir}{Directory where files should be saved. It may be
 home_dir = getwd().}
@@ -273,7 +311,9 @@ their own rather than written loose. Defaults to
 \code{"simplePHENOTYPES_output"}; if that folder already exists, a numbered
 variant such as \code{simplePHENOTYPES_output(1)} is created so earlier results
 are never overwritten. Use \code{output_dir = ""} to write directly into
-\code{home_dir}, which was the behavior before version 2.0.}
+\code{home_dir}, which was the behavior before version 2.0. If a run fails, the
+run folder created by the call is removed (with \code{output_dir = ""} the new
+entries of \code{home_dir} are removed instead).}
 
 \item{export_gt}{If TRUE genotypes of selected QTNs will be saved at file.
 If FALSE (default), only the QTN information will be saved.}
@@ -284,12 +324,14 @@ phenotypes: 'multi-file', saves each simulation in a separate file;
 last one (by row); 'wide', saves experiments by column (default for single
 trait) and 'gemma', saves .fam files to be used by gemma or other software
 that uses plink bed files. (renaming .fam file with the same name of the bim
-and bed files is necessary).}
+and bed files is necessary). \code{'wide'} with \code{ntraits > 1} requires \code{rep >= 2}.}
 
 \item{to_r}{Option for outputting the simulated results as an R data.frame in
 addition to saving it to file. If TRUE, results need to be assigned to an
 R object (see vignette). If ntraits = 1 and length(h2) > 1, results for each
-h2 will be saved in a list.}
+h2 will be saved in a list. Several rows of \code{h2} with \code{to_r = TRUE} are
+rejected when \code{ntraits > 1} or \code{vary_QTN = TRUE} (only the last row would be
+returned); read the output files instead.}
 
 \item{out_geno}{Optionally saves the numericalized genotype either as "numeric" (see
 vignettes for an example data), "BED" or "gds". The default is NULL.}
@@ -310,7 +352,10 @@ when \code{remove_QTN = TRUE} and \code{vary_QTN = TRUE}.}
 \item{constraints}{Set constraints for QTN selection. Currently, the options
 are maf_above (the minimum value of minor allele frequency, a double between
 0 - 0.5), maf_below (the maximum value of minor allele frequency, a double
-between 0 - 0.5),and hets ('include' and 'remove'). All of these options
+between 0 - 0.5; both comparisons are strict, i.e. a marker whose MAF equals
+the bound is excluded), and hets ('include' and 'remove'). They filter only
+the randomly drawn QTNs, not the partner markers of the LD architecture. All
+of these options
 are NULL by default ('list(maf_above = NULL, maf_below = NULL, hets = NULL )'
 ). For instance, if the parameters used are
 \code{constraints = list(maf_above = 0.3, maf_below = 0.44, hets = "include")},
@@ -332,10 +377,14 @@ HapMap.}
 
 \item{SNP_effect}{Parameter used for numericalization. The options are: Add
 (AA = 1, Aa = 0, aa = -1),  Dom (AA = -1, Aa = 0, aa = -1), Left (AA = 1,
-Aa = -1, aa = -1), Right (AA = 1, Aa = 1, aa = -1). The default option is Add.}
+Aa = -1, aa = -1), Right (AA = 1, Aa = 1, aa = -1). The default option is Add.
+It is used to numericalize file input (HapMap, VCF, PLINK, GDS) and is
+rejected, when not "Add", for a \code{geno_obj} that is already numeric.}
 
 \item{SNP_impute}{Naive imputation for HapMap numericalization. The options
-are: Major (NA <- 1), Middle (NA <- 0), and Minor (NA <- -1).}
+are: Major (NA <- 1), Middle (NA <- 0), and Minor (NA <- -1).
+Numeric \code{geno_obj} values must be coded -1/0/1 (or 0/1/2 dosage that
+includes the value 2); a 0/1-only matrix is ambiguous and rejected.}
 
 \item{quiet}{Whether or not the log file should pop up into R once the
 simulation is done.}
@@ -359,6 +408,62 @@ wrapper over the v2 grammar (the two implementations coexist). For new work
 prefer the composable grammar: \code{\link[=simulate_phenotype]{simulate_phenotype()}} with \code{\link[=additive]{additive()}},
 \code{\link[=dominance]{dominance()}}, \code{\link[=epistasis]{epistasis()}}, \code{\link[=vqtl]{vqtl()}} and \code{\link[=complex_phenotypes]{complex_phenotypes()}}.
 }
+\section{Rejected inputs and unsupported combinations}{
+
+The frozen engine validates its arguments up front and stops with a message
+that names the argument and the remedy, instead of failing cryptically or
+returning wrong numbers. Valid inputs produce exactly the numbers of earlier
+releases. Inner errors are re-signalled (earlier releases printed the message
+and returned \code{NULL}), and on error only the run folder created by the call is
+removed. The following are rejected:
+\itemize{
+\item \code{QTN_list} with \code{ntraits = 1} (a single trait cannot be simulated
+from a user-specified marker list; use random QTNs or
+\code{\link[=simulate_phenotype]{simulate_phenotype()}} with \verb{qtn =}), with \code{same_add_dom_QTN = TRUE}, with
+\code{architecture = "LD"}, or with a number of trait-specific marker vectors
+different from \code{ntraits}.
+\item Single-trait models combining dominance and epistasis (\code{"DE"},
+\code{"ADE"}) and single-trait \code{same_add_dom_QTN = TRUE}.
+\item \code{architecture = "LD"} with \code{ntraits > 2}, with \code{ld_max >= 1} (an
+absolute LD of 1 is met by a marker paired with itself) or
+\code{ld_min > ld_max}, and \code{model = "D"} with \code{type_of_ld = "indirect"}.
+When the LD search cannot deliver distinct, linked marker pairs inside
+\verb{[ld_min, ld_max]} for the chosen \code{seed} (indirect: a marker selected for
+both traits or a duplicated QTN; direct: a pair outside the window, on
+two chromosomes or paired with itself), the call stops with an "LD
+contract" error: change \code{seed}, the LD window or \code{type_of_ld}. The
+direct-LD dominance branches (\code{model} containing "D") meet the contract for
+only a minority of seeds.
+\item \code{h2} outside \verb{[0, 1]}; \code{h2} positive but not above 0.05 (that is,
+\verb{0 < h2 <= 0.05}, including exactly 0.05) with \code{rep > 1} (see \code{seed});
+\code{to_r = TRUE} with several rows of \code{h2} unless a single trait is
+simulated with \code{vary_QTN = FALSE}.
+\item \code{cor} that is not a symmetric positive-definite \verb{ntraits x ntraits}
+matrix (it is no longer repaired silently) and \code{cor_res} that is not a
+symmetric, positive semi-definite correlation matrix.
+\item Effect sizes given as a mixture of one value per QTN and a single
+geometric-series base, or with a length that is neither 1 nor the number
+of QTNs.
+\item Variance QTL (\code{"V"}) with \code{ntraits > 1}, with \code{h2 = 0}, or with
+\code{var_effect} values that make the standard-deviation multiplier negative.
+\item Unknown \code{output_format}, \code{output_format = "wide"} with \code{ntraits > 1}
+and \code{rep = 1}, \code{rep}/\code{model}/\code{seed} that are missing or malformed, and
+more QTNs than markers.
+}
+}
+
+\section{Duplicated marker positions}{
+
+Duplicated marker positions (\code{chr_pos}, the same chromosome and position
+on several rows) are \emph{accepted} by the fully pleiotropic and the
+partially pleiotropic architectures: QTN columns are addressed by row
+position, never by the \verb{Chr_<chr>_<pos>} name, so duplicated names cannot
+change which markers enter a genetic value (an epistatic interaction, for
+example, multiplies the intended columns). The \code{architecture = "LD"}
+searches are stricter: a duplicated QTN or a QTN pair sharing a chromosome
+position is reported as an "LD contract" error (see above).
+}
+
 \examples{
 # Simulate 50 replications of a single phenotype.
 data("SNP55K_maize282_maf04")

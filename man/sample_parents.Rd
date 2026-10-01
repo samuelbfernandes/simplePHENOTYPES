@@ -4,28 +4,59 @@
 \alias{sample_parents}
 \title{Draw parents for mating in proportion to OCS contributions}
 \usage{
-sample_parents(ocs, pop, n, seed = NULL)
+sample_parents(ocs, pop, n, seed = NULL, method = c("allocate", "multinomial"))
 }
 \arguments{
 \item{ocs}{an \code{ocs} object from \code{\link[=optimum_contribution]{optimum_contribution()}}.}
 
 \item{pop}{the \code{Population} the contributions were computed on.}
 
-\item{n}{number of parent slots to draw.}
+\item{n}{number of parent slots to fill.}
 
-\item{seed}{optional RNG seed.}
+\item{seed}{optional RNG seed: one non-negative whole number. It orders the
+slots (\code{"allocate"}) or drives the draws (\code{"multinomial"}); the caller's RNG
+state is restored on exit.}
+
+\item{method}{\code{"allocate"} (default, largest-remainder allocation) or
+\code{"multinomial"} (independent weighted draws with replacement).}
 }
 \value{
-a \code{Population} of \code{n} sampled parents (with replacement, weighted by
-contribution). Sampling with replacement can place the same parent in several
-slots; because the crossing and phenotyping primitives require unique
-individual names, repeated draws of one parent are given disambiguated ids
-(\code{"A"}, \code{"A_1"}, \code{"A_2"}, ...) while carrying identical genotypes.
+a \code{Population} of \code{n} parents. An individual can occupy several slots;
+because the crossing and phenotyping primitives require unique individual
+names, repeated copies of one parent are given disambiguated ids (\code{"A"},
+\code{"A_1"}, \code{"A_2"}, ...) while carrying identical genotypes. With
+\code{"allocate"}, individuals whose \code{n * contribution} is below one may receive no
+slot when \code{n} is small; use a larger \code{n} if every contributor must be kept.
 }
 \description{
 Turns continuous \code{\link[=optimum_contribution]{optimum_contribution()}} contributions into a concrete set of
-\code{n} parents by sampling with probability equal to the contributions. Feed the
-result to the crossing primitives or \code{\link[=recurrent_selection]{recurrent_selection()}}.
+\code{n} parent slots. Feed the result to the crossing primitives or
+\code{\link[=recurrent_selection]{recurrent_selection()}}.
+}
+\details{
+Two methods are available. \code{method = "allocate"} (the default) \strong{allocates}
+the slots so that the realized contributions match the optimized ones as
+closely as integers allow. This controls the \emph{marginal} count error of each
+individual; it is an approximation, not a guarantee on the group coancestry
+\eqn{\tfrac12 c'Gc}, which is quadratic in the contributions and is not
+preserved exactly by integer counts. The gap between the realized and the
+optimized coancestry depends on \code{n} and on \eqn{G} and shrinks as \code{n} grows
+(for example with \eqn{G = I} and \eqn{c = (0.5, 0.5)} the optimum is 0.25, but
+\code{n = 1} must pick one parent, whose realized coancestry is 0.5). Individual
+\eqn{i} receives
+\eqn{\lfloor n c_i \rfloor} slots and the remaining slots go, one each, to the
+individuals with the largest fractional parts of \eqn{n c_i} (largest-remainder
+rule; ties are broken by the larger contribution and then at random with
+\code{seed}), so every count is within one slot of \eqn{n c_i}. The counts are
+deterministic except for such exact ties. The order of the slots is shuffled
+(with \code{seed}), so repeated copies of a parent are not adjacent.
+
+\code{method = "multinomial"} is the former behaviour: \code{n} independent draws with
+replacement, weighted by the contributions. Its expected number of slots is
+also \eqn{n c_i}, but the \emph{realized} counts carry sampling noise (with
+\eqn{c = (0.5, 0.5)} and \code{n = 10} one parent's count ranges widely around 5),
+so the realized group coancestry is on average above the optimum, more so for
+small \code{n}. Use it only when that sampling variation is itself wanted.
 }
 \examples{
 data("SNP55K_maize282_maf04")

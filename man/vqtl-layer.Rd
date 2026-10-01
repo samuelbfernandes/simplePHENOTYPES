@@ -22,17 +22,19 @@ in which case the layer takes whatever of that budget is unspent -- so a
 single \code{additive()} layer gets \code{prop = h2}. When \code{prop} is given and \code{h2}
 is set, the layer \code{prop} values must sum to \code{h2}.}
 
-\item{same_as_add}{reuse the additive layer's QTNs (default \code{TRUE}).}
+\item{same_as_add}{reuse the additive layer's QTNs (default \code{TRUE}). Supplying
+\code{qtn} fixes the loci instead, so \code{same_as_add} is then treated as \code{FALSE}.}
 
-\item{n_qtn}{number of additive QTNs; overrides the baseline \code{n_qtn} from
-\code{\link[=simulate_phenotype]{simulate_phenotype()}} (with a warning when both are given).}
+\item{n_qtn}{number of vQTL loci for a fresh draw (\code{same_as_add = FALSE});
+ignored, with a warning, when the loci are reused or fixed by \code{qtn}.}
 
 \item{qtn}{optional user-supplied QTNs for this layer, so you can fix the
 causal loci for one effect type while the others are drawn at random. Give
 marker names (matched against the map) or column indices; a vector is used
 for every trait, or a length-\code{n_traits} list sets each trait's loci
-separately. \code{n_qtn} is then taken from what you supply. Fixed loci are not
-redrawn by \code{vary_qtn}.}
+separately (every element the same length). \code{n_qtn} is then taken from what
+you supply. Fixed loci are not redrawn by \code{vary_qtn}. (For \code{\link[=epistasis]{epistasis()}},
+\code{qtn} describes interacting sets; see there.)}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
 }

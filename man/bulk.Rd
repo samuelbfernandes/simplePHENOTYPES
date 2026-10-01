@@ -13,17 +13,24 @@ used).}
 \item{generations}{number of selfing generations.}
 
 \item{n}{bulk size carried to the next generation (default: keep the current
-size).}
+size); it may be smaller or larger than the current size.}
 
-\item{seed}{optional RNG seed for the whole scheme.}
+\item{seed}{optional RNG seed for the whole scheme: \code{NULL} (default; the
+ambient RNG stream is used) or one non-negative whole number. When given, the
+caller's RNG state is restored on exit, so a seeded scheme does not disturb
+the surrounding random stream.}
 }
 \value{
 a \code{Population} (the final bulk).
 }
 \description{
 Advances a population as an undivided bulk: each generation every plant is
-selfed and the progeny are pooled, then \code{n} are carried forward at random
-(Bernardo 2020). Line identity is not tracked.
+selfed and the progeny are pooled, then \code{n} seeds are drawn at random from the
+pooled progeny to form the next generation (Bernardo 2020). Every plant is
+assumed to set ample seed, so the draw is uniform over the current plants: the
+number of advanced seeds each plant contributes is multinomial(\code{n}, 1/N)
+(mean \code{n / N}, variance about \code{n / N}), not fixed -- including when \code{n} is a
+multiple of the current size N. Line identity is not tracked.
 }
 \examples{
 data("SNP55K_maize282_maf04")

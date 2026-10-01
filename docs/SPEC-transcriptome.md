@@ -50,8 +50,18 @@
 - `expression` — genes × individuals (normalized ~Gaussian scale).
 - `genetic_expression` — the genetic component `G` only (genes × individuals).
 - `genes` — per-gene data frame: `gene_id`, `chr`, `tss`, `module`,
-  `coordinate_source` (`"supplied"`/`"synthetic"`), `h2_target`, `h2_realized`,
-  `cis_fraction_target`, `cis_fraction_realized`, `n_cis`, `trans_scale`.
+  `coordinate_source` (`"supplied"`/`"synthetic"`/`"none"`), `h2_target`,
+  `h2_realized` (= `Var(G)/Var(P)` from the realized genetic values and phenotype,
+  `= h2/(1+gr_cov)` on the reference panel only when `Var(G)+Var(R) = 1` (general
+  form `Var(G)/(Var(G)+Var(R)+gr_cov)`); **not** bounded by 1; a warning is
+  issued below 30 individuals), `h2_var_ratio` (identical alias, kept for
+  compatibility), `h2_allocated` (= `Var(G)/(Var(G)+Var(R))`, bounded in `[0,1]`, a
+  variance allocation and not a heritability; equals the target on the reference
+  population by construction, informative under `predict()`),
+  `cis_fraction_target` (share of
+  the *marginal* genetic variance), `cis_fraction_realized` (= `v_cis/Var(G)`, the
+  realized share, covariance included), `n_cis`, `n_epi`, `epistasis_target`
+  (marginal blend weight), `epistasis_realized` (= `v_epi/Var(G)`), `trans_scale`.
 - `cis_eqtl` — data frame `gene_id, snp, chr, pos, effect` (effective coefficient
   on centered dosage; the cis truth), or `NULL` if no gene has a cis-eQTL.
 - `factor_eqtl` — data frame `factor, snp, chr, pos, hub_effect` (raw hub effects;
@@ -111,12 +121,18 @@ simulate_transcriptome(
   cis windows of every gene in their module**, so factor-mediated variance is
   genuinely trans (distant). The genetic component and the residual are drawn
   **independently** (the residual keeps the shared-module structure, so genes
-  co-express through `kappa`); realized `h2 = Var(G)/Var(E)` tracks the target up to
-  a reported finite-sample `Cov(G, R)` (`var_budget$gr_cov`). Needs ≥ 3
-  individuals.
+  co-express through `kappa`); `Var(G) = h2` and `Var(R) = 1 - h2` exactly, so the
+  allocation `h2_allocated = Var(G)/(Var(G)+Var(R))` equals the target on the
+  reference population, while the realized heritability
+  `h2_realized = Var(G)/Var(P)` (alias `h2_var_ratio`; equals `h2/(1 + gr_cov)`
+  when `Var(G) + Var(R) = 1`, in general `Var(G)/(Var(G) + Var(R) + gr_cov)`)
+  tracks it up to the reported finite-sample `Cov(G, R)` (`var_budget$gr_cov`)
+  and is unbounded at small `n`. Needs ≥ 3 individuals (a warning below 30 when
+  a genetic component is requested).
 - **`geno = NULL` (implemented, §7c):** expression with no genetic component — only
   shared non-genetic modules + noise (all `h2 = 0`); `n_ind` sets the sample size.
-- **`mimic = E` (implemented, §5):** calibrate to `E`, then generate.
+- **`mimic = E` (implemented, §5):** calibrate to `E`, then generate. The user's
+  `h2` is ignored (with a warning) in favour of the GREML calibration.
 
 ### Phenotype bases (extend `simulate_phenotype()`)
 Two new inputs set the expression source; the basis follows from which inputs are
@@ -173,15 +189,17 @@ simulate_phenotype(geno, expression = E) |>
 > A *real* `expression=` source asserts no genetic content, so `Tx_g = 0` and the
 > whole component stays out of `H²`. `qtn_table()` gene rows, the genotype-free
 > `simulate_phenotype(expression=)` mode 2, and cross-population reuse
-> (`predict.transcriptome_sim()`) are **implemented**; **remaining follow-ups** are
-> `mimic` calibration, the counts layer, and the genotype-free *generator*
+> (`predict.transcriptome_sim()`) are **implemented**, as are `mimic` calibration,
+> the counts layer, and the genotype-free *generator*
 > `simulate_transcriptome(geno = NULL)` (§3). v1 reports **marginal**
 > variance shares per layer; when a transcriptome predictor is strongly
 > (anti-)correlated with a marker layer (e.g. an expression gene equal to a causal
 > marker's dosage -- a pathological input), their finite-sample marker-to-`Tx_g`
 > covariance is included in the realized `H²` numerator (`Var(Zδ + Tx_g)`) but not
 > attributed to any single marginal budget row, so a reported realized `H²` can
-> still fall slightly outside `[0,1]` under such pathological inputs.
+> fall outside `[0,1]` under such pathological inputs -- by orders of magnitude
+> when the components cancel (audit: `H² ~ 2e29` for an expression gene equal to
+> the additive QTN with `Var(V_P) ~ 1e-30`).
 
 > **Orientation convention.** In every phenotype equation below, `E`, `R`, and `Z`
 > are written in the standard **individuals × features** design-matrix orientation,
@@ -254,12 +272,21 @@ the mediated/direct split + covariance.
 
 ## 5. Mimic mode (calibrate to user expression)
 `mimic = E_user` (genes × individuals). Estimate, on `E_user`:
-- per-gene mean `mu_g` and total variance `V_g`;
-- low-rank co-expression: a truncated SVD of the standardized matrix → factor
-  scores and loadings `Lambda` (retain `n_factors` components), residual noise;
+- per-gene mean `mu_g` and total variance `V_g` (reproduced exactly);
+- the co-expression **factor count** `Q` (Marchenko-Pastur edge on the standardized
+  matrix) and the residual module fraction `kappa`: the leading `Q` correlation
+  eigenvalues are inverted through the spiked-covariance relation to a mean
+  within-module correlation, from which the genetic trans share implied by the
+  GREML `h2` and the assumed `cis_fraction` is subtracted (so genetic trans
+  structure is not double counted, and pure noise gives `kappa` ≈ 0). Loadings and
+  their signs are **not** retained: every generated gene loads +1 on one factor,
+  so an input with anti-correlated blocks is regenerated as positively co-expressed;
 - if paired genotypes are supplied, per-gene `h2_g` via a **GREML-style** estimator
   (REML on a genomic relationship matrix, per gene), used to calibrate the target
-  `h2_g` distribution — not to fit individual eQTL effects.
+  `h2_g` **distribution** — not to fit individual eQTL effects. The per-gene values
+  are noisy (sd ≈ 0.1 at n = 280, worse below; a warning is issued below 100
+  individuals) and do not correspond to the truth gene by gene for sparse eQTL
+  architectures.
 Then **generate** new synthetic expression matching those parameters (for the same
 or new individuals). Mimic calibrates the **expression generator only**; phenotype
 slopes are still generated de novo (the user does not want slopes fit to data).
@@ -278,7 +305,8 @@ Seed-threading extends the grammar's `(seed, layer_index, layer_type)` rule to t
   invariant to any `mimic` rescaling of `E`; `alpha_g` is then the log mean count
   at `z = 0`. Count-scale h² != latent h² (nonlinear, mean-dependent link), so this
   is an observation layer, not a re-parameterization of the genetic model. `phi = 0`
-  gives the Poisson limit; the log-mean is checked for overflow.
+  gives the Poisson limit; the log-mean is checked for overflow and the count mean
+  must not exceed `1e9` (counts are stored as R `integer` on both paths).
 
 ## 7c. Genotype-free generator (implemented)
 - `simulate_transcriptome(geno = NULL, n_ind = ...)` builds a purely non-genetic
@@ -289,7 +317,9 @@ Seed-threading extends the grammar's `(seed, layer_index, layer_type)` rule to t
   network/mediation false-positive control.
 
 ## 7b. Still deferred (explicit non-scope, revisit when the core is stable)
-- Directed regulatory networks; tissue specificity; epistatic expression.
+- Directed regulatory networks; tissue specificity. (Epistatic expression is
+  implemented via `simulate_transcriptome(epistasis = )`, additive-by-additive
+  pairs only.)
 
 ## 8. Testing requirements (mirror SPEC §8)
 1. Realized per-gene `h2` and `cis_fraction` track targets within tolerance across
@@ -303,7 +333,14 @@ Seed-threading extends the grammar's `(seed, layer_index, layer_type)` rule to t
 6. Transcriptome-basis phenotype: realized `prop` ≈ target; effect table correct;
    equals the genome path's rigor.
 7. Mediated phenotype: `y` decomposition `Z(delta+Bs) + Rs + eta` holds numerically.
-8. Mimic mode reproduces the moments and leading factors of a held-out matrix.
+8. Mimic mode reproduces the per-gene moments exactly (except for a gene whose
+   realized unit-scale variance is exactly zero or non-finite, where the rescale is
+   skipped; a warning flags ill-conditioned rescales, unit variance below `1e-12`)
+   and the **strength** of the
+   leading co-expression spectrum (sum of the top-`Q` correlation eigenvalues,
+   ±10%) of a generated matrix, and gives `kappa` ≈ 0 for pure noise
+   (`test-audit-transcriptome.R`). It does **not** reproduce individual
+   eigenvalues, loadings or signs (see §5).
 9. Seed reproducibility across all three bases.
 10. All theory claims pass an independent `dev/dual.sh` review before commit.
 

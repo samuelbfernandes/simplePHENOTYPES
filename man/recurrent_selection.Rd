@@ -23,12 +23,16 @@ used).}
 
 \item{phenotype}{a function mapping a \code{Population} to a realized
 \code{phenotype_sim} (e.g. \code{function(p) simulate_phenotype(p, ...) |> additive(...)}). Called once per generation to score the current
-population. Fix the causal loci with \code{additive(qtn = ...)} if the same QTNs
-should act every generation.}
+population, which it must build its simulation from. Fix the causal loci with
+\code{additive(qtn = ...)} if the same QTNs should act every generation (see the
+fixed-scale caveat above).}
 
 \item{cycles}{number of selection cycles.}
 
-\item{n_parents}{number of parents selected each cycle.}
+\item{n_parents}{number of parents selected each cycle. It must be smaller than
+the number of plants phenotyped in the cycle (the founder population, then
+\code{n_crosses * progeny_per_cross}); otherwise no selection would take place and
+the call is an error.}
 
 \item{n_crosses}{number of crosses among the selected parents (default:
 \code{n_parents}). Each cross draws an independent random pair of selected
@@ -39,9 +43,14 @@ crosses some selected parents may not be sampled.}
 
 \item{on, trait, direction}{passed to \code{\link[=select_ind]{select_ind()}}. \code{trait} may be a vector
 of traits, one per generation (recycled): \strong{tandem selection}, improving one
-trait at a time; the history then records the trait selected on.}
+trait at a time; the history then records the trait selected on. Every
+requested trait must exist in the phenotype callback's simulation.
+\code{direction} is one \code{"high"} or \code{"low"} (a vector is an error).}
 
-\item{seed}{optional RNG seed for the whole scheme.}
+\item{seed}{optional RNG seed for the whole scheme: \code{NULL} (default; the
+ambient RNG stream is used) or one non-negative whole number. When given, the
+caller's RNG state is restored on exit, so a seeded scheme does not disturb
+the surrounding random stream.}
 }
 \value{
 a \code{Population} (the final cycle), carrying attribute \code{history}.
@@ -50,6 +59,7 @@ a \code{Population} (the final cycle), carrying attribute \code{history}.
 Cycles of select-then-intermate for population improvement (Bernardo 2020;
 Falconer & Mackay 1996): each cycle the population is phenotyped, the best parents
 are selected, and they are intercrossed to form the next cycle's population.
+The scale caveat of \code{\link[=pedigree]{pedigree()}} applies to \code{history} here too.
 }
 \examples{
 data("SNP55K_maize282_maf04")

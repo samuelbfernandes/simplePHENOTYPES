@@ -2,20 +2,57 @@
 % Please edit documentation in R/legacy_make_pd.R
 \name{make_pd}
 \alias{make_pd}
-\title{obtain a positive definite matrix}
+\title{Eigenvalue clamp used by the frozen v1 engine (NOT a nearest-correlation-matrix fix)}
 \usage{
-make_pd(m, verbose = TRUE)
+make_pd(m, verbose = TRUE, what = "genetic correlation matrix")
 }
 \arguments{
-\item{m}{square matrix}
+\item{m}{square symmetric matrix}
 
 \item{verbose}{= TRUE}
+
+\item{what}{short description of the matrix, used in error messages}
 }
 \value{
-positive definite matrix
+the input matrix when it is already positive definite, otherwise the
+clamped and rounded matrix described above. It is guaranteed to be
+Cholesky-factorizable (an informative error is raised otherwise).
 }
 \description{
-obtain a positive definite matrix
+Internal helper of the frozen legacy engine (\code{create_phenotypes()}), applied
+to the user's genetic correlation matrix \code{cor} and to the sample covariance
+of the standardized genetic values before they are Cholesky-factorized.
+}
+\details{
+The v1 rule is reproduced exactly (and must not be "improved": the RDS
+references and every published v1 result depend on it):
+\enumerate{
+\item If every eigenvalue of \code{m} is strictly positive, \code{m} is returned
+unchanged.
+\item Otherwise, with \verb{tol = n * max(|lambda|) * .Machine$double.eps} and
+\code{tau_k = max(0, 2 * tol - lambda_k)}, the matrix
+\verb{m + V diag(tau) V'} is formed and rounded to 2 decimals.
+}
+Consequences that callers and users must know:
+\itemize{
+\item The result is a positive-definite \emph{covariance-like} matrix, not a
+correlation matrix. Adding \verb{V diag(tau) V'} raises the diagonal (for
+\verb{[[1, .9, -.9], [.9, 1, .9], [-.9, .9, 1]]} the diagonal becomes 1.27
+and the off-diagonals \eqn{\pm}0.63), so the correlation that is
+realized afterwards is \code{m2[i, j] / sqrt(m2[i, i] * m2[j, j])}
+(0.496 instead of 0.9 in that example) and the genetic variance is
+inflated by the diagonal (27 percent there). Callers must therefore not
+assume that a non-positive-definite \code{cor} is realized as requested;
+\code{create_phenotypes()} rejects a non-positive-definite \code{cor} up front.
+\item \code{round(, 2)} can push a repaired matrix back to (numerically)
+singular or indefinite. Previously this surfaced as a cryptic
+\code{chol()} failure ("the leading minor of order k is not positive").
+It is now detected here and reported with an informative error.
+\item A perfectly collinear \code{m} (for example two traits with identical
+effect series, or a single QTN shared by all traits, so that
+\verb{cov(scale(genetic values))} is \verb{[[1, 1], [1, 1]]}) cannot be repaired
+by the clamp after rounding and is rejected with an informative error.
+}
 }
 \author{
 Samuel Fernandes. Last update: Jan 5, 2021

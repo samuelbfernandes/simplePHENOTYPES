@@ -26,7 +26,7 @@ as the list).}
 \item{sire_breed}{for \code{"terminal"}: the name of the terminal sire breed
 (default the last breed).}
 
-\item{seed}{optional RNG seed.}
+\item{seed}{optional RNG seed; the caller's RNG state is restored on exit.}
 }
 \value{
 The final generation as a \code{Population}, with attribute \code{history}: a

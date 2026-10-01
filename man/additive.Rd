@@ -27,14 +27,16 @@ single \code{additive()} layer gets \code{prop = h2}. When \code{prop} is given 
 is set, the layer \code{prop} values must sum to \code{h2}.}
 
 \item{n_qtn}{number of additive QTNs; overrides the baseline \code{n_qtn} from
-\code{\link[=simulate_phenotype]{simulate_phenotype()}} (with a warning when both are given).}
+\code{\link[=simulate_phenotype]{simulate_phenotype()}} (with a warning when both are given). Ignored, with a
+warning, when \code{qtn} fixes the loci.}
 
 \item{qtn}{optional user-supplied QTNs for this layer, so you can fix the
 causal loci for one effect type while the others are drawn at random. Give
 marker names (matched against the map) or column indices; a vector is used
 for every trait, or a length-\code{n_traits} list sets each trait's loci
-separately. \code{n_qtn} is then taken from what you supply. Fixed loci are not
-redrawn by \code{vary_qtn}.}
+separately (every element the same length). \code{n_qtn} is then taken from what
+you supply. Fixed loci are not redrawn by \code{vary_qtn}. (For \code{\link[=epistasis]{epistasis()}},
+\code{qtn} describes interacting sets; see there.)}
 
 \item{effect}{optional geometric base (scalar) or explicit effect series
 (length \code{n_qtn}), used for every trait; or a length-\code{n_traits} list of these,
@@ -89,6 +91,16 @@ The additive value is the -1/0/1 dosage weighted by the QTN effects, centered,
 and scaled to \code{prop} of the phenotypic variance. This is a simulation
 convention, not Fisher's average-effect decomposition; for an additive-only
 model \code{prop} equals the narrow-sense h2 under Hardy-Weinberg.
+
+Combining this layer with \code{\link[=dominance]{dominance()}} on the same loci (the default) makes
+the realized genetic variance differ from \code{prop_A + prop_D} by
+\verb{2Cov(c_A, c_D)} (with one additive and one dominance layer; several layers of
+one type add their mutual covariance to Var(c_A) or Var(c_D)), a structural
+term that depends on the allele frequencies and on which allele is coded +1
+(see \code{\link[=simulate_phenotype]{simulate_phenotype()}}); the object reports the realized Var(A), Var(D)
+and 2Cov(A,D), and Var(c_A), Var(c_D) and 2Cov(c_A,c_D), in \verb{$ad_report} and
+in \code{print()}.
+Use \code{orthogonal = TRUE} for a Fisher-orthogonal additive/dominance model.
 }
 \section{Orthogonal genotypic model (\code{orthogonal = TRUE})}{
 

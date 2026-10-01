@@ -29,10 +29,14 @@ single value (default 0).}
 \item{n_progeny}{progeny (and distinct mates) per parent.}
 
 \item{h2, var_e, ref}{optional residual: at most one of \code{h2} / \code{var_e}; \code{h2} is
-the heritability of the genotypic value in \code{ref} (default: the progeny).}
+the heritability of the genotypic value in \code{ref} (default: the progeny), a
+\emph{broad-sense} value when \code{d != 0} (the accuracy formula above is for an
+additive trait, so with dominance the \code{h2} given is not the \code{h2} in it).
+\code{ref} is an error without \code{h2}.}
 
 \item{seed}{optional RNG seed (mates, meioses and residuals are drawn in that
-order from one stream).}
+order from one stream); the caller's random-number stream is left as it was
+found.}
 }
 \value{
 A data frame with \code{id} (parent), \code{progeny_mean} and \code{n}, with
@@ -44,7 +48,9 @@ Mates each parent to \code{n_progeny} distinct mates drawn at random, without
 replacement, from \code{mates}, one progeny per mating, so each parent gets a
 half-sib family: a parent is never its own mate, each individual of \code{mates}
 counts once (by pedigree identity, see \code{\link[=parentage]{parentage()}}), and \code{n_progeny} must not
-exceed the distinct mates available to a parent. Scores every progeny on the frozen architecture
+exceed the distinct mates available to a parent. Individuals are identified by pedigree key, which
+includes the founders' \code{pool} label (the same genotypes under two different
+pool labels are two individuals). Scores every progeny on the frozen architecture
 (\code{qtn}, \code{a}, \code{d}), optionally adds an independent residual (exactly one of
 \code{h2} / \code{var_e}, as in \code{\link[=phenotype_value]{phenotype_value()}}), and reports each parent's progeny
 mean. The progeny \code{Population} (pedigree recorded, see \code{\link[=families]{families()}}) is
@@ -60,8 +66,14 @@ reference frequencies, and the constant, differ slightly among parents --
 negligibly for a large mate population.) That breeding value uses the average
 effects
 \eqn{\alpha = a + d(q - p)} at the mates' allele frequencies (Falconer &
-Mackay 1996), so dominance enters the progeny mean through them; what does not
-enter is a separate dominance deviation of the parent itself. (With a fixed
+Mackay 1996), so dominance enters the \emph{parent-dependent} part of the progeny
+mean -- the part that ranks parents -- through them; what does not enter is a
+separate dominance deviation of the parent itself. Dominance also remains in
+the constant common to all parents (under Hardy-Weinberg at the mates'
+frequencies, with \eqn{p} the frequency of the counted allele, that constant is
+\eqn{a(p - q) + 2 d p q} per locus). For example, with \eqn{a = 0} and
+\eqn{p = 1/2}, \eqn{\alpha = 0} and every parent has the same expected progeny
+mean, which equals \eqn{d / 2} per locus, not zero. (With a fixed
 tester population this is combining ability toward that tester, see
 \code{\link[=combining_ability]{combining_ability()}}.)
 

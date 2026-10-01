@@ -113,7 +113,7 @@ simplePHENOTYPES/
 │   │                         OCS/g_matrix, usefulness, combining ability, progeny test, BLUP)
 │   ├── transcriptome_*     ← genome → transcriptome → phenotype layer
 │   ├── io_*                ← readers + format detection/conversion + as_numeric() wrapper;
-│   │                         write_*() exporters (long default; wide/gemma/plink/multi-file)
+│   │                         write_phenotypes() exporter (long default, or wide)
 │   ├── qc_*                ← filter_geno() and its PLINK-parity LD methods
 │   └── (conventional)      ← extendr-wrappers.R, data.R, simplePHENOTYPES-package.R, zzz.R
 ├── src/                    ← Rust via rextendr (CRAN-required location)
@@ -122,7 +122,7 @@ simplePHENOTYPES/
 │       ├── numeric.rs      ← as_numeric() core (deterministic)
 │       ├── genome.rs       ← bitwise chromosome representation (isqg port)
 │       ├── meiosis.rs      ← recombination / crossing / DH (isqg port)
-│       └── gvalue.rs       ← genetic-value assembly (deterministic matrix ops)
+│       └── hash.rs         ← FNV-1a-128 content hash for pedigree keys (DECISION-024)
 ├── inst/extdata/
 │   ├── v1_3_0_reference/   ← frozen QTNs + phenotypes from v1.3.0 (big-QTN removed)
 │   └── isqg_v1_outputs/    ← isqg parity references

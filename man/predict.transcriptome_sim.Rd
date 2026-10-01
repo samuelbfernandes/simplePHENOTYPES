@@ -9,7 +9,10 @@
 \arguments{
 \item{object}{a \code{transcriptome_sim} from \code{\link[=simulate_transcriptome]{simulate_transcriptome()}}.}
 
-\item{geno}{new genotypes carrying (at least) every marker named in the
+\item{geno}{new genotypes -- a \code{Population}, a Population-backed
+\code{phenotype_sim}, a numeric-format genotype data frame, or an
+individuals-by-markers dosage matrix (as for \code{\link[=simulate_transcriptome]{simulate_transcriptome()}}) --
+carrying (at least) every marker named in the
 architecture's eQTL tables, in the \strong{same coding and effect-allele
 orientation} as the reference. Only marker names and the -1/0/1 dosage
 coding are checked; the architecture does not store allele labels, so a
@@ -17,18 +20,22 @@ marker whose reference/alternate alleles are swapped (same name, flipped
 dosage) would pass the check yet produce different genetic values. When
 combining datasets, harmonize effect-allele orientation first.}
 
-\item{seed}{optional seed for the fresh residual draws.}
+\item{seed}{optional seed for the fresh residual draws (\code{NULL} or one
+non-negative whole number).}
 
 \item{residual}{add a freshly drawn non-genetic residual (default \code{TRUE});
-\code{FALSE} returns noiseless genetic expression.}
+\code{FALSE} returns noiseless genetic expression. Must be \code{TRUE} or \code{FALSE}.}
 
 \item{...}{unused.}
 }
 \value{
 a new \code{transcriptome_sim} for the new individuals, carrying the same
-architecture (effect tables, per-gene targets, reference constants) with
+architecture (effect tables, per-gene targets, reference constants, and the
+\code{calibration} of a \code{mimic} fit) with
 \code{expression} / \code{genetic_expression} and a variance budget realized on the
-new population.
+new population. At least two new individuals are needed: the realized
+variance budget (and \code{h2_realized}, \code{h2_allocated}, \code{cis_fraction_realized})
+is undefined for one, so a single individual is rejected with an error.
 }
 \description{
 Reuse the reference-calibrated architecture of a \code{transcriptome_sim} to

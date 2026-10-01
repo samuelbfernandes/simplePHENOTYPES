@@ -48,7 +48,11 @@ With a \code{seed}, the RNG is seeded once and the rows are run in plan order, s
 one-row plan draws the same random numbers and produces the same progeny
 genotypes as the equivalent call with that seed -- \code{\link[=cross]{cross()}} for a cross row,
 \code{\link[=selfcross]{selfcross()}} for a self, \code{\link[=double_haploid]{double_haploid()}} for a \code{"dh"} row; the returned
-object differs only in its ids, \code{origin} and \code{plan} attribute.
+object differs only in its ids, \code{origin} and \code{plan} attribute. The caller's
+RNG state is restored on exit.
+
+The populations must share one marker map and the allele coded \code{+1} (see
+\code{\link[=cross]{cross()}} on allele orientation).
 }
 \examples{
 data("SNP55K_maize282_maf04")

@@ -44,9 +44,51 @@ allele-2 on the second. For inbred panels such as
 \link{SNP55K_maize282_maf04} this is nearly lossless because heterozygotes are
 rare, but for an outbred sample the phase of each heterozygote is a guess,
 and linkage between heterozygous sites in the first generation will not be
-realistic. The current public API does not import external haplotype phase,
+realistic: every heterozygous site of such a founder sits in perfect coupling
+on the first strand, so its first-generation gametes carry the maximum
+coupling-phase linkage disequilibrium. The current public API does not import external haplotype phase,
 so \code{as_population()} should not be used for multi-generation recombination
 studies of substantially heterozygous, unphased founders.
+}
+
+\section{Genetic map, units and chromosome order}{
+
+The \code{cm} column must be a genetic map in \strong{centiMorgans} (it is divided by
+100 to give Morgans for meiosis). A map whose largest position is at most
+5 across 20 or more markers looks like Morgans (or a proportion) and draws a
+warning: crossovers would be 100 times too rare. \code{cm} may start anywhere on a
+chromosome: the number of crossovers on a chromosome is Poisson with mean
+equal to its \strong{last} map position in Morgans (the isqg convention, see
+\code{\link[=cross]{cross()}}), which is not its span \code{max(cm) - min(cm)} when the first marker is
+not at 0. Chromosomes are processed, and their random draws are consumed, in
+a fixed \strong{canonical order that does not depend on the storage type of \code{chr}
+or on the locale}: labels that are numbers first, in numeric order
+(\verb{1, 2, 10}), then other labels by their non-numeric prefix in byte order
+(uppercase before lowercase) and then by their trailing number (\verb{chr1, chr2, chr10, chrX}). So the
+same map with \code{chr} stored as integers or as text gives the same seeded
+progeny. (Text labels that used to sort as \verb{"1", "10", "2"} are now ordered
+\verb{1, 2, 10}; a seeded run on such a map draws its chromosomes in the new order.)
+}
+
+\section{Allele orientation (crossing populations built from separate files)}{
+
+The -1/0/1 coding is relative: \code{+1} is the allele that \code{as_numeric()}
+considered the reference (by default the most frequent allele \emph{of that data
+set}). Two populations made from \strong{separately} converted panels can therefore
+code opposite alleles as \code{+1} at a marker, and crossing them (or pooling them
+with \code{\link[=c.Population]{c.Population()}}) would then silently mix up the alleles. Convert the
+panels \strong{jointly}, or give each the same reference alleles with
+\code{as_numeric(method = "reference", ref_allele = )}. \code{as_numeric()} records the
+allele it counted as +1 at every marker (the \code{"counted_allele"} attribute of
+its result, see \code{\link[=as_numeric]{as_numeric()}}), and \code{as_population()} keeps it. When both
+populations carry that record, \code{\link[=cross]{cross()}} and \code{\link[=c.Population]{c.Population()}} compare it per
+marker and \strong{stop} if the two panels count different alleles as +1. Where a
+record is missing on either side (numeric data read back from a text file,
+subsetted rows, other software), the \code{allele} label is compared instead: the
+check warns when the two panels list a marker's alleles in opposite order (a
+sign the orientation may differ) and stops when they share no allele. The
+check only sees what these records show: it cannot detect a difference that
+neither records.
 }
 
 \examples{

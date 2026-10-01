@@ -58,13 +58,32 @@ the -1/0/1 dosage, dominance a heterozygote-deviation indicator, epistasis a
 centered additive-by-additive (or a x d / d x d) product -- **not** Fisher's orthogonal
 decomposition into average effects and orthogonal dominance deviations. When
 dominance or epistasis share loci with the additive layer, the scaled
-components are not exactly uncorrelated at non-0.5 allele frequencies, so the
-reported H² is computed from the realized genetic and phenotypic values rather
-than asserted from the requested budget. It usually tracks the sum of genetic
-proportions closely but not to machine precision,
-and the per-component "variances" are the simulation's, not the classical
-orthogonal Va/Vd. For an additive-only model the additive proportion is the
-narrow-sense h² under Hardy-Weinberg.
+components are generally correlated, so the reported H² is computed from the
+realized genetic and phenotypic values rather than asserted from the requested
+budget, and it can differ from the sum of the genetic proportions. For
+`additive()` + `dominance()` on the **same loci** the difference is structural,
+not a finite-sample effect: for one additive and one dominance layer
+`Var(g) = prop_A + prop_D + 2Cov(c_A, c_D)` (several layers of a type add their
+mutual covariance to `Var(c_A)` / `Var(c_D)`; the general identity is
+`Var(g) = Var(c_A) + Var(c_D) + 2Cov(c_A, c_D)`), and with
+`x` the −1/0/1 dosage and `h` the heterozygote indicator, `Cov(x, h) =
+−(2p − 1) 2pq` at each locus under Hardy-Weinberg (`p` = frequency of the +1
+allele). With the default geometric series (one effect sign at every locus) each locus's
+cross term has the sign of `1 - 2p`, so it does not average out when the
+counted-allele frequencies are on one side of 0.5 (it partly cancels when they
+straddle 0.5), and its sign flips with the allele coding
+(audit 2026-09-29: an outbred panel with MAF 0.10–0.20, `n_qtn = 20`, A 0.4 + D
+0.1, realized H² ≈ 0.63 with the minor allele coded +1 and ≈ 0.25 with the same
+loci and seeds coded the other way, for a requested 0.5). The per-component
+"variances" are the simulation's, not the classical orthogonal Va/Vd.
+When additive and dominance layers share loci the `phenotype_sim` therefore
+reports, per trait, the requested share, the realized share and the realized
+`Var(A)`, `Var(D)` and `2Cov(A,D)` of the block, and `Var(c_A)`, `Var(c_D)` and
+`2Cov(c_A,c_D)` (fractions of V_P; `$ad_report`,
+and a note in `print()`; DECISION-033), and recommends
+`additive(orthogonal = TRUE, a =, d =)` for a Fisher-orthogonal partition. For an
+additive-only model the additive proportion is the narrow-sense h² under
+Hardy-Weinberg.
 
 **Orthogonal genotypic model (exception).** `additive(orthogonal = TRUE, a =, d =)`
 opts a single additive layer out of the variance-partition convention above. It
@@ -197,7 +216,13 @@ Architecture-specific arguments:
   for both traits — the correlation comes entirely from the linkage between the
   two traits' separate loci (contrast `"pleiotropy"`, where a shared locus and
   correlated effects drive the correlation). Arguments (O5):
-  `ld_type = c("direct", "indirect")`, `r2_max = 0.8`, `r2_min = 0.2`.
+  `ld_type = c("direct", "indirect")`, `r2_max = 0.8`, `r2_min = 0.2`,
+  `partner = c("strongest", "random")`. The window must satisfy `r2_max > 0` and
+  `r2_min < 1`, and markers with r2 = 0 or r2 = 1 (identical genotype columns)
+  are never partners. The default `partner = "strongest"` takes, for a randomly
+  drawn anchor SNP, its **highest-r2** in-window partner (so the realized r2 skews
+  toward `r2_max`; flanks are searched strongest-first for `"indirect"`);
+  `"random"` takes a uniformly random in-window partner.
   - `"direct"` (default): trait 1's causal SNP and trait 2's causal SNP are
     directly in LD (r2 in the window).
   - `"indirect"`: both causal SNPs flank a shared, **non-causal** "cause-of-LD"
@@ -251,8 +276,13 @@ vqtl(sim,      prop, same_as_add = TRUE, n_qtn = NULL, qtn = NULL, dist = "geome
   drawn from `h2`. Conditional variance uses a log link, so it stays positive.
 - `qtn`: fix this layer's causal loci by marker name or index (a vector for all
   traits, or a length-`n_traits` list); the other layers stay random. Epistasis
-  takes an `n_pairs x interaction` matrix. `n_qtn`/`n_pairs` follow from it, and
-  fixed loci are exempt from `vary_qtn`.
+  takes an `n_pairs x interaction` matrix (or a vector, filled by row) shared by
+  every trait, or a length-`n_traits` **list of such matrices**, one per trait with
+  the same number of sets; a list of sets is *not* accepted (it used to be read
+  that way and silently replicated to every trait, giving a genetic correlation of
+  1). `n_qtn`/`n_pairs` follow from it (a supplied `n_qtn`/`n_pairs` is ignored
+  with a warning), fixed loci are exempt from `vary_qtn`, and `dominance()` /
+  `vqtl()` record `same_as_add = FALSE` when `qtn` is given.
 - `additive(phase=)`: `"coupling"` (default) or `"repulsion"`. Repulsion
   alternates effect signs so linked increasing/decreasing alleles oppose; the
   realized genetic variance is still `prop` (pinned by the partition), only the
@@ -273,6 +303,10 @@ complex_phenotypes(..., h2)        # ... = two or more phenotype_sim objects
   input's seed is used** and a warning is emitted.
 - Recreates partial pleiotropy: combine a `"pleiotropy"` model with an `"independent"`
   model.
+- Inputs must be **complete** models (an input whose `h2` is not filled by its layers
+  errors, exactly as `phenotypes_long()` does). The result is **terminal**: a layer
+  added afterwards errors instead of being ignored, and it carries no per-input
+  state (`mediation_split()` is `NULL`, no one-call hint).
 
 ### 4.4 `create_phenotypes()` — frozen legacy function (DECISION-008)
 
@@ -365,9 +399,20 @@ simulated pedigree can be phenotyped directly without converting back to a dosag
 ## 6. Reproducibility / Seed Threading
 
 - `seed` stored on the `phenotype_sim` at creation.
-- Each layer derives a deterministic sub-seed from `(seed, layer_index, layer_type)`.
-- Adding/removing/reordering a layer must not change other layers' realized values;
-  tests assert this.
+- Each layer derives a deterministic sub-seed from `(seed, layer type, occurrence of
+  that type)`, where *occurrence* is the number of earlier layers of the same type
+  (DECISION-032). Replication `r` of a `vary_qtn` layer and each trait's residual
+  use the labels `"<type>_rep<r>"` and `"residual_t<t>"` under the same rule. The
+  label is reduced with a position-sensitive rolling hash, so labels that differ
+  only by a permutation of characters (`..._rep12` / `..._rep21`, `residual_t12` /
+  `residual_t21`) get different sub-seeds; the earlier character-code sum made those
+  replications and traits identical. The layer *index* is deliberately not used: it
+  would break the invariance below.
+- Adding/removing/reordering a layer must not change the realized values of layers
+  **of other types**; tests assert this. Inserting another layer of the *same*
+  type before an existing one shifts that layer's occurrence index, so its draws
+  change (the second `additive()` is keyed by occurrence 1 whatever precedes it).
+- The caller's RNG state is left untouched (sub-seeds are set and restored).
 - This clean scheme is the grammar's own (DECISION-009 — no v1 bit-parity obligation).
   The frozen `create_phenotypes()` keeps its *own* legacy seed arithmetic
   (`(seed + z) * round(h2 * 10)`, `seed + i`, etc.) and `RNGversion('3.5.1')`; the two
@@ -386,8 +431,11 @@ simulated pedigree can be phenotyped directly without converting back to a dosag
 - Architecture-specific arguments supplied to another architecture error.
 - Correlation inputs must be finite, bounded, symmetric with unit diagonal, and
   imply a positive-semidefinite covariance model.
-- Random QTNs are drawn only from polymorphic markers; a requested nonzero layer
+- Random QTNs are drawn only from markers with a non-constant dosage column
+  (monomorphic and all-heterozygous markers are skipped); a requested nonzero layer
   that has no usable design variance errors.
+- At least three individuals are required (with two, the exact-variance
+  standardization makes the genetic value and residual collinear).
 - Per-layer `n_qtn` overriding baseline `n_qtn` warns (O1).
 - Differing seeds in `complex_phenotypes()` warn; first seed used (O4).
 
@@ -479,10 +527,11 @@ ph <- simulate_phenotype(SNP55K_maize282_maf04, architecture = "pleiotropy",
   dominance(prop = 0.1, same_as_add = TRUE)
 
 # Pleiotropy + LD combined under a common h²
+# ("ld" is a two-trait architecture, so both inputs use n_traits = 2)
 pleio <- simulate_phenotype(SNP55K_maize282_maf04, architecture = "pleiotropy",
-                            n_traits = 3, seed = 10) |> additive(0.4, n_qtn = 3)
+                            n_traits = 2, seed = 10) |> additive(0.4, n_qtn = 3)
 ld    <- simulate_phenotype(SNP55K_maize282_maf04, architecture = "ld",
-                            n_traits = 3, ld_type = "indirect", seed = 11) |>
+                            n_traits = 2, ld_type = "indirect", seed = 11) |>
          additive(0.3, n_qtn = 3)
 both  <- complex_phenotypes(pleio, ld, h2 = 0.5)   # warns: differing seeds, uses 10
 
@@ -499,8 +548,9 @@ ph  <- simulate_phenotype(f2, seed = 3) |> additive(prop = 0.5, n_qtn = 3)
 
 > These are equivalences for users porting v1 scripts to the v2 grammar. The frozen
 > `create_phenotypes()` does NOT translate to the grammar at runtime (DECISION-008) — it
-> keeps its own v1 code paths. `big_add_QTN_effect`, `cor`/`cor_res`, and
-> `architecture = "partially"` live only in the legacy function.
+> keeps its own v1 code paths. `big_add_QTN_effect`, `cor_res`, and
+> `architecture = "partially"` live only in the legacy function; `cor` exists in
+> both (in the grammar it is the PleioArch correlation control, §13).
 
 | v1 `create_phenotypes()` | v2 grammar | Notes |
 |---|---|---|
@@ -516,7 +566,7 @@ ph  <- simulate_phenotype(f2, seed = 3) |> additive(prop = 0.5, n_qtn = 3)
 | `big_add_QTN_effect` | — (shim only) | removed from grammar; removed in parity runs |
 | `h2` | Σ layer `prop` (single) / `complex_phenotypes(h2=)` | emerges |
 | `same_add_dom_QTN` | `dominance(same_as_add=)` | |
-| `degree_of_dom` | `dominance(degree=)` | |
+| `degree_of_dom` | — (no grammar argument) | washed out by per-component variance scaling; the dominance/additive variance ratio is `prop_dom / prop_add`, and a per-locus degree `d/abs(a)` is available in `additive(orthogonal = TRUE, a =, d =)` (DECISION-020) |
 | `epi_interaction` | `epistasis(interaction=)` | 2-way default |
 | `sim_method = "geometric"` | `dist = "geometric"` | default |
 | `sim_method = "custom"` | `effect = <series>` | |

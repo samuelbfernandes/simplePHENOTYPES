@@ -28,24 +28,34 @@ select_ind(
 \item{sim}{a realized \code{phenotype_sim}, ideally built on a \code{Population} so the
 selected individuals can be crossed on.}
 
-\item{n}{number of individuals to keep. Exactly one of \code{n}, \code{prop}, \code{intensity}.}
+\item{n}{number of individuals to keep. Exactly one of \code{n}, \code{prop}, \code{intensity}.
+For \code{method = "among_family"} this is a floor: whole families are kept, so
+more than \code{n} individuals can be returned (see the Method section).}
 
-\item{prop}{proportion of individuals to keep (0-1).}
+\item{prop}{proportion of individuals to keep (0-1); the count is
+\code{round(prop * N)} (half-to-even) and at least 1.}
 
 \item{intensity}{standardized selection intensity \code{i}; the number kept is the
-count whose expected intensity under normality is closest to \code{i}.}
+count whose asymptotic (infinite-population) truncation-selection intensity
+\eqn{i(p) = \phi(z_p)/p} is closest to \code{i}. The finite-sample expectation of
+the realized intensity is somewhat lower than \eqn{i(p)} (small \code{N}).}
 
 \item{on}{selection criterion (see the Criterion section).}
 
-\item{trait}{trait index to select on (default 1); ignored for \code{method = "index"}, which uses all traits.}
+\item{trait}{one trait index in \verb{1..n_traits} to select on (default 1);
+not used for \code{method = "index"}/\code{"quadratic_index"} (all traits) or for a
+numeric/function \code{on}, but it is still validated in every non-culling method.
+A vector is an error here (it is only meaningful for \code{method = "culling"}, and
+as a tandem schedule in \code{\link[=pedigree]{pedigree()}} / \code{\link[=recurrent_selection]{recurrent_selection()}}).}
 
 \item{direction}{\code{"high"} (default) keeps the largest scores, \code{"low"} the
-smallest.}
+smallest; one value (a vector is an error, except per trait for
+\code{method = "culling"}).}
 
 \item{method}{selection method (see the Method section).}
 
-\item{family}{optional grouping vector (length = individuals) for the family
-methods.}
+\item{family}{optional grouping vector (length = individuals, no \code{NA}) for the
+family methods.}
 
 \item{weights}{economic weights (one per trait) for \code{method = "index"}, or the
 linear weights \code{w} for \code{method = "quadratic_index"}.}
@@ -75,7 +85,9 @@ the survivors of the previous ones.}
 the selected individuals as a \code{Population} (when \code{sim} is
 Population-backed) or their ids, carrying attributes \code{selected} (ids),
 \code{differential} (selection differential S on the criterion), \code{intensity}
-(realized standardized i), \code{criterion} and \code{method}.
+(realized standardized i = S / sample SD of the criterion), \code{criterion} and
+\code{method}. A criterion whose scores, differential or SD overflow to a
+non-finite value is an error.
 }
 \description{
 Ranks the individuals of a realized \code{\link[=simulate_phenotype]{simulate_phenotype()}} result on a chosen
@@ -89,14 +101,34 @@ breeding-scheme wrappers (\code{\link[=single_seed_descent]{single_seed_descent(
 \describe{
 \item{\code{"pheno"}}{the observed phenotype -- realistic mass selection. For a
 purely additive model this is the classic \eqn{R = i\,h^2\,\sigma_P}
-(narrow-sense \eqn{h^2}; Falconer & Mackay). When dominance/epistasis layers
-are present the simulated components are not Fisher-orthogonal (SPEC S2), so
-only the additive fraction is transmitted and the realized breeding-value
-response is governed by the additive variance, not by broad-sense \eqn{H^2}.}
+(narrow-sense \eqn{h^2}; Falconer & Mackay). In general the expected
+response of the mean breeding value is \eqn{R = i\,\mathrm{Cov}(A, P) /
+    \sigma_P} (the regression of breeding value on the criterion; Smith 1936,
+Hazel 1943) \strong{provided \eqn{E[A \mid P]} is linear in \eqn{P}} (as under
+joint normality of \eqn{A} and \eqn{P}); it is not an identity for an
+arbitrary joint distribution. A discrete counterexample: \eqn{A = (0, 1,
+    2)} equiprobable with \eqn{P = A^2}, selecting the top third (\eqn{A =
+    2}), gives an actual response of 1 against a linear-regression value of
+about 1.077. Under that linearity assumption the expression equals
+\eqn{i\,h^2\,\sigma_P} with \eqn{h^2 = V_A / V_P} only when \eqn{\mathrm{Cov}(A, P - A) = 0}, i.e. when
+every non-additive component of the phenotype (dominance, epistasis and the
+residual) is uncorrelated with the breeding value. Under random mating /
+Hardy-Weinberg proportions with linkage equilibrium this holds for
+dominance, but it can fail for epistasis under linkage disequilibrium: the
+package's centred epistatic products need not be orthogonal to the additive
+values (SPEC S2), so \eqn{\mathrm{Cov}(A, P)} can differ from \eqn{V_A}
+(e.g. a two-locus population in Hardy-Weinberg proportions at each locus but
+with disequilibrium \eqn{D = 0.05} gives \eqn{\mathrm{Cov}(A, I) \ne 0}).
+When dominance/epistasis layers are present the response is therefore
+governed by the covariance of the breeding value with the phenotype, not by
+broad-sense \eqn{H^2}, and an epistatic term can itself contribute
+transmissible (marginal) average effects, which is why \code{"bv"} is not offered
+for epistatic models. Off Hardy-Weinberg (selfed, inbred or selected
+populations) the covariance is likewise not \eqn{V_A}.}
 \item{\code{"gv"}}{the true \emph{total} genetic value (broad-sense: additive plus any
 dominance/epistasis). Idealized selection on genetic merit -- an upper bound
 on selectable genetic value, but not on breeding-value response, since the
-non-additive part is not transmitted to progeny.}
+non-additive part is not, in general, transmitted to progeny.}
 \item{\code{"bv"}}{the true \emph{breeding} value -- the classical transmissible merit,
 \eqn{A_i = \sum_j \alpha_j (x_{ij} - 2p_j)}, summing each causal locus's
 average effect of substitution \eqn{\alpha_j = a_j + d_j(q_j - p_j)}
@@ -159,11 +191,25 @@ records from their mean (so families of different sizes are ranked on one
 scale); a family of one is scored by its own record, \code{h2} times its deviation.
 \code{"index"} is
 the Smith--Hazel multi-trait economic index (\code{weights} = economic weights, one
-per trait): \eqn{b = P^{-1} G a}, selecting on \eqn{b'y}. \code{"quadratic_index"} is
+per trait): \eqn{b = P^{-1} G a}, selecting on \eqn{b'y}, with \eqn{P} the
+phenotypic covariance matrix and \eqn{G} the covariance matrix of the true
+breeding values (\code{G = Cov(A)}). Hazel's (1943) \eqn{G} is the covariance of each
+trait's phenotype with each trait's breeding value, \eqn{\mathrm{Cov}(P, A)};
+the two coincide only when \eqn{\mathrm{Cov}(A, D) = 0} (random mating /
+Hardy-Weinberg proportions, e.g. an F2 or a random-mated population). In selfed,
+inbred or previously selected populations with dominance
+\eqn{\mathrm{Cov}(P, A) \neq \mathrm{Cov}(A)} and the index is then Smith--Hazel
+under that assumption, not the exact maximiser of the correlation with the
+aggregate breeding value (DECISION-015). Phenotype rows are matched to
+individuals by id, so the row order of \code{sim$pheno} is irrelevant.
+\code{"quadratic_index"} is
 the nonlinear genomic selection index of Ceron-Rojas et al. (2026),
 \eqn{\hat I = w'y + y'Wy} (\code{weights} = linear \code{w}, \code{quad_weights} = the
 symmetric quadratic/cross-product matrix \code{W}), which captures trait interactions
-and intermediate optima. \code{"random"} draws at random (a drift control).
+and intermediate optima. \code{"random"} draws at random (a drift control); its
+\code{differential} and \code{intensity} attributes are the \emph{realized} values on the
+\code{on} criterion of the individuals drawn (expected 0, either sign), not those of
+the random draw score, and \code{on} is validated.
 \code{"culling"} is independent culling levels: \code{culling} gives one proportion per
 trait (traits in \code{trait}, default the first \code{length(culling)}), and an individual
 is kept iff it is in the top \code{culling[t]} fraction of every trait (simultaneous;
@@ -178,7 +224,15 @@ per-generation aggregate responses \eqn{i(p)\sqrt{T} h\sigma_A} (index),
 \eqn{i(p) h\sigma_A} (tandem: one trait per generation, via the scheme
 wrappers' \code{trait} vector), so index \eqn{\ge} culling \eqn{\ge} tandem; at
 \code{T = 2}, \code{p = 0.1} culling and tandem reach 0.907 and 0.707 of the index. Family
-methods need a \code{family} grouping; \code{"combined"} additionally needs \code{h2}.
+methods need a \code{family} grouping with no missing labels (\code{NA} is an error);
+\code{"combined"} additionally needs \code{h2}. \code{"among_family"} keeps \strong{whole} families
+(highest family mean first) until at least \code{n} individuals are held, so it
+returns \emph{at least} \code{n} -- often more -- and \code{intensity} describes that whole
+set; \code{"within_family"} allocates exactly \code{n} across families in proportion to
+family size by largest remainder (remainder ties follow the character sort order
+of the family labels). The count from \code{prop} is \code{round(prop * N)} (R's
+half-to-even rounding) with a minimum of 1. The reported \code{intensity} is
+\code{S / sd(criterion)} with the sample (n - 1) standard deviation.
 }
 
 \examples{

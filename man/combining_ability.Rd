@@ -37,7 +37,8 @@ as for \code{\link[=genotypic_value]{genotypic_value()}}. \code{d} may be a sing
 \item{n_progeny}{progeny per cross for \code{"simulated"}.}
 
 \item{h2, var_e, ref}{optional residual for \code{"simulated"}: give at most one of
-\code{h2} / \code{var_e} (none: no residual).}
+\code{h2} / \code{var_e} (none: no residual); \code{ref} (the reference population for \code{h2})
+is an error without \code{h2}.}
 
 \item{seed}{optional RNG seed for \code{"simulated"}.}
 }
@@ -83,9 +84,9 @@ Falconer & Mackay's (1996) average effect \eqn{\alpha = a + d (q - p)} at the
 testers' allele frequencies.
 So a candidate's GCA depends on the tester, and with testers drawn from the
 candidates' own population (\code{p_T = p}) it equals half its breeding value; with
-\code{d = 0} every SCA is exactly zero. Expectations depend only on the parents'
-gamete frequencies, so linkage does not enter them (it enters the variance of a
-realized family).
+\code{d = 0} every \emph{expected} SCA is exactly zero. Expectations depend only on the
+parents' gamete frequencies, so linkage does not enter them (it enters the
+variance of a realized family).
 }
 
 \section{Simulated (an estimate)}{
@@ -96,7 +97,17 @@ an independent residual per progeny (exactly one of \code{h2} / \code{var_e}, as
 \code{\link[=phenotype_value]{phenotype_value()}}, \code{h2} being the heritability of the total genotypic value
 in \code{ref}, default the progeny), and averages per cross. It is a finite-sample
 estimate of the expected values, with Mendelian (and, with a residual,
-environmental) sampling error.
+environmental) sampling error. Consequently a \emph{simulated} SCA is not zero for
+\code{d = 0} when the parents are heterozygous (segregation among the \code{n_progeny}
+progeny of a cross is a sampling deviation from the expectation, shrinking
+with \code{n_progeny}); it is zero for \code{d = 0} only in expectation, and exactly in a
+simulation from fully inbred parents (identical gametes, so no Mendelian
+sampling) \strong{that has no residual}: an independent residual per progeny is
+environmental sampling error, which inbred parents do not remove, so with
+\code{h2} / \code{var_e} the simulated SCA is not zero even then (it shrinks with
+\code{n_progeny}). \code{ref}, like
+\code{h2}, only scales the residual and is an error without \code{h2}. With \code{seed} the
+caller's random-number stream is left as it was found.
 }
 
 \section{Designs and centering}{
@@ -112,7 +123,14 @@ row (column) mean minus \code{mu} and \code{SCA = Y - mu - g_i - g_k}. In the di
 cross involves two candidates, so this package's least-squares solution is
 \code{g_i = (m_i - mu)(p - 1)/(p - 2)}, with \code{m_i} the mean of candidate \code{i}'s
 \code{p - 1} crosses; again \code{SCA = Y - mu - g_i - g_k}. In every design GCAs sum to
-zero and each candidate's SCAs sum to zero.
+zero and each candidate's SCAs sum to zero. Only the diallel \emph{without
+reciprocals} is modelled (Griffing's method 4, one cross per unordered pair):
+reciprocal or maternal effects are outside the model and the cross matrix is
+symmetric. Individuals are identified by pedigree key, which includes the
+founders' \code{pool} label: two populations built from the same genotypes under
+different \code{as_population(pool = )} labels are different individuals (a cross
+between them is recorded as a cross, not a self, although its expected value
+is the same).
 }
 }
 
@@ -131,7 +149,8 @@ Falconer DS, Mackay TFC (1996) \emph{Introduction to Quantitative Genetics},
 average effect \eqn{\alpha = a + d(q - p)}.
 
 Sprague GF, Tatum LA (1942) General vs. specific combining ability in single
-crosses of corn. \emph{Agronomy Journal} 34:923--932.
+crosses of corn. \emph{Journal of the American Society of Agronomy} (now
+\emph{Agronomy Journal}) 34:923--932.
 \doi{10.2134/agronj1942.00021962003400100008x}
 
 Griffing B (1956) Concept of general and specific combining ability in relation

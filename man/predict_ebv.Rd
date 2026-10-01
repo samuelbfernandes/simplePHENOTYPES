@@ -29,8 +29,9 @@ not).}
 \eqn{\sigma^2_A = h^2 \sigma^2_P}, \eqn{\sigma^2_P} the variance of \code{ref}, default
 \code{pheno}) or both \code{var_a} (base additive variance) and \code{var_e}.}
 
-\item{ref}{optional numeric vector of base-population phenotypes setting
-\eqn{\sigma^2_P} for \code{h2}.}
+\item{ref}{optional numeric vector (at least two finite values) of
+base-population phenotypes setting \eqn{\sigma^2_P} for \code{h2}; it is an error
+without \code{h2} (with \code{var_a} and \code{var_e} it would be silently unused).}
 
 \item{K}{optional precomputed relationship matrix over \code{x}'s individuals
 overriding the one \code{method} builds: finite, symmetric and positive
@@ -78,6 +79,26 @@ base allele frequencies (\code{base_freq}) fixed at the base population's; per-c
 values inflate the apparent accuracy. Records of every individual that
 selection was based on should be included, or predictions are biased
 (Henderson 1975).
+
+\strong{Scope.} One trait, one record per individual (a \code{pheno} name must not be
+repeated, and two ids of \code{x} that are the same individual -- e.g. after
+\code{c(pop, pop[1])} -- may not both carry a record), an intercept as the only
+fixed effect, and no missing phenotypes (they are refused, not dropped); a
+single record gives every EBV zero and every reliability zero -- \code{NA} for an
+individual whose prior variance \eqn{K_{ii}\sigma^2_A} is zero, where reliability
+is undefined -- since one record cannot separate the mean from the breeding
+value. Multi-trait, repeated-record and single-step models are not covered.
+With \code{h2}, \eqn{\sigma^2_A = h^2 \sigma^2_P} and
+\eqn{\sigma^2_e = (1 - h^2) \sigma^2_P}, with \eqn{\sigma^2_P} the sample
+variance of \code{ref} or, by default, of the \strong{phenotyped subset} \code{pheno}. Because
+both components are proportional to \eqn{\sigma^2_P}, the ratio
+\eqn{\lambda = (1 - h^2) / h^2}, the EBVs and the reliabilities do not depend on
+which \eqn{\sigma^2_P} is used (multiplying it by any factor leaves them
+unchanged); only the reported absolute \code{var_a} and \code{var_e} attributes scale
+with it. So \code{ref} matters when those absolute variances do -- e.g. after
+selection the phenotyped subset has a truncated variance, and the base
+population's phenotypes as \code{ref} (or \code{var_a} and \code{var_e} directly) keep the
+reported components at the base population's scale.
 }
 \examples{
 data("SNP55K_maize282_maf04")

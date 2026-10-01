@@ -44,8 +44,62 @@ object already in memory.
 
 By default (\code{method = "frequency"}) the \strong{most frequent allele is the
 reference}: it is coded \code{1}, the minor allele \code{-1}, and the heterozygote
-\code{0}. Because the coding is decided per marker from the data itself, it does
-not depend on how the input file happened to order its alleles.
+\code{0}. The choice is made per marker from the observed genotype calls, so it
+does not depend on how the input file ordered its alleles -- with one
+exception, the tie rule below.
+
+\strong{Tie rule (minor-allele frequency exactly 0.5).} When the two homozygote
+classes are equally frequent at a marker (for example 50 of 100 doubled-haploid
+lines carry each allele), no allele is more frequent, and the coding follows
+the allele order instead: the first-listed allele ("allele 1") is coded as the
+reference (\code{1}, or \code{2} under \code{code_as = "012"}), and the second-listed as the
+minor allele (this is the strict \code{>} comparison in the numericalization
+kernel: the alleles are swapped only when the second allele is strictly more
+frequent). "First-listed" means the first allele of the input's allele pair:
+\code{REF} for VCF, the first allele of the \code{alleles} column for HapMap, \code{A1} (as
+SNPRelate lists it) for PLINK bed/ped, and the first allele of \code{snp.allele} in
+a GDS file. For inputs that declare no allele pair (nucleotide tables and
+Illumina FinalReport) the alphabetically first allele is allele 1. Every reader
+applies the same rule, so the same VCF gives identical dosage columns from a
+file path and from a data frame, tied markers included.
+
+\strong{The \code{alleles} column of HapMap input is checked, not trusted.} If the
+calls at a marker contain alleles that are not in its declared pair (a stale
+or opposite-strand \code{alleles} column), a warning names the affected rows and the
+marker is oriented from the calls; the returned \code{allele} column then shows the
+alleles actually observed.
+
+The returned \code{allele} column lists the two alleles as \code{"allele1/allele2"} in
+the order above (for a marker whose second allele was never observed, only
+allele 1). The column itself records the raw orientation, not which allele
+was coded \code{1}.
+
+\strong{Which allele is counted.} The allele coded \code{1} (or \code{2} under
+\code{code_as = "012"}) at each marker is recorded in the \code{"counted_allele"}
+attribute of the returned data frame, a character vector with one allele per
+marker (\code{NA} where it is not known, and absent under \code{model = "Dom"}, which
+counts no allele). No dosage value depends on it: it only lets
+\code{\link[=cross]{cross()}}, \code{\link[=c.Population]{c.Population()}} and the selection schemes see whether two
+separately converted panels count the same allele. Two panels that both
+carry it and count different alleles at a marker are refused when crossed or
+pooled (e.g. an all-\code{AA} panel and an all-\code{GG} panel would otherwise both
+encode \code{+1} and cross to an F1 of \code{+1} instead of the heterozygote \code{0}). The
+attribute lives in the R object only: it is not written to a numeric text file,
+and it is dropped by row-subsetting the data frame, so numeric data read back
+from a file (or created by other software) carries no record and the older
+label-only check is used instead; convert panels that will be crossed
+\strong{jointly}, or with the same \code{ref_allele}, to be safe.
+
+Calls are matched case-insensitively. A marker with more than two alleles is
+set to missing with a warning that counts the affected markers; missing
+marker IDs in VCF / PLINK input are filled with \code{chr:pos}, and duplicated
+marker IDs or sample names are an error (downstream functions index by name).
+
+\strong{VCF calls.} Only complete, biallelic diploid genotype calls are used, from a
+file path and from an in-memory VCF table alike: haploid calls (\code{"0"}, \code{"1"}),
+partially missing calls (\code{"./1"}) and calls that name a second ALT allele
+(\code{"0/2"}, \code{"2/2"}) are set to missing, and one warning per kind counts them.
+The marker's orientation is then chosen from the remaining calls.
 
 Set \code{method = "reference"} with \code{ref_allele} to fix the reference allele
 yourself instead — for example to keep the coding consistent with an
@@ -59,7 +113,14 @@ rather than centering on the heterozygote.
 \section{The output, and the \code{cm} column}{
 
 The result has five metadata columns — \code{snp}, \code{allele}, \code{chr}, \code{pos}, \code{cm} —
-followed by one column per individual.
+followed by one column per individual. The types are the same for every input
+format: \code{snp}, \code{allele} and \code{chr} are character, \code{pos} is integer (double only
+if a position is not a whole number below 2^31, and integer \code{NA} when the
+input carries no positions), \code{cm} is double, and the genotype columns are
+integer. Numeric-format input (a data frame or a file written by
+\code{as_numeric()}) is brought to this schema too (logical and whole-number double
+genotype columns become integer, values unchanged), so converting a written
+file again returns the same table.
 
 \code{cm} is the genetic map in centiMorgans, and it is \code{NA} unless the input
 format carries one. HapMap and VCF have no genetic-distance field, so \code{cm}

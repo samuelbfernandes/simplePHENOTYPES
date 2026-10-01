@@ -81,8 +81,37 @@ qtn_partially_pleiotropic(
 Genotype of selected SNPs
 }
 \description{
-Select SNPs to be assigned as QTNs
+Frozen v1 engine, partially pleiotropic architecture: for every effect type
+a set of \verb{pleio_*} QTNs shared by all traits plus \verb{trait_spec_*_QTN_num[t]}
+QTNs specific to trait \code{t}. Every trait needs at least one QTN of each
+simulated type (\code{pleio + trait_spec[t] >= 1}); a trait may have zero
+trait-specific QTNs as long as \code{pleio > 0}.
 }
+\section{Seeds and QTN sets (v1 behaviour, kept for reproducibility)}{
+
+\code{j} = replicate index, \code{i} = trait index, \code{rep} = number of replicates when
+\code{rep_by = "QTN"} (otherwise 1). The shared additive set uses \code{seed + j}, the
+trait-specific additive sets \code{seed + i + j}; dominance uses \code{seed + j + rep}
+and \code{seed + i + j + rep}; epistasis uses \code{2 * seed + j} and
+\code{2 * seed + i + j}. Effect classes are drawn independently of each other
+(no mutual exclusion; several seeds make two classes coincide, see
+\code{\link[=qtn_pleiotropic]{qtn_pleiotropic()}}), and the trait-specific seed \code{seed + i + j} is shared
+by (trait, replicate) pairs with the same \code{i + j}. Trait-specific sets of
+one class are drawn one trait after the other from the markers not yet used
+by that class, so they are disjoint from the shared set and from each other.
+The one exception is the heterozygote re-draw that dominance needs (the
+first draw is repeated, up to 10 times, until it contains a heterozygote):
+the accepted re-draw is not removed from the pool of the following traits,
+so two traits could receive the same "trait-specific" marker. That situation
+is detected and reported with an error (choose another \code{seed} or use
+\code{constraints = list(hets = 'include')}) instead of silently simulating an
+architecture that is not partially pleiotropic. Whenever the sets are
+disjoint the selection is unchanged from earlier versions.
+
+The \verb{Seed_number_for_*} files list the seed of every replicate (and, for the
+trait-specific files, of every replicate x trait, replicate-major).
+}
+
 \author{
 Samuel Fernandes and Alexander Lipka. Last update: Apr 20, 2020
 }

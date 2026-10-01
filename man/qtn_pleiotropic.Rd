@@ -78,8 +78,49 @@ qtn_pleiotropic(
 Genotype of selected SNPs
 }
 \description{
-Select SNPs to be assigned as QTNs.
+Frozen v1 engine, fully pleiotropic architecture: one QTN set per effect
+type is drawn and shared by every trait (the traits differ only through
+their per-trait effects).
 }
+\section{QTN sets and seeds (v1 behaviour, kept for reproducibility)}{
+
+The additive, dominance, epistatic and variance QTN sets are drawn
+\emph{independently} of each other, each with \code{set.seed()} on its own seed
+(\code{i} = replicate index, \code{rep} = number of replicates when
+\code{rep_by = "QTN"}, otherwise 1):
+additive \code{seed + i}; dominance \code{seed + i + rep}; variance
+\code{2 * seed + i}; epistatic \code{2 * seed + i + rep}. There is no exclusion
+between effect classes, so:
+\itemize{
+\item a marker can belong to several classes by chance, and
+\item some seeds make two classes use the \emph{same} \code{set.seed()} value
+(a "collision"): the additive and variance seed ranges overlap when
+\code{seed < rep}; the dominance and epistatic ranges overlap when
+\code{seed < rep} (for example \code{seed = 0}, one replicate: the dominance QTNs
+are exactly the first epistatic loci); the dominance and variance ranges
+overlap for \verb{1 <= seed <= 2 * rep - 1}; additive/dominance and
+epistatic/variance never overlap. Choosing \code{seed >= 2 * rep} avoids
+every collision (\code{seed >= rep} is not enough: with \code{seed = rep = 2} the
+dominance seeds \code{seed + i + rep} and the variance seeds \code{2 * seed + i}
+are both 5 and 6).
+\item a colliding seed gives an identical \emph{set} only when the two
+classes draw the same number of QTNs from the same pool of markers (for
+example equal \code{dom_QTN_num} and \code{var_QTN_num}); with unequal draw sizes
+the two sets share a prefix of the same random stream, not the whole
+set.
+}
+Changing these formulas would change every published v1 result and the
+frozen RDS references, so they are documented rather than "fixed". The seeds
+recorded in the \verb{Seed_num_for_*} files are the ones listed above.
+When dominance is simulated the first draw is repeated (up to 10 times,
+from the not-yet-rejected markers) until the set contains at least one
+heterozygote anywhere in the panel columns; the accepted draw is the one
+reported.
+
+Duplicated marker positions (\code{chr_pos}) are allowed: QTN columns are
+addressed by position, never by name.
+}
+
 \author{
 Samuel Fernandes and Alexander Lipka. Last update: Apr 20, 2020
 }

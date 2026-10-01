@@ -16,7 +16,12 @@ template_effects(sim, trait = 1L, rep = 1L)
 \value{
 A data frame with columns \code{qtn} (marker index), \code{snp}, \code{a}, \code{d}, one row
 per causal locus. Refuses models with an epistasis layer or
-\code{architecture = "complex"}, whose effects have no per-locus a / d form.
+\code{architecture = "complex"}, whose effects have no per-locus a / d form, and
+models with a \emph{derived} \code{transcriptome()} layer that carries variance
+(\code{prop > 0}) for the trait: its heritable part is mediated by gene expression,
+not by per-locus effects, so a template would silently drop it (a layer with
+\code{prop = 0}, or one built on a real expression source, whose genetic content
+is not asserted, adds nothing to the genetic value and is allowed).
 }
 \description{
 The per-locus additive effect \code{a} and dominance deviation \code{d} a

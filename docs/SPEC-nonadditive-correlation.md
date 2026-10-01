@@ -47,6 +47,17 @@
 > Round 21: TODO wording, covariance-vs-correlation in the complete reference,
 > small-value formatting in the total warning.
 >
+> Audit 2026-09-29 corrections: the raw component's expected variance over effect
+> draws is `E[Var(c_t)] = V_t` -- the shared units contribute `Σ_tt = π_t V_t` and
+> the independent trait-specific units the remaining `(1 − π_t) V_t`; earlier
+> wording (here, in DECISION-023 and in the `.pleio_nonadditive_draw()` comment)
+> wrote `E[Var(c_t)] = Σ_tt`, which holds only for `π_t = 1`. Only the covariance
+> `E[Cov(c_1, c_2)] = Σ_12` comes exclusively from the shared units, so the
+> correlation target is unchanged. `epistasis(qtn = list(...))` is now one element
+> per trait (a list of sets is refused); a trait with `π_t = 1` (or `0`) is
+> assigned trait-specific (shared) loci of exactly zero effect, which are no
+> longer reported as its QTNs.
+>
 > §1 and §4 below describe the code **as it was before** DECISION-023.
 
 ## 1. Problem (before DECISION-023)

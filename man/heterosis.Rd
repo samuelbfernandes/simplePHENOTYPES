@@ -10,7 +10,10 @@ heterosis(pop, breeds, qtn, a, d = 0)
 \item{pop}{the crossbred \code{Population} (pedigree traced to the breed founders).}
 
 \item{breeds}{a named list of the pure-breed \code{Population}s, each name the
-founder pool its population traces to (\code{as_population(pool =)}); checked.}
+founder pool its population traces to (\code{as_population(pool =)}); checked.
+Each must hold every founder of its pool that \code{pop}'s pedigree traces to
+(the breed means are taken from these populations only), and share the marker
+map of \code{pop}.}
 
 \item{qtn, a, d}{frozen loci and effects, as for \code{\link[=genotypic_value]{genotypic_value()}}; \code{d} may be
 a single value.}
@@ -44,7 +47,26 @@ inbred-line breeds (\eqn{h = 0}) it is
 the F1 heterosis retained in later crosses (one half in an F2 or a backcross,
 two thirds in a two-breed rotation at equilibrium) follow from the probability
 that an individual's two alleles come from different breeds, a dominance
-(breed-origin) model; epistasis is outside this function.
+(breed-origin) model, and are exact \strong{only under conditions on the breeds'
+Hardy-Weinberg deviations} \eqn{h - 2p(1 - p)} at the locus (not, in
+general, on each breed separately). A single fixed inbred line has no deviation
+(\eqn{p = 0} or \eqn{1}, so \eqn{h = 0 = 2p(1 - p)}), but a breed made of
+several fully inbred lines that differ at a locus does (\eqn{h = 0 <
+2p(1 - p)}). Exactly, at one locus with non-zero F1 heterosis the retained
+fraction in a backcross to breed A is one half if and only if
+\eqn{h_A = 2 p_A (1 - p_A)}, i.e. only the recurrent breed A need be in
+Hardy-Weinberg proportions (whatever breed B is), and in the F2 if and only if
+\eqn{[h_A - 2 p_A (1 - p_A)] + [h_B - 2 p_B (1 - p_B)] = 0}, i.e. the two
+deviations sum to zero (for example \eqn{-0.12} and \eqn{+0.12}, with neither
+breed in Hardy-Weinberg proportions); for breeds that violate this the F2 and
+backcross retain a different fraction. (The two-thirds rotation figure is the
+classical value for breeds in Hardy-Weinberg proportions; its condition for
+breeds with deviations is not derived here.) For example,
+an equal mixture of AA and aa lines crossed to an aa line (pure dominance) has
+F1 heterozygosity 1/2 and backcross heterozygosity 1/2 against baselines of 0,
+so the retention is 1, not 1/2. \code{realized} is
+computed from the actual genotypes, so it does not assume either fraction;
+epistasis is outside this function.
 }
 \examples{
 g <- data.frame(snp = paste0("m", 1:20), allele = "A/G",

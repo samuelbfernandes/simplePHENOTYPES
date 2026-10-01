@@ -14,8 +14,11 @@ a single \code{Population}.
 }
 \description{
 Column-binds several \code{Population}s (e.g. the progeny of many crosses) into
-one. All inputs must share an identical marker map. Individual ids are made
-unique across the pooled set.
+one. All inputs must share the same marker map: identical \code{snp} names and
+chromosomes, and \code{pos} and \code{cm} equal to a numerical tolerance (absolute
+\code{1e-8} for values below 1, relative \code{1e-8} above -- so round-off noise is
+accepted, any real map difference is not). The map of the first input is kept.
+Individual ids are made unique across the pooled set.
 }
 \examples{
 data("SNP55K_maize282_maf04")

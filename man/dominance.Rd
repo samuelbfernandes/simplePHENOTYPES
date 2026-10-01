@@ -22,17 +22,21 @@ in which case the layer takes whatever of that budget is unspent -- so a
 single \code{additive()} layer gets \code{prop = h2}. When \code{prop} is given and \code{h2}
 is set, the layer \code{prop} values must sum to \code{h2}.}
 
-\item{same_as_add}{reuse the additive layer's QTNs (default \code{TRUE}).}
+\item{same_as_add}{reuse the additive layer's QTNs (default \code{TRUE}). Supplying
+\code{qtn} fixes the loci instead, so \code{same_as_add} is then treated as \code{FALSE}
+(the layer records and prints it as such).}
 
-\item{n_qtn}{number of additive QTNs; overrides the baseline \code{n_qtn} from
-\code{\link[=simulate_phenotype]{simulate_phenotype()}} (with a warning when both are given).}
+\item{n_qtn}{number of dominance QTNs for a fresh draw
+(\code{same_as_add = FALSE}); ignored, with a warning, when the loci are reused
+(\code{same_as_add = TRUE}) or fixed by \code{qtn}.}
 
 \item{qtn}{optional user-supplied QTNs for this layer, so you can fix the
 causal loci for one effect type while the others are drawn at random. Give
 marker names (matched against the map) or column indices; a vector is used
 for every trait, or a length-\code{n_traits} list sets each trait's loci
-separately. \code{n_qtn} is then taken from what you supply. Fixed loci are not
-redrawn by \code{vary_qtn}.}
+separately (every element the same length). \code{n_qtn} is then taken from what
+you supply. Fixed loci are not redrawn by \code{vary_qtn}. (For \code{\link[=epistasis]{epistasis()}},
+\code{qtn} describes interacting sets; see there.)}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
 }
@@ -46,10 +50,24 @@ Add a dominance variance component
 Dominance is modelled as a deviation applied to heterozygotes (the het
 indicator), with its share of phenotypic variance set by \code{prop}. In this
 variance-partition grammar there is no separate "degree of dominance"
-argument: the ratio of dominance to additive variance is
-\code{prop_dominance / prop_additive}, set through the layer proportions. (A single
-degree-of-dominance scalar would be washed out by the per-component variance
-scaling and is therefore not offered.)
+argument (there is no \verb{degree =}): the ratio of the \emph{scaled components'}
+variances is \code{prop_dominance / prop_additive}, set through the layer
+proportions. (A single degree-of-dominance scalar would be washed out by the
+per-component variance scaling and is therefore not offered; for a per-locus
+degree of dominance \code{d / abs(a)} use \code{additive(orthogonal = TRUE, a =, d =)}.)
+
+\strong{Additive + dominance on the same loci is not orthogonal.} The dosage and
+the heterozygote indicator covary by \eqn{-(2p - 1) 2pq} at each locus, so the
+realized genetic variance is \verb{prop_A + prop_D + 2Cov(c_A, c_D)} for one
+additive and one dominance layer (several layers of a type add their mutual
+covariance to \code{Var(c_A)} or \code{Var(c_D)}) -- a structural,
+allele-coding-dependent bias, not a finite-sample effect; its per-locus sign is
+that of \verb{1 - 2p} for the counted-allele frequency \code{p}, so it is one-signed
+across loci only when those frequencies are on one side of 0.5 -- and the
+classical Va:Vd of the block differs from \code{prop_A:prop_D}. The object reports
+the realized Var(A), Var(D) and 2Cov(A,D), and Var(c_A), Var(c_D) and
+2Cov(c_A,c_D) (\verb{$ad_report}, and the note printed by \code{print()}); use \code{additive(orthogonal = TRUE, a =, d =)} for a
+Fisher-orthogonal partition.
 
 Dominance needs heterozygotes to be identifiable: it is identically zero at a
 locus with no heterozygous individuals. If the selected loci carry none

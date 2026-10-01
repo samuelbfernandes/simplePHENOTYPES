@@ -18,7 +18,8 @@ variance category, bounded (with all layers) to sum to at most 1.}
 \item{n_genes}{number of causal genes to draw (sparse); give this or \code{genes}.}
 
 \item{genes}{an explicit causal-gene set (names matching the expression source's
-row names, or integer gene indices); overrides \code{n_genes}.}
+row names, or integer gene indices); overrides \code{n_genes}. Must be non-empty
+and free of duplicates.}
 
 \item{slopes}{optional per-causal-gene slopes; a finite numeric vector, one per
 causal gene. When \code{NULL}, slopes are drawn \code{N(0, 1)} (their absolute scale is
@@ -62,9 +63,15 @@ and slopes, so the total genetic correlation is then not targeted at \code{cor}
 (warned).
 A genotype-free basis (\code{simulate_phenotype(expression = ...)} with no \code{geno}),
 \code{qtn_table()} gene rows, and cross-population reuse of an architecture
-(\code{\link[=predict.transcriptome_sim]{predict.transcriptome_sim()}}) are all supported. Still-planned follow-ups:
-\code{mimic} calibration from a user expression matrix, and an RNA-seq count
-observation layer.
+(\code{\link[=predict.transcriptome_sim]{predict.transcriptome_sim()}}) are all supported, as are \code{mimic} calibration
+of the generator to a user expression matrix
+(\code{\link[=simulate_transcriptome]{simulate_transcriptome()}}) and an RNA-seq count observation layer
+(\code{\link[=observe_counts]{observe_counts()}}).
+
+With \code{simulate_phenotype(transcriptome = TRUE)} the derived transcriptome is
+built on the phenotype's whole genotype panel (before any \code{individuals}
+subsetting) and uses the phenotype's raw \code{seed} unchanged for
+\code{\link[=simulate_transcriptome]{simulate_transcriptome()}}.
 }
 \examples{
 data("SNP55K_maize282_maf04")

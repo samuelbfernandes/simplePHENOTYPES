@@ -21,6 +21,9 @@ write_phenotypes(sim, file, format = c("long", "wide"), sep = "\\t")
 \description{
 Writes the long (default) or wide table as a delimited file. Specialized
 exporters (gemma / plink / multi-file) are out of scope for the grammar core.
+Values are written with \code{data.table::fwrite()}'s default of up to 15
+significant digits, so reading the file back reproduces the phenotypes to
+about 1e-14 (relative), not bit-for-bit.
 }
 \examples{
 data("SNP55K_maize282_maf04")

@@ -62,11 +62,11 @@ phenotype **bases** through one interface, reusing the existing machinery.
     realized covariance (expression is biologically downstream of the genome) is
     reported, not asserted.
 
-- **Scope now vs deferred.** Build the normalized generator + the transcriptome and
-  genome→transcriptome phenotype bases first. **Defer** (explicit non-scope until
-  the core variance semantics are stable): the RNA-seq **count** observation layer
-  (`observe_counts()`, NB), directed regulatory networks, tissue specificity, and
-  epistatic expression.
+- **Scope.** The normalized generator, the transcriptome and
+  genome→transcriptome phenotype bases, `mimic` calibration, the RNA-seq **count**
+  observation layer (`observe_counts()`, NB), the genotype-free generator and
+  additive-by-additive epistatic expression are all implemented. Still explicit
+  non-scope: directed regulatory networks and tissue specificity.
 
 - **Reuse & boundary.** Reuse genotype ingestion, QTN sampling, the
   variance-realization ("scale-to-target") step, the map, and the RNG-in-R
@@ -97,4 +97,4 @@ not asserted, variance partition).
 ---
 
 ### Table row (append to the DECISIONS.md summary table on approval)
-| 022 | transcriptome simulation: hybrid latent-factor eQTL (cis in a physical-bp window + trans via Q≪T latent regulatory factors + non-genetic co-expression modules + gene noise), normalized Gaussian scale; per-gene `h2_g`, cis fraction `omega_g`, residual module fraction `kappa_g` as non-competing knobs; **joint** cis/trans genetic scaling with a reported `cis_trans_cov` budget row (cf. `add_dom_cov`, DECISION-020); **fixed reference calibration** (DECISION-020/021); no annotation/reference data required (named `generic_bulk` profile; synthetic physical-bp coords; optional `mimic=` calibrates the expression generator only, GREML per-gene h²; ships an example annotation + expression dataset for SNP55K); phenotype bases inferred from inputs via a `transcriptome()` layer — markers-only (default) / `expression=` real transcriptome alone / `geno`+`transcriptome=` derived G→E→Y (`y = Z(δ+Bs)+Rs+η`, mediated+direct) / `geno`+`expression=` both real (`y = Zδ+Ẽs+η`, no simulated mediation, realized G–E cov reported) — all with genome-path rigor; counts/GRN/tissue/epistasis deferred; RNG in R (DECISION-006), no Rust yet | DRAFT (2026-09-16) |
+| 022 | transcriptome simulation: hybrid latent-factor eQTL (cis in a physical-bp window + trans via Q≪T latent regulatory factors + non-genetic co-expression modules + gene noise), normalized Gaussian scale; per-gene `h2_g`, cis fraction `omega_g`, residual module fraction `kappa_g` as non-competing knobs; **joint** cis/trans genetic scaling with a reported `cis_trans_cov` budget row (cf. `add_dom_cov`, DECISION-020); **fixed reference calibration** (DECISION-020/021); no annotation/reference data required (named `generic_bulk` profile; synthetic physical-bp coords; optional `mimic=` calibrates the expression generator only, GREML per-gene h²; ships an example annotation + expression dataset for SNP55K); phenotype bases inferred from inputs via a `transcriptome()` layer — markers-only (default) / `expression=` real transcriptome alone / `geno`+`transcriptome=` derived G→E→Y (`y = Z(δ+Bs)+Rs+η`, mediated+direct) / `geno`+`expression=` both real (`y = Zδ+Ẽs+η`, no simulated mediation, realized G–E cov reported) — all with genome-path rigor; counts (`observe_counts()`) and epistatic expression implemented, GRN/tissue specificity remain non-scope; RNG in R (DECISION-006), no Rust yet | DRAFT (2026-09-16) |

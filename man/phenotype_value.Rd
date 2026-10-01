@@ -65,8 +65,10 @@ the \strong{parametric (population) heritability} \code{Var(g) / (Var(g) + var_e
 as selection exhausts genetic variance -- which is exactly what a faithful
 cross-generation \code{on = "pheno"} selection driver needs, and what
 \code{\link[=genetic_values]{genetic_values()}} / \code{\link[=simulate_phenotype]{simulate_phenotype()}} cannot express (they re-scale the
-genetic layer to its target \code{prop} on every population, so the genetic share, and
-thus selection accuracy, never decays). (\code{var_e} is the residual \emph{variance
+genetic layer to its target \code{prop} on every population, so the genetic share is
+re-fixed each generation: with an additive-only genetic layer, selection
+accuracy stays near \eqn{\sqrt{h^2}} under this re-standardization, and it
+declines only when dominance enters). (\code{var_e} is the residual \emph{variance
 parameter}, not a sample-standardized value: \code{e} is a genuine normal draw, so its
 realized sample variance scatters around \code{var_e} and \code{Cov(g, e) ~ 0} in
 expectation. The package's sample statistic \code{Var(g)/Var(y)} therefore tracks the

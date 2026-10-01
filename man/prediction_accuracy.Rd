@@ -13,7 +13,12 @@ prediction_accuracy(ebv, truth)
 \code{on = "bv"} criterion). Matched by name when both are named.}
 }
 \value{
-A named numeric vector: \code{accuracy}, \code{slope}, \code{n}.
+A named numeric vector: \code{accuracy}, \code{slope}, \code{n}. Named vectors are
+matched by name (each name may occur once; a duplicated name in either vector
+is an error, even when the other vector is unnamed) and
+only the common, finite pairs are scored. If \code{ebv} or \code{truth} is constant
+the correlation is undefined: \code{accuracy} is \code{NA} (and \code{slope} is \code{NA} for a
+constant \code{ebv}), with a warning.
 }
 \description{
 The realized accuracy \eqn{cor(\hat u, u)} of predictions against the true

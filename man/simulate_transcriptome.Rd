@@ -28,7 +28,11 @@ coded -1/0/1. May be \code{NULL} for a \strong{purely non-genetic} transcriptome
 tables); then \code{n_ind} sets the number of individuals and \code{h2}/\code{cis_fraction}/
 \code{mimic} do not apply.}
 
-\item{n_genes}{number of genes to simulate (ignored when \code{annotation} is given).}
+\item{n_genes}{number of genes to simulate (ignored when \code{annotation} is
+given). Synthetic gene ids are \code{gene0001}, \code{gene0002}, ... with a genome and
+synthetic coordinates, and \code{gene1}, \code{gene2}, ... in genotype-free and \code{mimic}
+mode (unless \code{mimic} carries row names). Only markers with MAF >= 0.05 and a
+known chromosome/position are eligible as eQTL (a fixed threshold).}
 
 \item{annotation}{optional gene annotation, a data frame with columns
 \code{gene_id}, \code{chr}, \code{tss} (transcription start site, in the same physical units
@@ -43,10 +47,17 @@ as the genotype \code{pos}). When \code{NULL}, synthetic coordinates are generat
 
 \item{cis_fraction}{per-gene cis fraction of the marginal genetic variance
 \code{omega}: \code{"beta"} (draw \code{Beta(2, 6)}, mean 0.25), a single number in \verb{[0, 1]},
-or a length-\code{n_genes} vector.}
+or a length-\code{n_genes} vector. \code{omega} is the target of the \emph{marginal} share
+\code{v_cis / (v_cis + v_trans)}, which equals \code{omega} by construction (the
+standardized parts each have unit variance). The \strong{realized}
+\code{cis_fraction_realized} is the share of the realized genetic variance,
+\code{v_cis / Var(G)}, which differs from \code{omega} by the cis-trans covariance (and
+is not bounded by 1 when cis and trans covary negatively; with
+\code{epistasis > 0} compare it with \code{omega * (1 - epsilon)}). Not used when
+\code{geno = NULL}.}
 
 \item{n_factors}{number of latent regulatory factors \code{Q}; default
-\code{min(50, max(5, ceiling(n_genes / 100)), n_ind - 2)}.}
+\code{max(1, min(50, max(5, ceiling(n_genes / 100)), n_ind - 2))}.}
 
 \item{residual_module_fraction}{the residual module fraction \code{kappa}, a single
 number in \verb{[0, 1]}: the \strong{target/expected} fraction of residual variance
@@ -61,14 +72,27 @@ state is restored afterwards.}
 
 \item{mimic}{optional \strong{user expression matrix} (genes x individuals, columns
 named/ordered to the genotypes) to calibrate the generator to. When supplied,
-the generator's \emph{targets} are set from it: exact per-gene mean and variance;
+the generator's \emph{targets} are set from it: exact per-gene mean and variance
+(the rescale is skipped only for a gene whose realized unit-scale variance is
+exactly zero or non-finite; a counted warning is issued when the rescale is
+ill-conditioned, i.e. the realized unit variance is below \code{1e-12});
 a per-gene heritability from a GREML estimator (REML on the genotypes' GRM,
-single variance component); the co-expression factor count \code{n_factors}
-(Marchenko-Pastur) and strength \code{kappa}. \code{n_genes} is taken from \code{mimic}. The
+single variance component; it replaces \code{h2}, which is ignored with a
+warning); the co-expression factor count \code{n_factors} (Marchenko-Pastur) and
+the residual module fraction \code{kappa}. \code{n_genes} is taken from \code{mimic}. The
 eQTL effects, loadings, and (downstream) phenotype slopes are still drawn de
 novo -- mimic calibrates the \emph{distribution} of expression, it does not fit
-individual effects. The estimates are returned in \verb{$calibration}. \code{kappa} is
-a documented strength proxy, not an identifiable residual-module estimate.}
+individual effects: \strong{loadings and their signs are not retained} (every
+generated gene loads +1 on one factor, so anti-correlated blocks of the input
+are regenerated as positively co-expressed) and only \code{n_factors} and \code{kappa}
+summarize the input's co-expression. \code{kappa} is the mean within-module
+correlation of the input after subtracting the genetic trans share implied by
+the GREML \code{h2} and \code{cis_fraction} (a spiked-covariance estimator, see
+\code{.tx_estimate_kappa()}); pure noise gives \code{kappa} near 0. The per-gene GREML
+values are a \emph{distribution}-level calibration: for sparse eQTL architectures
+they do not match the truth gene by gene (per-gene sd about 0.1 at n = 280),
+and a warning is issued below 100 individuals. The estimates are returned in
+\verb{$calibration}.}
 
 \item{n_ind}{number of individuals, \strong{required only when \code{geno = NULL}}
 (otherwise taken from \code{geno}).}
@@ -76,16 +100,47 @@ a documented strength proxy, not an identifiable residual-module estimate.}
 \item{epistasis}{per-gene \strong{epistatic} fraction of the genetic variance
 \code{epsilon}: \code{0} (default, purely additive cis/trans), a single number in
 \verb{[0, 1]}, \code{"beta"} (draw \code{Beta(1.5, 6)}, mean 0.20), or a length-\code{n_genes}
-vector. When positive, each gene gains 1--2 marker pairs whose centered dosage
-\strong{product} (an additive-by-additive interaction) contributes to its expression; the
-additive share is then \code{(1 - epsilon)} split by \code{cis_fraction}. Reported as an
-\code{epi_eqtl} truth table and \code{v_epi} / \code{cis_epi_cov} / \code{trans_epi_cov} budget
-rows; reconstructable and reusable by \code{\link[=predict.transcriptome_sim]{predict.transcriptome_sim()}}.}
+vector. \code{epsilon} is a \strong{marginal} share, the blend weight of the
+standardized epistatic score against the standardized additive score:
+\code{v_epi / (v_cis + v_trans + v_epi)} equals \code{epsilon} exactly only when the
+cis and trans scores are uncorrelated (or one of them is absent). In general,
+with \verb{s_ct^2 = Var(sqrt(omega) c + sqrt(1 - omega) t)} the pre-standardization
+variance of the combined standardized cis (\code{c}) and trans (\code{t}) scores
+(\verb{s_ct^2 = 1 + 2 sqrt(omega (1 - omega)) cor(c, t)}), the marginal share is
+\code{epsilon / (epsilon + (1 - epsilon) / s_ct^2)}, which can differ materially
+from \code{epsilon}: e.g. perfectly positively correlated cis and trans scores
+with \code{omega = 0.5} give \code{s_ct^2 = 2}, so \code{epsilon = 0.4} yields a marginal
+share of \code{0.4 / (0.4 + 0.6 / 2) = 0.5714} (and strongly negative correlation
+pushes it further the other way). \code{s_ct^2} is recoverable from the variance
+budget as \code{1 + cis_trans_cov / (v_cis + v_trans)}. This formula holds for
+the non-degenerate blend only: when the cis and trans scores exactly (or
+numerically) cancel (\code{s_ct^2} is 0, e.g. perfectly negatively correlated
+scores with \code{omega = 0.5}), the generator falls back to the surviving
+component, the cis part is dropped, and the marginal share is the target
+\code{epsilon} itself (for \code{epsilon = 0.4} it is 0.4, not the formula value 0; the
+budget then describes the one-component architecture). The share of
+the realized genetic variance, \code{v_epi / Var(G)}, is reported as
+\code{epistasis_realized} and differs further by the covariance rows. When
+positive, each gene gains 1--2 marker pairs (drawn from all eligible markers,
+with no exclusion of the gene's own cis window or trans hub, and possibly the
+same pair twice) whose centered dosage \strong{product} (an additive-by-additive
+interaction) contributes to its expression; the additive share is then
+\code{(1 - epsilon)} split by \code{cis_fraction}. Reported as an \code{epi_eqtl} truth table
+and \code{v_epi} / \code{cis_epi_cov} / \code{trans_epi_cov} budget rows; reconstructable
+and reusable by \code{\link[=predict.transcriptome_sim]{predict.transcriptome_sim()}}. If fewer than two eligible
+markers exist a warning is issued and no epistasis is realized
+(\code{epistasis_realized = 0}). Not used when \code{geno = NULL}; reported as 0 for
+genes with \code{h2 = 0}.}
 }
 \value{
 a \code{transcriptome_sim}: \code{expression} and \code{genetic_expression}
-(genes x individuals), \code{genes} (per-gene table: target and realized \code{h2},
-target and realized cis fraction, module, coordinates, and \code{trans_scale}),
+(genes x individuals), \code{genes} (per-gene table: \code{h2_target},
+\code{h2_realized = Var(G)/Var(P)} (also \code{h2_var_ratio}; not bounded by 1, it
+includes \verb{2 Cov(G, R)}), the bounded allocation
+\code{h2_allocated = Var(G)/(Var(G)+Var(R))}; \code{cis_fraction_target} and the
+realized \code{cis_fraction_realized = v_cis / Var(G)}; \code{epistasis_target},
+\code{epistasis_realized = v_epi / Var(G)}, \code{n_cis}, \code{n_epi}, module, coordinates,
+and \code{trans_scale}),
 \code{cis_eqtl} (effective coefficient on centered dosage), \code{factor_eqtl} (raw
 hub effects), and -- when \code{epistasis > 0} -- \code{epi_eqtl} (interacting marker
 pairs: \code{snp1}, \code{snp2}, \code{effect}, \code{prod_mean}) truth tables, \code{loadings}, the
@@ -129,14 +184,40 @@ hub effects, loadings, module assignment) are computed on the supplied
 The genetic component \code{G} (scaled to \code{Var(G) = h2}) and the residual \code{R}
 (scaled to \code{Var(R) = 1 - h2}, carrying the shared non-genetic module factor so
 genes co-express through \code{kappa}) are drawn \strong{independently}, so \code{Cov(G, R) = 0}
-in expectation. Realized heritability is reported as the finite-sample ratio
-\code{Var(G) / Var(E)}; it tracks the target up to finite-sample \code{Cov(G, R)}, which
-is itself reported (\code{var_budget$gr_cov}) rather than projected away -- the
-package's realized-not-asserted variance convention. Degenerate genes realize
-\code{h2 = 0}: a gene whose cis window holds no eligible marker \strong{and} whose module
-factor is inert (which can happen on a small panel, where the union of the
-module's genes' cis windows covers every marker, leaving no distant hub) has no
-realizable genetic variance and gets \code{h2_realized = 0}.
+in expectation. Per gene the table reports:
+\itemize{
+\item \code{h2_realized = Var(G) / Var(P)}, the \strong{realized heritability}: the
+variance of the realized genetic values divided by the variance of the
+realized expression phenotype \code{P = E = G + R} (plus the constant location).
+It therefore includes the finite-sample covariance,
+\code{Var(E) = Var(G) + Var(R) + gr_cov} with \verb{var_budget$gr_cov = 2 Cov(G, R)},
+so on the reference panel \code{h2_realized = Var(G) / (Var(G) + Var(R) + gr_cov)}
+at any scale. Only when \code{Var(G) + Var(R) = 1} (no \code{mimic} rescaling) does
+this reduce to \code{h2 / (1 + gr_cov)}; under \code{mimic} the variances carry the
+mimicked scale and that shortcut does not hold. It
+is \strong{not bounded by 1} and is unreliable for small samples: fewer than 30
+individuals (\code{n_ind < 30}) triggers a warning; fewer than 3 is an error.
+The covariance is reported rather than projected away -- the package's
+realized-not-asserted convention.
+\item \code{h2_var_ratio}, the same quantity under its original name (kept for
+backward compatibility; identical to \code{h2_realized}).
+\item \code{h2_allocated = Var(G) / (Var(G) + Var(R))}, always in \verb{[0, 1]}. This
+is the \strong{variance allocation}, not a heritability: it drops \verb{2 Cov(G, R)}
+and, because \code{G} and \code{R} are each scaled exactly on the reference
+population, equals \code{h2_target} there by construction (it is informative on
+a new population via \code{\link[=predict.transcriptome_sim]{predict.transcriptome_sim()}}, where \code{R} is redrawn).
+Do not read it as a realized heritability.
+}
+Degenerate genes realize \code{h2 = 0}: a gene whose cis window holds no eligible
+marker (MAF >= 0.05 and known chromosome/position) \strong{and} whose module factor
+is inert (which can happen on a small panel, where the union of the module's
+genes' cis windows covers every marker, leaving no distant hub) has no
+realizable genetic variance and gets \code{h2_realized = 0} (and \code{h2_allocated = 0}).
+
+Random draws are made gene by gene from one stream, so changing an option that
+alters one gene's draws (e.g. its \code{cis_fraction}) re-flows the random numbers
+of every later gene; per-gene results are reproducible only for the same full
+call and \code{seed}.
 }
 \examples{
 data("SNP55K_maize282_maf04")
@@ -151,9 +232,12 @@ each gene's genetic component. The cis / trans / co-expression-module
 architecture and its default calibration follow reported eQTL structure:
 Albert et al. (2018) \emph{eLife}, \doi{10.7554/eLife.35471} (trans hotspots);
 GTEx Consortium (2020) \emph{Science}, \doi{10.1126/science.aaz1776} (cis-eQTL
-windows; multiple cis-eQTL per gene); Ouwens et al. (2020)
-\emph{Eur. J. Hum. Genet.}, \doi{10.1038/s41431-019-0511-5} (cis/trans
-expression heritability). Falconer & Mackay is cited only for the general
+windows; multiple cis-eQTL per gene); Ouwens et al. (2020, published online
+2019) \emph{Eur. J. Hum. Genet.} 28(2):253-263,
+\doi{10.1038/s41431-019-0511-5} (cis/trans expression heritability). The
+\code{mimic} GREML step is an EMMA-style single-component REML: Kang et al. (2008)
+\emph{Genetics} 178(3):1709-1723, \doi{10.1534/genetics.107.080101}.
+Falconer & Mackay is cited only for the general
 additive-dosage value and the definition of heritability; the cis / trans
 latent-factor construction and its finite-sample standardization and scaling
 are this package's own composite design, not attributed to a single source.

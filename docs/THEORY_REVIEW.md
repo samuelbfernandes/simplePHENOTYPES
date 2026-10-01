@@ -54,7 +54,16 @@ THEORY: PASS | FAIL (n)
   props (incl. vqtl) ≤ 1; homoskedastic residual = 1 − Σ all props. `prop` sum > 1 errors.
 - **V2** Reported h² is computed from **realized** genetic/phenotypic values, not asserted
   from the budget (components not orthogonal at non-0.5 freq). vQTL share is *residual*,
-  excluded from H².
+  excluded from H². The transcriptome table follows V2 (DECISION-034): `h2_realized` =
+  realized Var(G)/Var(P) (includes 2Cov(G, R), not bounded by 1), `h2_var_ratio` its alias,
+  and the bounded allocation Var(G)/(Var(G)+Var(R)) is named `h2_allocated` (not a
+  heritability). The marginal epistasis share is
+  `eps/(eps + (1 − eps)/s_ct²)` with `s_ct² = 1 + 2 sqrt(ω(1 − ω)) cor(c, t)` (algebra of
+  the blend in the `.tx` generator, verified numerically: 0.5714286 for `eps = 0.4`); it holds
+  for the nondegenerate blend, whereas at the exact-cancellation fallback (perfect negative
+  cis/trans correlation) the cis part is dropped and the share is `eps`. `h2_realized =
+  h2/(1 + gr_cov)` holds only when Var(G) + Var(R) = 1; the general form is
+  Var(G)/(Var(G) + Var(R) + gr_cov).
 - **V3** Coding convention is the simulation one (−1/0/1 additive dosage; het-deviation
   indicator for dominance; centered a×a / a×d / d×d for epistasis), **not** Fisher's
   orthogonal average-effects decomposition — and the docs say so where it matters.
@@ -71,7 +80,9 @@ THEORY: PASS | FAIL (n)
   (errors or warns), not silently NaN.
 
 ### S. Selection engine (`select_ind.R`, DECISION-015)
-- **S1** Truncation response tracks **R = i·h²·σ_P**; realized intensity
+- **S1** Truncation response tracks **R = i·Cov(A, P)/σ_P** (= **i·h²·σ_P** for
+  additive models; in general exact only if E[A | P] is linear in P and equal to
+  i·h²·σ_P only if Cov(A, P − A) = 0, incl. epistasis under LD); realized intensity
   **i(p) = φ(Φ⁻¹(1−p))/p**; both `direction`s handled; ties/edge p→0,1 sane.
 - **S2** Smith–Hazel index weights **b = P⁻¹ G a** (P phenotypic, G genetic covariance,
   a economic weights). Dimensions and which matrix is which are correct.
@@ -106,6 +117,19 @@ THEORY: PASS | FAIL (n)
   via dosage×effect — **not** re-`simulate_phenotype()` (which rescales variance and
   flattens between-cross σ). This is the exact bug already fixed once — guard it.
 - **U2** Additive/breeding-value basis only; DH/inbred families carry no dominance.
+
+### H. Crossbreeding / heterosis (`heterosis()`, DECISION-031)
+- **H1** Retention of F1 heterosis by an F2 or backcross is 1/2 only under a per-locus
+  condition (pure dominance): a backcross to A retains exactly 1/2 iff `h_A = 2 p_A (1 − p_A)`
+  (recurrent breed only; any B); an F2 iff `[h_A − 2 p_A(1−p_A)] + [h_B − 2 p_B(1−p_B)] = 0`
+  (deviations cancel). The backcross needs only the recurrent breed A in Hardy-Weinberg
+  proportions; the F2 needs only that the two HWE deviations sum to zero (e.g. deviations −0.12 and
+  +0.12 with neither breed in HWE), so HWE in each breed is sufficient but not necessary. A single
+  fixed inbred line (`p ∈ {0,1}`, `h = 0`) qualifies; a mixture of several inbred lines that
+  differ at the locus is not sufficient (`h = 0 < 2p(1−p)`). Numerically checked on a
+  4×4×3×3 grid of `(p_A, p_B, h_A, h_B)` against the package's `.expected_cross_means()`;
+  the two-thirds rotation fraction is the classical HWE-model statement and was not
+  re-derived.
 
 ### P. Pleiotropy / correlation (SPEC §13, DECISION-013)
 - **P1** Σ[i,i] = πᵢ·Vᵢ; Σ[i,j] = cor_ij·√(Vᵢ·Vⱼ); trait-specific var = (1−πᵢ)·Vᵢ, drawn
@@ -144,8 +168,14 @@ THEORY: PASS | FAIL (n)
 ### R. Reproducibility / RNG boundary (DECISION-006/009)
 - **R1** Every stochastic draw is on R's RNG; nothing random added to the Rust
   parity-critical path.
-- **R2** Seed threading: `(seed, layer_index, layer_type)` for the grammar; adding/
-  reordering a layer does not change other layers' realized values. Frozen
+- **R2** Seed threading: `(seed, layer_type, occurrence of that type)` for the grammar
+  (DECISION-032; a position-sensitive hash of the label, so permuted labels such as
+  `rep12` / `rep21` get different sub-seeds and distinct labels are collision-resistant
+  over ordinary ranges; the 31-bit sub-seed is NOT injective -- a known collision is
+  `.layer_seed(123, "transcriptome_rep106", 0) == .layer_seed(123, "residual_t40160", 3)`.
+  Reviewers must not accept an absolute "no two labels share a sub-seed" claim); adding or reordering a layer of
+  a *different* type does not change other layers' realized values, while inserting a
+  same-type layer shifts the later same-type layers' occurrence index. Frozen
   `create_phenotypes()` keeps its own legacy seed math + `RNGversion('3.5.1')`.
 - **R3** A given `seed` (or ambient `set.seed()`) fully reproduces crossing/selection.
 

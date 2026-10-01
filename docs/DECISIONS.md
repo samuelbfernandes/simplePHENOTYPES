@@ -314,9 +314,15 @@ correlation is a consequence of the linkage, not of shared effects. Two flavors:
 - `ld_type = "indirect"`: both causal SNPs flank a shared, **non-causal** cause-of-LD locus
   and are each in LD with it (one flanking marker upstream, one downstream).
 
-`qtn_table()` reports the linked marker (`companion` — the other trait's causal SNP for
-`"direct"`, the shared cause-of-LD locus for `"indirect"`) and the r2 with it (`ld_r2`).
-The old reporting-only `.annotate_ld()` / `.ld_reported_qtn()` helpers are removed; the
+`qtn_table()` reports the linked pair on each row: `QTN_t1` / `QTN_t2` name the two traits'
+causal SNPs and `ld_r2` is the squared correlation between them (corrected 2026-09-29: this
+paragraph used to describe a `companion` column and a flank-to-cause r2 that the code no longer
+produces; for `"indirect"` the hidden cause-of-LD locus is kept on the layer object but is not a
+QTN and is not shown). Partner rule (documented 2026-09-29): for a randomly drawn anchor the
+`"direct"` partner is its **strongest** in-window partner (highest r2), so the realized r2 skews
+toward `r2_max`; the opt-in `partner = "random"` takes a uniformly random in-window partner;
+markers with r2 = 0 or (numerically) 1 are never partners, and the window needs `r2_max > 0`,
+`r2_min < 1`. The old reporting-only `.annotate_ld()` / `.ld_reported_qtn()` helpers are removed; the
 linkage is now established during QTN sampling (`.draw_qtn_ld()`), RNG staying in R
 (DECISION-006).
 
@@ -357,7 +363,8 @@ Lynch & Walsh).
   carrying attributes `selected`, `differential` (S), `intensity` (realized i),
   `criterion`, `method`.
   - **Criterion `on`:** `"pheno"` (observed phenotype — realistic mass selection,
-    response tracks R = i·h²·σ_P), `"gv"` (true genetic value — idealized upper
+    response tracks R = i·Cov(A, P)/σ_P, which is i·h²·σ_P for additive models or when
+    Cov(A, P − A) = 0 and E[A | P] is linear; see the 2026-09-29 amendment), `"gv"` (true genetic value — idealized upper
     bound), a **numeric vector** (named by id or in population order), or a
     **function** `on(sim)`. The vector/function is the deliberate extension point
     for **genomic selection, phenomic selection, and other predictive criteria**
@@ -440,6 +447,37 @@ simplePHENOTYPES keeps its ease-of-use edge.
 designer manuscript (`breeding_designer/manuscript.tex`, "Design decisions log" +
 Methods), per the standing instruction, so the code and paper cannot drift.
 
+**Amendment 2026-09-29 (selection audit; wording and contracts, no equation changed):**
+- *Smith-Hazel `G`.* `method = "index"` keeps `G = Cov(A)` (the covariance of the
+  true breeding values), the standard case. Hazel's (1943) g_ij is
+  Cov(phenotype_i, breeding value_j); `Cov(P, A) = Cov(A)` needs Cov(A, D) = 0
+  (random mating / Hardy-Weinberg). In selfed, inbred or previously selected
+  populations with dominance the two differ, so the index is Smith-Hazel *under
+  that assumption* (documented in `select_ind()`). The `on = "pheno"` response
+  sentence likewise reads R = i·Cov(A, P)/σ_P, not "governed by V_A". This is the
+  linear-regression prediction of the response of the mean breeding value: it is
+  exact only if E[A | P] is linear in P (e.g. A and P jointly normal), not an
+  identity for arbitrary joint distributions; it reduces to i·h²·σ_P (h² = V_A/V_P)
+  only when Cov(A, P − A) = 0, i.e. every non-additive component of the phenotype
+  (dominance, epistasis, residual) is uncorrelated with A -- including epistasis
+  under linkage disequilibrium, where the centred epistatic products need not be
+  orthogonal to A (mirrors the `select_ind()` roxygen). Phenotype rows are joined to individuals
+  by id, not by position.
+- *Contracts.* `trait` must be one in-range index (a vector is an error, never
+  recycled; tandem schedules are checked against the callback's `n_traits`);
+  `family` may not contain `NA`; `direction` is one value; `pedigree()` refuses
+  `prop` and `n_select` together; `recurrent_selection()` refuses
+  `n_parents >= N`; scheme callbacks must be backed by the population they are
+  given; non-finite/overflowing scores or SDs are errors.
+- *Statistics/semantics.* `method = "random"` reports S and i realized on `on`
+  (expected 0) and validates `on`; `among_family` keeps whole families (`n` is a
+  floor); `bulk()` draws its `n` seeds uniformly from the pooled progeny
+  (multinomial parental contributions, random even for `n = k·N`); the scheme
+  wrappers validate `seed` and restore the caller's RNG state.
+- *Scale.* `pedigree()`/`recurrent_selection()` histories are on the scale of the
+  callback's phenotype; a `simulate_phenotype()` callback re-standardises the
+  genetic layer per generation (see DECISION-021), so the fixed-scale response is
+  obtained by ranking on `phenotype_value()` through `on`.
 **Reaffirms:** DECISION-006 (RNG in R, meiosis in Rust), DECISION-004
 (multi-generation stays in-package).
 **Date:** 2026-09-10
@@ -477,7 +515,54 @@ given the CRAN dependency constraints?
   is a **dependency-free Frank–Wolfe active set** on the simplex (exact line search
   per step; no QP-solver dependency — chosen to respect the CRAN/`Imports` budget).
   Merit uses the same `on` hook (gv/pheno/custom), so GS/PS EBVs drive OCS.
-  `sample_parents()` turns contributions into a drawn parent set for mating.
+  `sample_parents()` turns contributions into a parent set for mating and, by
+  owner decision (2026-09-29: keep the OCS optimization), **allocates** slots
+  (`method = "allocate"`, default): \eqn{\lfloor n c_i \rfloor} each, then the
+  remaining slots to the largest fractional parts (ties: larger contribution, then
+  random with `seed`), so every count is within one slot of \eqn{n c_i}. This
+  controls the marginal count error; it is an approximation, not a guarantee on the
+  quadratic group coancestry \eqn{\tfrac12 c'Gc}, and the realized-vs-optimized gap
+  depends on `n` and `G` (n = 1, G = I, c = (0.5, 0.5): optimum 0.25, realized 0.5).
+  Measured on an F2 example (target 0.0521): allocation 0.0518 at `n = 30`,
+  independent multinomial draws 0.0672 on average (sd 0.015). Only the slot ORDER is
+  shuffled.
+  The former independent weighted draw with replacement remains as
+  `method = "multinomial"` (bit-identical for the same seed) for users who want
+  sampling variation; its realized coancestry is on average above the optimum, more so for
+  small `n`. Also fixed (audit 2026-09): the length-1 `sample()` gotcha and the
+  ambient-RNG handling. The merit
+  `"bv"` is the *transmitting average effect* \eqn{\alpha = a + d(q-p)} of
+  DECISION-019 (not a least-squares/Fisher projection), refused under an epistasis
+  layer or `architecture = "complex"`. A supplied `G` must carry identical, unique
+  individual ids as dimnames (audit: an unnamed `G` no longer yields a corrupt
+  `ocs` object), and a target coancestry above the unconstrained optimum's is
+  reported by a warning (`lambda = 0`) instead of being met silently; the penalty
+  search is rescaled to unit merit spread for extreme merit scales. OCS is invariant
+  to a constant added to all merits (merit centred internally; reported on the
+  original scale); target-above-unconstrained detection uses a machine-epsilon-relative
+  band (16*eps*max(1,|target|,|c0|)), no absolute 1e-6 band (review round 2,
+  2026-09-30).
+  **Note 2026-09-30 (audit-fix implementation record):** the audit-fix record's OCS-F2
+  entry ("DOC-ONLY per D5 ... sampling scheme unchanged") was superseded by the owner's
+  D5 decision: `sample_parents()` defaults to `method = "allocate"`; the independent
+  weighted draw is kept as `method = "multinomial"`.
+  **Note 2026-09-30 (audit-fix implementation record, round 3):** round 3 closes the
+  Codex round-2 findings (R3-1 to R3-15): numerical fixes in OCS centring, supplied-`K`
+  symmetrization, the transcriptome `h2_*` fields, allele-label and HapMap detection,
+  integer genotype columns and the v1 seed-overflow message, plus wording corrections
+  (allocation coancestry comparison, scheme accuracy, heterosis criteria, the one-A/one-D
+  variance identity, `h2_realized` scaling, the epistasis-share fallback). See NEWS.md
+  (Review round 3).
+  **Note 2026-09-30 (audit-fix implementation record, round 4):** round 4 (R4-1 to R4-5)
+  makes the OCS above-optimum band purely relative (no `max(1, .)` absolute floor; it
+  supersedes the `16*eps*max(1,|target|,|c0|)` band in the round-2 note above), makes
+  the v1 seed-overflow message state the accepted interval `[lo, hi]` (or "no seed
+  accepted") when no interval centred at 0 is accepted (`abs(seed) <= N` only in the
+  ordinary case), makes the transcriptome mimic rescale always hit the requested
+  per-gene variance when the realized unit variance is finite and positive (warning
+  when it is < 1e-12), and mirrors the `select_ind()` response assumption
+  (`E[A | P]` linear; `Cov(A, P - A) = 0` for the `i*h2*sigma_P` reduction) in
+  DECISIONS/THEORY_REVIEW/ROADMAP. See NEWS.md (Review round 4).
 - **`cross_usefulness()`** — ranks candidate biparental crosses by
   \eqn{U = \mu + i\,\sigma}, the expected value of the best `select_top` fraction of
   progeny. The family is **simulated** with the crossing engine (so linkage enters
@@ -486,6 +571,16 @@ given the CRAN dependency constraints?
   re-`simulate_phenotype()` call, which rescales each family's genetic values to a
   fixed variance and would flatten the between-cross σ the criterion depends on.
   Additive (breeding-value) basis only; DH/inbred families carry no dominance.
+  **Heterozygous parents (audit USE-F1):** the `"dh"`/`"selfcross"` schemes derive
+  each family from a *single* F1 individual. For inbred parents that F1 is unique
+  and the family moments are exact; for a heterozygous parent the reported mean and
+  sd are conditional on the one F1 drawn (they vary with the seed; sd is on average
+  below the F1-averaged variance). This is documented in the help and a warning is
+  emitted once per call; the sampling scheme is unchanged (`scheme = "cross"` draws
+  every progeny from an independent meiosis). The intensity \eqn{i} is the
+  infinite-population normal value (1.755 at `select_top = 0.1`), so \eqn{U} is a
+  ranking score, and a family with `n_progeny * select_top < 1` is only a
+  normal-theory extrapolation.
 
 **Deferred to roadmap (user request):** a PopVar-style function that selects the
 best crosses from **estimated marker effects on real training data** (Mohammadi,
@@ -663,6 +758,12 @@ ability* α = a + d(q−p), not the current-population Fisher/NOIA *statistical*
 additive value (the sample-genotype-frequency regression slope), which it equals
 only under HWE. Documentation is worded accordingly.
 
+**Amendment 2026-09-29:** the breeding value above is the merit of the QGSI and the
+Smith-Hazel index. Smith-Hazel uses `G = Cov(A)` of these breeding values; that
+equals Hazel's Cov(phenotype, breeding value) only when Cov(A, D) = 0 (HWE /
+random mating) -- an assumption documented in `select_ind()` and DECISION-015, not
+a change of estimator.
+
 **Reaffirms:** DECISION-015/016 (selection engine + modern methods stay here);
 DECISION-006 (deterministic, in R).
 **Date:** 2026-09-13
@@ -729,7 +830,7 @@ genetic scale and residual variance are *frozen*, so the parametric heritability
 `Var(g)/(Var(g)+var_e)` declines as selection exhausts genetic variance. `simulate_phenotype()` / `genetic_values()`
 re-scale the genetic layer to `prop` on every population, holding the genetic share
 constant — correct for `on = "gv"` (rescaling is monotone, ranking unchanged) but
-optimistic for `on = "pheno"` (accuracy never decays). `additive_value()`
+optimistic for `on = "pheno"` (additive-only accuracy stays near sqrt(h2) under re-standardization, 0.695-0.714 vs 0.707 in the review run, and declines only when dominance / non-orthogonal components are present, 0.564 -> 0.538 -> 0.477). `additive_value()`
 (DECISION-020 companion) already froze the genetic value; the residual was missing.
 
 **Decision:** add `phenotype_value(x, qtn, effect, h2 = NULL, var_e = NULL,
@@ -750,6 +851,16 @@ phenotype vector with `var_e` and `genetic_value` attributes. Bumps the dev vers
 **Scope / limits:** RNG stays in R (DECISION-006). `h2` with the default `ref = x`
 re-derives `var_e` per population and so is *not* frozen across generations — the
 docs flag this; cross-generation callers pass `var_e` or `ref = <base>`.
+
+**Amendment 2026-09-29:** the multi-generation schemes `pedigree()` /
+`recurrent_selection()` take their phenotype from a `simulate_phenotype()`
+callback, which re-standardises the genetic layer to `prop` in every population;
+their `history` S and i are therefore on a per-generation scale; additive-only selection
+accuracy stays near sqrt(h2) under re-standardization (0.695-0.714 vs 0.707 in the
+review run) and declines when dominance / non-orthogonal components are present
+(0.564 -> 0.538 -> 0.477). The fixed-scale response of this decision is reached by
+ranking on `phenotype_value()` through `on = function(s) phenotype_value(s$geno,
+qtn, effect, var_e = ve)` (documented, with an example, in `pedigree()`).
 
 **Reaffirms:** DECISION-020 (`additive_value()` fixed scale); DECISION-006/019.
 **Date:** 2026-09-14
@@ -780,8 +891,11 @@ feasibility check and zero-variance / single-shared-unit guards. Each unit's eff
 is divided by the **realized** standard deviation of its design column (heterozygote
 indicator; centered product via `.epi_unit_column()`, now the single source of truth
 for realization too), so every unit contributes equal design variance on the
-simulated sample; then, over effect draws, E[Cov(c₁,c₂)] = Σ₁₂ and E[Var(c_t)] = Σ_tt
-(any LD: effects of different units are independent), so the component targets `cor`
+simulated sample; then, over effect draws, E[Cov(c₁,c₂)] = Σ₁₂ and E[Var(c_t)] = V_t
+(the shared units give Σ_tt = π_tV_t and the independent trait-specific units the
+remaining (1−π_t)V_t; only the covariance comes from the shared units; corrected
+2026-09-29, this line used to read E[Var(c_t)] = Σ_tt, which holds only for π_t = 1;
+any LD: effects of different units are independent), so the component targets `cor`
 in the same sense as the additive layer (see Scope for what that means for the
 realized correlation). Constant design columns (e.g. hetless loci) get effect 0 and are
 left out of the allocation, so Σ is split over the informative shared units and
@@ -1127,10 +1241,16 @@ broad-sense `h2`). Centering: factorial / topcross GCA = row (column) mean − �
 (Griffing's method-4 layout) `g_i = (m_i − μ)(p − 1)/(p − 2)`; `SCA = Y − μ − g_i − g_k`,
 GCAs and each candidate's SCAs sum to zero. Candidates and testers must each list an
 individual once (by pedigree key), so both methods score the same crosses. With testers = the candidates' own
-population GCA equals half the DECISION-019 breeding value exactly; with `d = 0` every
-SCA is zero. Epistasis is outside the model. `template_effects(sim, trait, rep)` (D5)
+population the *expected* GCA equals half the DECISION-019 breeding value exactly, and
+with `d = 0` every *expected* SCA is zero; a *simulated* SCA carries Mendelian sampling
+and is not zero for `d = 0` from heterozygous parents (zero only in expectation, or exactly from fully inbred parents when no residual is requested -- an independent
+residual per progeny is environmental sampling error that inbred parents do not remove). `ref` is refused without `h2`, and `seed` restores the
+caller's RNG state. Epistasis is outside the model. `template_effects(sim, trait, rep)` (D5)
 exports the realized-scale `a`, `d` a simulation uses (the `.layer_scaled_effects()`
-reconstruction behind `on = "bv"`), refusing epistasis / `"complex"`.
+reconstruction behind `on = "bv"`), refusing epistasis / `"complex"` and a derived
+`transcriptome()` layer with `prop > 0` (its heritable part is expression-mediated, not
+per-locus, so a template would silently omit it). The diallel is Griffing's method 4
+(no reciprocals); identity is the pedigree key, which includes the founder `pool` label.
 
 **Date:** 2026-09-28
 
@@ -1146,12 +1266,16 @@ exist — scores on the frozen architecture with an optional residual and return
 parent's progeny mean with the progeny `Population` (pedigree recorded). With mates drawn
 from one population separate from the parents, the expected progeny mean is half the
 breeding value in the mates' population plus a common constant, the breeding value using the average effects `α = a + d(q − p)` at
-the mates' frequencies (so dominance enters through them, not as a parental dominance
-deviation); each parent is listed once (by pedigree key); the accuracy on `n` half-sib
+the mates' frequencies (so dominance enters the parent-dependent part of the mean through them, not as a parental dominance deviation;
+dominance also stays in the constant common to all parents, `a(p - q) + 2dpq` per locus under HWE, so at `a = 0`, `p = 1/2` all parents
+have the same expected mean `d/2`, not zero); each parent is listed once (by pedigree key); the accuracy on `n` half-sib
 records of an additive trait, under the classical half-sib assumptions (large
 random-mating, non-inbred mate population; a different, independent mate per
 progeny), is `sqrt(n h² / (4 + (n − 1) h²))` (package derivation),
-validated by simulation.
+validated by simulation. `h2` converts to a residual variance from the *broad-sense*
+variance of the genotypic value, so with `d != 0` it is not the `h2` in the accuracy formula
+(stated for an additive trait); `ref` is refused without `h2`; `seed` restores the
+caller's RNG state (mates, meioses and residuals are drawn from one stream in that order).
 
 **Date:** 2026-09-28
 
@@ -1168,6 +1292,11 @@ be per trait, and `on` may be an individuals × traits matrix of external predic
 recycled over generations (a scalar `trait` is unchanged, bit-identical). Under Hazel &
 Lush's (1942) idealized conditions the package derivation gives index : culling :
 tandem = `sqrt(T) i(p)` : `T i(p^{1/T})` : `i(p)`, i.e. 1 : 0.907 : 0.707 at `T = 2`,
+**Amendment 2026-09-29:** a tandem `trait` schedule is validated against the
+phenotype callback's `n_traits` (clear error), `select_ind()` accepts only one
+in-range `trait` outside `method = "culling"` (a vector was recycled silently), and
+`direction` must be a single value in the schemes.
+
 `p = 0.1`, reproduced by simulation.
 
 **Date:** 2026-09-28
@@ -1184,7 +1313,12 @@ foreground filter (the favourable allele given per marker), staged pyramiding
 the simulation's own causal loci weighted by their average effects (`a` for an additive
 architecture, `a + d(q − p)` with dominance) is labelled an oracle and keeps the
 individuals `on = "bv"` keeps, up to ties at the cut-off (random vs input-order
-tie-breaks). Validated against Mendelian
+tie-breaks). `mabc_select()`'s `exclude_interval` bounds are inclusive; with equal
+weights only the markers are removed (the interval's genome share stays in the
+denominator unless `marker_weights = "interval"`), and the `1 - 2^-(t+1)` recovery
+benchmark is Mendelian transmission (the F&M 2005 attribution carries no section
+pointer). `recurrent_parent_recovery()` warns when no marker is informative.
+Validated against Mendelian
 F2 ratios (1/16, 9/16), Haldane's map function for linked targets, `mabc_select()`'s
 foreground, and `on = "bv"` for the oracle index.
 
@@ -1206,8 +1340,15 @@ the correlation scale), with `K + λI` over the phenotyped individuals positive
 definite (its Cholesky factor) and every reliability in [0, 1]; it must name its
 individuals identically on both axes (reordered to `x`), and carries no marker
 scale; an unrepresentable `var_e / var_a` or a non-finite solution is an error, never
-`NaN` EBVs. `a_matrix(pop)` by the tabular method from the
-recorded pedigree (selfs `F = (1 + F_P)/2`, doubled haploids `A_ii = 2`).
+`NaN` EBVs. `a_matrix(pop, ids, founder_f = 0)` by the tabular method from the
+recorded pedigree (selfs `F = (1 + F_P)/2`, doubled haploids `A_ii = 2`); founders are
+unrelated with `A_ii = 1 + founder_f` (default `0`, non-inbred; inbred lines such as the
+bundled maize panel need `founder_f = 1`, giving `A[P, F1] = 1` and `A[P, P] = 2`).
+`predict_ebv()` is one trait, one record per individual, intercept only; with `h2` the
+phenotypic variance is that of `ref` (default the *phenotyped subset*, truncated after
+selection; because `var_a = h2 * V_P` and `var_e = (1 - h2) * V_P`, `V_P` (hence `ref`) rescales var_a and var_e together and leaves lambda, EBV and reliability unchanged -- only the reported absolute variance attributes change); one record gives EBV 0 and reliability 0 (NA where the prior variance K_ii sigma_A^2 is zero); `a_matrix(founder_f=)` names are pedigree keys or (unambiguous) founder ids, and an id shared by several founders is an error; `ref` without `h2`, duplicated names in `prediction_accuracy()`, or one
+individual phenotyped under two ids are errors, and a supplied `K` whose correlation
+scale overflows is refused as not positive semidefinite.
 `prediction_accuracy(ebv, truth)` reports `cor` and the regression slope.
 `selection_methods()` lists the engine's selection operators (tandem included) for BD's
 SPEC-0006. The
@@ -1233,10 +1374,139 @@ population traces to, checked, so compositions and breed means cannot be attribu
 to the wrong breed. `expected_f1` covers distinct pairs (`NA` diagonal). The empty string and
 `"<unassigned>"` (the composition column for unlabelled founders) are reserved pool
 labels in `as_population()`, so an unlabelled founder cannot be read as a breed. The HWE case is Falconer & Mackay's `H_F1 = Σ d y²`; the general
-form `d [h_AB − (h_A + h_B)/2]` is derived in the help. Validated: compositions ½:½, ¾:¼, ¼:¼:½, rotation → 2/3 : 1/3; F2 keeps ½ and
+form `d [h_AB − (h_A + h_B)/2]` is derived in the help. Validated: compositions ½:½, ¾:¼, ¼:¼:½, rotation → 2/3 : 1/3; F2 retains ½ only when the two Hardy-Weinberg deviations sum to zero (see THEORY_REVIEW H1) and
 a two-breed rotation ≈ 2/3 of the F1 heterosis; additive architectures give 0.
 
 **Date:** 2026-09-28
+
+---
+
+## DECISION-032: position-sensitive layer sub-seed (grammar seed rule)
+
+**Context:** the grammar derived a layer's sub-seed from the *sum* of the character codes
+of its draw label (`additive_rep<r>`, `residual_t<t>`, ...), which is permutation-invariant:
+`additive_rep12` and `additive_rep21` (and `residual_t12` / `residual_t21`) got the same
+sub-seed, so `vary_qtn` replications 12/21 and multi-trait residuals 12/21 were
+byte-identical (84 of 150 realistic labels collided; audit 2026-09-29, GRAM-O1 / EFF-F1).
+
+**Decision (owner D2):** the label is reduced with a position-sensitive polynomial rolling
+hash (`h <- (257 h + code) mod 2147483629`, in double precision) and mixed with
+`(seed, occurrence)` exactly as before (`seed*1009 + hash*7919 + occurrence*104729`, mod
+`.Machine$integer.max`; `NULL` and the largest valid seed stay safe). The rule is
+**(seed, layer type, occurrence of that type)**, *not* the layer index (SPEC §6 used to say
+`layer_index`, which would break the invariance): reordering or adding layers of *other*
+types never changes a layer's draws, but inserting a same-type layer before an existing one
+shifts that layer's occurrence index and so changes its draws (documented, tested).
+The property claimed is **collision resistance over ordinary ranges**, not injectivity: the
+sub-seed is a 31-bit integer, so no such map can be injective. Absence of duplicates over
+`<type>_rep1..500`, `residual_t1..100` (and the vQTL / complex families) and all layer types x
+occurrence 0:20 is asserted in `tests/testthat/test-audit-grammar.R`. A real cross-family
+collision exists far outside realistic use (independent review 2026-09-30): with `seed = 123`,
+`.layer_seed(123, "transcriptome_rep106", 0)` and `.layer_seed(123, "residual_t40160", 3)` both
+give 2116039371 (replication 106 of the first transcriptome layer vs the residual of trait 40160
+in replication 4). Pinned in `tests/testthat/test-fix2-grammar.R`.
+
+**Consequence:** every seeded grammar value changed; the grammar owes v1 no bit-parity
+(DECISION-009), and the frozen `create_phenotypes()` keeps its own seed arithmetic.
+Hard-coded seeded expectations in the grammar tests were re-derived.
+
+**Date:** 2026-09-29
+
+---
+
+## DECISION-033: report the realized additive/dominance partition on shared loci
+
+**Context:** in the variance-partition coding the additive component (dosage x effect) and the
+dominance component (heterozygote indicator x effect) are scaled separately, so on shared loci
+`Var(g) = prop_A + prop_D + 2Cov(c_A, c_D)` for one additive and one dominance layer (general
+identity `Var(g) = Var(c_A) + Var(c_D) + 2Cov(c_A, c_D)`; e.g. two additive layers and one
+dominance layer: 0.888 vs 0.588), and under Hardy-Weinberg
+`Cov(dosage, het) = -(2p - 1) 2pq` at each locus. With the fixed-sign geometric series each locus's
+cross term has the sign of `1 - 2p` (p = frequency of the counted +1 allele), so it is one-signed across
+loci only when the counted-allele frequencies are all on one side of 0.5; with frequencies straddling 0.5
+the per-locus terms partly cancel (exact HWE columns at p = 0.2 and 0.8 give Cov(x,h) = +0.194 and
+-0.194). Cross-locus (LD) terms are additional. The effect is a **structural**, allele-coding-dependent bias
+(outbred MAF 0.10-0.20, A 0.4 + D 0.1: realized H2 0.63 with the minor allele coded +1, 0.25
+with the same loci/seeds coded the other way, requested 0.5), not the "finite-sample"
+fluctuation the help and SPEC §2 claimed (audit 2026-09-29, GRAM-F1).
+
+**Decision (owner D3):** document it and report it. When a non-orthogonal `additive()` layer
+and a `dominance()` layer overlap in loci, the object carries `$ad_report` (per trait: `requested`
+= summed `prop`s on the unit-variance scale, `realized` = `Var(g)/V_P`, the average-effect partition
+`var_A`, `var_D`, `cov2_AD` = `2Cov(A, D)/V_P`, summing to `realized`, and the component partition
+`var_cA` = `Var(c_A)/V_P`, `var_cD` = `Var(c_D)/V_P`, `cov2_comp` = `2Cov(c_A, c_D)/V_P`, also summing
+exactly to `realized` for any number of layers; all as fractions of V_P). The exact link to the request
+is `realized - requested/V_P = (var_cA + var_cD - requested/V_P) + cov2_comp` (NOT
+`realized - requested`; the bracket is the covariance among same-type layers, zero for one additive +
+one dominance layer),
+`print()` shows it with a note recommending `additive(orthogonal = TRUE, a =, d =)` (DECISION-020),
+and the "finite sample / usually tracks closely" wording is removed from the help and SPEC §2.
+The requested budget (`var_budget`) is unchanged (it stays the request); the coding convention
+itself is not changed. Epistasis products and LD-correlated causal loci can correlate components
+too; no report is produced for those.
+
+**Date:** 2026-09-29
+
+---
+
+## DECISION-034: transcriptome realized heritability naming (`h2_realized`, `h2_allocated`, `h2_var_ratio`)
+
+**Context:** the audit-fix round 1 made `genes$h2_realized` the bounded allocation
+`Var(G)/(Var(G)+Var(R))`, which equals the target on the reference panel by construction and so
+is not a realized heritability (independent review 2026-09-30, round-2 A1: at `n = 3`,
+`h2 = 0.5`, seed 1, the old `h2_realized` was 0.5 for every gene while `Var(G)/Var(E)` ranged
+0.27-617.7).
+
+**Decision (owner, round 2 A1):** `h2_realized` = the realized `Var(G)/Var(P)` computed from the
+realized genetic values and the realized expression (it includes `2Cov(G, R)`, equals
+`h2/(1 + gr_cov)` on the reference panel only when `Var(G) + Var(R) = 1` (general form
+`Var(G)/(Var(G) + Var(R) + gr_cov)`), and is not bounded by 1; a warning is issued below 30
+individuals). `h2_var_ratio` is kept as an identical alias for compatibility. The bounded
+allocation `Var(G)/(Var(G)+Var(R))` is now `h2_allocated`: a variance allocation, not a
+heritability, equal to the target on the reference population by construction and informative
+under `predict()`. The mimic GREML identifiability guard tests the spectrum of `K` after
+projecting out the intercept (`K = a(I - 11'/n) + b 11'` is flagged; h2 is set to 0 with a
+warning). The marginal-epistasis-share text gives `epsilon/(epsilon + (1 - epsilon)/s_ct^2)`,
+`s_ct^2 = 1 + 2 sqrt(omega(1 - omega)) cor(c, t)`; this holds for the nondegenerate blend, while at the
+exact-cancellation fallback (perfect negative cis/trans correlation) the cis part is dropped and the
+share is `epsilon`. Round 3 (R3-4): the `h2_*`, `cis_fraction_realized` and
+`epistasis_realized` ratios are scale-free, reported whenever the denominator is finite and positive
+(no absolute 1e-12 cutoff; an exactly zero `Var(P)` still reports 0).
+
+**Date:** 2026-09-30
+
+---
+
+## DECISION-035: `as_numeric()` records the counted allele as an R attribute (`counted_allele`)
+
+**Context:** the numeric `allele` label alone cannot reveal which allele was coded `+1`: an all-`AA`
+and an all-`GG` panel converted separately both encode `+1`, so crossing them mis-reads
+heterozygotes (independent review 2026-09-30, round-2 A2).
+
+**Decision (owner, round 2 A2):** the allele counted as `+1` (`2` under `code_as = "012"`) is
+recorded per marker in `attr(, "counted_allele")` of the `as_numeric()` result (absent under
+`model = "Dom"`; `NA` where the label cannot name it), computed once in `.apply_coding()` so every
+reader gets it. It is not a new column and does not change the `allele` label or any dosage.
+`as_population()` keeps it as `map$counted`; the cross-pool orientation guard errors when both
+populations carry it and disagree at a marker, and falls back to the label-only check (warning on
+opposite order, error on disjoint alleles) when either side lacks it. Legacy numeric input without
+the record behaves as before. Persistence through numeric text files is out of scope (a text file
+cannot carry the attribute; row-subsetting a data frame drops it). Documented in `?as_numeric`,
+`?as_population` and `docs/BACKEND_CONTRACT.md`.
+
+**Date:** 2026-09-30
+
+---
+
+## DECISION-036: v1 duplicate `chr_pos` accepted in pleiotropic/partial, rejected in LD
+
+**Decision (owner, round 2 A3):** the frozen `create_phenotypes()` accepts duplicated `chr_pos`
+markers in the fully pleiotropic and partially pleiotropic architectures (no error; documented in
+`?create_phenotypes`, section "Duplicated marker positions"); the `"LD"` architecture keeps its own
+stricter check and rejects them with an "LD contract" error. The v2 grammar
+(`simulate_phenotype()`, one-call and layered) also accepts duplicated `chr`/`pos`.
+
+**Date:** 2026-09-30
 
 ---
 
@@ -1274,3 +1544,8 @@ a two-breed rotation ≈ 2/3 of the F1 heterosis; additive architectures give 0.
 | 029 | `marker_select()`: foreground carrier / homozygote filter, staged pyramiding (`min_markers`), ranking on any score, seeded tie-break; `additive_value()` documented as the MARS index | locked (2026-09-28) |
 | 030 | `predict_ebv()` known-variance BLUP (GBLUP / pedigree, GLS form = MME), `a_matrix()` tabular method, `prediction_accuracy()`, `selection_methods()` manifest; multi-trait / single-step deferred (D14, TODO) | locked (2026-09-28) |
 | 031 | `breed_composition()`, `heterosis()` (realized; exact expected F1 from the breeds' genotypes), `crossbreed()` two-way / backcross / three-way / terminal / rotational over `mate()` | locked (2026-09-28) |
+| 032 | Layer sub-seed = position-sensitive rolling hash of the draw label, mixed with `(seed, occurrence of the layer type)`; replaces the permutation-invariant character-code sum (replications 12/21 and traits 12/21 were byte-identical); collision-resistant over ordinary ranges (31-bit, not injective; see the seed-123 collision in the body); adding/removing/reordering a layer never changes other-type layers, inserting a same-type layer shifts later same-type layers by design; every seeded grammar value changed (no v1 parity owed, DECISION-009) | locked (2026-09-29) |
+| 033 | Additive + dominance on shared loci (variance-partition coding): the realized genetic variance is `prop_A + prop_D + 2Cov(c_A,c_D)` for one additive and one dominance layer (general: `Var(c_A) + Var(c_D) + 2Cov(c_A,c_D)`), a structural, allele-coding-dependent bias; report it (`$ad_report`: requested, realized, Var(A), Var(D), 2Cov(A,D), component `Var(c_A)`, `Var(c_D)`, `2Cov(c_A,c_D)` (exact closure for any number of layers), per trait, fractions of V_P) and note `additive(orthogonal = TRUE, ...)` in `print()`, help and SPEC §2; the "finite-sample / usually tracks closely" wording is removed | locked (2026-09-29) |
+| 034 | Transcriptome `genes$h2_realized` = realized `Var(G)/Var(P)` (includes `2Cov(G,R)`, not bounded by 1); `h2_var_ratio` = identical alias; bounded allocation `Var(G)/(Var(G)+Var(R))` renamed `h2_allocated` (not a heritability); mimic GREML guard on the intercept-projected spectrum of K | locked (2026-09-30) |
+| 035 | `as_numeric()` records the `+1`-counted allele per marker as the `counted_allele` attribute (no dosage, column or label change); `as_population()` keeps `map$counted`; cross-pool guard errors on disagreement, else label-only fallback; not persisted through text files | locked (2026-09-30) |
+| 036 | v1 `create_phenotypes()`: duplicated `chr_pos` accepted in pleiotropic / partially pleiotropic, rejected ("LD contract") in `"LD"`; the grammar also accepts duplicated `chr`/`pos` | locked (2026-09-30) |

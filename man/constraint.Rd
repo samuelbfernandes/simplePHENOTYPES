@@ -15,9 +15,13 @@ constraint(
 \arguments{
 \item{genotypes}{a numericalized genotype object (geno_obj).}
 
-\item{maf_above}{Threshold for the minimum value of minor allele frequency.}
+\item{maf_above}{Threshold for the minimum value of minor allele frequency.
+The comparison is strict: a marker is kept only if its MAF is \emph{greater than}
+\code{maf_above}.}
 
-\item{maf_below}{Threshold for the maximum value of minor allele frequency.}
+\item{maf_below}{Threshold for the maximum value of minor allele frequency.
+The comparison is strict: a marker is kept only if its MAF is \emph{smaller than}
+\code{maf_below}.}
 
 \item{hets}{Option of including (\'include\') and removing (\'remove\') only
 heterozygotes.}
@@ -25,7 +29,10 @@ heterozygotes.}
 \item{verbose}{= verbose}
 }
 \value{
-Return a filtered dataset to be used when selecting QTNs.
+Row indices of the markers that satisfy the constraints (all rows
+when no constraint is given). The frozen selection code applies them to the
+randomly drawn QTNs only: in the LD architectures the linked partner markers
+are found by walking along the marker order and are \emph{not} filtered.
 Last update: Apr 20, 2020
 }
 \description{

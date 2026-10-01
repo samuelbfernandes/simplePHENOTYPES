@@ -16,7 +16,9 @@ it as one (\code{design = "self"}, see \code{\link[=parentage]{parentage()}}).}
 \item{n}{number of progeny.}
 
 \item{seed}{optional RNG seed. All randomness is drawn in R, so \code{set.seed()}
-before the call works equally well.}
+before the call works equally well. With a \code{seed} the caller's RNG state is
+restored on exit (a seeded call does not disturb the ambient stream); with
+\code{seed = NULL} the draws consume the ambient stream.}
 }
 \value{
 A \code{Population} of \code{n} progeny.
@@ -29,10 +31,30 @@ homologue apiece.
 \details{
 Recombination follows the count-location model: the number of crossovers on
 a chromosome is Poisson with mean equal to its length in Morgans, and their
-positions are uniform along it. Chromosomes assort independently. The
+positions are uniform along it. That length is the chromosome's \strong{last} map
+position (\code{cm / 100}), not its span \code{max(cm) - min(cm)}: positions are used as
+given and are not rebased to a zero origin (the isqg convention). The two
+agree when a chromosome's first marker is at 0; when it is not, the extra
+crossovers fall upstream of the first marker and only swap the whole
+chromosome, so the recombination fraction between markers is still
+Haldane's, \eqn{(1 - e^{-2d})/2}. Chromosomes assort independently. The
 genetic map is taken from the \code{cm} column of the population's marker map, so
 it must not be missing - see \code{\link[=synthetic_map]{synthetic_map()}} if you only have physical
 positions.
+
+Both parents must carry the same marker map (marker names, chromosomes and
+positions; the \code{allele} column is not part of it). The dosages are relative
+to the allele coded \code{+1}, which \code{\link[=as_numeric]{as_numeric()}} chooses per data set; crossing
+populations built from \strong{separately} converted panels can therefore mix up
+the alleles. Convert the panels together, or with
+\code{as_numeric(method = "reference", ref_allele = )}. Where both populations
+record the \code{allele} column, a marker whose alleles are listed in opposite
+order draws a warning and markers with no allele in common an error (see
+\code{\link[=as_population]{as_population()}}).
+
+Chromosomes are processed, and their random draws consumed, in a canonical
+order that does not depend on the storage type of \code{chr} or on the locale (see
+\code{\link[=as_population]{as_population()}}).
 }
 \examples{
 data("SNP55K_maize282_maf04")

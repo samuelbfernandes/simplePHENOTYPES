@@ -35,12 +35,14 @@ length-\code{interaction} vector sets each position: \code{c("a", "a")} is
 additive-by-additive (default), \code{c("a", "d")} additive-by-dominance,
 \code{c("d", "d")} dominance-by-dominance.}
 
-\item{qtn}{optional user-supplied QTNs for this layer, so you can fix the
-causal loci for one effect type while the others are drawn at random. Give
-marker names (matched against the map) or column indices; a vector is used
-for every trait, or a length-\code{n_traits} list sets each trait's loci
-separately. \code{n_qtn} is then taken from what you supply. Fixed loci are not
-redrawn by \code{vary_qtn}.}
+\item{qtn}{optional user-supplied interacting sets (marker names or column
+indices): a matrix with one row per set and \code{interaction} columns, or a
+vector whose length is a multiple of \code{interaction} (filled by row). A matrix
+or vector is used for \strong{every} trait. A \strong{list} must have one element per
+trait (as in \code{\link[=additive]{additive()}}), each element that trait's sets (a matrix or
+vector as above), and every trait must get the same number of sets -- a list
+of length \code{n_traits} is never read as "one set per element". Rejected under
+\code{architecture = "pleiotropy"} / \code{"ld"}.}
 
 \item{effect}{optional geometric base (scalar) or explicit effect series
 (length \code{n_pairs}), used for every trait.}
