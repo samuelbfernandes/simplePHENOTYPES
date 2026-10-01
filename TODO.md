@@ -1,3 +1,48 @@
+## PRIORITY — requests from breedingDesigner SPEC-0020 (2026-09-30)
+
+The maintainer's decision (SPEC-0020 R19): the full-size Bančič cross-engine acceptance run
+in breedingDesigner waits on item 1. Evidence: `breedingDesigner/docs/validation/
+bancic-timing-2026-09-30.md` (one full-size DH cycle: 10,000 DH × 14,000 markers).
+
+- [x] **1. `simulate_phenotype()` deparses the whole population to name it.**
+      `R/grammar_simulate_phenotype.R:195`: `geno_name <- deparse(substitute(geno))`. When
+      the caller passes the object inline (`do.call(simulate_phenotype, list(geno = pop, …))`,
+      as breedingDesigner's `.build_model()` does), `deparse()` renders the entire
+      10,000 × 14,000 `Population`: 47 s of a 63 s cycle (Rprof, 72 % of the simplePHENOTYPES
+      arm; 60 % of the AlphaSimR arm, which runs the same grammar). Fix:
+      `deparse(substitute(geno), nlines = 1)` (or `deparse1(..., collapse = "")` with a width
+      cap), plus a test that a large inline `geno` costs milliseconds. Blocking.
+      *Done 2026-09-30 (branch `feat/spec0020-engine-requests`): `.geno_label()` bounds the name (symbols and short calls unchanged; a 2000 x 14000 inline Population: 9.2 s -> 0 s); `as_numeric()` uses it too.*
+- [x] **2. `double_haploid()` / `cross()` / `selfcross()` per-call cost.** 100 calls of
+      `double_haploid(parent, n = 100)` on 14,000 markers take 12.9 s per cycle (AlphaSimR
+      `makeDH` 0.3 s): each call serialises both parental haplotypes to bit strings and
+      parses the progeny strings back (`cross_mating.R`, `mate_haplotypes_core`). Consider a
+      vectorised multi-parent entry point (all parents in one Rust call) or raw-vector I/O.
+      *Done 2026-09-30 (DECISION-040): `mate()` runs all plan rows in one Rust call (`mate_many_core`, integer I/O); 100 x `double_haploid(n = 100)` on 14,000 markers 14.1 s -> 2.3 s (6.1x), `mate()` DH plan 6.9x; draw-for-draw identical to the sequential path. `.stable_key()` in `R/cross_pedigree.R` could still be vectorised (~2 ms of ~23 ms per call).*
+- [x] 3. Crossover interference model (gamma / count–location with interference; AlphaSimR
+      `v`, `p`) as an option of the meiosis core — today Poisson only. Needed for
+      like-for-like comparisons with AlphaSimR's default.
+      *Done 2026-09-30 (DECISION-041): `interference = NULL` on `cross`/`selfcross`/`double_haploid`/`mate`/`crossbreed`; `list(nu, p)` = two-pathway gamma model, expected chiasma count per Morgan unchanged. Awaiting Codex theory review; not yet forwarded by the selection-scheme wrappers.*
+- [ ] 4. Additive-by-environment (G×E) trait layer (AlphaSimR `addTraitAG` semantics) — needed
+      to reproduce Bančič Program 4.
+      *Not implemented: waiting for the maintainer's instructions.*
+- [x] 5. Public phased-haplotype constructor (`as_population(haplotypes = …)` or
+      `population_from_haplotypes()`) — breedingDesigner currently builds the AlphaSimR
+      view by replacing `cis`/`trans` after `as_population()` (documented shim).
+      *Done 2026-09-30 (DECISION-039): `population_from_haplotypes()` / `haplotypes()` (markers x individuals; 1 = counted allele, dosage = cis + trans - 1; round trip identical).*
+- [x] 6. Entry-mean replication in the grammar (`reps`: residual variance `var_e/reps`,
+      AlphaSimR `setPheno(varE, reps)` semantics).
+      *Done 2026-09-30 (DECISION-038): `reps` in `simulate_phenotype()` / `complex_phenotypes()`; residual variance `var_e/reps`, `h2` stays single-record; awaiting Codex theory review.*
+- [x] 7. `sample_parents()`: keep the source id / slot of each drawn parent as an attribute
+      (breedingDesigner recovers it by key today).
+      *Done 2026-09-30: `attr(x, "source")` (slot, id, index, name) on `sample_parents()` output; draws unchanged.*
+- [x] 8. `select_ind(method = "within_family")`: a per-family count (`n_per_family`) for
+      unequal families (today `n` is a total apportioned proportionally).
+      *Done 2026-09-30: `select_ind(method = "within_family", n_per_family = )` (one count or a vector named by family; undersized family is an error).*
+- [ ] 9. Coalescent founders (MaCS-like) natively, so a run does not need AlphaSimR for
+      historical-LD founders.
+      *Not implemented: waiting for the maintainer's instructions.*
+
 <!-- AUDIT:BEGIN -->
 ## Audit findings — 2026-09-17 (from dev/audit-all.sh, run on v2.0.0)
 
@@ -342,12 +387,57 @@ Source: BD `docs/BREEDING_METHODS_CATALOG.md` ("Engine:" notes).
 
 ---
 
+## Block 3C — Post-audit follow-ups (independent dual-model audit, 2026-09)
+
+Audit and review rounds 1-4 are closed and pushed to master (see NEWS "Audit fixes" and
+DECISION-033 to 037). Evidence: `.tmp/audit-2026-09-29/`, `.tmp/codex-review*/`
+(gitignored, in the audit worktree).
+
+**Reviews still owed (the other model must review genetics changes, AGENTS.md)**
+- [ ] Codex re-review of the round-4 changes (script to be written, adapt
+  `.tmp/codex-review-round3.sh`): R4-1 (`.tune_lambda()` purely relative above-optimum
+  band, `R/select_ocs.R`) and R4-5 (`.tx_mimic_scale()` always rescales to the requested
+  per-gene variance, counted warning when ill-conditioned, `R/transcriptome_simulate.R`).
+- [ ] Codex review of the round-3 wording/I-O items R3-5 to R3-15 (tested by their owners,
+  never sent to Codex): case-insensitive orientation labels, 11-column HapMap guard,
+  integer genotype schema, heterosis retention text, `h2_*` documentation.
+- [ ] Full `R CMD check` on the merged master (the last run covered documentation only; the
+  merge with the multi-trait BLUP / JSON writer work was verified by the test suite only).
+
+- [ ] Codex review of the new features (items 2, 3, 5, 6, 7, 8): `.tmp/codex-review-round5.sh`;
+  the interference model (item 3) and `reps` (item 6) are new genetics.
+- [ ] Forward `interference` through the selection-scheme wrappers (`single_seed_descent`,
+  `bulk`, `pedigree`, `recurrent_selection`) if wanted.
+- [ ] Add the interference rubric item (M4) to `docs/THEORY_REVIEW.md` after the Codex review.
+
+**Known gaps left open on purpose**
+- [ ] `counted_allele` lives on the R object only: it is not written to numeric text files or
+  kept through row-subsetting, so those cases fall back to the `allele` label check
+  (DECISION-036). Needs an output-contract change to persist it.
+- [ ] testthat edition 3 is deferred (9 tests fail under it).
+- [ ] V1 direct LD with dominance meets the LD contract for only a minority of seeds (3 of 29
+  for `model = "D"`); the contract error is intentional, a better search is not implemented.
+- [ ] Two fixed-table PLINK tests not written: `.plink_calc_lnlike`, `.plink_blocks_classify`.
+- [ ] Not all 328 proposed tests of the audit were adopted (see
+  `.tmp/audit-2026-09-29/reconciliation/*` section 6).
+- [ ] Unverifiable citation pages (e.g. PRED-F3 Ceron-Rojas, AUX-F20 CRAN baseline version,
+  Meuwissen 1997 / Baik et al. 2005 equation pages): confirm against the sources before
+  the Python port quotes them.
+
+**Before the Python re-creation**
+- [ ] Use `.tmp/audit-2026-09-29/simplePHENOTYPES_equation_code_map.pdf` (equation to code
+  map) and `V1_AUDIT_REPORT.md` / `V2_AUDIT_REPORT.md` as the porting checklist; regenerate
+  the PDF line numbers after the fixes (they refer to the pre-fix tree).
+
+---
+
 ## Block 4 — CRAN submission
 
-- [ ] All parity tests passing (no `skip()`s remaining in `test-v130-parity.R`).
+- [x] All parity tests passing (no `skip()`s remaining in `test-v130-parity.R`).
 - [ ] `devtools::check_win_devel()` passes.
-- [ ] `rextendr::vendor_pkgs()` run; bundle < 5MB.
-- [ ] `cran-comments.md` written explaining v2 changes.
+- [x] `rextendr::vendor_pkgs()` run; bundle < 5MB *(`src/rust/vendor.tar.xz` 532 KB;
+  package tarball 2.8 MB, 2026-09-29)*.
+- [x] `cran-comments.md` written explaining v2 changes.
 - [ ] `devtools::release()`.
 
 ---
