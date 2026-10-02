@@ -1840,16 +1840,23 @@ input data frame and simulation account for roughly 170 MB. (6) Default companio
 argument is invalid. No RNG is drawn; `qtn_table()` and the genotype accessors are the only inputs,
 so this is I/O only (no theory review needed beyond the causal-set definition).
 
-**Round 8 (Codex review) amendments:** text marker files are in the numeric format, so `as_numeric()` and
+**Round 8-9 (Codex review) amendments:** text marker files are in the numeric format, so `as_numeric()` and
 `simulate_phenotype()` read them back; `as_population()` additionally needs a non-empty file with a complete crossing
 map (`chr`, `pos`, `cm` without missing values), which a matrix-origin export or an empty partition does not provide.
-Data-frame and matrix input stream in chunks of 2,000 markers; a Population's dosage matrix is built once per export
-(`dosages()` called once) and chunks are subset from it. Every destination is preflighted (directory exists and is
-writable, not a directory); paths are compared after resolving the longest existing ancestor (relative / absolute
-spellings and symlinked directories alias; case-folded on macOS and Windows); with companions all files are written to
-temporary siblings and renamed into place only after every write succeeded, so a failure never replaces an existing
-phenotype file (the one-file call is unchanged and byte-identical to 17aec62). JSON numbers are written with
-`LC_NUMERIC = "C"`; classed metadata (e.g. `bit64::integer64`) is encoded as jsonlite encodes it.
+Data-frame and matrix input stream in chunks of 2,000 markers. Every destination is preflighted (its directory exists and is writable, it is not a directory;
+for a symlinked destination the link target's directory). Paths are compared after resolving
+them: an existing leaf (file or symlink) in full, otherwise the longest existing ancestor plus
+the missing tail; on macOS the key is Unicode-normalised (NFD, as the file system stores names)
+and case-folded, on Windows case-folded. With companions, and in `write_qtn_table()`, every file
+is written to a hidden temporary in its destination directory named `.<rand>.part.<basename>`
+(the extension is kept, so `fwrite()` still gzip-compresses a `.gz` name; `jsonlite::write_json()`
+never compresses, in either path). The set is then committed all-or-none: an existing destination
+keeps its permission mode, is set aside under `.<rand>.bak.<basename>`, and is restored if any
+rename fails; temporaries and backups are removed, and one that cannot be removed is named in a
+warning. A symlinked destination is written through (link kept, target updated). This is a
+best-effort guarantee over same-directory `file.rename()`, exercised on POSIX, not on Windows.
+The plain one-file call writes directly and is byte-identical to earlier releases. A Population's
+dosage matrix is built once per export, QTN table included.
 
 **Date:** 2026-10-02
 

@@ -133,14 +133,24 @@ second copy of the genotypes is made. A \code{Population} stores haplotypes, not
 dosages, so its one markers-by-individuals dosage matrix is built once and
 held in memory for the duration of the export.
 
-\strong{Safety.} Every path is checked before anything is written (the directory
-must exist and be writable, the path must not be a directory, and no two
-paths may resolve to the same file -- relative and absolute spellings, and
-symlinked directories, are resolved; on macOS and Windows the comparison
-ignores case). With companions, all files are first written to temporary
-siblings and moved into place only after every one succeeded, so a failure
-never replaces an existing phenotype file with a partial set. JSON numbers
-use a period as decimal mark whatever the session's \code{LC_NUMERIC}.
+\strong{Safety.} Before anything is written, every path is checked: its
+directory must exist and be writable, it must not be a directory, and no
+two paths may resolve to the same file (relative and absolute spellings,
+symlinked directories and symlinked files are resolved; on macOS the
+comparison also ignores case and Unicode normalisation form, on Windows
+case). With companions, all files are first written to hidden temporary
+siblings in their destination directories (so a \code{.gz} destination is still
+compressed by the text writer), and then moved into place as a group: an
+existing file keeps its permission mode and is set aside first, and if any
+step of that move fails the set-aside files are put back, so the
+destinations end up either all replaced or all as they were. A destination
+that is a symbolic link is written through (the link stays, its target is
+updated). This is a best-effort guarantee built on \code{file.rename()} within
+one directory; it has been exercised on POSIX file systems, not on Windows,
+and a staging file that cannot be removed (its directory made read-only
+meanwhile) is named in a warning rather than silently left. The plain
+one-file call writes directly, as earlier versions did. JSON numbers use a
+period as decimal mark whatever the session's \code{LC_NUMERIC}.
 }
 
 \examples{

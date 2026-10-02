@@ -138,14 +138,24 @@ phenotypes_wide <- function(sim) {
 #' dosages, so its one markers-by-individuals dosage matrix is built once and
 #' held in memory for the duration of the export.
 #'
-#' **Safety.** Every path is checked before anything is written (the directory
-#' must exist and be writable, the path must not be a directory, and no two
-#' paths may resolve to the same file -- relative and absolute spellings, and
-#' symlinked directories, are resolved; on macOS and Windows the comparison
-#' ignores case). With companions, all files are first written to temporary
-#' siblings and moved into place only after every one succeeded, so a failure
-#' never replaces an existing phenotype file with a partial set. JSON numbers
-#' use a period as decimal mark whatever the session's `LC_NUMERIC`.
+#' **Safety.** Before anything is written, every path is checked: its
+#' directory must exist and be writable, it must not be a directory, and no
+#' two paths may resolve to the same file (relative and absolute spellings,
+#' symlinked directories and symlinked files are resolved; on macOS the
+#' comparison also ignores case and Unicode normalisation form, on Windows
+#' case). With companions, all files are first written to hidden temporary
+#' siblings in their destination directories (so a `.gz` destination is still
+#' compressed by the text writer), and then moved into place as a group: an
+#' existing file keeps its permission mode and is set aside first, and if any
+#' step of that move fails the set-aside files are put back, so the
+#' destinations end up either all replaced or all as they were. A destination
+#' that is a symbolic link is written through (the link stays, its target is
+#' updated). This is a best-effort guarantee built on `file.rename()` within
+#' one directory; it has been exercised on POSIX file systems, not on Windows,
+#' and a staging file that cannot be removed (its directory made read-only
+#' meanwhile) is named in a warning rather than silently left. The plain
+#' one-file call writes directly, as earlier versions did. JSON numbers use a
+#' period as decimal mark whatever the session's `LC_NUMERIC`.
 #'
 #' @param sim a `phenotype_sim`.
 #' @param file output path.
@@ -250,8 +260,8 @@ write_phenotypes <- function(sim, file, format = c("long", "wide"),
   }
   # The QTN table is assembled once and shared by the table file and the
   # causal marker file; a Population's dosage matrix is built once for the
-  # whole export (see .export_sim()).
-  if (split_markers) sim <- .export_sim(sim)
+  # whole export, QTN table included (see .export_sim()).
+  sim <- .export_sim(sim)
   tab_q <- .qtn_table_reps(sim, reps)
   # Every file is written to a temporary sibling and moved into place only
   # after all of them succeeded, so a failing companion (unwritable path, disk
@@ -334,6 +344,7 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
   .check_path_arg(file, "file")
   reps <- .resolve_reps(sim, rep)
   if (file_type == "json") .require_jsonlite("write_qtn_table")
+  sim <- .export_sim(sim)        # a Population's dosages once, not per layer
   .staged_write(c(qtn_table = file), "write_qtn_table", function(tmp) {
     .write_qtn_table_to(sim, reps, tmp[["qtn_table"]], file_type, sep)
   })
@@ -524,82 +535,208 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
 #'
 #' `normalizePath()` leaves a non-existent leaf alone, so a relative and an
 #' absolute spelling, or a path below a directory and the same path below a
-#' symlink to it, compare unequal although they name one file. Here the longest
-#' existing ancestor is normalised (symlinks resolved, made absolute) and the
-#' missing tail appended; on the case-insensitive file systems of macOS and
-#' Windows the key is also case-folded. Used for comparison only, never for
-#' writing.
+#' symlink to it, compare unequal although they name one file. An existing
+#' leaf (a file or a symlink to one) is resolved in full, so a link and its
+#' target share a key; otherwise the longest existing ancestor is normalised
+#' (symlinks resolved, made absolute) and the missing tail appended. On macOS
+#' the key is Unicode-normalised (APFS and HFS+ treat the NFC and NFD
+#' spellings of a name as one entry) and, like Windows, case-folded. Used for
+#' comparison only, never for writing.
 #' @keywords internal
 #' @noRd
 .canonical_path <- function(p) {
   p <- path.expand(p)
-  dir <- dirname(p)
-  tail <- basename(p)
-  while (!dir.exists(dir) && !identical(dir, dirname(dir))) {
-    tail <- file.path(basename(dir), tail)
-    dir <- dirname(dir)
+  if (file.exists(p) && !dir.exists(p)) {
+    key <- normalizePath(p, winslash = "/", mustWork = FALSE)
+  } else {
+    dir <- dirname(p)
+    tail <- basename(p)
+    while (!dir.exists(dir) && !identical(dir, dirname(dir))) {
+      tail <- file.path(basename(dir), tail)
+      dir <- dirname(dir)
+    }
+    key <- file.path(normalizePath(dir, winslash = "/", mustWork = FALSE), tail)
   }
-  key <- file.path(normalizePath(dir, winslash = "/", mustWork = FALSE), tail)
-  if (.Platform$OS.type == "windows" || identical(Sys.info()[["sysname"]], "Darwin")) {
-    key <- tolower(key)
-  }
+  darwin <- identical(Sys.info()[["sysname"]], "Darwin")
+  if (darwin) key <- .unicode_nfd(key)
+  if (darwin || .Platform$OS.type == "windows") key <- tolower(key)
   key
+}
+
+#' Decomposed (NFD) Unicode form of a path, as macOS stores file names
+#'
+#' `iconv()` to `"UTF-8-MAC"` is the system's own decomposition; stringi, when
+#' installed, is the fallback; otherwise the UTF-8 string is returned as is.
+#' @keywords internal
+#' @noRd
+.unicode_nfd <- function(x) {
+  out <- tryCatch(iconv(enc2utf8(x), "UTF-8", "UTF-8-MAC"),
+                  error = function(e) NA_character_)
+  if (length(out) == 1L && !is.na(out)) {
+    return(out)
+  }
+  if (requireNamespace("stringi", quietly = TRUE)) {
+    return(stringi::stri_trans_nfd(enc2utf8(x)))
+  }
+  enc2utf8(x)
+}
+
+#' The file system object a destination path denotes
+#'
+#' A destination that exists as a symbolic link is written *through*: the
+#' staged file is created beside the link's target and renamed onto the target,
+#' so the link survives and keeps pointing at the updated file. Anything else
+#' is written at the path given.
+#' @keywords internal
+#' @noRd
+.write_target <- function(p) {
+  p <- path.expand(p)
+  if (.Platform$OS.type != "windows" && file.exists(p) &&
+      nzchar(Sys.readlink(p))) {
+    return(normalizePath(p, mustWork = FALSE))
+  }
+  p
 }
 
 #' Check that every destination can be written before anything is written
 #'
-#' The parent directory must exist and be writable, the destination must not be
-#' a directory, and an existing destination must be writable. Errors name the
-#' path and the calling function.
+#' For each destination (the path as given, and the object it resolves to for
+#' writing) the parent directory must exist and be writable, the destination
+#' must not be a directory, and an existing destination must be writable.
+#' Errors name the path as the caller gave it.
 #' @keywords internal
 #' @noRd
-.preflight_paths <- function(paths, fn) {
-  for (p in paths) {
-    parent <- dirname(p)
+.preflight_paths <- function(paths, targets, fn) {
+  for (i in seq_along(paths)) {
+    p <- paths[[i]]
+    t <- targets[[i]]
+    parent <- dirname(t)
     if (!dir.exists(parent)) {
       stop(fn, "(): the directory of ", sQuote(p), " does not exist; create ",
            "it first.", call. = FALSE)
     }
-    if (dir.exists(p)) {
+    if (dir.exists(t)) {
       stop(fn, "(): ", sQuote(p), " is a directory, not a file path.",
            call. = FALSE)
     }
     if (file.access(parent, mode = 2L) != 0L ||
-        (file.exists(p) && file.access(p, mode = 2L) != 0L)) {
+        (file.exists(t) && file.access(t, mode = 2L) != 0L)) {
       stop(fn, "(): ", sQuote(p), " is not writable.", call. = FALSE)
     }
   }
   invisible(paths)
 }
 
-#' Write a set of files atomically as a group
+#' `file.rename()` behind one name, so tests can make a rename fail
+#' @keywords internal
+#' @noRd
+.file_rename <- function(from, to) file.rename(from, to)
+
+#' A hidden sibling name `.<random>.<tag>.<basename>` next to `target`
+#'
+#' The destination's base name is kept as the *suffix*, so a writer that
+#' infers its behaviour from the file extension (`data.table::fwrite()`
+#' compresses `.gz` / `.bz2` names) behaves on the staged file exactly as it
+#' would on the destination.
+#' @keywords internal
+#' @noRd
+.sibling_tmp <- function(target, tag) {
+  tempfile(pattern = ".", tmpdir = dirname(target),
+           fileext = paste0(".", tag, ".", basename(target)))
+}
+
+#' Remove staging files, warning about any that could not be removed
+#' @keywords internal
+#' @noRd
+.remove_leftovers <- function(files, fn) {
+  files <- files[!is.na(files) & file.exists(files)]
+  if (length(files)) {
+    unlink(files)
+    left <- files[file.exists(files)]
+    if (length(left)) {
+      warning(fn, "(): could not remove the staging file(s) ",
+              paste(sQuote(left), collapse = ", "),
+              "; remove them by hand.", call. = FALSE)
+    }
+  }
+  invisible(files)
+}
+
+#' Write a set of files as a group, all or none
 #'
 #' `paths` is a named character vector of destinations. After the preflight,
-#' `writer(tmp)` receives a same-named vector of temporary siblings (in each
-#' destination's directory, so the final `file.rename()` never crosses a file
-#' system) and writes every file there; only when all of them succeeded are
-#' they moved into place. On any error the temporaries are removed and every
-#' destination is left as it was.
+#' `writer(tmp)` receives a same-named vector of hidden temporary siblings (in
+#' each destination's directory -- the directory of the link target when the
+#' destination is a symlink -- so no rename crosses a file system; the
+#' destination's base name is kept as suffix so the extension still drives the
+#' writer) and writes every file there. If the writer fails, the temporaries
+#' are removed and every destination is untouched. Otherwise
+#' `.commit_staged()` moves the set into place: an existing destination keeps
+#' its permission mode, is first set aside under a backup name, and is put back
+#' if any later step fails, so the destinations end up either all new or all
+#' as they were. Staging files that cannot be removed (a directory made
+#' read-only in the meantime) are named in a warning.
 #' @keywords internal
 #' @noRd
 .staged_write <- function(paths, fn, writer) {
-  .preflight_paths(paths, fn)
-  tmp <- vapply(paths, function(p) {
-    tempfile(pattern = paste0(".", basename(p), "."), tmpdir = dirname(p),
-             fileext = ".part")
-  }, character(1))
+  targets <- vapply(paths, .write_target, character(1))
+  names(targets) <- names(paths)
+  .preflight_paths(paths, targets, fn)
+  tmp <- vapply(targets, .sibling_tmp, character(1), tag = "part")
   names(tmp) <- names(paths)
-  done <- FALSE
-  on.exit(if (!done) unlink(tmp), add = TRUE)
+  written <- FALSE
+  on.exit(if (!written) .remove_leftovers(tmp, fn), add = TRUE)
   writer(tmp)
-  for (nm in names(paths)) {
-    if (!file.rename(tmp[[nm]], paths[[nm]])) {
-      stop(fn, "(): could not move the finished file into place at ",
-           sQuote(paths[[nm]]), ".", call. = FALSE)
+  written <- TRUE
+  .commit_staged(tmp, targets, fn)
+  invisible(paths)
+}
+
+#' Move finished staged files onto their targets, all or none
+#' @keywords internal
+#' @noRd
+.commit_staged <- function(tmp, targets, fn) {
+  nms <- names(targets)
+  existed <- file.exists(targets)
+  backup <- stats::setNames(rep(NA_character_, length(nms)), nms)
+  placed <- stats::setNames(logical(length(nms)), nms)
+  # a replaced file keeps its permission mode (a fresh temporary has the
+  # umask default, which could widen a private file)
+  for (nm in nms[existed]) {
+    tryCatch(Sys.chmod(tmp[[nm]], file.mode(targets[[nm]]), use_umask = FALSE),
+             error = function(e) NULL, warning = function(w) NULL)
+  }
+  rollback <- function() {
+    for (nm in rev(nms)) {
+      if (placed[[nm]]) unlink(targets[[nm]])
+      if (!is.na(backup[[nm]]) && file.exists(backup[[nm]])) {
+        .file_rename(backup[[nm]], targets[[nm]])
+      }
     }
   }
-  done <- TRUE
-  invisible(paths)
+  tryCatch({
+    for (nm in nms[existed]) {
+      b <- .sibling_tmp(targets[[nm]], "bak")
+      if (!.file_rename(targets[[nm]], b)) {
+        stop(fn, "(): could not set aside the existing file ",
+             sQuote(targets[[nm]]), " before replacing it.", call. = FALSE)
+      }
+      backup[[nm]] <- b
+    }
+    for (nm in nms) {
+      if (!.file_rename(tmp[[nm]], targets[[nm]])) {
+        stop(fn, "(): could not move the finished file into place at ",
+             sQuote(targets[[nm]]), ".", call. = FALSE)
+      }
+      placed[[nm]] <- TRUE
+    }
+  }, error = function(e) {
+    rollback()
+    .remove_leftovers(c(tmp, backup), fn)
+    stop(e)
+  })
+  .remove_leftovers(backup, fn)
+  invisible(targets)
 }
 
 # ---------------------------------------------------------------------------
@@ -675,7 +812,10 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
 #' call). For that backing the matrix is built once here, restricted to the
 #' simulated individuals, and attached to this local copy of `sim` as
 #' `export_dosages`; `.dosage_block()` then serves every dosage request of the
-#' export (chunks and `.qtn_var()`) from it. The copy never leaves the export.
+#' export (chunks and `.qtn_var()`) from it. Installed by every export that
+#' computes a QTN table (`write_qtn_table()`, `write_phenotypes()` with
+#' `qtn_file` or `split_markers`), since `qtn_table()` reaches the dosages once
+#' per mean-effect layer and trait. The copy never leaves the export.
 #' @keywords internal
 #' @noRd
 .export_sim <- function(sim) {

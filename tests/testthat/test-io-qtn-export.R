@@ -690,10 +690,13 @@ test_that("a simulation with no causal marker still writes a well-formed empty c
 # the bytes of a file
 file_bytes <- function(f) readBin(f, "raw", n = file.size(f))
 
-# no staging temporaries may survive a call, successful or not
+# no staging temporaries or backups may survive a call, successful or not
+staging_files <- function(d) {
+  list.files(d, pattern = "^\\..*\\.(part|bak)\\.", all.files = TRUE,
+             recursive = TRUE)
+}
 expect_no_part_files <- function(d) {
-  expect_length(list.files(d, pattern = "\\.part$", all.files = TRUE,
-                           recursive = TRUE), 0L)
+  expect_length(staging_files(d), 0L)
 }
 
 test_that("aliased paths are detected: relative vs absolute spelling", {
@@ -809,7 +812,8 @@ test_that("staged writes: a failure in the middle leaves every destination untou
     writeLines("new qtn", tmp[["qtn_table"]])
   })
   expect_identical(dirname(seen), c(d, d))
-  expect_true(all(grepl("^\\.(pheno|qtn)\\.txt\\..*\\.part$", basename(seen))))
+  # hidden, and keeping the destination's base name as suffix (extension kept)
+  expect_true(all(grepl("^\\..*\\.part\\.(pheno|qtn)\\.txt$", basename(seen))))
   expect_identical(readLines(f), "new phenotypes")
   expect_identical(readLines(q), "new qtn")
   expect_no_part_files(d)
@@ -894,7 +898,13 @@ test_that("classed vectors (Date, factor, logical) match jsonlite element by ele
 test_that("a Population export builds the dosage matrix exactly once", {
   d <- new_dir()
   pop <- as_population(G_all[1:4001, ], individuals = 1:8)
-  ph <- simulate_phenotype(pop, h2 = 0.5, seed = 5) |> additive(n_qtn = 3)
+  # two traits x two mean-effect layers: qtn_table() alone would reach the
+  # dosages four times (once per layer and trait)
+  ph <- suppressWarnings(suppressMessages(
+    simulate_phenotype(pop, n_traits = 2, h2 = 0.5, seed = 5) |>
+      additive(prop = 0.25, n_qtn = 3) |>
+      additive(prop = 0.25, n_qtn = 3)))
+  expect_identical(nrow(qtn_table(ph)), 12L)
   ns <- asNamespace("simplePHENOTYPES")
   count_dosages <- function(expr) {
     calls <- 0L
@@ -918,8 +928,13 @@ test_that("a Population export builds the dosage matrix exactly once", {
   expect_identical(n_json, 1L)
   jg <- json_geno(file.path(d, "pheno_qtn_markers.json"))
   expect_identical(unname(jg$geno), unname(dosages(pop)[rownames(jg$geno), ]) + 0)
-  # the QTN-table-only call does not build the whole matrix
-  expect_lte(count_dosages(write_qtn_table(ph, file.path(d, "q.txt"))), 1L)
+  # the QTN-table-only paths install the same cache: one call, not four
+  expect_identical(count_dosages(write_qtn_table(ph, file.path(d, "q.txt"))), 1L)
+  expect_identical(
+    count_dosages(write_phenotypes(ph, file.path(d, "p2.txt"),
+                                   qtn_file = file.path(d, "q2.txt"))), 1L)
+  expect_identical(data.table::fread(file.path(d, "q.txt"), data.table = FALSE)$snp,
+                   qtn_table(ph)$snp)
 })
 
 test_that("JSON output does not depend on LC_NUMERIC", {
@@ -970,6 +985,187 @@ test_that("JSON output does not depend on LC_NUMERIC", {
   idx <- match(rownames(cj$geno), G$snp)
   expect_identical(cj$obj$markers$cm, G$cm[idx])
   expect_identical(cj$obj$markers$maf, ph_layers$maf[idx])
+})
+
+# ---------------------------------------------------------------------------
+# Review round 3: Unicode aliases, all-or-none commit, .gz suffixes, leaf
+# symlinks, permission modes, Population cache on every QTN-table path
+# ---------------------------------------------------------------------------
+
+test_that("Unicode NFC / NFD spellings of one name are detected as aliases on macOS", {
+  skip_if_not(identical(Sys.info()[["sysname"]], "Darwin"), "macOS file-name normalisation")
+  skip_if_not(isTRUE(l10n_info()[["UTF-8"]]), "non-UTF-8 session")
+  d <- new_dir()
+  nfc <- file.path(d, paste0("caf", intToUtf8(0x00e9), ".txt"))
+  nfd <- file.path(d, paste0("cafe", intToUtf8(0x0301), ".txt"))
+  writeLines("PROBE", nfc)
+  aliases <- file.exists(nfd)
+  unlink(nfc)
+  skip_if_not(aliases, "this volume does not normalise Unicode file names")
+  expect_identical(.canonical_path(nfc), .canonical_path(nfd))
+  expect_error(write_phenotypes(ph_layers, nfc, qtn_file = nfd),
+               "resolve to the same file")
+  expect_length(list.files(d), 0L)
+  # the decomposition helper itself
+  expect_identical(.unicode_nfd(paste0("caf", intToUtf8(0x00e9))),
+                   paste0("cafe", intToUtf8(0x0301)))
+})
+
+test_that("commit phase is all or none: a directory made read-only after the writer", {
+  skip_on_os("windows")
+  d <- new_dir()
+  d1 <- file.path(d, "d1"); d2 <- file.path(d, "d2")
+  dir.create(d1); dir.create(d2)
+  f1 <- file.path(d1, "first.txt"); f2 <- file.path(d2, "second.txt")
+  writeLines("OLD-FIRST", f1); writeLines("OLD-SECOND", f2)
+  on.exit(Sys.chmod(d2, "0755"), add = TRUE)
+  warns <- character(0)
+  err <- tryCatch(
+    withCallingHandlers(
+      .staged_write(c(first = f1, second = f2), "demo", function(tmp) {
+        writeLines("NEW-FIRST", tmp[["first"]])
+        writeLines("NEW-SECOND", tmp[["second"]])
+        Sys.chmod(d2, "0555")               # the race: d2 unwritable before commit
+      }),
+      warning = function(w) {
+        warns <<- c(warns, conditionMessage(w))
+        invokeRestart("muffleWarning")
+      }),
+    error = function(e) conditionMessage(e))
+  Sys.chmod(d2, "0755")
+  skip_if(identical(readLines(f2), "NEW-SECOND"),
+          "directory permissions are not enforced (root?)")
+  expect_match(err, "could not set aside|could not move")
+  # both old files intact, the first one rolled back from its backup
+  expect_identical(readLines(f1), "OLD-FIRST")
+  expect_identical(readLines(f2), "OLD-SECOND")
+  expect_length(staging_files(d1), 0L)
+  expect_false(any(grepl("\\.bak\\.", list.files(d, all.files = TRUE, recursive = TRUE))))
+  # the one temporary that could not be removed (read-only directory) is
+  # named in a warning, and it is the only leftover
+  left <- staging_files(d2)
+  expect_length(left, 1L)
+  expect_true(any(grepl("could not remove the staging file", warns)))
+  expect_true(any(grepl(left, warns, fixed = TRUE)))
+  unlink(file.path(d2, left))
+})
+
+test_that("commit phase is all or none: a failing rename through the public API", {
+  d <- new_dir()
+  f <- file.path(d, "pheno.txt"); q <- file.path(d, "qtn.txt")
+  writeLines("OLD-PHENO", f); writeLines("OLD-QTN", q)
+  # the second rename into place fails; the first destination was already
+  # replaced and must come back
+  local_mocked_bindings(
+    .file_rename = function(from, to) {
+      if (grepl("\\.part\\.qtn\\.txt$", from)) return(FALSE)
+      file.rename(from, to)
+    },
+    .package = "simplePHENOTYPES")
+  expect_error(write_phenotypes(ph_layers, f, qtn_file = q), "could not move")
+  expect_identical(readLines(f), "OLD-PHENO")
+  expect_identical(readLines(q), "OLD-QTN")
+  expect_no_part_files(d)
+  expect_setequal(list.files(d), c("pheno.txt", "qtn.txt"))
+  # the same with the split export: four destinations, the last one fails
+  local_mocked_bindings(
+    .file_rename = function(from, to) {
+      if (grepl("\\.part\\.pheno_noncausal_markers\\.txt$", from)) return(FALSE)
+      file.rename(from, to)
+    },
+    .package = "simplePHENOTYPES")
+  expect_error(write_phenotypes(ph_layers, f, split_markers = TRUE), "could not move")
+  expect_identical(readLines(f), "OLD-PHENO")
+  expect_false(file.exists(file.path(d, "pheno_qtn_table.txt")))
+  expect_false(file.exists(file.path(d, "pheno_qtn_markers.txt")))
+  expect_no_part_files(d)
+  expect_setequal(list.files(d), c("pheno.txt", "qtn.txt"))
+})
+
+test_that("a .gz destination is gzip-compressed, as the direct writer would", {
+  d <- new_dir()
+  gz_magic <- function(f) identical(as.integer(readBin(f, "raw", 2L)), c(31L, 139L))
+  gzip_ok <- function(f) {
+    if (!nzchar(Sys.which("gzip"))) return(TRUE)
+    system2("gzip", c("-t", shQuote(f)), stdout = FALSE, stderr = FALSE) == 0L
+  }
+  # write_qtn_table()
+  q <- file.path(d, "qtn.tsv.gz")
+  write_qtn_table(ph_layers, q)
+  expect_true(gz_magic(q)); expect_true(gzip_ok(q))
+  expect_table_roundtrip(data.table::fread(q, data.table = FALSE),
+                         qtn_table(ph_layers), 1e-12)
+  # write_phenotypes() with a companion
+  f <- file.path(d, "pheno.txt.gz")
+  out <- write_phenotypes(ph_layers, f, qtn_file = file.path(d, "q2.tsv.gz"))
+  for (p in out) { expect_true(gz_magic(p), info = p); expect_true(gzip_ok(p), info = p) }
+  # and it is byte-identical to the direct one-file write of the same name
+  direct <- file.path(d, "direct.txt.gz")
+  write_phenotypes(ph_layers, direct)
+  expect_true(gz_magic(direct))
+  expect_identical(readLines(gzfile(out[["phenotypes"]])), readLines(gzfile(direct)))
+  # split markers: all four files
+  out2 <- write_phenotypes(ph_layers, file.path(d, "split.txt.gz"), split_markers = TRUE)
+  expect_true(all(grepl("\\.gz$", out2)))
+  for (p in out2) { expect_true(gz_magic(p), info = p); expect_true(gzip_ok(p), info = p) }
+  tg <- data.table::fread(out2[["causal"]], data.table = FALSE)
+  expect_identical(tg$snp, causal_truth(ph_layers))
+  expect_no_part_files(d)
+  # JSON: jsonlite::write_json() does not compress by extension, so neither
+  # the one-file call nor the staged files do -- they match each other
+  skip_if_not_installed("jsonlite")
+  j1 <- file.path(d, "one.json.gz")
+  write_phenotypes(ph_layers, j1, file_type = "json")
+  outj <- write_phenotypes(ph_layers, file.path(d, "two.json.gz"), file_type = "json",
+                           qtn_file = file.path(d, "qj.json.gz"))
+  expect_identical(file_bytes(j1), file_bytes(outj[["phenotypes"]]))
+  expect_false(gz_magic(j1))
+  expect_true(jsonlite::validate(paste(readLines(outj[["qtn_table"]]), collapse = "")))
+})
+
+test_that("a destination that is a symlink is detected as its target's alias and written through", {
+  skip_on_os("windows")
+  d <- new_dir()
+  target <- file.path(d, "target.txt")
+  alias <- file.path(d, "alias.txt")
+  writeLines("SENTINEL-TARGET", target)
+  skip_if_not(isTRUE(file.symlink(target, alias)), "symlinks not available")
+  expect_identical(.canonical_path(alias), .canonical_path(target))
+  expect_error(write_phenotypes(ph_layers, target, qtn_file = alias),
+               "resolve to the same file")
+  expect_identical(readLines(target), "SENTINEL-TARGET")
+  # alone: the link survives and the target holds the new content
+  write_qtn_table(ph_layers, alias)
+  expect_identical(normalizePath(Sys.readlink(alias)), normalizePath(target))
+  expect_true(startsWith(readLines(target, 1L), "trait\t"))
+  expect_true(startsWith(readLines(alias, 1L), "trait\t"))
+  expect_no_part_files(d)
+  # through write_phenotypes() with companions as well
+  writeLines("SENTINEL-TARGET", target)
+  out <- write_phenotypes(ph_layers, alias, qtn_file = file.path(d, "q.txt"))
+  expect_identical(out[["phenotypes"]], alias)
+  expect_true(nzchar(Sys.readlink(alias)))
+  expect_true(startsWith(readLines(target, 1L), "id\t"))
+})
+
+test_that("replacing an existing file keeps its permission mode", {
+  skip_on_os("windows")
+  d <- new_dir()
+  q <- file.path(d, "qtn.txt")
+  writeLines("old", q)
+  Sys.chmod(q, "0600")
+  skip_if_not(identical(format(file.mode(q)), "600"), "chmod not honoured")
+  write_qtn_table(ph_layers, q)
+  expect_identical(format(file.mode(q)), "600")
+  expect_true(startsWith(readLines(q, 1L), "trait\t"))
+  f <- file.path(d, "pheno.txt")
+  writeLines("old", f)
+  Sys.chmod(f, "0600")
+  out <- write_phenotypes(ph_layers, f, qtn_file = file.path(d, "q2.txt"))
+  expect_identical(format(file.mode(f)), "600")
+  # a new file gets the ordinary default mode, not a copied one
+  expect_false(identical(format(file.mode(out[["qtn_table"]])), "600"))
+  expect_no_part_files(d)
 })
 
 test_that("the one-file call writes the same bytes as before (no staging, no change)", {

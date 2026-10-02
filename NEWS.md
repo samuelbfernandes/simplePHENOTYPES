@@ -44,12 +44,16 @@
   distinct (error otherwise); `split_markers` on a genotype-free (expression-only) phenotype is an
   informative error. Default behaviour of `write_phenotypes()` is unchanged when the new arguments
   are off (return value, file content, byte-identical).
-* Export safety: `write_phenotypes()` with companions and `write_qtn_table()` write every file to a temporary sibling
-  and move the set into place only when all succeeded, after checking that every destination directory exists and is
-  writable and that no two outputs resolve to the same file (relative and absolute spellings and symlinked directories
-  are resolved; case is ignored on macOS and Windows). JSON output is independent of the session's `LC_NUMERIC`;
-  classed metadata columns (e.g. `bit64::integer64` positions) are encoded as `jsonlite` encodes them. A Population's
-  dosage matrix is built once per export; data-frame and matrix input stream in chunks.
+* Export safety: `write_phenotypes()` with companions and `write_qtn_table()` preflight every
+  destination, compare paths after resolving them (relative/absolute spellings, symlinked
+  directories and files; on macOS also Unicode normalisation form and case), stage every file as a
+  hidden temporary beside its destination (keeping the extension, so `.gz` text output is still
+  compressed), and commit the set all-or-none: existing files keep their permission mode, are set
+  aside and restored if any step fails; a staging file that cannot be removed is named in a
+  warning. A symlinked destination is written through. A Population input's dosage matrix is
+  built once per export, including for the QTN table alone. JSON output is independent of the
+  session's `LC_NUMERIC`; classed metadata (e.g. `bit64::integer64`) is encoded as `jsonlite`
+  encodes it. The one-file `write_phenotypes()` call is unchanged (byte-identical output).
 
 ## Follow-ups and gaps after the audit (2026-10)
 
