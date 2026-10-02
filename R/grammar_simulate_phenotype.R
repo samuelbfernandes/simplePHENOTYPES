@@ -72,7 +72,8 @@
 #'
 #' @param geno genotype input: a simplePHENOTYPES numeric-format data frame
 #'   (first five columns `c("snp", "allele", "chr", "pos", "cm")`, e.g.
-#'   [SNP55K_maize282_maf04]), an individuals-by-markers numeric matrix coded
+#'   [SNP55K_maize282_maf04]; the optional character `counted` column written
+#'   by `as_numeric(counted_column = TRUE)` is accepted and ignored), an individuals-by-markers numeric matrix coded
 #'   -1/0/1, or a [Population][as_population()] from [cross()], [selfcross()] or
 #'   [double_haploid()]. At least **three** individuals are required (with two,
 #'   the exact-variance standardization forces the genetic value and residual to
@@ -382,10 +383,10 @@ simulate_phenotype <- function(geno = NULL,
   if (architecture == "pleiotropy") {
     .pleio_cor_matrix(sim)
     .pleio_pi_vector(sim)
-    n_major <- if (is.null(arch_args$n_pleio_major)) 0 else
-      .validate_count(arch_args$n_pleio_major, "n_pleio_major", minimum = 0L)
-    major_prop <- if (is.null(arch_args$prop_var_major)) 0 else
-      .validate_proportion(arch_args$prop_var_major, "prop_var_major", 1L)
+    n_major <- if (is.null(arch_args[["n_pleio_major"]])) 0 else
+      .validate_count(arch_args[["n_pleio_major"]], "n_pleio_major", minimum = 0L)
+    major_prop <- if (is.null(arch_args[["prop_var_major"]])) 0 else
+      .validate_proportion(arch_args[["prop_var_major"]], "prop_var_major", 1L)
     if (xor(n_major > 0, major_prop > 0)) {
       stop("`n_pleio_major` and `prop_var_major` must either both be positive ",
            "or both be zero.", call. = FALSE)
@@ -512,21 +513,21 @@ simulate_phenotype <- function(geno = NULL,
          call. = FALSE)
   }
   if (architecture == "independent" && "distinct_chr" %in% nms) {
-    .validate_flag(arch_args$distinct_chr, "distinct_chr")
+    .validate_flag(arch_args[["distinct_chr"]], "distinct_chr")
   }
   if (architecture == "ld") {
-    if (!is.null(arch_args$ld_type)) {
-      match.arg(arch_args$ld_type, c("direct", "indirect"))
+    if (!is.null(arch_args[["ld_type"]])) {
+      match.arg(arch_args[["ld_type"]], c("direct", "indirect"))
     }
-    if (!is.null(arch_args$partner)) {
-      if (!is.character(arch_args$partner) || length(arch_args$partner) != 1L ||
-          !arch_args$partner %in% c("strongest", "random")) {
+    if (!is.null(arch_args[["partner"]])) {
+      if (!is.character(arch_args[["partner"]]) || length(arch_args[["partner"]]) != 1L ||
+          !arch_args[["partner"]] %in% c("strongest", "random")) {
         stop("`partner` must be \"strongest\" (default) or \"random\".",
              call. = FALSE)
       }
     }
-    lo <- if (is.null(arch_args$r2_min)) 0.2 else arch_args$r2_min
-    hi <- if (is.null(arch_args$r2_max)) 0.8 else arch_args$r2_max
+    lo <- if (is.null(arch_args[["r2_min"]])) 0.2 else arch_args[["r2_min"]]
+    hi <- if (is.null(arch_args[["r2_max"]])) 0.8 else arch_args[["r2_max"]]
     if (!is.numeric(lo) || length(lo) != 1L || !is.finite(lo) || lo < 0 ||
         lo > 1 || !is.numeric(hi) || length(hi) != 1L || !is.finite(hi) ||
         hi < 0 || hi > 1 || lo > hi) {
@@ -668,6 +669,10 @@ simulate_phenotype <- function(geno = NULL,
       n_markers = nrow(map)
     )
   } else if (is.data.frame(geno)) {
+    # The optional `counted` column (as_numeric(counted_column = TRUE)) records
+    # the allele coded +1; effects do not use it, so it is dropped here and
+    # everything below sees the plain five-metadata-column table.
+    if (.has_counted_col(geno)) geno <- geno[, -6L, drop = FALSE]
     meta <- c("snp", "allele", "chr", "pos", "cm")
     if (ncol(geno) < 6 || any(colnames(geno)[1:5] != meta)) {
       stop("A numeric-format data frame must have its first five columns named ",
@@ -998,9 +1003,12 @@ print.phenotype_sim <- function(x, ...) {
         epistasis = sprintf("%d pairs, %d-way", ly$n_pairs, ly$interaction),
         vqtl      = if (isTRUE(ly$same_as_add)) "same QTNs as additive"
                     else .qtn_count_label(ly),
+        transcriptome = if (is.null(ly$n_genes)) "" else
+                      sprintf("%d genes", as.integer(ly$n_genes)),
         ""
       )
-      cat(sprintf("    %-11s %s   (%s)\n", ly$type, fmt(ly$prop), info))
+      cat(sprintf("    %-11s %s%s\n", ly$type, fmt(ly$prop),
+                  if (nzchar(info)) sprintf("   (%s)", info) else ""))
     }
   }
   cat(sprintf("    %-11s %s\n", "residual", fmt(1 - .total_variance_prop(x))))

@@ -25,7 +25,8 @@ simulate_phenotype(
 \arguments{
 \item{geno}{genotype input: a simplePHENOTYPES numeric-format data frame
 (first five columns \code{c("snp", "allele", "chr", "pos", "cm")}, e.g.
-\link{SNP55K_maize282_maf04}), an individuals-by-markers numeric matrix coded
+\link{SNP55K_maize282_maf04}; the optional character \code{counted} column written
+by \code{as_numeric(counted_column = TRUE)} is accepted and ignored), an individuals-by-markers numeric matrix coded
 -1/0/1, or a \link[=as_population]{Population} from \code{\link[=cross]{cross()}}, \code{\link[=selfcross]{selfcross()}} or
 \code{\link[=double_haploid]{double_haploid()}}. At least \strong{three} individuals are required (with two,
 the exact-variance standardization forces the genetic value and residual to

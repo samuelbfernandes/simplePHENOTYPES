@@ -61,7 +61,7 @@
   nt <- sim$n_traits
   # Only when the user actually asked for correlation control: `cor` absent
   # means the engine runs at cor = 0 and no correlation is being controlled.
-  if (!is.null(a$cor)) {
+  if (!is.null(a[["cor"]])) {
     .cite_pleioarch()
   }
   R  <- .pleio_cor_matrix(sim)
@@ -70,8 +70,8 @@
   # realized correlation hinge on that single effect draw, so it no longer
   # converges on `cor` as n_qtn grows -- which defeats the reason for using
   # this engine. A major locus is available, but it must be asked for.
-  n_major  <- if (is.null(a$n_pleio_major)) 0 else a$n_pleio_major
-  propMaj  <- if (is.null(a$prop_var_major)) 0 else a$prop_var_major
+  n_major  <- if (is.null(a[["n_pleio_major"]])) 0 else a[["n_pleio_major"]]
+  propMaj  <- if (is.null(a[["prop_var_major"]])) 0 else a[["prop_var_major"]]
   n_major <- .validate_count(n_major, "n_pleio_major", minimum = 0L)
   propMaj <- .validate_proportion(propMaj, "prop_var_major", 1L)
 
@@ -371,7 +371,7 @@
                                     q = NULL, n_units = NULL,
                                     interaction = 1L, itype = NULL,
                                     arg = "n_qtn", shared = NULL) {
-  if (!is.null(sim$arch_args$cor)) {
+  if (!is.null(sim$arch_args[["cor"]])) {
     .cite_pleioarch()
   }
   R <- .pleio_cor_matrix(sim)
@@ -600,7 +600,7 @@
 #' @noRd
 .pleio_total_cor_check <- function(sim, new_prop_vec, new_target = NULL,
                                    new_target_reps = NULL) {
-  if (is.null(sim$arch_args$cor)) {
+  if (is.null(sim$arch_args[["cor"]])) {
     return(invisible())                      # cor = 0: the total is 0 too
   }
   nt <- sim$n_traits
@@ -706,27 +706,27 @@
 .pleio_pi_vector <- function(sim) {
   a <- sim$arch_args
   nt <- sim$n_traits
-  if (!is.null(a$pi) &&
-      (!is.null(a$pi_target) || !is.null(a$pi_secondary))) {
+  if (!is.null(a[["pi"]]) &&
+      (!is.null(a[["pi_target"]]) || !is.null(a[["pi_secondary"]]))) {
     stop("Use either `pi` or `pi_target`/`pi_secondary`, not both.",
          call. = FALSE)
   }
   if (nt != 2L &&
-      (!is.null(a$pi_target) || !is.null(a$pi_secondary))) {
+      (!is.null(a[["pi_target"]]) || !is.null(a[["pi_secondary"]]))) {
     stop("`pi_target` and `pi_secondary` are the two-trait interface; use ",
          "`pi` when n_traits is not 2.", call. = FALSE)
   }
-  if (!is.null(a$pi)) {
-    if (!length(a$pi) %in% c(1L, nt)) {
+  if (!is.null(a[["pi"]])) {
+    if (!length(a[["pi"]]) %in% c(1L, nt)) {
       stop("`pi` must have length 1 or n_traits (", nt, "); got ",
-           length(a$pi), ".", call. = FALSE)
+           length(a[["pi"]]), ".", call. = FALSE)
     }
-    p <- rep_len(a$pi, nt)
+    p <- rep_len(a[["pi"]], nt)
   } else {
-    piT <- if (is.null(a$pi_target)) 1 else a$pi_target
+    piT <- if (is.null(a[["pi_target"]])) 1 else a[["pi_target"]]
     p <- rep(piT, nt)
-    if (nt >= 2 && !is.null(a$pi_secondary)) {
-      p[2] <- a$pi_secondary
+    if (nt >= 2 && !is.null(a[["pi_secondary"]])) {
+      p[2] <- a[["pi_secondary"]]
     }
   }
   if (!is.numeric(p) || any(!is.finite(p)) || any(p < 0 | p > 1)) {
@@ -833,7 +833,7 @@
 #' @noRd
 .pleio_cor_matrix <- function(sim) {
   nt <- sim$n_traits
-  cor_g <- sim$arch_args$cor
+  cor_g <- sim$arch_args[["cor"]]
   if (is.null(cor_g)) cor_g <- 0
   if (is.matrix(cor_g)) {
     if (!all(dim(cor_g) == c(nt, nt))) {

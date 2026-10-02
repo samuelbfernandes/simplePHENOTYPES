@@ -75,7 +75,8 @@ the filtered genotype object, in the same format as \code{geno}.
 One place to apply every marker filter simplePHENOTYPES implements, so a
 genotype can be trimmed once and then reused across simulations. It takes the
 simplePHENOTYPES numeric format (a data frame whose first five columns are
-\code{snp}, \code{allele}, \code{chr}, \code{pos}, \code{cm}, followed by one column per individual,
+\code{snp}, \code{allele}, \code{chr}, \code{pos}, \code{cm} (and optionally the \code{counted} column of
+\code{as_numeric(counted_column = TRUE)}), followed by one column per individual,
 e.g. \link{SNP55K_maize282_maf04}) or an individuals-by-markers numeric matrix
 coded \code{-1/0/1}, and returns the same object with the failing markers dropped.
 }
