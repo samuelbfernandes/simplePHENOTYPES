@@ -160,8 +160,11 @@ test_that("Rust reproduces isqg dh() genotypes exactly", {
 # ---------------------------------------------------------------------------
 # The tests above feed isqg's recorded draws into meiosis_core(), so they pin
 # the Rust consumption of the draws but not the other half of DECISION-012:
-# that R draws them in isqg's order. And cross()/selfcross()/double_haploid()
-# run mate_haplotypes_core(), not meiosis_core(). These two tests pin both.
+# that R draws them in isqg's order. The first test below pins the draw order;
+# the second pins mate_haplotypes_core(), the string-strand kernel, on isqg's
+# phased output. Neither is what cross()/selfcross()/double_haploid()/mate()
+# run today: they go through .mate_many() -> mate_many_core(), which section
+# 2c pins directly.
 
 test_that(".draw_meiosis() reproduces isqg's draws under the fixture seed", {
   for (scenario in c("gamete_masks", "cross", "cross_swapped", "selfcross",
@@ -222,6 +225,159 @@ test_that("mate_haplotypes_core() reproduces isqg's phased progeny exactly", {
                      ifelse(cis == 1L, "1 2", "2 1")))
     expect_identical(geno, unname(ref$genotype), info = scenario)
     expect_identical(phased, unname(ref$genotype_phased), info = scenario)
+  }
+})
+
+# ---------------------------------------------------------------------------
+# 2c. The production path: mate_many_core() and the exported functions
+# ---------------------------------------------------------------------------
+# cross(), selfcross(), double_haploid() and mate() all run .mate_many() ->
+# mate_many_core() (DECISION-040), an integer-strand re-implementation of the
+# gamete selection that until here was only equivalence-tested against
+# mate_haplotypes_core() (test-feat-crossing.R). These tests pin it to isqg
+# itself: first the Rust core fed the recorded draws, then the exported
+# functions under the fixture seed, i.e. the whole chain
+# .draw_meiosis() -> .mate_many() -> mate_many_core() -> Population.
+
+# The four captured mating scenarios: design, p1, p2.
+.isqg_designs <- list(cross = c("cross", "P1", "P2"),
+                      cross_swapped = c("cross", "P2", "P1"),
+                      selfcross = c("selfcross", "P1", "P1"),
+                      dh = c("dh", "P1", "P1"))
+
+# isqg's phased code is "<cis> <trans>", allele 1 for bit 1: unlike the
+# -1/0/1 genotype, it tells a cis/trans swap apart.
+.isqg_phased <- function(cis, trans) {
+  ifelse(cis & trans, "1 1", ifelse(!cis & !trans, "2 2",
+         ifelse(cis == 1L, "1 2", "2 1")))
+}
+
+# The parental strand matrix and mating row .mate() builds for a design.
+.isqg_strands <- function(design, p1, p2) {
+  if (design == "cross") {
+    list(strands = cbind(p1$cis, p1$trans, p2$cis, p2$trans),
+         mating = 1:4)
+  } else {
+    list(strands = cbind(p1$cis, p1$trans), mating = c(1L, 2L, 1L, 2L))
+  }
+}
+
+test_that("mate_many_core() reproduces isqg's phased progeny exactly", {
+  for (scenario in names(.isqg_designs)) {
+    skip_if_not(.have(scenario), paste0("isqg fixture '", scenario,
+                                        "' not captured"))
+    ref <- .isqg_ref(scenario)
+    d <- .isqg_designs[[scenario]]
+    lay <- .layout(ref)
+    dr <- .flatten_draws(ref$draws)
+    n_loci <- length(lay$positions)
+    st <- .isqg_strands(d[1], ref$founders[[d[2]]], ref$founders[[d[3]]])
+    strands <- st$strands
+    storage.mode(strands) <- "integer"
+
+    # Markers in isqg's own (chr, pos) order: `order` is the identity.
+    res <- simplePHENOTYPES:::mate_many_core(
+      loci_per_chr = lay$loci_per_chr,
+      positions    = lay$positions,
+      order        = seq_len(n_loci),
+      strands      = strands,
+      n_strands    = ncol(strands),
+      mating       = as.integer(st$mating),
+      design       = d[1],
+      n_prog       = as.integer(ref$n_prog),
+      chiasmata    = dr$chiasmata,
+      counts       = dr$counts,
+      flips        = dr$flips
+    )
+    cis <- matrix(as.integer(res$cis), nrow = n_loci)
+    trans <- matrix(as.integer(res$trans), nrow = n_loci)
+    expect_identical(dim(cis), dim(ref$genotype), info = scenario)
+    expect_identical(cis + trans - 1L, unname(ref$genotype), info = scenario)
+    expect_identical(.isqg_phased(cis, trans), unname(ref$genotype_phased),
+                     info = scenario)
+
+    # The same mating with the markers handed over in a scrambled order and
+    # `order` the permutation .meiosis_layout() computes for that map, as
+    # .mate_many() does: the progeny must come back in the caller's order and
+    # still be isqg's. This pins the permutation path on the fixtures.
+    perm <- order(seq_len(n_loci) %% 7L, -seq_len(n_loci))
+    map <- data.frame(snp = lay$snp[perm], chr = ref$map$chr[perm],
+                      pos = ref$map$pos[perm], cm = lay$positions[perm] * 100)
+    play <- simplePHENOTYPES:::.meiosis_layout(map)
+    expect_identical(play$positions, lay$positions, info = scenario)
+    expect_identical(play$loci_per_chr, lay$loci_per_chr, info = scenario)
+    expect_identical(map$snp[play$ord], lay$snp, info = scenario)
+    res2 <- simplePHENOTYPES:::mate_many_core(
+      loci_per_chr = play$loci_per_chr,
+      positions    = play$positions,
+      order        = play$ord,
+      strands      = strands[perm, , drop = FALSE],
+      n_strands    = ncol(strands),
+      mating       = as.integer(st$mating),
+      design       = d[1],
+      n_prog       = as.integer(ref$n_prog),
+      chiasmata    = dr$chiasmata,
+      counts       = dr$counts,
+      flips        = dr$flips
+    )
+    cis2 <- matrix(as.integer(res2$cis), nrow = n_loci)
+    trans2 <- matrix(as.integer(res2$trans), nrow = n_loci)
+    expect_identical(cis2[play$ord, ], cis, info = scenario)
+    expect_identical(trans2[play$ord, ], trans, info = scenario)
+  }
+})
+
+# A Population of the fixture founders. The fixture map is in Morgans; the
+# package map wants centiMorgans (`cm`, divided by 100 by .meiosis_layout())
+# and a non-negative physical `pos`, which plays no part in meiosis.
+.isqg_population <- function(ref) {
+  m <- ref$map[order(ref$map$chr, ref$map$pos), ]
+  map <- data.frame(snp = as.character(m$snp), chr = m$chr,
+                    pos = round(m$pos * 1e6), cm = m$pos * 100)
+  cis <- cbind(P1 = ref$founders$P1$cis, P2 = ref$founders$P2$cis)
+  trans <- cbind(P1 = ref$founders$P1$trans, P2 = ref$founders$P2$trans)
+  suppressMessages(population_from_haplotypes(cis, trans, map))
+}
+
+test_that("cross()/selfcross()/double_haploid() reproduce isqg under the fixture seed", {
+  for (scenario in names(.isqg_designs)) {
+    skip_if_not(.have(scenario), paste0("isqg fixture '", scenario,
+                                        "' not captured"))
+    ref <- .isqg_ref(scenario)
+    d <- .isqg_designs[[scenario]]
+    pop <- .isqg_population(ref)
+    # cross()/selfcross() run two meioses per progeny, double_haploid() one;
+    # the fixture holds exactly that many events, so one seed covers both.
+    events_per <- if (d[1] == "dh") 1L else 2L
+    expect_identical(length(ref$draws), events_per * ref$n_prog,
+                     info = scenario)
+
+    run <- switch(d[1],
+      cross     = function() cross(pop[d[2]], pop[d[3]], n = ref$n_prog),
+      selfcross = function() selfcross(pop[d[2]], n = ref$n_prog),
+      dh        = function() double_haploid(pop[d[2]], n = ref$n_prog))
+    prog <- suppressMessages(withr::with_seed(ref$seed, run()))
+
+    geno <- dosages(prog)
+    expect_identical(rownames(geno), rownames(ref$genotype), info = scenario)
+    expect_identical(unname(geno), unname(ref$genotype), info = scenario)
+    h <- haplotypes(prog)
+    expect_identical(unname(.isqg_phased(h$cis, h$trans)),
+                     unname(ref$genotype_phased), info = scenario)
+
+    # The exported function consumes exactly isqg's draws and nothing else
+    # before or after them: the RNG state it leaves equals the state after
+    # .draw_meiosis() alone (set.seed() here, not with_seed(), because the
+    # latter restores the state we want to read).
+    lay <- .layout(ref)
+    by_chr <- split(lay$positions, rep(seq_along(lay$loci_per_chr),
+                                       lay$loci_per_chr))
+    set.seed(ref$seed)
+    suppressMessages(run())
+    after_run <- .Random.seed
+    set.seed(ref$seed)
+    simplePHENOTYPES:::.draw_meiosis(unname(by_chr), length(ref$draws))
+    expect_identical(after_run, .Random.seed, info = scenario)
   }
 })
 
