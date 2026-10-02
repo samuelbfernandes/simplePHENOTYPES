@@ -50,6 +50,11 @@ separate `simBreed` package).
 **Rationale:** Different input semantics (transcript vs marker); designing it alongside the
 marker-based redesign would muddy both.
 **Date:** 2026-06 (locked)
+**Status:** **superseded by DECISION-022** (2026-10-02). Once the grammar, the crossing
+engine and the fixed-scale accessors were stable, expression simulation was brought
+forward into v2 as a process *downstream of the genome* (`simulate_transcriptome()`,
+`transcriptome()`, `observe_counts()`; `SPEC-transcriptome.md`) rather than as a separate
+transcript input format, which removes the "different input semantics" objection.
 
 ---
 
@@ -180,7 +185,7 @@ for the >2-trait fallback. v1's `cor`/`cor_res` also survive inside the frozen
 (`core` + `r-pkg` + `py-pkg`)?
 
 **Decision:** Single rextendr package with `src/rust/` (per ARCHITECTURE.md §4). The
-Cargo-workspace bootstrap in `TODO_newfeatures.md` item 7 (root `Cargo.toml`, members
+Cargo-workspace bootstrap in `TODO.md` (appendix, legacy item 7) (root `Cargo.toml`, members
 `core`/`py-pkg`, `git mv` into `r-pkg/`, `maturin new py-pkg`) is **dropped**.
 
 **Rationale:** CRAN acceptance is non-negotiable; a single rextendr package is the
@@ -882,9 +887,103 @@ qtn, effect, var_e = ve)` (documented, with an example, in `pedigree()`).
 
 ---
 
-## DECISION-023: genetic-correlation control extends to dominance and epistasis
+## DECISION-022: transcriptome simulation and the genome → transcriptome → phenotype model
 
-*(DECISION-022 is the transcriptome decision, drafted in its own file.)*
+**Question:** DECISION-005 deferred expression-based simulation to v3 ("different
+input semantics; would muddy the marker redesign"). The v2 grammar, the crossing
+engine, and the fixed-scale accessors are now stable. How do we add gene-expression
+simulation and expression-mediated phenotypes — and how much of it now?
+
+**Decision:** Add expression as a **downstream genetic process** and expose three
+phenotype **bases** through one interface, reusing the existing machinery.
+
+- **Expression generator — hybrid latent-factor eQTL, not a mechanistic GRN.**
+  Normalized (~Gaussian) expression `E_g = mu_g + G_g + R_g` per gene:
+  - `G_g` = a per-gene **cis** score (markers in a physical-bp window; the dosage ×
+    effect model, localized) plus a **trans** score mediated by `Q << T` latent
+    regulatory factors (each a genetic hub with a few QTL and sparse gene
+    loadings). cis and trans covary (LD/structure), so the **combined** genetic
+    score is scaled to the per-gene target `h2_g`, and `Cov(cis,trans)` is reported
+    as its own budget row — the **same pattern as the orthogonal model's
+    `add_dom_cov` row** (DECISION-020).
+  - `R_g` = shared **non-genetic** module factors (same loadings) + gene noise, so
+    co-expression is **decoupled from heritability** (genes co-express even at
+    `h2_g = 0`). `omega_g` = cis fraction; `kappa_g` = residual module fraction;
+    `h2_g` = total genetic variance — three non-competing controls.
+  - **Fixed reference calibration:** all means/frequencies/sd's are frozen on the
+    founder population and never re-estimated on descendants — the fixed-scale
+    principle of `additive_value()`/`phenotype_value()` (DECISION-020/021), which
+    is what makes a simulated transcriptome usable across a crossing/selection
+    pipeline.
+
+- **No annotation, no reference data required.** Defaults come from a named
+  calibration **profile** (`generic_bulk`), presented as a benchmarking compromise
+  **not** biological constants. Gene coordinates are synthesized on physical bp
+  when no annotation is given (cis is never silently a cM window). A user may
+  optionally supply an annotation, or supply expression to **mimic** (calibrate the
+  generator's moments + low-rank co-expression, and h² if genotypes are paired,
+  then regenerate) — mimic calibrates the **expression model only**, never the
+  phenotype slopes. When paired genotypes are supplied, per-gene `h2` is calibrated
+  by a **GREML-style** estimator (REML on a GRM). An **example dataset** (a
+  synthetic gene annotation and an example expression matrix for the bundled SNP55K
+  panel) ships so every basis runs out-of-the-box.
+
+- **Phenotype bases inferred from inputs, one `transcriptome()` layer.** The basis
+  follows from which inputs `simulate_phenotype()` receives (no explicit `basis=`);
+  markers-only is the default. `expression =` is **real/observed** expression;
+  `transcriptome =` (`TRUE` or a `transcriptome_sim`) is **genome-derived**
+  expression. The continuous-predictor layer is `transcriptome()`, held to the
+  **same variance-budget / realized-h² / effect-table / reproducibility guarantees
+  as the genome path**. Four modes:
+  - `geno` (default) → markers only, `y = Zδ + η` (unchanged);
+  - `expression = E` (no `geno`) → transcriptome alone, `y = Ẽs + η`;
+  - `geno` + `transcriptome =` → **derived** G→E→Y, `y = Z(δ + Bs) + Rs + η`,
+    separating mediated-genetic (`Bs`), direct-genetic (`δ`), and env-mediated
+    (`Rs`); the total genetic score is scaled jointly to the target h² and the
+    mediated/direct split reported with its covariance;
+  - `geno` + `expression = E` (**both real**) → `y = Zδ + Ẽs + η`, a direct marker
+    effect plus an observed-expression effect with **no simulated mediation**; their
+    realized covariance (expression is biologically downstream of the genome) is
+    reported, not asserted.
+
+- **Scope.** The normalized generator, the transcriptome and
+  genome→transcriptome phenotype bases, `mimic` calibration, the RNA-seq **count**
+  observation layer (`observe_counts()`, NB), the genotype-free generator and
+  additive-by-additive epistatic expression (`simulate_transcriptome(epistasis =)`)
+  are all implemented. Still explicit non-scope: directed regulatory networks and
+  tissue specificity.
+
+- **Reuse & boundary.** Reuse genotype ingestion, QTN sampling, the
+  variance-realization ("scale-to-target") step, the map, and the RNG-in-R
+  discipline. All stochastic draws stay in R (DECISION-006); the model is sparse /
+  low-rank and scales to `T ~ 10^4` genes with sparse products; **no Rust** until
+  profiling proves a deterministic bottleneck.
+
+**Rationale:** Gene expression is itself a set of genetically controlled
+quantitative traits, so the genome→transcriptome arrow is the existing additive
+model applied per gene; only the transcriptome→phenotype arrow is new (continuous
+predictors → generated slopes). A latent-factor model gives cis + trans + modules
+from one low-rank construct that scales to whole transcriptomes, where a mechanistic
+GRN would need wiring no annotation can justify and a dense trait-by-trait
+correlation (PleioArch) cannot scale. Two of the design's load-bearing pieces — the
+covariance budget row and fixed reference calibration — are patterns the package
+already uses, which keeps the addition coherent with the codebase. Known ground
+truth (which variant is a cis/trans-eQTL, which gene mediates) makes the generator a
+benchmark for eQTL/TWAS/mediation methods.
+
+**Supersedes:** DECISION-005 ("expression-based simulation deferred to v3") — brought
+forward, with expression modeled as downstream of the genome rather than as a
+separate transcript input format.
+**Reaffirms:** DECISION-006 (RNG in R; surgical Rust), DECISION-020/021 (fixed-scale
+values; realized variance reporting with a covariance row), DECISION-009 (realized,
+not asserted, variance partition).
+**Date:** drafted 2026-09-16; ratified 2026-10-02, when the full feature set of
+`SPEC-transcriptome.md` was built and reviewed (the draft lived in
+`DECISION-022-transcriptome-DRAFT.md` until then).
+
+---
+
+## DECISION-023: genetic-correlation control extends to dominance and epistasis
 
 **Context:** the 2026-09-17 audit (grammar P1/P4, effects-arch O2/X1) found that
 `cor` controlled only the **additive** layer. Under `architecture = "pleiotropy"`
@@ -1703,7 +1802,7 @@ boundary is unchanged (R draws every event). The legacy `create_phenotypes()` is
 | 002 | Port isqg algorithms to Rust (own the code) | locked |
 | 003 | `create_phenotypes()` v1 signature preserved | locked (refined by 008) |
 | 004 | Multi-generation stays in simplePHENOTYPES | locked |
-| 005 | Expression-based simulation → v3 | locked |
+| 005 | Expression-based simulation → v3 | superseded by 022 (2026-10-02) |
 | 006 | Rust surgical/bottleneck-only; stochastic core in R | locked (reaffirmed by 011) |
 | 007 | PleioArch for `"pleiotropy"` | locked (refined by 010) |
 | 008 | `create_phenotypes()` = frozen legacy, not a delegation shim | locked (2026-06-10) |
@@ -1720,6 +1819,7 @@ boundary is unchanged (R draws every event). The legacy `create_phenotypes()` is
 | 019 | Breeding value (`on = "bv"`, OCS default, index merit) = classical average-effect A = Σαⱼ(xⱼ−2pⱼ), αⱼ = aⱼ+dⱼ(qⱼ−pⱼ) reconstructed analytically from known QTN effects (LD- and HWE-robust); epistasis-induced marginals omitted; index methods ignore `on` | locked (2026-09-13) |
 | 020 | orthogonal genotypic model as `additive(orthogonal = TRUE, a =, d =)` (orthogonal in expectation under random mating → per-locus HWE, e.g. F2; LD is fine, but nonrandom multilocus association breaks it; A is the transmitting average effect, Falconer 1985): per-locus a/d, whole value scaled to `prop`; budget reports realized Var(A)/Var(g), Var(D)/Var(g) + an `add_dom_cov` row 2Cov(A,D)/Var(g) (=0 in expectation under random mating; nonzero for structured / finite samples) closing to `prop`; degree of dominance d/abs(a) meaningful; d!=0 requires a het per locus (checked per-locus); `qtn_table()` gains a `d` column; new args appended to the signature (positional compat kept); incompatible with vary_qtn / dominance() / pleiotropy(multi) / ld | locked (2026-09-13) |
 | 021 | `phenotype_value(x, qtn, effect, h2/var_e, ref, seed)` = fixed additive value (`additive_value()`) + independent residual on a **frozen** variance (no per-population rescale), so the parametric h²=Var(g)/(Var(g)+var_e) declines as variance is exhausted (faithful cross-gen `on="pheno"`); exactly one of h2/var_e (h2 → var_e=Var(g_ref)(1−h2)/h2); RNG in R; version bump 1.4.0-9002 so downstream can pin | locked (2026-09-14) |
+| 022 | transcriptome simulation: hybrid latent-factor eQTL (cis in a physical-bp window + trans via Q≪T latent regulatory factors + non-genetic co-expression modules + gene noise), normalized Gaussian scale; per-gene `h2_g`, cis fraction `omega_g`, residual module fraction `kappa_g` as non-competing knobs; **joint** cis/trans genetic scaling with a reported `cis_trans_cov` budget row (cf. `add_dom_cov`, DECISION-020); **fixed reference calibration** (DECISION-020/021); no annotation/reference data required (named `generic_bulk` profile; synthetic physical-bp coords; optional `mimic=` calibrates the expression generator only, GREML per-gene h²; ships an example annotation + expression dataset for SNP55K); phenotype bases inferred from inputs via a `transcriptome()` layer — markers-only (default) / `expression=` real transcriptome alone / `geno`+`transcriptome=` derived G→E→Y (`y = Z(δ+Bs)+Rs+η`, mediated+direct) / `geno`+`expression=` both real (`y = Zδ+Ẽs+η`, no simulated mediation, realized G–E cov reported) — all with genome-path rigor; counts (`observe_counts()`) and epistatic expression implemented, GRN/tissue specificity remain non-scope; RNG in R (DECISION-006), no Rust yet | locked (2026-10-02; drafted 2026-09-16) |
 | 023 | `cor` control extends to dominance + epistasis under "pleiotropy": per-component PleioArch covariance (shared units MVN-correlated, trait-specific independent, split by `pi`), each unit scaled by its realized design-column sd, constant units left out of the allocation; every component targets `cor` (realized correlation converges as units and individuals grow under approximate linkage equilibrium; attenuated on average with few units; strong LD can prevent convergence), and the total targets `cor` when layers' per-trait `prop` profiles are proportional (scalar `prop`), else attenuated with a warning giving its large-sample target; fixed `qtn=` rejected under pleiotropy/ld and `effect=`/`dist` under pleiotropy; under "ld" dominance must reuse the additive linked loci (`same_as_add = TRUE`), epistasis and a second additive layer are rejected (SPEC §5.3 restriction); a derived `transcriptome()` layer's genome-mediated signal is outside `cor` (warned under pleiotropy); additive draw unchanged (bit-identical) | locked (2026-09-25) |
 | 024 | A `Population` records its pedigree (`keys` + `pedigree` frame; founders from `as_population(pool =)`, progeny from every mating, ancestors kept by `[`, pooled by key in `c()`); links are deterministic keys, not display ids, so colliding ids stay safe; bookkeeping draws nothing (genotypes / RNG bit-identical); accessors `parentage()`, `families()` | locked (2026-09-27) |
 | 025 | `mating_design()` writes random / factorial / nested / diallel / half-diallel plans; `mate()` runs `{mother, father, n}` plans across named pools (one seed, plan order; self / DH rows; ids `<prefix>_<k>`); a one-row plan equals the equivalent `cross()` / `selfcross()` / `double_haploid()`; `recurrent_selection()` keeps `.intermate()` (RNG order) | locked (2026-09-27) |

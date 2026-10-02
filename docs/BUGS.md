@@ -2,7 +2,7 @@
 
 > Known bugs and their status. Use the `/bug-*` workflow
 > (`/bug-create → /bug-analyze → /bug-fix → /bug-verify`, commit prefix `fix:`).
-> Bug fixes are the priority gate before new-feature work (DECISION + TODO_newfeatures).
+> Bug fixes are the priority gate before new-feature work (DECISION + `TODO.md`).
 
 ## Status legend
 `[ ]` open · `[~]` in progress · `[x]` fixed · `[?]` needs investigation · `[-]` won't fix

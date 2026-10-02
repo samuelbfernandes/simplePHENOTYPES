@@ -158,8 +158,9 @@ Each is a project. All are defensible; none should hold up this release.
       common need (disease status, ordinal scores). The work is in the API:
       thresholds by prevalence or by cut points, and what h² means on the
       observed versus liability scale. Good first "long" task.
-- [ ] **eQTL simulation.** Already deferred to v3 by DECISION-005, on the
-      grounds that transcript-level input has different semantics.
+- [x] **eQTL simulation.** Done — DECISION-022 (supersedes 005): `simulate_transcriptome()`
+      (cis/trans eQTL, co-expression modules, mimic calibration), the `transcriptome()`
+      phenotype layer and `observe_counts()`; see `SPEC-transcriptome.md`.
 - [ ] **Haplotype-based simulation.** Now much closer than it was: the crossing
       code already carries phased haplotypes, so effects assigned to haplotypes
       rather than alleles is a real possibility. Needs a design.

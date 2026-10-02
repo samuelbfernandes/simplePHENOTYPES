@@ -24,14 +24,15 @@ v1.3.0 behavior exactly under matching architectures.
 | 002 | Port isqg's algorithms to Rust (matching the published version) |
 | 003 | `create_phenotypes()` preserved (frozen legacy — refined by 008) |
 | 004 | Multi-generation stays in simplePHENOTYPES |
-| 005 | Expression-based simulation deferred to v3 |
+| 005 | Expression-based simulation deferred to v3 — **superseded by 022** (brought into v2 as a genome-downstream process) |
 | 006 | **Rust is surgical, not a rewrite** — only C++-origin code and profiled bottlenecks move to Rust; the stochastic simulation core stays in R |
 | 007 | PleioArch adopted for `"pleiotropy"` — rhoG control (target `cor`) via bivariate-normal draws |
 | 008 | `create_phenotypes()` = frozen legacy (bugfix-only, superseded), NOT a delegation shim |
 | 009 | New grammar has NO bit-for-bit v1 parity; RDS references guard the legacy fn + statistical checks for the grammar |
 | 010 | v1 `cor` dropped; genetic correlation reimplemented as `rho_g` via PleioArch |
-| 011 | Single rextendr package; Cargo-workspace plan (TODO_newfeatures item 7) dropped |
+| 011 | Single rextendr package; Cargo-workspace plan (`TODO.md` appendix, legacy item 7) dropped |
 | 012 | Meiosis randomness drawn in R; Rust core pure; **exact** isqg bit-parity is the gate |
+| 022 | Transcriptome simulation: hybrid latent-factor eQTL generator (`simulate_transcriptome()`) + the `transcriptome()` phenotype layer (genome → transcriptome → phenotype), fixed reference calibration, RNA-seq counts; supersedes 005 |
 
 > Full rationale for every decision lives in `DECISIONS.md` (canonical log).
 

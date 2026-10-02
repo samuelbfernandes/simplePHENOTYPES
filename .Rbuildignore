@@ -95,7 +95,6 @@
 # Dev-only top-level files (kept in git, not shipped to CRAN)
 ^LICENSE\.md$
 ^TODO\.md$
-^TODO_newfeatures\.md$
 ^_config\.yml$
 ^man/figures/SP_logo\.png$
 
@@ -110,5 +109,3 @@
 ^tests/testthat/_problems$
 ^tests/testthat/testthat-problems\.rds$
 ^\.quarto$
-^\.agents$
-^skills-lock\.json$

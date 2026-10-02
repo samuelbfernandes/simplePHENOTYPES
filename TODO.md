@@ -486,3 +486,72 @@ tests). Local suite: 63 files, 5761 expectations, 0 failures; local `R CMD check
 @CLAUDE.md @docs/ARCHITECTURE.md @docs/DECISIONS.md @docs/SPEC.md @docs/NEXT_STEPS.md
 ```
 One conversation per feature. Plan mode for all new work.
+
+---
+
+## Appendix — legacy backlog (formerly `TODO_newfeatures.md`, June 2026)
+
+> Merged here on 2026-10-02 so there is a single TODO file. Item numbers (7, 8) are kept
+> because DECISION-011 and `docs/ARCHITECTURE.md` cite "item 7". Open items are candidates
+> for `docs/ROADMAP.md`, which is the triaged wish-list; this appendix is history.
+
+### 7 · Phase 0 workspace bootstrap
+
+> **DROPPED (DECISION-011).** The Cargo-workspace layout below conflicts with the
+> single-rextendr-package decision required for CRAN. Kept here struck-through for history.
+> Python/Shiny sharing is revisited later without a multi-crate split.
+
+- `[x]` Update `.gitignore` (add Rust entries)
+- `[-]` ~~Create `.claudeignore`~~
+- `[-]` ~~Create root `Cargo.toml` (workspace members: `core`, `py-pkg`)~~ — single package
+- `[-]` ~~Create `core/` Rust library scaffold~~ — use `src/rust/` via rextendr instead
+- `[-]` ~~`git mv` R package files into `r-pkg/`~~ — package stays at repo root; run
+  `rextendr::use_extendr()` in place
+- `[-]` ~~Create `py-pkg/` via `maturin new --bindings pyo3 py-pkg`~~ — `python/` subdir later
+- `[x]` Create `docs/SPEC.md`, `docs/DECISIONS.md`, `docs/BUGS.md`, `docs/NEXT_STEPS.md`
+- `[ ]` Add PostToolUse hooks to `~/.claude/settings.json`
+
+---
+
+### 8 · New features (Phase 4 — implement in Rust after port)
+
+These are queued for after the R → Rust port is complete. Do not implement in R.
+
+#### Core simulation
+
+- `[ ]` Simulate null trait directly (no QTN effect)
+- `[ ]` Provide QTN list for only one effect type (add/dom/epi/var) and randomize the other
+- `[ ]` Proportion of variance explained by a subset of QTNs
+- `[x]` Simulate alleles in repulsion (repulsion phase LD) — `simulate_phenotype(architecture = "ld", ld_phase = "repulsion")` (2026-10-02)
+- `[ ]` Different means per sub-population (PCA-based)
+- `[ ]` Simulate independent traits with QTNs from different chromosomes
+- `[ ]` Fix h2 and vary number of QTNs (discuss with Kaio)
+- `[ ]` Implement GxE via envirotyping
+- `[ ]` Implement GxB — add extra random variable to total genetic value (without changing `pheno()`)
+- `[ ]` Simulate HTP: allelic effects must be correlated across environments
+- `[ ]` Categorical phenotypes via threshold model: y=1 if l<γ1, y=2 if γ1<l<γ2, …, y=C if l>γ(C-1)
+- `[x]` Create `create_complex_phenotype()` — combine multiple architecture types — `complex_phenotypes()`
+- `[ ]` Co-heritability in the package (rGh1h2)
+- `[x]` Simulate eQTL — `simulate_transcriptome()` / `transcriptome()` (DECISION-022)
+- `[ ]` Haplotype-based simulation
+- `[x]` Genetic map integration (Kaio) — `synthetic_map()`, map-aware `Population`; vignette `genetic-maps`
+- `[ ]` Polyploid support — encode each homologous chromosome separately (0/1 per chromosome)
+
+#### Input / output
+
+- `[ ]` Read `.gz` compressed genotype files
+- `[ ]` GDS to VCF conversion (package `SeqArray`)
+- `[ ]` Filter non-polymorphic SNPs
+- `[ ]` Subset individuals
+- `[ ]` Relative path support for `home_dir`
+
+#### Diagnostics & tooling
+
+- `[ ]` Diagnostic plots (QQ, Manhattan, trait distributions)
+- `[x]` Unit tests (testthat)
+- `[ ]` Power calculation
+- `[ ]` Wrapper for GWAS tools: GAPIT, GEMMA
+
+#### Interfaces
+
+- `[ ]` Shiny app

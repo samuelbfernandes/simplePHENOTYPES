@@ -1,6 +1,6 @@
 # SPEC-transcriptome.md — transcriptome simulation & expression-mediated phenotypes
 
-> **DRAFT for review.** Companion to `SPEC.md`; extends the v2 grammar with (a) a
+> Companion to `SPEC.md`; extends the v2 grammar with (a) a
 > generator of genetically controlled gene expression, and (b) phenotype
 > simulation from a transcriptome. **Implementation status:** the parametric
 > generator `simulate_transcriptome()` (§3), the `transcriptome()` phenotype
@@ -16,8 +16,8 @@
 > non-genetic transcriptome). The whole feature set of this SPEC is now built; only
 > the explicit non-scope items (directed regulatory networks, tissue specificity,
 > epistatic expression) remain. Converged
-> Claude + Codex design (see `project_transcriptome_simulation_design` memory and
-> `DECISION-022-transcriptome-DRAFT.md`).
+> Claude + Codex design; the governing decision is DECISION-022 in `DECISIONS.md`
+> (ratified 2026-10-02, superseding DECISION-005).
 
 ## 1. Goals and non-goals
 
