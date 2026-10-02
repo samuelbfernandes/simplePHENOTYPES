@@ -1847,19 +1847,21 @@ so this is I/O only (no theory review needed beyond the causal-set definition).
 `simulate_phenotype()` read them back; `as_population()` additionally needs a non-empty file with a complete crossing
 map (`chr`, `pos`, `cm` without missing values), which a matrix-origin export or an empty partition does not provide.
 Data-frame and matrix input stream in chunks of 2,000 markers. Every destination is preflighted (its directory exists and is writable, it is not a directory;
-for a symlinked destination the link target's directory). Paths are compared after resolving
-them: an existing leaf (file or symlink) in full, otherwise the longest existing ancestor plus
-the missing tail; on macOS the key is Unicode-normalised (NFD, as the file system stores names)
-and case-folded, on Windows case-folded. With companions, and in `write_qtn_table()`, every file
-is written to a hidden temporary in its destination directory named `.<rand>.part.<basename>`
-(the extension is kept, so `fwrite()` still gzip-compresses a `.gz` name; `jsonlite::write_json()`
-never compresses, in either path). The set is then committed all-or-none: an existing destination
-keeps its permission mode, is set aside under `.<rand>.bak.<basename>`, and is restored if any
-rename fails; temporaries and backups are removed, and one that cannot be removed is named in a
-warning. A symlinked destination is written through (link kept, target updated). This is a
-best-effort guarantee over same-directory `file.rename()`, exercised on POSIX, not on Windows.
-The plain one-file call writes directly and is byte-identical to earlier releases. A Population's
-dosage matrix is built once per export, QTN table included.
+for a symlinked destination -- live or dangling -- the link is followed and its target's
+directory is checked). Paths are compared after resolving them: through leaf symlinks, then an
+existing leaf in full, otherwise the longest existing ancestor plus the missing tail; on macOS the
+key is Unicode-normalised (NFD) and case-folded, on Windows case-folded; two hard links to one
+file are not detected. With companions, and in `write_qtn_table()`, every file is written to a
+short hidden temporary reserved in its destination directory (`.<token>.part<ext>`, the extension
+of the user's path kept so `fwrite()` still gzip-compresses a `.gz` name; a name already in use is
+never taken, and the export only ever removes or renames onto files it created). The set is then
+committed: an existing destination keeps its permission mode, is set aside under a reserved
+`.<token>.bak<ext>` name, and is put back if any rename fails; a backup that cannot be put back is
+kept and the error names it and the destination left in a mixed state, so previous content is
+never silently lost. Temporaries that cannot be removed are named in a warning. A symlinked
+destination is written through (link kept, target updated or created). Best effort over
+same-directory `file.rename()`, exercised on POSIX, not on Windows. The plain one-file call writes
+directly and is byte-identical to earlier releases.
 
 **Date:** 2026-10-02
 

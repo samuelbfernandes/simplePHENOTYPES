@@ -49,14 +49,15 @@
   are off (return value, file content, byte-identical).
 * Export safety: `write_phenotypes()` with companions and `write_qtn_table()` preflight every
   destination, compare paths after resolving them (relative/absolute spellings, symlinked
-  directories and files; on macOS also Unicode normalisation form and case), stage every file as a
-  hidden temporary beside its destination (keeping the extension, so `.gz` text output is still
-  compressed), and commit the set all-or-none: existing files keep their permission mode, are set
-  aside and restored if any step fails; a staging file that cannot be removed is named in a
-  warning. A symlinked destination is written through. A Population input's dosage matrix is
-  built once per export, including for the QTN table alone. JSON output is independent of the
-  session's `LC_NUMERIC`; classed metadata (e.g. `bit64::integer64`) is encoded as `jsonlite`
-  encodes it. The one-file `write_phenotypes()` call is unchanged (byte-identical output).
+  directories and files including dangling links; on macOS also Unicode normalisation form and
+  case; hard links are not detected), stage every file under a short reserved hidden name beside
+  its destination (keeping the extension, so `.gz` text output is still compressed; never reusing
+  a name already in use), and commit the set as a group: existing files keep their permission mode
+  and are set aside and put back if any step fails; a backup that cannot be put back is kept and
+  named in the error, so previous content is never silently lost. A symlinked destination is
+  written through. A Population input's dosage matrix is built once per export. JSON output is
+  independent of the session's `LC_NUMERIC`; classed metadata (e.g. `bit64::integer64`) is encoded
+  as `jsonlite` encodes it. The one-file `write_phenotypes()` call is unchanged (byte-identical).
 
 ## Follow-ups and gaps after the audit (2026-10)
 
