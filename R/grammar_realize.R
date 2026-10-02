@@ -184,9 +184,16 @@
 #' \eqn{A_i = \sum_j \alpha_j (x_{ij} - 2p_j)}, summing over the causal loci the
 #' average effect of a gene substitution \eqn{\alpha_j = a_j + d_j(q_j - p_j)}
 #' ([.avg_effect()]) times its centred gene content. This is the **one-generation
-#' random-mating transmitting ability** -- the genetic value expected in the
-#' random-mated progeny of the current allele frequencies -- which is the quantity
-#' that governs response to selection.
+#' random-mating transmitting ability**: the breeding value, i.e. TWICE the
+#' expected deviation of the random-mated progeny's genetic value from the
+#' population mean (a parent passes one of its two alleles, so its progeny mean
+#' deviation is \eqn{A_i/2}; e.g. \eqn{a = 1, d = 0, p = 0.5} and gene content
+#' \eqn{x = 2} give \eqn{A = 1} but a progeny mean deviation of 0.5). It is the
+#' quantity that governs response to selection.
+#'
+#' Derived (genome-mediated) `transcriptome()` layers are refused: their genetic
+#' value is not a per-locus a/d model, so no transmissible breeding value is
+#' defined for them (use the total genetic value, `on = "gv"`, or a custom `on`).
 #'
 #' Note on scope: this is *not* the current-population Fisher/NOIA *statistical*
 #' additive value (the least-squares slope of genotypic value on gene content using
@@ -248,6 +255,20 @@
          "dominance decomposition, so its induced average effects would be omitted. ",
          "Supply your own predicted breeding values via a numeric/function `on` ",
          "criterion (or merit for OCS).", call. = FALSE)
+  }
+  if (.has_genetic_transcriptome(sim)) {
+    # The genome-mediated part of a derived transcriptome layer is heritable (it
+    # is in genetic_values()), but it is a function of the expression model, not
+    # of per-locus a/d effects, so its transmissible additive part cannot be
+    # reconstructed here. Returning a breeding value that omits it (identically 0
+    # for a purely expression-mediated phenotype) would misrank merit; refuse.
+    stop("A transmissible breeding value (on = \"bv\", the OCS default, or ",
+         "method = \"index\"/\"quadratic_index\") is not defined for a model with a ",
+         "derived (genome-mediated) transcriptome() layer of prop > 0: its ",
+         "genetic-mediated value has no per-locus additive/dominance ",
+         "decomposition. Use on = \"gv\" (total genetic value, which includes it), ",
+         "supply predicted breeding values via a numeric/function `on` criterion, ",
+         "or set the transcriptome layer's prop to 0.", call. = FALSE)
   }
   n  <- sim$n_ind
   BV <- matrix(0, n, nt)
@@ -343,6 +364,17 @@
     }
   }
   acc[!is.na(acc)]
+}
+
+#' Does the model carry a derived transcriptome layer with a genetic-mediated part?
+#' @keywords internal
+#' @noRd
+.has_genetic_transcriptome <- function(sim) {
+  if (is.null(sim$genetic_expression)) return(FALSE)
+  any(vapply(sim$layers, function(l) {
+    identical(l$type, "transcriptome") &&
+      any(.expand_prop(l$prop, sim$n_traits) > 0)
+  }, logical(1)))
 }
 
 #' Total genetic-value matrix (individuals x traits)
@@ -662,8 +694,9 @@
       Txg <- .transcriptome_matrix(sim, r, "genetic")[, t]
       Tx  <- .transcriptome_matrix(sim, r, "total")[, t]
       Txe <- Tx - Txg
-      y <- sim$pheno$value[sim$pheno$trait == paste0("Trait_", t) &
-                           sim$pheno$rep == r]
+      ph <- sim$pheno[sim$pheno$trait == paste0("Trait_", t) &
+                      sim$pheno$rep == r, ]
+      y <- ph$value[match(sim$ids, ph$id)]     # match by id: gen is in sim$ids order
       vp <- stats::var(y)
       if (!is.finite(vp) || vp <= 0) return(c(NA_real_, NA_real_, NA_real_))
       c(stats::var(Txg) / vp,
@@ -1003,8 +1036,9 @@
   for (t in seq_len(nt)) {
     ratios <- vapply(seq_len(sim$n_reps), function(r) {
       gen <- .genetic_value_matrix(sim, r)
-      y <- sim$pheno$value[sim$pheno$trait == paste0("Trait_", t) &
-                           sim$pheno$rep == r]
+      ph <- sim$pheno[sim$pheno$trait == paste0("Trait_", t) &
+                      sim$pheno$rep == r, ]
+      y <- ph$value[match(sim$ids, ph$id)]     # match by id: gen is in sim$ids order
       if (scale == "record" && reps[t] != 1L) {
         e <- y - .genetic_matrix(sim, r)[, t] -
           .transcriptome_matrix(sim, r)[, t] - .trait_mean(sim, t)
@@ -1038,7 +1072,8 @@
 #' over-allocation case is caught eagerly in `.resolve_prop()`; under-allocation
 #' cannot be judged mid-pipe (more layers may follow), so it is checked here, at
 #' the points where the user materializes the object (print, phenotype/QTN
-#' accessors). A lone `additive()` with `prop` omitted already absorbs the whole
+#' accessors). With a `transcriptome()` layer, either the marker layers alone or
+#' the marker layers plus the transcriptome `prop` must fill h2. A lone `additive()` with `prop` omitted already absorbs the whole
 #' budget, so this only fires when explicit `prop` values leave h2 unfilled.
 #' @keywords internal
 #' @noRd
@@ -1046,12 +1081,19 @@
   if (is.null(sim$h2) || identical(sim$architecture, "complex")) {
     return(invisible())
   }
-  # A transcriptome() layer adds a distinct expression-mediated variance category
-  # that is NOT part of the marker h2 budget (its `prop` is a phenotypic share),
-  # so a phenotype may deliberately fill only part of h2 with markers and leave
-  # the rest to expression. Skip the marker-completeness check in that case.
-  if (any(vapply(sim$layers, function(l) identical(l$type, "transcriptome"), TRUE))) {
-    return(invisible())
+  # A transcriptome() layer's `prop` is a distinct expression-mediated phenotypic
+  # share (SPEC-transcriptome.md, DECISION-022); its genetic-mediated part is
+  # emergent, so it cannot be netted against the marker budget exactly. Two
+  # allocations are accepted: the marker layers fill h2 on their own (the
+  # transcriptome share sits outside the budget), or the marker layers plus the
+  # transcriptome prop exactly fill it (expression takes the rest of h2).
+  # Anything in between -- e.g. h2 = 0.5, additive 0.1, transcriptome 0.2 -- is
+  # an incomplete allocation and is refused like the marker-only case.
+  tx_prop <- rep(0, sim$n_traits)
+  for (l in sim$layers) {
+    if (identical(l$type, "transcriptome")) {
+      tx_prop <- tx_prop + .expand_prop(l$prop, sim$n_traits)
+    }
   }
   # A requested h2 must be filled, INCLUDING the zero-layer case: setting
   # h2 = 0.5 and adding no genetic layers is an incomplete allocation, not a
@@ -1059,7 +1101,7 @@
   nt <- sim$n_traits
   h2 <- .expand_prop(sim$h2, nt)
   spent <- .total_genetic_prop(sim)
-  short <- which(spent < h2 - 1e-8)
+  short <- which(spent < h2 - 1e-8 & abs(spent + tx_prop - h2) > 1e-8)
   if (length(short)) {
     stop("Incomplete h2 allocation for trait(s) ", paste(short, collapse = ", "),
          ": the genetic layer proportions sum to ",

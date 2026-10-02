@@ -42,14 +42,17 @@
 #'   \item{`"gv"`}{the true *total* genetic value (broad-sense: additive plus any
 #'     dominance/epistasis). Idealized selection on genetic merit -- an upper bound
 #'     on selectable genetic value, but not on breeding-value response, since the
-#'     non-additive part is not, in general, transmitted to progeny.}
+#'     non-additive part is not, in general, transmitted to progeny. For a
+#'     derived `transcriptome()` layer this includes its genetic-mediated part, so
+#'     `"gv"` equals [genetic_values()].}
 #'   \item{`"bv"`}{the true *breeding* value -- the classical transmissible merit,
 #'     \eqn{A_i = \sum_j \alpha_j (x_{ij} - 2p_j)}, summing each causal locus's
 #'     average effect of substitution \eqn{\alpha_j = a_j + d_j(q_j - p_j)}
 #'     (`.breeding_value_matrix()`). The per-locus effects are reconstructed from
 #'     the simulation's own additive/dominance QTN effects (it is a simulation, so
 #'     they are known exactly), making this the genetic value transmitted to
-#'     random-mated progeny -- robust to both linkage disequilibrium (exact for an
+#'     random-mated progeny (twice the expected progeny deviation from the
+#'     population mean, \eqn{A_i = 2 \times} the progeny mean deviation) -- robust to both linkage disequilibrium (exact for an
 #'     F2) and departures from HWE (after inbreeding/selection). It captures the
 #'     additive average effects dominance loci induce away from \eqn{p = 0.5} and
 #'     reduces to the additive value for a purely additive model. This is the merit
@@ -58,8 +61,10 @@
 #'     epistatic term has no per-locus \eqn{a}/\eqn{d}, so its induced additive
 #'     average effects cannot be reconstructed and the breeding value would be
 #'     incomplete (see `.breeding_value_matrix()`); both cases error rather than
-#'     return a partial value. Supply your own predicted values via a
-#'     numeric/function criterion there.}
+#'     return a partial value. A derived (genome-mediated) `transcriptome()` layer
+#'     of `prop > 0` is likewise refused (its genetic value has no per-locus
+#'     decomposition); use `"gv"` or a custom criterion. Supply your own predicted
+#'     values via a numeric/function criterion there.}
 #'   \item{a numeric vector}{one score per individual (named by id or in
 #'     population order) -- the hook for **genomic selection, phenomic selection**
 #'     and any predicted/estimated value you compute externally.}
@@ -633,7 +638,7 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
     v <- .breeding_value_matrix(sim, rep)[, trait]
   } else if (identical(on, "gv")) {
     .check_trait_index(trait, sim$n_traits)
-    v <- .genetic_matrix(sim, rep)[, trait]
+    v <- .genetic_value_matrix(sim, rep)[, trait]   # total G, as genetic_values()
   } else if (identical(on, "pheno")) {
     .check_trait_index(trait, sim$n_traits)
     ph <- sim$pheno

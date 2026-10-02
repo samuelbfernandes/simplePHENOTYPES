@@ -201,6 +201,20 @@ simulate_phenotype(geno, expression = E) |>
 > when the components cancel (audit: `H² ~ 2e29` for an expression gene equal to
 > the additive QTN with `Var(V_P) ~ 1e-30`).
 
+> **h2 completeness with a transcriptome layer, and breeding value.** The `h2`
+> completeness check (SPEC 4.1) still applies when a `transcriptome()` layer is
+> present: either the marker layers (additive + dominance + epistasis) sum to `h2`
+> on their own (the transcriptome `prop` sits outside the marker budget), or the
+> marker layers plus the transcriptome `prop` sum to `h2` exactly (expression takes
+> the rest of `h2`). Anything in between (e.g. `h2 = 0.5`, additive `0.1`,
+> transcriptome `0.2`) is an incomplete allocation and errors at materialization.
+> `genetic_values()` and `select_ind(on = "gv")` are the total genetic value
+> (markers + genetic-mediated expression, `Tx_g`). The **breeding value**
+> (`on = "bv"`, the OCS default, indices) has no per-locus a/d decomposition of
+> `Tx_g`, so it is **refused with an explicit error** for a derived transcriptome
+> layer of `prop > 0` (rather than silently returning 0); use `"gv"`, a custom `on`,
+> or `prop = 0`. A real `expression=` source has `Tx_g = 0` and is unaffected.
+
 > **Orientation convention.** In every phenotype equation below, `E`, `R`, and `Z`
 > are written in the standard **individuals × features** design-matrix orientation,
 > so `E s`, `R s`, `Z δ` are matrix–vector products giving one value per individual.
