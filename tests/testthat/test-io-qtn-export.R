@@ -843,7 +843,7 @@ test_that("integer64 metadata is encoded as jsonlite encodes it, not as a raw do
   skip_if_not_installed("bit64")
   d <- new_dir()
   g <- G[1:120, ]
-  g$pos <- bit64::as.integer64(as.character(g$pos))
+  g$pos <- optional_fun("bit64", "as.integer64")(as.character(g$pos))
   ph <- simulate_phenotype(g, h2 = 0.5, seed = 9) |> additive(n_qtn = 3)
   expect_s3_class(ph$map$pos, "integer64")
   out <- write_phenotypes(ph, file.path(d, "pheno.json"), file_type = "json",
@@ -857,7 +857,7 @@ test_that("integer64 metadata is encoded as jsonlite encodes it, not as a raw do
     expect_true(all(x$markers$pos > 1e5))              # no 1e-318 bit patterns
   }
   # the element encoder agrees with jsonlite exactly
-  v <- bit64::as.integer64(c("379844", "9007199254740993", NA))
+  v <- optional_fun("bit64", "as.integer64")(c("379844", "9007199254740993", NA))
   ref <- as.character(jsonlite::toJSON(v, na = "null", digits = I(17)))
   expect_identical(paste0("[", paste(.json_vec_elements(v), collapse = ","), "]"),
                    ref)
@@ -1099,7 +1099,7 @@ test_that("a .gz destination is gzip-compressed, as the direct writer would", {
   q <- file.path(d, "qtn.tsv.gz")
   write_qtn_table(ph_layers, q)
   expect_true(gz_magic(q)); expect_true(gzip_ok(q))
-  expect_table_roundtrip(data.table::fread(q, data.table = FALSE),
+  expect_table_roundtrip(utils::read.delim(gzfile(q), stringsAsFactors = FALSE),
                          qtn_table(ph_layers), 1e-12)
   # write_phenotypes() with a companion
   f <- file.path(d, "pheno.txt.gz")
@@ -1259,7 +1259,7 @@ test_that("the staging extension comes from the user's path, not the symlink tar
   expect_true(nzchar(Sys.readlink(link)))                       # link kept
   magic <- as.integer(readBin(target, "raw", 2L))
   expect_identical(magic, c(31L, 139L))                         # gzip, through the link
-  expect_identical(data.table::fread(link, data.table = FALSE)$snp,
+  expect_identical(utils::read.delim(gzfile(link), stringsAsFactors = FALSE)$snp,
                    qtn_table(ph_layers)$snp)
   expect_no_part_files(d)
   # the helper itself
