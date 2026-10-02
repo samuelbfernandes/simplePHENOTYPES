@@ -196,3 +196,99 @@
   )
   qtn
 }
+
+#' Validate user-supplied causal loci for the `"ld"` architecture
+#'
+#' `qtn = list(trait1_loci, trait2_loci)` replaces the random choice of linked
+#' pairs: element `i` of the two vectors is one linked pair (trait 1's causal
+#' SNP and trait 2's). The architecture's contract is kept: every causal locus is
+#' trait-specific, so no locus may appear for both traits (or twice), and the
+#' two loci of a pair must be distinguishable genotype columns (squared
+#' correlation below 1) with some linkage to carry covariance. The r2 of every
+#' pair is computed and attached as the `"ld"` attribute (`cause = NA`: a hidden
+#' cause-of-LD locus is not needed to simulate, and is not known for loci you
+#' choose, so `ld_type = "indirect"` is accepted and simply reports no cause). A
+#' pair outside `[r2_min, r2_max]` (defaults 0.2 and 0.8) is allowed but warned
+#' about, since the random search would not have returned it.
+#' @param user_qtn per-trait list from `.resolve_qtn_arg()`.
+#' @return `user_qtn` with the `"ld"` attribute.
+#' @keywords internal
+#' @noRd
+.ld_user_pairs <- function(sim, user_qtn, type) {
+  if (sim$n_traits != 2L) {
+    stop("architecture = \"ld\" simulates linked causal loci across exactly ",
+         "two traits (one distinct causal SNP per trait, in LD); set ",
+         "n_traits = 2.", call. = FALSE)
+  }
+  t1 <- user_qtn[[1L]]
+  t2 <- user_qtn[[2L]]
+  if (length(t1) != length(t2)) {
+    stop(type, "(qtn=): under architecture = \"ld\" locus i of trait 1 is ",
+         "linked to locus i of trait 2, so both traits need the same number ",
+         "of loci; got ", length(t1), " and ", length(t2), ".", call. = FALSE)
+  }
+  if (any(t1 %in% t2) || anyDuplicated(c(t1, t2))) {
+    stop(type, "(qtn=): under architecture = \"ld\" every causal locus is ",
+         "specific to one trait: a marker cannot be causal for both traits ",
+         "(that would be pleiotropy) or listed twice. Pass ",
+         "`qtn = list(trait1_loci, trait2_loci)` with disjoint loci, element i ",
+         "of each forming a linked pair.", call. = FALSE)
+  }
+  g1 <- .geno_cols(sim, t1)
+  g2 <- .geno_cols(sim, t2)
+  r2 <- vapply(seq_along(t1), function(i) {
+    suppressWarnings(stats::cor(g1[, i], g2[, i],
+                                use = "pairwise.complete.obs")^2)
+  }, numeric(1))
+  if (anyNA(r2)) {
+    stop(type, "(qtn=): the pair(s) ", paste(which(is.na(r2)), collapse = ", "),
+         " have a monomorphic marker, so their linkage disequilibrium is ",
+         "undefined.", call. = FALSE)
+  }
+  if (any(r2 >= 1 - 1e-12)) {
+    stop(type, "(qtn=): the pair(s) ", paste(which(r2 >= 1 - 1e-12), collapse = ", "),
+         " are identical (or mirrored) genotype columns (r2 = 1), so the two ",
+         "traits' causal loci cannot be told apart; choose a partner with ",
+         "r2 < 1.", call. = FALSE)
+  }
+  a <- sim$arch_args
+  r2_max <- if (is.null(a[["r2_max"]])) 0.8 else a[["r2_max"]]
+  r2_min <- if (is.null(a[["r2_min"]])) 0.2 else a[["r2_min"]]
+  out <- which(r2 < r2_min | r2 > r2_max)
+  if (length(out)) {
+    warning(type, "(qtn=): pair(s) ", paste(out, collapse = ", "),
+            " have r2 = ", paste(signif(r2[out], 3), collapse = ", "),
+            ", outside the architecture's window [", r2_min, ", ", r2_max,
+            "]. They are used as given; r2 = 0 leaves the traits uncorrelated ",
+            "through that pair.", call. = FALSE)
+  }
+  attr(user_qtn, "ld") <- data.frame(qtn_t1 = t1, qtn_t2 = t2, r2 = r2,
+                                     cause = rep(NA_integer_, length(t1)))
+  user_qtn
+}
+
+#' Reject a layer's fixed loci that are already causal for the other trait
+#'
+#' Under `"ld"` every causal locus belongs to one trait across *all* layers. A
+#' dominance or vQTL layer with its own `qtn =` must therefore not put a locus
+#' on trait t that an earlier layer made causal for the other trait.
+#' @keywords internal
+#' @noRd
+.ld_check_cross_layer <- function(sim, user_qtn, type) {
+  prior <- lapply(1:2, function(t) {
+    unique(unlist(lapply(sim$layers, function(ly) {
+      if (is.null(ly$qtn) || identical(ly$type, "transcriptome")) return(NULL)
+      ly$qtn[[t]]
+    }), use.names = FALSE))
+  })
+  clash <- c(intersect(user_qtn[[1L]], prior[[2L]]),
+             intersect(user_qtn[[2L]], prior[[1L]]))
+  if (length(clash)) {
+    stop(type, "(qtn=): marker(s) ", paste(utils::head(sim$map$snp[clash], 5),
+                                           collapse = ", "),
+         " are already causal for the other trait in an earlier layer; under ",
+         "architecture = \"ld\" every causal locus is specific to one trait ",
+         "across all layers.", call. = FALSE)
+  }
+  invisible(user_qtn)
+}

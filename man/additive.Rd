@@ -36,7 +36,22 @@ marker names (matched against the map) or column indices; a vector is used
 for every trait, or a length-\code{n_traits} list sets each trait's loci
 separately (every element the same length). \code{n_qtn} is then taken from what
 you supply. Fixed loci are not redrawn by \code{vary_qtn}. (For \code{\link[=epistasis]{epistasis()}},
-\code{qtn} describes interacting sets; see there.)}
+\code{qtn} describes interacting sets; see there.) Every architecture accepts
+\code{qtn}, and each keeps its construction: under \code{"independent"} the loci
+carry the effect series; under \code{"pleiotropy"} (multi-trait) every locus
+affects every trait, so give a single vector (or the same loci for each
+trait in a list); loci that affect only some traits are partial pleiotropy,
+built with \code{\link[=complex_phenotypes]{complex_phenotypes()}}. The effects are set by \code{effect} / \code{dist}
+unless a correlation is controlled (\code{cor}, \code{pi}, ...), in which case the
+correlated draw sets them and the genetic correlation is its target;
+without either the correlation is just an outcome of the shared loci. \code{pi}
+only matters for controlling a correlation, and \code{pi < 1} cannot be used
+with fixed shared loci. Under \code{"ld"} give
+\code{qtn = list(trait1_loci, trait2_loci)} of equal length -- the i-th locus of
+each is a linked pair, no marker may be causal for both traits, and each
+pair's r2 is reported (by \code{\link[=qtn_table]{qtn_table()}}) and warned about when outside
+\verb{[r2_min, r2_max]}. Markers that are monomorphic (or heterozygous in every
+individual) are accepted with a warning: they carry no variance.}
 
 \item{effect}{optional geometric base (scalar) or explicit effect series
 (length \code{n_qtn}), used for every trait; or a length-\code{n_traits} list of these,
@@ -134,8 +149,9 @@ grammar cannot express, because per-component scaling washes a global degree
 out), and the breeding value used by \code{\link[=select_ind]{select_ind()}} / \code{\link[=optimum_contribution]{optimum_contribution()}}
 picks up the dominance-induced average effect automatically. Because the
 effects are fixed, this mode does not draw a separate \code{dominance()} layer, is
-incompatible with \code{vary_qtn}, and (like \verb{qtn =}) cannot be used with the
-correlation-controlling \code{"pleiotropy"} (multi-trait) or \code{"ld"} architectures.
+incompatible with \code{vary_qtn}, and cannot be used with the
+correlation-controlling \code{"pleiotropy"} (multi-trait) or \code{"ld"} architectures
+(their effects come from the correlated draw; \verb{qtn =} alone is accepted).
 }
 
 \examples{

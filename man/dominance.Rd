@@ -37,7 +37,22 @@ marker names (matched against the map) or column indices; a vector is used
 for every trait, or a length-\code{n_traits} list sets each trait's loci
 separately (every element the same length). \code{n_qtn} is then taken from what
 you supply. Fixed loci are not redrawn by \code{vary_qtn}. (For \code{\link[=epistasis]{epistasis()}},
-\code{qtn} describes interacting sets; see there.)}
+\code{qtn} describes interacting sets; see there.) Every architecture accepts
+\code{qtn}, and each keeps its construction: under \code{"independent"} the loci
+carry the effect series; under \code{"pleiotropy"} (multi-trait) every locus
+affects every trait, so give a single vector (or the same loci for each
+trait in a list); loci that affect only some traits are partial pleiotropy,
+built with \code{\link[=complex_phenotypes]{complex_phenotypes()}}. The effects are set by \code{effect} / \code{dist}
+unless a correlation is controlled (\code{cor}, \code{pi}, ...), in which case the
+correlated draw sets them and the genetic correlation is its target;
+without either the correlation is just an outcome of the shared loci. \code{pi}
+only matters for controlling a correlation, and \code{pi < 1} cannot be used
+with fixed shared loci. Under \code{"ld"} give
+\code{qtn = list(trait1_loci, trait2_loci)} of equal length -- the i-th locus of
+each is a linked pair, no marker may be causal for both traits, and each
+pair's r2 is reported (by \code{\link[=qtn_table]{qtn_table()}}) and warned about when outside
+\verb{[r2_min, r2_max]}. Markers that are monomorphic (or heterozygous in every
+individual) are accepted with a warning: they carry no variance.}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
 
@@ -95,10 +110,14 @@ linkage equilibrium; see \code{\link[=simulate_phenotype]{simulate_phenotype()}}
 rather than every trait getting one identical effect series. With \code{same_as_add = TRUE} the
 additive layer's shared and trait-specific loci are reused. Each locus's
 effect is scaled by the realized standard deviation of its heterozygote
-indicator. Fixing loci with \verb{qtn =} is rejected under "pleiotropy" and "ld",
-which draw their own loci; under "ld" dominance must reuse the additive
-layer's linked loci (\code{same_as_add = TRUE}), since a fresh draw could make a
-marker causal for both traits across layers.
+indicator. Fixing loci with \verb{qtn =} works under every architecture: under
+"pleiotropy" every locus affects every trait (the same loci for each trait),
+with \code{effect} / \code{dist} setting the effects unless a correlation is controlled;
+under "ld" dominance reuses the additive layer's linked loci
+(\code{same_as_add = TRUE}) or takes \code{qtn = list(trait1_loci, trait2_loci)} of
+disjoint linked pairs (no marker may already be causal for the other trait in
+an earlier layer), since a fresh random draw could make a marker causal for
+both traits across layers.
 }
 \examples{
 data("SNP55K_maize282_maf04")
