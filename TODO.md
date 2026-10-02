@@ -1,3 +1,15 @@
+## PRIORITY — open follow-ups from the 2026-10-02 session
+
+- [ ] **Codex review, O1–O3 (`ld` fixed QTNs).** Findings were produced against branch `feat/qtn-passthrough-and-export` (worktree `.claude/worktrees/kind-shamir-c7d1df`, commit 557d7cc + 66af52d/ca8969d/2cc9728), not this branch. Fix there (or after merge): fixed linked pairs must have r2 > 0 and honor the window; normalize `ld_type` abbreviations once (`"i"` currently behaves as direct for fixed QTNs; `.check_arch_args()` validates but does not store the normalized value, L563-564); reserve a prior layer's `ld$cause` so a later layer never draws it as a QTN. Not reproducible on `feat/graph-followups`.
+- [ ] Re-run the Codex theory review from the main tree (`dev/dual.sh review R/arch_ld.R R/grammar_realize.R R/select_bqp.R R/grammar_complex.R`) so `ld_phase`, `resid_cor` and `method = "bqp"` are covered (the first run hit the wrong worktree and could not see `select_bqp.R`). Needs network outside the Claude sandbox: run from your own terminal.
+- [ ] Verify BQP `min_gain` scale (standardized-SD reading of RHS_j = n*sigma_j*d_j/100 is an interpretation, flagged in DECISION-043) and the 2025 vs 2026 citation year against the paper.
+- [ ] Re-diff `NEWS.md` and `docs/DECISIONS.md` before pushing (both were briefly truncated in the working tree by concurrent agents; restored from HEAD).
+- [ ] `devtools::document()` rewrites `man/*.Rd` with case-variant file names and deletes four legacy `.Rd`; fix the roxygen/collation cause or ignore the variants.
+- [ ] Repo cleanup: review and run the proposed `cleanup.sh` (rendered diagram HTML, `_problems`, `.quarto`, `.tmp/`, vignette purl output, `benchmarks/scratch_create_phenotypes_args.R`, stale worktree `dominance-argument-effect-44d5c8`, merged branches). Not executed.
+- [ ] Decide what to do with the `kind-shamir-c7d1df` worktree and commit the moved `.agents/` + `skills-lock.json` in the `breeding_designer` repo (untracked there).
+- [ ] Full `devtools::test()` before push: last run had 1 failure, `test-as-numeric.R:233` (local-only SNP55K HapMap file with duplicated marker IDs; skips in a clean checkout).
+- [ ] Push `feat/graph-followups` and open the PR (only with explicit OK).
+
 ## PRIORITY — requests from breedingDesigner SPEC-0020 (2026-09-30)
 
 The maintainer's decision (SPEC-0020 R19): the full-size Bančič cross-engine acceptance run

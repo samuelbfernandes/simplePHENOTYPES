@@ -1,5 +1,9 @@
 # simplePHENOTYPES (development version)
 
+* Theory-review fixes (Codex, 2026-10-02): the `h2` completeness check now also applies with a `transcriptome()` layer (marker layers fill `h2`, or marker layers plus the transcriptome `prop` do); `select_ind(on = "gv")` now equals `genetic_values()` for derived transcriptome models; a transmissible breeding value (`on = "bv"`, quadratic index) is refused for a genome-mediated transcriptome layer instead of silently omitting it; record-scale realized H2 matches phenotypes to genetic values by id (it used to depend on row order); the breeding-value documentation now states it is twice the expected progeny deviation.
+
+* Tests: `mate_many_core()` and the exported crossing functions are pinned directly to the isqg fixtures (no behavior change).
+
 * `simulate_phenotype()` and `complex_phenotypes()` gain `resid_cor`: a target correlation between the traits' *residuals* (`cor` stays the genetic one), the grammar equivalent of v1 `cor_res`. `NULL` (default) is bit-identical to before; a scalar or an `n_traits x n_traits` symmetric PSD matrix with unit diagonal mixes the per-trait standardized draws through its Cholesky factor and re-standardizes, so each trait's residual variance, realized h2 and `var_budget` are unchanged and only correlation is induced (realized sample correlation matches the target up to `1/sqrt(n)` sampling error; a `vqtl()` component dilutes it).
 
 * `select_ind(method = "bqp")`: relatedness-penalized selection of exactly N individuals by binary quadratic programming (Montesinos-Lopez et al. 2025, *Plant Methods* 22:7), maximizing the weighted standardized merit minus `lambda` times the genomic-relationship quadratic form, with optional per-trait `min_gain` constraints. Dependency-free and deterministic (exact enumeration up to `choose(n, N) = 2e5`, else greedy + 1-swap local search); also listed in `selection_methods()`.
