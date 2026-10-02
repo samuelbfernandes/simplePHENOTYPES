@@ -252,6 +252,11 @@ write_phenotypes <- function(sim, file, format = c("long", "wide"),
   }
   if (is.null(companions)) {
     # the one-file call of earlier versions: written in place, as before
+    if (nchar(basename(file), type = "bytes") > 255L) {
+      stop("write_phenotypes(): the file name of ", sQuote(file), " is longer ",
+           "than 255 bytes, which the file system does not allow. Give a ",
+           "shorter name.", call. = FALSE)
+    }
     write_pheno(file)
     return(invisible(file))
   }
@@ -713,12 +718,16 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
 #' used inside (`1<ext>`, `b1`, ...) safe. Up to 20 tokens are tried.
 #' @keywords internal
 #' @noRd
-.stage_dir <- function(dir, fn) {
+.stage_dir <- function(dir, fn, forbidden = character(0)) {
   for (i in seq_len(20L)) {
     stage <- file.path(dir, paste0(".", .random_token(), ".stage"))
+    if (stage %in% forbidden) next          # a requested output has this name
     if (file.exists(stage) || !is.na(Sys.readlink(stage)) &&
         nzchar(Sys.readlink(stage))) next
-    if (isTRUE(suppressWarnings(dir.create(stage, showWarnings = FALSE)))) {
+    # owner-only (0700): the staged content is private until it is committed
+    if (isTRUE(suppressWarnings(dir.create(stage, showWarnings = FALSE,
+                                           mode = "0700")))) {
+      Sys.chmod(stage, "0700", use_umask = FALSE)
       return(stage)
     }
   }
@@ -767,7 +776,7 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
   written <- FALSE
   on.exit(if (!written) .remove_stage_dirs(stage, fn), add = TRUE)
   for (d in dirs) {
-    stage[[d]] <- .stage_dir(d, fn)
+    stage[[d]] <- .stage_dir(d, fn, forbidden = unname(targets))
   }
   tmp <- vapply(seq_along(paths), function(i) {
     file.path(stage[[dirname(targets[[i]])]],

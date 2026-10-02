@@ -1454,3 +1454,31 @@ test_that("the one-file call writes the same bytes as before (no staging, no cha
                        digits = I(17), na = "null", auto_unbox = TRUE)
   same_bytes(a, b)
 })
+
+test_that("round-12 review: the stage is owner-only, avoids requested names, and the one-file call checks the leaf length", {
+  skip_on_os("windows")
+  sim <- simulate_phenotype(G, n_traits = 1, seed = 1) |> additive(prop = 0.3, n_qtn = 3)
+  d <- new_dir(); on.exit(unlink(d, recursive = TRUE), add = TRUE)
+  dest <- file.path(d, "out.txt")
+  writeLines("PRIVATE-OLD", dest); Sys.chmod(dest, "0600")
+  old <- Sys.umask("0000"); on.exit(Sys.umask(old), add = TRUE)
+  seen <- character()
+  simplePHENOTYPES:::.staged_write(c(x = dest), "probe", function(tmp) {
+    seen <<- c(seen, format(file.mode(dirname(tmp[[1]]))))
+    writeLines("PRIVATE-NEW", tmp[[1]])
+  })
+  expect_identical(seen, "700")
+  expect_identical(format(file.mode(dest)), "600")
+  expect_identical(readLines(dest), "PRIVATE-NEW")
+  # a requested output named like the stage directory is written, not shadowed
+  dest2 <- file.path(d, ".TOK.stage")
+  testthat::with_mocked_bindings(
+    simplePHENOTYPES:::.staged_write(c(x = dest2), "probe", function(tmp) writeLines("NEW", tmp[[1]])),
+    .random_token = local({ n <- 0L; function() { n <<- n + 1L; if (n == 1L) "TOK" else "OK" } }),
+    .package = "simplePHENOTYPES")
+  expect_identical(readLines(dest2), "NEW")
+  # the plain one-file call rejects an over-long leaf with the package message
+  long <- file.path(d, paste0(strrep("z", 252), ".txt"))
+  expect_error(write_phenotypes(sim, long), "longer than 255 bytes")
+  expect_false(file.exists(long))
+})
