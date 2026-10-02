@@ -34,13 +34,29 @@
 #' measure on this in-memory matrix); SNPRelate is not required. RNG stays in R
 #' (DECISION-006); the seed is already set by the caller `.draw_qtn()`.
 #'
+#' **Phase** (`ld_phase`, applied by the additive layer through
+#' `.apply_ld_phase()`, not here): the window is on r2, so the *sign* of the
+#' pair's dosage correlation r -- which allele of trait 2's locus rides on the
+#' haplotype carrying trait 1's increasing allele -- is whatever the marker
+#' coding happens to give. A pair contributes `e1 * e2 * Cov(x1, x2)` to the
+#' two traits' genetic covariance, i.e. its sign is `sign(e1 * e2 * r)`. The
+#' default `ld_phase = "coded"` leaves the effect signs to the effect series
+#' (so the linkage-induced correlation has an arbitrary, coding-dependent sign
+#' per pair); `"coupling"` and `"repulsion"` flip trait 2's effect where needed
+#' so that every pair's sign is `+1` or `-1` respectively. Only trait 2's
+#' effects move: the loci, trait 1's effects, r and r2 are unchanged. The signed
+#' r is stored for that purpose (see `@return`).
+#'
 #' @param sim a `phenotype_sim` with `architecture = "ld"` and `n_traits = 2`.
 #' @param n_qtn number of linked causal loci per trait.
 #' @return a length-2 list of causal marker-index vectors (trait 1, trait 2),
 #'   carrying an `"ld"` attribute: one data frame with a row per linked pair and
 #'   columns `qtn_t1`, `qtn_t2` (the two traits' causal marker indices), `r2`
 #'   (their squared correlation), and `cause` (the hidden cause-of-LD marker for
-#'   `"indirect"`, `NA` for `"direct"`).
+#'   `"indirect"`, `NA` for `"direct"`). The data frame itself carries an `"r"`
+#'   attribute: the *signed* Pearson correlation of the pair's dosage columns
+#'   (`r^2 == r2` up to floating point), kept as an attribute rather than a
+#'   column so the documented column set stays stable.
 #' @keywords internal
 #' @noRd
 .draw_qtn_ld <- function(sim, n_qtn) {
@@ -98,16 +114,18 @@
     data.frame(idx = others[ok], r2 = r2v[ok])
   }
 
-  # Squared correlation between two markers on the same chromosome. Used to
-  # report the linkage between the two traits' causal SNPs directly, which is
-  # the number that drives the spurious correlation regardless of ld_type.
-  r2_pair <- function(a, b) {
+  # Signed and squared correlation between two markers on the same chromosome.
+  # r2 is reported as the linkage between the two traits' causal SNPs directly,
+  # the number that drives the spurious correlation regardless of ld_type; the
+  # sign of r is what ld_phase needs (the window discards it).
+  r_pair <- function(a, b) {
     on_chr <- intersect(cand, which(chr == chr[a]))
     block <- chr_block(chr[a])
     r <- suppressWarnings(stats::cor(block[, match(a, on_chr)],
                                      block[, match(b, on_chr)]))
-    as.numeric(r)^2
+    as.numeric(r)
   }
+  r2_pair <- function(a, b) r_pair(a, b)^2
 
   t1 <- integer(n_qtn)
   t2 <- integer(n_qtn)
@@ -191,8 +209,47 @@
   # access but not surfaced as a QTN in qtn_table(), since it is not causal.
   r2_link <- if (ld_type == "direct") r2_1 else
     vapply(seq_len(n_qtn), function(i) r2_pair(t1[i], t2[i]), numeric(1))
-  attr(qtn, "ld") <- data.frame(
-    qtn_t1 = t1, qtn_t2 = t2, r2 = r2_link, cause = cause
-  )
+  ld <- data.frame(qtn_t1 = t1, qtn_t2 = t2, r2 = r2_link, cause = cause)
+  # The signed r rides along as an attribute (not a column: the column set is
+  # part of the documented contract). r2 above is left exactly as computed so
+  # the default path stays bit-identical; r is recomputed from the pair, and
+  # cor() consumes no RNG.
+  attr(ld, "r") <- vapply(seq_len(n_qtn), function(i) r_pair(t1[i], t2[i]),
+                          numeric(1))
+  attr(qtn, "ld") <- ld
   qtn
+}
+
+#' Impose the haplotype-derived coupling / repulsion phase of an `"ld"` pair
+#'
+#' For every linked pair the sign of the pair's contribution to the two traits'
+#' genetic covariance is `sign(e1 * e2 * r)`, with `r` the signed dosage
+#' correlation of the pair stored by `.draw_qtn_ld()`. `"coupling"` flips trait
+#' 2's effect wherever that sign is `-1`, `"repulsion"` wherever it is `+1`, so
+#' the constraint holds pair by pair on the final effects; `"coded"` returns the
+#' effects untouched. Only trait 2's effects move. Called after `.apply_phase()`
+#' (the positional alternation of `additive(phase =)`), so an alternation that
+#' breaks the constraint is undone pair by pair and `ld_phase` wins. A zero
+#' effect (explicit `effect =` series) has no sign and is left alone; `r == 0`
+#' cannot occur because the r2 window excludes it.
+#' @param eff_list per-trait effect list (length 2) as returned by the series.
+#' @param qtn the `.draw_qtn_ld()` result (carries the `"ld"` attribute).
+#' @param ld_phase `"coded"`, `"coupling"` or `"repulsion"`.
+#' @return `eff_list` with trait 2's signs adjusted.
+#' @keywords internal
+#' @noRd
+.apply_ld_phase <- function(eff_list, qtn, ld_phase) {
+  if (is.null(ld_phase) || identical(ld_phase, "coded")) {
+    return(eff_list)
+  }
+  r <- attr(attr(qtn, "ld"), "r")
+  if (is.null(r)) {
+    stop("ld_phase needs the signed pair correlation, which these loci do not ",
+         "carry.", call. = FALSE)       # internal invariant; not user-reachable
+  }
+  target <- if (identical(ld_phase, "coupling")) 1 else -1
+  s <- sign(eff_list[[1L]] * eff_list[[2L]] * r)
+  flip <- s != 0 & s != target
+  eff_list[[2L]][flip] <- -eff_list[[2L]][flip]
+  eff_list
 }

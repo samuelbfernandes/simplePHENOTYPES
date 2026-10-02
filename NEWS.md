@@ -1,5 +1,7 @@
 # simplePHENOTYPES (development version)
 
+* `architecture = "ld"` gains `ld_phase = c("coded", "coupling", "repulsion")`: a haplotype-derived phase for each linked pair. `"coupling"`/`"repulsion"` flip trait 2's additive effect so that the linkage-induced covariance sign(e1*e2*r) is +1/-1 for every pair; the signed r is kept as the `"r"` attribute of the layer's `$ld` frame. The default `"coded"` is bit-identical to before.
+
 ## Engine requests from breedingDesigner SPEC-0020 (2026-09)
 
 Items 1, 2, 3, 5, 6, 7 and 8 of the breedingDesigner engine-request list. All new

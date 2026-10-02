@@ -210,6 +210,25 @@
 #'   markers (r2 = 1) are never used as a partner, and the window must satisfy
 #'   `0 < r2_max` and `r2_min < 1`.
 #'
+#'   Under `"ld"`, `ld_phase = c("coded", "coupling", "repulsion")` sets the
+#'   **haplotype-derived phase** of each linked pair. The r2 window ignores the
+#'   sign of the pair's dosage correlation r, so with the default `"coded"` the
+#'   sign of the linkage-induced covariance -- `sign(e1 * e2 * r)` per pair,
+#'   `e1`/`e2` the pair's trait-1/trait-2 additive effects -- follows the
+#'   arbitrary marker coding and the effect series. `"coupling"` flips trait
+#'   2's effect wherever needed so that every pair's sign is positive (the allele
+#'   raising trait 1 travels with the allele raising trait 2; positive
+#'   linkage-induced genetic correlation); `"repulsion"` makes every pair's sign
+#'   negative (the allele raising trait 1 travels with the allele lowering trait
+#'   2). Only trait 2's additive effects change: the loci, trait 1's effects,
+#'   r and r2 are those of `"coded"`. It acts on the [additive()] layer's
+#'   effects (also per replication with `vary_qtn = TRUE`); a [dominance()]
+#'   layer reusing the linked loci (`same_as_add = TRUE`) keeps its own
+#'   deviations untouched. It is applied after the positional
+#'   `additive(phase =)` alternation, which it overrides pair by pair on trait
+#'   2. The signed r of each pair is kept as the `"r"` attribute of the layer's
+#'   `$ld` pair frame.
+#'
 #'   `cor` is the target **genetic** correlation and works for any number of
 #'   traits: a scalar applied to every trait pair, or a full
 #'   `n_traits x n_traits` matrix (negative correlations allowed). It applies to
@@ -475,7 +494,7 @@ simulate_phenotype <- function(geno = NULL,
   known <- list(
     pleiotropy  = c("cor", "pi", "pi_target", "pi_secondary",
                     "n_pleio_major", "prop_var_major"),
-    ld          = c("ld_type", "r2_max", "r2_min", "partner"),
+    ld          = c("ld_type", "r2_max", "r2_min", "partner", "ld_phase"),
     independent = c("distinct_chr")
   )
   valid_here <- known[[architecture]]
@@ -523,6 +542,14 @@ simulate_phenotype <- function(geno = NULL,
           !arch_args$partner %in% c("strongest", "random")) {
         stop("`partner` must be \"strongest\" (default) or \"random\".",
              call. = FALSE)
+      }
+    }
+    if (!is.null(arch_args$ld_phase)) {
+      if (!is.character(arch_args$ld_phase) ||
+          length(arch_args$ld_phase) != 1L ||
+          !arch_args$ld_phase %in% c("coded", "coupling", "repulsion")) {
+        stop("`ld_phase` must be \"coded\" (default), \"coupling\" or ",
+             "\"repulsion\".", call. = FALSE)
       }
     }
     lo <- if (is.null(arch_args$r2_min)) 0.2 else arch_args$r2_min
