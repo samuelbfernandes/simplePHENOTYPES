@@ -692,8 +692,8 @@ file_bytes <- function(f) readBin(f, "raw", n = file.size(f))
 
 # no staging temporaries or backups may survive a call, successful or not
 staging_files <- function(d) {
-  list.files(d, pattern = "^\\..*\\.(part|bak)(\\.|$)", all.files = TRUE,
-             recursive = TRUE)
+  list.files(d, pattern = "^\\..*\\.stage$", all.files = TRUE,
+             recursive = TRUE, include.dirs = TRUE)
 }
 expect_no_part_files <- function(d) {
   expect_length(staging_files(d), 0L)
@@ -811,9 +811,12 @@ test_that("staged writes: a failure in the middle leaves every destination untou
     writeLines("new phenotypes", tmp[["phenotypes"]])
     writeLines("new qtn", tmp[["qtn_table"]])
   })
-  expect_identical(dirname(seen), c(d, d))
-  # hidden and short: a random token, the tag and the destination's extension
-  expect_true(all(grepl("^\\.[^.]+\\.part\\.txt$", basename(seen))))
+  # inside one private stage directory of the destination directory, under
+  # short fixed names that keep the destination's extension
+  expect_identical(dirname(dirname(seen)), c(d, d))
+  expect_identical(dirname(seen)[1L], dirname(seen)[2L])
+  expect_match(basename(dirname(seen)), "^\\.[^.]+\\.stage$")
+  expect_identical(basename(seen), c("1.txt", "2.txt"))
   expect_identical(readLines(f), "new phenotypes")
   expect_identical(readLines(q), "new qtn")
   expect_no_part_files(d)
@@ -1041,14 +1044,15 @@ test_that("commit phase is all or none: a directory made read-only after the wri
   expect_identical(readLines(f1), "OLD-FIRST")
   expect_identical(readLines(f2), "OLD-SECOND")
   expect_length(staging_files(d1), 0L)
-  expect_false(any(grepl("\\.bak\\.", list.files(d, all.files = TRUE, recursive = TRUE))))
-  # the one temporary that could not be removed (read-only directory) is
-  # named in a warning, and it is the only leftover
-  left <- staging_files(d2)
+  expect_setequal(list.files(d1, all.files = TRUE, no.. = TRUE), "first.txt")
+  # the one stage directory that could not be removed (read-only parent) is
+  # named in a warning, and it is the only leftover in d2
+  left <- list.files(d2, pattern = "\\.stage$", all.files = TRUE, include.dirs = TRUE)
   expect_length(left, 1L)
-  expect_true(any(grepl("could not remove the staging file", warns)))
+  expect_setequal(list.files(d2, all.files = TRUE, no.. = TRUE), c("second.txt", left))
+  expect_true(any(grepl("could not remove the staging director", warns)))
   expect_true(any(grepl(left, warns, fixed = TRUE)))
-  unlink(file.path(d2, left))
+  unlink(file.path(d2, left), recursive = TRUE)
 })
 
 test_that("commit phase is all or none: a failing rename through the public API", {
@@ -1059,7 +1063,7 @@ test_that("commit phase is all or none: a failing rename through the public API"
   # replaced and must come back
   local_mocked_bindings(
     .file_rename = function(from, to) {
-      if (grepl("\\.part\\.txt$", from) && identical(to, q)) return(FALSE)
+      if (basename(from) == "2.txt" && identical(to, q)) return(FALSE)
       file.rename(from, to)
     },
     .package = "simplePHENOTYPES")
@@ -1071,7 +1075,7 @@ test_that("commit phase is all or none: a failing rename through the public API"
   # the same with the split export: four destinations, the last one fails
   local_mocked_bindings(
     .file_rename = function(from, to) {
-      if (grepl("\\.part\\.txt$", from) &&
+      if (basename(from) == "4.txt" &&
           identical(to, file.path(d, "pheno_noncausal_markers.txt"))) return(FALSE)
       file.rename(from, to)
     },
@@ -1184,26 +1188,29 @@ test_that("a backup that cannot be put back is kept and named; nothing is silent
   # QTN file's own backup restores normally
   local_mocked_bindings(
     .file_rename = function(from, to) {
-      if (grepl("\\.part\\.txt$", from) && identical(to, q)) return(FALSE)
-      if (grepl("\\.bak\\.txt$", from) && identical(to, f)) return(FALSE)
+      if (basename(from) == "2.txt" && identical(to, q)) return(FALSE)
+      if (basename(from) == "b1" && identical(to, f)) return(FALSE)
       file.rename(from, to)
     },
     .package = "simplePHENOTYPES")
   err <- tryCatch(write_phenotypes(ph_layers, f, qtn_file = q),
                   error = function(e) conditionMessage(e))
-  baks <- list.files(d, pattern = "\\.bak\\.txt$", all.files = TRUE, full.names = TRUE)
-  expect_length(baks, 1L)                                  # kept, not removed
-  expect_identical(readLines(baks), "OLD-PHENO")           # the old content
+  stage <- list.files(d, pattern = "\\.stage$", all.files = TRUE,
+                      include.dirs = TRUE, full.names = TRUE)
+  expect_length(stage, 1L)                                 # kept, not removed
+  bak <- file.path(stage, "b1")
+  expect_identical(list.files(stage, all.files = TRUE, no.. = TRUE), "b1")
+  expect_identical(readLines(bak), "OLD-PHENO")            # the old content
   expect_match(err, "could not move")
   expect_match(err, "mixed state")
-  expect_true(grepl(baks, err, fixed = TRUE))              # names the backup
+  expect_true(grepl(bak, err, fixed = TRUE))               # names the backup
+  expect_true(grepl(stage, err, fixed = TRUE))             # and its directory
   expect_true(grepl(f, err, fixed = TRUE))                 # and the destination
   expect_identical(readLines(q), "OLD-QTN")                # restored, so it is
   mixed_part <- sub("^[^\n]*\n", "", err)                  # the appended paragraph
   expect_false(grepl(q, mixed_part, fixed = TRUE))
   expect_true(grepl(f, mixed_part, fixed = TRUE))
-  expect_length(list.files(d, pattern = "\\.part", all.files = TRUE), 0L)
-  unlink(baks)
+  unlink(stage, recursive = TRUE)
 })
 
 test_that("rollback checks the return of unlink(): an unremovable placed file is reported", {
@@ -1215,9 +1222,9 @@ test_that("rollback checks the return of unlink(): an unremovable placed file is
   # the placed phenotype file is made immutable, then the QTN placement fails
   local_mocked_bindings(
     .file_rename = function(from, to) {
-      if (grepl("\\.part\\.txt$", from) && identical(to, q)) return(FALSE)
+      if (basename(from) == "2.txt" && identical(to, q)) return(FALSE)
       ok <- file.rename(from, to)
-      if (ok && identical(to, f) && grepl("\\.part\\.txt$", from)) {
+      if (ok && identical(to, f) && basename(from) == "1.txt") {
         system2("chflags", c("uchg", shQuote(f)))
       }
       ok
@@ -1230,13 +1237,15 @@ test_that("rollback checks the return of unlink(): an unremovable placed file is
                   error = function(e) conditionMessage(e))
   system2("chflags", c("nouchg", shQuote(f)), stdout = FALSE, stderr = FALSE)
   skip_if(identical(readLines(f), "OLD-PHENO"), "immutable flag not enforced")
-  baks <- list.files(d, pattern = "\\.bak\\.txt$", all.files = TRUE, full.names = TRUE)
-  expect_length(baks, 1L)
-  expect_identical(readLines(baks), "OLD-PHENO")
+  stage <- list.files(d, pattern = "\\.stage$", all.files = TRUE,
+                      include.dirs = TRUE, full.names = TRUE)
+  expect_length(stage, 1L)
+  bak <- file.path(stage, "b1")
+  expect_identical(readLines(bak), "OLD-PHENO")
   expect_match(err, "mixed state")
-  expect_true(grepl(baks, err, fixed = TRUE))
+  expect_true(grepl(bak, err, fixed = TRUE))
   expect_identical(readLines(q), "OLD-QTN")
-  unlink(baks)
+  unlink(stage, recursive = TRUE)
 })
 
 test_that("the staging extension comes from the user's path, not the symlink target", {
@@ -1291,9 +1300,9 @@ test_that("a dangling symlink destination is written through and its target crea
   expect_identical(.write_target(l2), missing)
 })
 
-test_that("staging names are short and reserved: long leaves work, foreign files are never touched", {
+test_that("staging uses a private stage directory: no shared names, long leaves work", {
   d <- new_dir()
-  # a 240-byte leaf with a companion (the staged name must not inherit it)
+  # a 240-byte leaf with a companion (the staged names never contain it)
   leaf <- paste0(strrep("p", 236), ".txt")
   expect_identical(nchar(leaf, type = "bytes"), 240L)
   f <- file.path(d, leaf)
@@ -1301,46 +1310,120 @@ test_that("staging names are short and reserved: long leaves work, foreign files
   expect_true(file.exists(f))
   expect_true(startsWith(readLines(f, 1L), "id\t"))
   expect_no_part_files(d)
-  # the names handed to the writer are short
+  # the names handed to the writer are short and inside the stage directory
   seen <- character(0)
   .staged_write(c(a = f), "fn", function(tmp) {
     seen <<- unname(tmp)
     writeLines("x", tmp[["a"]])
   })
-  expect_lt(nchar(basename(seen), type = "bytes"), 40L)
-  expect_match(basename(seen), "^\\.[^.]+\\.part\\.txt$")
-  # a file already at a would-be staging name is left alone: the first token
-  # collides, the second is free
-  tok <- c("COLLIDE", "free1", "free2", "free3", "free4")
+  expect_identical(basename(seen), "1.txt")
+  expect_match(basename(dirname(seen)), "^\\.[^.]+\\.stage$")
+  expect_identical(dirname(dirname(seen)), d)
+  # a requested destination named like a would-be backup of an earlier design,
+  # and user files with such names, are ordinary files: nothing shares a name
+  # with the stage directory's contents, so they are never touched
+  odd <- file.path(d, ".TOK.bak.txt")
+  foreign <- c(file.path(d, ".TOK.part.txt"), file.path(d, "b1"), file.path(d, "1.txt"))
+  for (p in foreign) writeLines("UNRELATED-USER-DATA", p)
+  a <- file.path(d, "a.txt")
+  writeLines("OLD-A", a)
+  .staged_write(c(a = a, b = odd), "fn", function(tmp) {
+    writeLines("NEW-A", tmp[["a"]])
+    writeLines("NEW-B", tmp[["b"]])
+  })
+  expect_identical(readLines(a), "NEW-A")
+  expect_identical(readLines(odd), "NEW-B")
+  for (p in foreign) expect_identical(readLines(p), "UNRELATED-USER-DATA")
+  expect_no_part_files(d)
+  # a stage directory that already exists (another creator) is not reused:
+  # the next token is taken and the existing directory's content is untouched
+  tok <- c("COLLIDE", "free1", "free2")
   i <- 0L
   local_mocked_bindings(
     .random_token = function() { i <<- i + 1L; tok[[min(i, length(tok))]] },
     .package = "simplePHENOTYPES")
-  foreign <- file.path(d, ".COLLIDE.part.txt")
-  writeLines("UNRELATED-USER-DATA", foreign)
+  other <- file.path(d, ".COLLIDE.stage")
+  dir.create(other)
+  writeLines("OTHER-CREATOR", file.path(other, "1.txt"))
   g <- file.path(d, "g.txt")
   writeLines("old", g)
   write_qtn_table(ph_layers, g)
-  expect_identical(readLines(foreign), "UNRELATED-USER-DATA")
   expect_true(startsWith(readLines(g, 1L), "trait\t"))
-  expect_false(file.exists(file.path(d, ".free1.part.txt")))
-  # the same for a backup name
-  i <- 0L
-  tok <- c("free9", "COLLIDE", "free8")
-  foreign_bak <- file.path(d, ".COLLIDE.bak.txt")
-  writeLines("UNRELATED-BACKUP", foreign_bak)
-  write_qtn_table(ph_layers, g)
-  expect_identical(readLines(foreign_bak), "UNRELATED-BACKUP")
-  # exhaustion: every draw collides -> error, nothing written or removed
+  expect_identical(readLines(file.path(other, "1.txt")), "OTHER-CREATOR")
+  expect_true(dir.exists(other))
+  expect_false(dir.exists(file.path(d, ".free1.stage")))      # ours was removed
+  # exhaustion: every token collides -> error, nothing written or removed
   i <- 0L
   tok <- "COLLIDE"
   h <- file.path(d, "h.txt")
   writeLines("OLD-H", h)
-  expect_error(write_qtn_table(ph_layers, h), "could not reserve")
+  expect_error(write_qtn_table(ph_layers, h), "could not create a staging directory")
   expect_identical(readLines(h), "OLD-H")
-  expect_identical(readLines(foreign), "UNRELATED-USER-DATA")
-  unlink(c(foreign, foreign_bak))
+  expect_identical(readLines(file.path(other, "1.txt")), "OTHER-CREATOR")
+  unlink(other, recursive = TRUE)
   expect_no_part_files(d)
+})
+
+test_that("symbolic link loops and over-long chains are rejected before anything is written", {
+  skip_on_os("windows")
+  d <- new_dir()
+  l1 <- file.path(d, "l1.txt"); l2 <- file.path(d, "l2.txt")
+  skip_if_not(isTRUE(file.symlink("l2.txt", l1)), "symlinks not available")
+  file.symlink("l1.txt", l2)
+  expect_error(.write_target(l1), "symbolic link loop")
+  expect_error(write_qtn_table(ph_layers, l1), "symbolic link loop")
+  expect_error(write_phenotypes(ph_layers, file.path(d, "p.txt"), qtn_file = l1),
+               "symbolic link loop")
+  expect_identical(Sys.readlink(l1), "l2.txt")                 # links untouched
+  expect_identical(Sys.readlink(l2), "l1.txt")
+  expect_setequal(list.files(d, all.files = TRUE, no.. = TRUE), c("l1.txt", "l2.txt"))
+  # a chain of 40 links is followed to its (missing) end and written through
+  chain <- function(n, prefix) {
+    for (k in seq_len(n)) {
+      nxt <- if (k < n) paste0(prefix, k + 1L, ".txt") else paste0(prefix, "final.txt")
+      file.symlink(nxt, file.path(d, paste0(prefix, k, ".txt")))
+    }
+    file.path(d, paste0(prefix, 1L, ".txt"))
+  }
+  c40 <- chain(40L, "c")
+  expect_identical(.write_target(c40), file.path(d, "cfinal.txt"))
+  write_qtn_table(ph_layers, c40)
+  expect_true(startsWith(readLines(file.path(d, "cfinal.txt"), 1L), "trait\t"))
+  expect_identical(Sys.readlink(c40), "c2.txt")
+  # 41 links is one too many
+  c41 <- chain(41L, "x")
+  expect_error(.write_target(c41), "more than 40 levels")
+  expect_error(write_qtn_table(ph_layers, c41), "more than 40 levels")
+  expect_false(file.exists(file.path(d, "xfinal.txt")))
+  expect_identical(Sys.readlink(file.path(d, "x41.txt")), "xfinal.txt")
+  expect_no_part_files(d)
+})
+
+test_that("a default companion name longer than 255 bytes is rejected before writing", {
+  d <- new_dir()
+  leaf <- paste0(strrep("g", 248), ".txt.gz")
+  expect_identical(nchar(leaf, type = "bytes"), 255L)
+  f <- file.path(d, leaf)
+  # default companions would be 265+ bytes
+  expect_error(write_phenotypes(ph_layers, f, split_markers = TRUE),
+               "longer than 255 bytes.*markers_files")
+  expect_length(list.files(d, all.files = TRUE, no.. = TRUE), 0L)
+  # explicit short companions work, and the .gz leaf is compressed
+  out <- write_phenotypes(ph_layers, f, split_markers = TRUE,
+                          qtn_file = file.path(d, "q.txt.gz"),
+                          markers_files = c(causal = file.path(d, "c.txt.gz"),
+                                            noncausal = file.path(d, "n.txt.gz")))
+  for (p in out) {
+    expect_identical(as.integer(readBin(p, "raw", 2L)), c(31L, 139L), info = p)
+  }
+  expect_no_part_files(d)
+  # the one-file call accepts the same leaf (unchanged direct write)
+  g <- file.path(d, paste0(strrep("h", 248), ".txt.gz"))
+  write_phenotypes(ph_layers, g)
+  expect_identical(as.integer(readBin(g, "raw", 2L)), c(31L, 139L))
+  # an over-long name given directly
+  expect_error(write_qtn_table(ph_layers, file.path(d, paste0(strrep("z", 260), ".txt"))),
+               "longer than 255 bytes")
 })
 
 test_that("the one-file call writes the same bytes as before (no staging, no change)", {

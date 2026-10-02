@@ -1850,19 +1850,22 @@ so this is I/O only (no theory review needed beyond the causal-set definition).
 **Round 8-9 (Codex review) amendments:** text marker files are in the numeric format, so `as_numeric()` and
 `simulate_phenotype()` read them back; `as_population()` additionally needs a non-empty file with a complete crossing
 map (`chr`, `pos`, `cm` without missing values), which a matrix-origin export or an empty partition does not provide.
-Data-frame and matrix input stream in chunks of 2,000 markers. Every destination is preflighted (its directory exists and is writable, it is not a directory;
-for a symlinked destination -- live or dangling -- the link is followed and its target's
-directory is checked). Paths are compared after resolving them: through leaf symlinks, then an
-existing leaf in full, otherwise the longest existing ancestor plus the missing tail; on macOS the
-key is Unicode-normalised (NFD) and case-folded, on Windows case-folded; two hard links to one
-file are not detected. With companions, and in `write_qtn_table()`, every file is written to a
-short hidden temporary reserved in its destination directory (`.<token>.part<ext>`, the extension
-of the user's path kept so `fwrite()` still gzip-compresses a `.gz` name; a name already in use is
-never taken, and the export only ever removes or renames onto files it created). The set is then
-committed: an existing destination keeps its permission mode, is set aside under a reserved
-`.<token>.bak<ext>` name, and is put back if any rename fails; a backup that cannot be put back is
-kept and the error names it and the destination left in a mixed state, so previous content is
-never silently lost. Temporaries that cannot be removed are named in a warning. A symlinked
+Data-frame and matrix input stream in chunks of 2,000 markers. Every destination is preflighted before anything is written: its directory exists and is
+writable, it is not a directory, its file name (and that of every default companion derived from
+`file`) fits 255 bytes, and a symlinked destination -- live or dangling -- is followed to its
+target (a link loop or more than 40 links is an error). Paths are compared after resolving them
+(through leaf links, then an existing leaf in full, otherwise the longest existing ancestor plus
+the missing tail; on macOS Unicode-normalised and case-folded, on Windows case-folded; two hard
+links to one file are not detected). With companions, and in `write_qtn_table()`, every file is
+written into a private staging directory `.<token>.stage` created exclusively (`dir.create()`) in
+its destination directory, under short fixed names `1<ext>`, `2<ext>`, ... that keep the extension
+of the user's path (so `fwrite()` still gzip-compresses a `.gz` name); because the directory is
+the export's own, no staged or backup name can coincide with a requested output or a foreign file.
+The set is then committed: an existing destination keeps its permission mode, is moved into the
+staging directory as `b<i>`, and is put back if any rename fails, every return checked; a backup
+that cannot be put back is kept in its staging directory, which the error names together with the
+destination left in a mixed state, so previous content is never silently lost. On success the
+staging directory is removed; one that cannot be removed is named in a warning. A symlinked
 destination is written through (link kept, target updated or created). Best effort over
 same-directory `file.rename()`, exercised on POSIX, not on Windows. The plain one-file call writes
 directly and is byte-identical to earlier releases.

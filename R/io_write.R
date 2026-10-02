@@ -144,23 +144,27 @@ phenotypes_wide <- function(sim) {
 #' symlinked directories and symlinked files -- live or dangling -- are
 #' resolved; on macOS the comparison also ignores case and Unicode
 #' normalisation form, on Windows case; two *hard links* to one file have
-#' unrelated names and are not detected). With companions, all files are
-#' first written to short hidden temporaries reserved in their destination
-#' directories (named with the destination's extension, so a `.gz` destination
-#' is still compressed by the text writer; a name already in use is never
-#' taken), and then moved into place as a group: an existing file keeps its
-#' permission mode and is set aside under a reserved backup name first, and if
-#' any step of that move fails the set-aside files are put back. Should a
-#' backup itself fail to go back, it is kept and the error names it and the
+#' unrelated names and are not detected). A file name longer than 255 bytes --
+#' including a default companion name derived from a long `file` -- is
+#' rejected before anything is written. With companions, all files are first
+#' written into a private staging directory (`.<token>.stage`, created
+#' exclusively in each destination directory) under short fixed names that
+#' keep the destination's extension, so a `.gz` destination is still
+#' compressed by the text writer and no staged file can share a name with a
+#' requested output or with anything else in the directory. The set is then
+#' moved into place as a group: an existing file keeps its permission mode and
+#' is first moved into the staging directory as its backup, and if any step of
+#' that move fails the backups are put back. Should a backup itself fail to go
+#' back, its staging directory is kept and the error names it and the
 #' destination, so the previous content is never silently lost. A destination
 #' that is a symbolic link is written through (the link stays, its target is
-#' updated or created). This is a best-effort guarantee built on
-#' `file.rename()` within one directory; it has been exercised on POSIX file
-#' systems, not on Windows, and a staging file that cannot be removed (its
-#' directory made read-only meanwhile) is named in a warning rather than
-#' silently left. The plain one-file call writes directly, as earlier versions
-#' did. JSON numbers use a period as decimal mark whatever the session's
-#' `LC_NUMERIC`.
+#' updated or created); a link loop or a chain of more than 40 links is an
+#' error. This is a best-effort guarantee built on `file.rename()` within one
+#' directory; it has been exercised on POSIX file systems, not on Windows, and
+#' a staging directory that cannot be removed (its parent made read-only
+#' meanwhile) is named in a warning rather than silently left. The plain
+#' one-file call writes directly, as earlier versions did. JSON numbers use a
+#' period as decimal mark whatever the session's `LC_NUMERIC`.
 #'
 #' @param sim a `phenotype_sim`.
 #' @param file output path.
@@ -592,10 +596,11 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
 #'
 #' A destination that is a symbolic link -- live or dangling -- is written
 #' *through*: the link is followed (a relative link target is taken relative
-#' to the link's directory; chains are followed up to 40 deep), the staged
-#' file is created beside the final target and renamed onto it, so the link
-#' survives and points at the updated (or newly created) file. Anything else
-#' is written at the path given.
+#' to the link's directory), the staged file is created beside the final
+#' target and renamed onto it, so the link survives and points at the updated
+#' (or newly created) file. A link that leads back to itself, or a chain of
+#' more than 40 links, is an error, raised before anything is written.
+#' Anything that is not a link is written at the path given.
 #' @keywords internal
 #' @noRd
 .write_target <- function(p) {
@@ -603,27 +608,55 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
   if (.Platform$OS.type == "windows") {
     return(p)
   }
-  for (i in seq_len(40L)) {
+  given <- p
+  seen <- character(0)
+  repeat {
     link <- Sys.readlink(p)
-    if (is.na(link) || !nzchar(link)) break
+    if (is.na(link) || !nzchar(link)) {
+      return(p)
+    }
+    if (length(seen) >= 40L) {
+      stop("The output path ", sQuote(given), " goes through more than 40 ",
+           "levels of symbolic links.", call. = FALSE)
+    }
+    key <- file.path(normalizePath(dirname(p), winslash = "/", mustWork = FALSE),
+                     basename(p))
+    if (key %in% seen) {
+      stop("The output path ", sQuote(given), " is a symbolic link loop.",
+           call. = FALSE)
+    }
+    seen <- c(seen, key)
     if (!grepl("^/", link)) link <- file.path(dirname(p), link)
     p <- link
   }
-  p
 }
 
 #' Check that every destination can be written before anything is written
 #'
 #' For each destination (the path as given, and the object it resolves to for
 #' writing) the parent directory must exist and be writable, the destination
-#' must not be a directory, and an existing destination must be writable.
-#' Errors name the path as the caller gave it.
+#' must not be a directory, an existing destination must be writable, and the
+#' file name must fit the 255-byte component limit (a default companion name
+#' is derived from `file`, so a long `file` can push it over: the message
+#' points to `qtn_file =` / `markers_files =`). Errors name the path as the
+#' caller gave it.
 #' @keywords internal
 #' @noRd
 .preflight_paths <- function(paths, targets, fn) {
   for (i in seq_along(paths)) {
     p <- paths[[i]]
     t <- targets[[i]]
+    if (nchar(basename(p), type = "bytes") > 255L ||
+        nchar(basename(t), type = "bytes") > 255L) {
+      stop(fn, "(): the file name of ", sQuote(p), " is longer than 255 ",
+           "bytes, which the file system does not allow. ",
+           if (identical(fn, "write_phenotypes"))
+             paste0("Default companion names add a suffix to the name of ",
+                    "`file`; give shorter names with `qtn_file =` and ",
+                    "`markers_files =`.")
+           else "Give a shorter name.",
+           call. = FALSE)
+    }
     parent <- dirname(t)
     if (!dir.exists(parent)) {
       stop(fn, "(): the directory of ", sQuote(p), " does not exist; create ",
@@ -646,7 +679,8 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
 #' @noRd
 .file_rename <- function(from, to) file.rename(from, to)
 
-#' A random token for a staging name (no R RNG: `tempfile()` draws its own)
+#' A random token for a stage directory name (no R RNG: `tempfile()` draws
+#' its own)
 #' @keywords internal
 #' @noRd
 .random_token <- function() {
@@ -671,91 +705,95 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
   if (length(m)) m else ""
 }
 
-#' Reserve a fresh, hidden staging name `.<token>.<tag><ext>` in `dir`
+#' Create a private stage directory `.<token>.stage` inside `dir`
 #'
-#' The name is created empty before it is used, and only a name that did not
-#' exist (not even as a dangling link) is accepted, so nothing a user put there
-#' is ever written over or removed: every staging file the export touches is
-#' one it created. Up to 20 draws; the name stays short (well under the 255
-#' byte component limit) whatever the destination's base name.
+#' `dir.create()` is atomic and fails when the name exists, so the directory
+#' is exclusively this export's: nothing inside it can be a file someone else
+#' created or a requested destination, which is what makes the fixed names
+#' used inside (`1<ext>`, `b1`, ...) safe. Up to 20 tokens are tried.
 #' @keywords internal
 #' @noRd
-.reserve_name <- function(dir, tag, ext, fn) {
+.stage_dir <- function(dir, fn) {
   for (i in seq_len(20L)) {
-    name <- file.path(dir, paste0(".", .random_token(), ".", tag, ext))
-    if (nchar(basename(name), type = "bytes") > 255L) {
-      name <- file.path(dir, paste0(".", .random_token(), ".", tag))
+    stage <- file.path(dir, paste0(".", .random_token(), ".stage"))
+    if (file.exists(stage) || !is.na(Sys.readlink(stage)) &&
+        nzchar(Sys.readlink(stage))) next
+    if (isTRUE(suppressWarnings(dir.create(stage, showWarnings = FALSE)))) {
+      return(stage)
     }
-    link <- Sys.readlink(name)                    # NA or "" when not a link
-    if (file.exists(name) || (!is.na(link) && nzchar(link))) next
-    if (isTRUE(file.create(name, showWarnings = FALSE))) return(name)
   }
-  stop(fn, "(): could not reserve a staging file name in ", sQuote(dir),
+  stop(fn, "(): could not create a staging directory in ", sQuote(dir),
        " after 20 attempts.", call. = FALSE)
 }
 
-#' Remove staging files the export created, warning about any left behind
+#' Remove stage directories (and everything in them), warning about leftovers
 #' @keywords internal
 #' @noRd
-.remove_leftovers <- function(files, fn) {
-  files <- files[!is.na(files) & file.exists(files)]
-  if (length(files)) {
-    unlink(files)
-    left <- files[file.exists(files)]
+.remove_stage_dirs <- function(dirs, fn) {
+  dirs <- dirs[!is.na(dirs) & dir.exists(dirs)]
+  if (length(dirs)) {
+    unlink(dirs, recursive = TRUE)
+    left <- dirs[dir.exists(dirs)]
     if (length(left)) {
-      warning(fn, "(): could not remove the staging file(s) ",
+      warning(fn, "(): could not remove the staging directory(ies) ",
               paste(sQuote(left), collapse = ", "),
               "; remove them by hand.", call. = FALSE)
     }
   }
-  invisible(files)
+  invisible(dirs)
 }
 
 #' Write a set of files as a group, all or none
 #'
 #' `paths` is a named character vector of destinations. After the preflight,
-#' `writer(tmp)` receives a same-named vector of reserved hidden temporaries
-#' (in each destination's directory -- the directory of the link target when
-#' the destination is a symlink -- so no rename crosses a file system; named
-#' with the destination's extension so the writer treats them alike) and
-#' writes every file there. If the writer fails, the temporaries are removed
-#' and every destination is untouched. Otherwise `.commit_staged()` moves the
-#' set into place. Staging files that cannot be removed (a directory made
-#' read-only in the meantime) are named in a warning.
+#' one private stage directory is created in each destination directory (the
+#' directory of the link target when the destination is a symlink, so no
+#' rename crosses a file system). `writer(tmp)` receives a same-named vector
+#' of files inside those directories, named `1<ext>`, `2<ext>`, ... with the
+#' extension of the user's path (so the writer treats them as it would the
+#' destination), and writes every file there. If the writer fails, the stage
+#' directories are removed and every destination is untouched. Otherwise
+#' `.commit_staged()` moves the set into place. A stage directory that cannot
+#' be removed (its parent made read-only in the meantime) is named in a
+#' warning.
 #' @keywords internal
 #' @noRd
 .staged_write <- function(paths, fn, writer) {
   targets <- vapply(paths, .write_target, character(1))
   names(targets) <- names(paths)
   .preflight_paths(paths, targets, fn)
-  tmp <- character(0)
+  dirs <- unique(dirname(targets))
+  stage <- character(0)
   written <- FALSE
-  on.exit(if (!written) .remove_leftovers(tmp, fn), add = TRUE)
-  for (i in seq_along(paths)) {
-    tmp[[i]] <- .reserve_name(dirname(targets[[i]]), "part",
-                              .staging_ext(paths[[i]]), fn)
+  on.exit(if (!written) .remove_stage_dirs(stage, fn), add = TRUE)
+  for (d in dirs) {
+    stage[[d]] <- .stage_dir(d, fn)
   }
+  tmp <- vapply(seq_along(paths), function(i) {
+    file.path(stage[[dirname(targets[[i]])]],
+              paste0(i, .staging_ext(paths[[i]])))
+  }, character(1))
   names(tmp) <- names(paths)
   writer(tmp)
   written <- TRUE
-  .commit_staged(tmp, targets, fn)
+  .commit_staged(tmp, targets, stage, fn)
   invisible(paths)
 }
 
 #' Move finished staged files onto their targets, all or none
 #'
-#' An existing target keeps its permission mode and is first set aside under
-#' a reserved backup name; the temporaries are then renamed into place. If any
-#' step fails, every placed file is replaced by its backup again (an atomic
-#' rename, or unlink then rename), and the return of every unlink and rename
-#' is checked: a backup that could not be put back is **kept**, never removed,
-#' and the error names it together with every destination left in a mixed
+#' An existing target keeps its permission mode and is first moved into its
+#' stage directory as `b<i>`; the staged files are then renamed onto the
+#' targets. If any step fails, every placed file is replaced by its backup
+#' again (an atomic rename, or unlink then rename), and the return of every
+#' unlink and rename is checked: a backup that could not be put back is
+#' **kept** -- its stage directory stays, with the staged temporaries removed
+#' -- and the error names it together with every destination left in a mixed
 #' state, so the previous content is always still on disk somewhere named in
-#' the message. Backups are removed only after a successful commit or a
-#' successful restore.
+#' the message. On success the stage directories are removed.
 #' @keywords internal
 #' @noRd
-.commit_staged <- function(tmp, targets, fn) {
+.commit_staged <- function(tmp, targets, stage, fn) {
   nms <- names(targets)
   existed <- file.exists(targets)
   backup <- stats::setNames(rep(NA_character_, length(nms)), nms)
@@ -794,10 +832,9 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
     list(unrecovered = unrecovered, mixed = mixed)
   }
   tryCatch({
-    for (nm in nms[existed]) {
-      b <- .reserve_name(dirname(targets[[nm]]), "bak",
-                         .staging_ext(targets[[nm]]), fn)
-      unlink(b)                      # the reserved placeholder, created above
+    for (i in seq_along(nms)[existed]) {
+      nm <- nms[[i]]
+      b <- file.path(dirname(tmp[[nm]]), paste0("b", i))
       if (!isTRUE(.file_rename(targets[[nm]], b))) {
         stop(fn, "(): could not set aside the existing file ",
              sQuote(targets[[nm]]), " before replacing it.", call. = FALSE)
@@ -813,15 +850,19 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
     }
   }, error = function(e) {
     rb <- rollback()
-    # temporaries only: a restored backup is gone, an unrecovered one is kept
-    .remove_leftovers(tmp, fn)
+    # the staged temporaries go; a stage directory holding a backup that
+    # could not be put back is kept, every other one is removed
+    unlink(tmp[file.exists(tmp)])
+    keep <- unique(dirname(rb$unrecovered))
+    .remove_stage_dirs(setdiff(stage, keep), fn)
     msg <- conditionMessage(e)
     if (length(rb$unrecovered)) {
       msg <- paste0(
         msg, "\nThe previous content of ", paste(sQuote(rb$mixed), collapse = ", "),
         " could not be put back and is kept in ",
         paste(sQuote(rb$unrecovered), collapse = ", "),
-        "; these destinations are in a mixed state -- restore them by hand ",
+        " (staging directory ", paste(sQuote(keep), collapse = ", "),
+        "); these destinations are in a mixed state -- restore them by hand ",
         "from the backup file(s).")
     } else if (length(rb$mixed)) {
       msg <- paste0(msg, "\nThe destination(s) ",
@@ -830,7 +871,7 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
     }
     stop(msg, call. = FALSE)
   })
-  .remove_leftovers(backup, fn)
+  .remove_stage_dirs(stage, fn)
   invisible(targets)
 }
 

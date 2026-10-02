@@ -48,16 +48,19 @@
   informative error. Default behaviour of `write_phenotypes()` is unchanged when the new arguments
   are off (return value, file content, byte-identical).
 * Export safety: `write_phenotypes()` with companions and `write_qtn_table()` preflight every
-  destination, compare paths after resolving them (relative/absolute spellings, symlinked
-  directories and files including dangling links; on macOS also Unicode normalisation form and
-  case; hard links are not detected), stage every file under a short reserved hidden name beside
-  its destination (keeping the extension, so `.gz` text output is still compressed; never reusing
-  a name already in use), and commit the set as a group: existing files keep their permission mode
-  and are set aside and put back if any step fails; a backup that cannot be put back is kept and
-  named in the error, so previous content is never silently lost. A symlinked destination is
-  written through. A Population input's dosage matrix is built once per export. JSON output is
-  independent of the session's `LC_NUMERIC`; classed metadata (e.g. `bit64::integer64`) is encoded
-  as `jsonlite` encodes it. The one-file `write_phenotypes()` call is unchanged (byte-identical).
+  destination (directory exists and is writable, not a directory, file name within 255 bytes --
+  default companion names included --, symlinks followed with loop and depth errors), compare
+  paths after resolving them (relative/absolute spellings, symlinked directories and files; on
+  macOS also Unicode normalisation form and case; hard links are not detected), write every file
+  into a private staging directory created exclusively beside its destination (short fixed names
+  keeping the extension, so `.gz` text output is still compressed; no name can collide with a
+  requested output or a foreign file), and commit the set as a group: existing files keep their
+  permission mode, are moved into the staging directory as backups and put back if any step fails;
+  a backup that cannot be put back is kept and its location named in the error, so previous content
+  is never silently lost. A symlinked destination is written through. A Population input's dosage
+  matrix is built once per export. JSON output is independent of the session's `LC_NUMERIC`;
+  classed metadata (e.g. `bit64::integer64`) is encoded as `jsonlite` encodes it. The one-file
+  `write_phenotypes()` call is unchanged (byte-identical output).
 
 ## Follow-ups and gaps after the audit (2026-10)
 

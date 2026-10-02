@@ -139,23 +139,27 @@ two paths may resolve to the same file (relative and absolute spellings,
 symlinked directories and symlinked files -- live or dangling -- are
 resolved; on macOS the comparison also ignores case and Unicode
 normalisation form, on Windows case; two \emph{hard links} to one file have
-unrelated names and are not detected). With companions, all files are
-first written to short hidden temporaries reserved in their destination
-directories (named with the destination's extension, so a \code{.gz} destination
-is still compressed by the text writer; a name already in use is never
-taken), and then moved into place as a group: an existing file keeps its
-permission mode and is set aside under a reserved backup name first, and if
-any step of that move fails the set-aside files are put back. Should a
-backup itself fail to go back, it is kept and the error names it and the
+unrelated names and are not detected). A file name longer than 255 bytes --
+including a default companion name derived from a long \code{file} -- is
+rejected before anything is written. With companions, all files are first
+written into a private staging directory (\verb{.<token>.stage}, created
+exclusively in each destination directory) under short fixed names that
+keep the destination's extension, so a \code{.gz} destination is still
+compressed by the text writer and no staged file can share a name with a
+requested output or with anything else in the directory. The set is then
+moved into place as a group: an existing file keeps its permission mode and
+is first moved into the staging directory as its backup, and if any step of
+that move fails the backups are put back. Should a backup itself fail to go
+back, its staging directory is kept and the error names it and the
 destination, so the previous content is never silently lost. A destination
 that is a symbolic link is written through (the link stays, its target is
-updated or created). This is a best-effort guarantee built on
-\code{file.rename()} within one directory; it has been exercised on POSIX file
-systems, not on Windows, and a staging file that cannot be removed (its
-directory made read-only meanwhile) is named in a warning rather than
-silently left. The plain one-file call writes directly, as earlier versions
-did. JSON numbers use a period as decimal mark whatever the session's
-\code{LC_NUMERIC}.
+updated or created); a link loop or a chain of more than 40 links is an
+error. This is a best-effort guarantee built on \code{file.rename()} within one
+directory; it has been exercised on POSIX file systems, not on Windows, and
+a staging directory that cannot be removed (its parent made read-only
+meanwhile) is named in a warning rather than silently left. The plain
+one-file call writes directly, as earlier versions did. JSON numbers use a
+period as decimal mark whatever the session's \code{LC_NUMERIC}.
 }
 
 \examples{
