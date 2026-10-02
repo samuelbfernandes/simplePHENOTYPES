@@ -978,141 +978,169 @@ qtn_linkage <-
         LD_summary <- vector("list", rep)
         seed_num <- c()
         for (z in 1:rep) {
-          s <- 1
-          border <- TRUE
           genofile <- SNPRelate::snpgdsOpen(gdsfile)
-          while (s <= 10 & border) {
-              seed_num[z] <- (seed * s) + z
-              set.seed(seed_num[z])
-            vector_of_add_QTN <-
-              sample(index, add_QTN_num, replace = FALSE)
-            sup_temp <- c()
-            ld_between_QTNs_temp <- c()
-            x <- 1
-            for (j in vector_of_add_QTN) {
-              times <- 1
-              dif <- c()
-              ldsup <- 1
-              ldinf <- 1
-              i <- j + 1
-              i2 <- j - 1
-              while (times <= 100 & (ldsup > ld_max | ldsup < ld_min) &
-                     (ldinf > ld_max | ldinf < ld_min)) {
-                if (i > n & i2 < 1) {
-                  if (i > n) {
-                    if (verbose)
-                      warning(
-                        "There are no SNPs downstream. Selecting a different seed number",
-                        call. = F,
-                        immediate. = T
-                      )
-                    break
-                  }
-                  if (i2 < 1) {
-                    if (verbose)
-                      warning(
-                        "There are no SNPs upstream. Selecting a different seed number",
-                        call. = F,
-                        immediate. = T
-                      )
-                    break
-                  }
-                }
-                snp1 <-
-                  gdsfmt::read.gdsn(
-                    gdsfmt::index.gdsn(genofile, "genotype"),
-                    start = c(1, j),
-                    count = c(-1, 1)
-                  )
-                snp2 <-
-                  gdsfmt::read.gdsn(
-                    gdsfmt::index.gdsn(genofile, "genotype"),
-                    start = c(1, i),
-                    count = c(-1, 1)
-                  )
-                snp3 <-
-                  gdsfmt::read.gdsn(
-                    gdsfmt::index.gdsn(genofile, "genotype"),
-                    start = c(1, i2),
-                    count = c(-1, 1)
-                  )
-                ldsup <-
-                  abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = ld_method))[1]
-                ldinf <-
-                  abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = ld_method))[1]
-                if (is.nan(ldinf) | is.nan(ldsup)) {
-                  SNPRelate::snpgdsClose(genofile)
-                  stop("Monomorphic SNPs are not accepted", call. = F)
-                }
-                if ((!any(genotypes[i, - (1:5)] == 0) &
-                     !any(genotypes[i2, - (1:5)] == 0) & dom) |
-                    (ldsup > ld_max | ldsup < ld_min) &
-                    (ldinf > ld_max | ldinf < ld_min)) {
-                    seed_num[z] <- (seed * s) + z
-                    set.seed(seed_num[z])
-                  dif <- c(dif, vector_of_add_QTN, j)
-                  j <-
-                    sample(setdiff(index, dif), 1, replace = FALSE)
+          attempt <- 1L
+          repeat {
+            seed_a <- .ld_attempt_seed(seed, attempt)
+            repaired <- attempt > 1L
+            s <- 1
+            border <- TRUE
+            run <- .ld_run_attempt({
+              while (s <= 10 & border) {
+                  seed_num[z] <- (seed_a * s) + z
+                  set.seed(seed_num[z])
+                vector_of_add_QTN <-
+                  sample(index, add_QTN_num, replace = FALSE)
+                sup_temp <- c()
+                anchor_temp <- c()
+                ld_between_QTNs_temp <- c()
+                x <- 1
+                for (j in vector_of_add_QTN) {
+                  times <- 1
+                  dif <- c()
                   ldsup <- 1
                   ldinf <- 1
+                  i <- j + 1
+                  i2 <- j - 1
+                  while (times <= 100 & (ldsup > ld_max | ldsup < ld_min) &
+                         (ldinf > ld_max | ldinf < ld_min)) {
+                    if (i > n & i2 < 1) {
+                      if (i > n) {
+                        if (verbose)
+                          warning(
+                            "There are no SNPs downstream. Selecting a different seed number",
+                            call. = F,
+                            immediate. = T
+                          )
+                        break
+                      }
+                      if (i2 < 1) {
+                        if (verbose)
+                          warning(
+                            "There are no SNPs upstream. Selecting a different seed number",
+                            call. = F,
+                            immediate. = T
+                          )
+                        break
+                      }
+                    }
+                    snp1 <-
+                      gdsfmt::read.gdsn(
+                        gdsfmt::index.gdsn(genofile, "genotype"),
+                        start = c(1, j),
+                        count = c(-1, 1)
+                      )
+                    snp2 <-
+                      gdsfmt::read.gdsn(
+                        gdsfmt::index.gdsn(genofile, "genotype"),
+                        start = c(1, i),
+                        count = c(-1, 1)
+                      )
+                    snp3 <-
+                      gdsfmt::read.gdsn(
+                        gdsfmt::index.gdsn(genofile, "genotype"),
+                        start = c(1, i2),
+                        count = c(-1, 1)
+                      )
+                    ldsup <-
+                      abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = ld_method))[1]
+                    ldinf <-
+                      abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = ld_method))[1]
+                    if (is.nan(ldinf) | is.nan(ldsup)) {
+                      SNPRelate::snpgdsClose(genofile)
+                      stop("Monomorphic SNPs are not accepted", call. = F)
+                    }
+                    if ((!any(genotypes[i, - (1:5)] == 0) &
+                         !any(genotypes[i2, - (1:5)] == 0) & dom) |
+                        (ldsup > ld_max | ldsup < ld_min) &
+                        (ldinf > ld_max | ldinf < ld_min)) {
+                        seed_num[z] <- (seed_a * s) + z + (if (repaired) x else 0)
+                        set.seed(seed_num[z])
+                      dif <- c(dif, vector_of_add_QTN, j)
+                      j <-
+                        sample(setdiff(index, dif), 1, replace = FALSE)
+                      ldsup <- 1
+                      ldinf <- 1
+                      if (repaired) {
+                        i <- j
+                        i2 <- j
+                      }
+                    }
+                    i <- i + 1
+                    i2 <- i2 - 1
+                    times <- times + 1
+                  }
+                  if (ldsup > ld_max) {
+                    ldsup <- 100
+                  } else if (ldinf > ld_max) {
+                    ldinf <- 100
+                  } else if (ldsup < ld_min) {
+                    ldsup <- 100
+                  } else if (ldinf < ld_min) {
+                    ldinf <- 100
+                  }
+                  closest <- which.min(abs(c(ld_max - ldinf,  ld_max -ldsup)))
+                  ld_between_QTNs_temp[x] <- 
+                    ifelse(closest == 1 , ldinf, ldsup)
+                  sup_temp[x] <-
+                    ifelse(closest == 1 , i2 + 1, i - 1)
+                  anchor_temp[x] <- j
+                  x <- x + 1
+                  if ((!any(genotypes[i - 1, - (1:5)] == 0) &
+                       !any(genotypes[i2 + 1, - (1:5)] == 0) & dom)) {
+                    warning(
+                      "No heterozygote found to simulate dominance.",
+                      call. = F,
+                      immediate. = T
+                    )
+                  }
+                  if (s == 10 & (ldsup < ld_min & ldinf < ld_min)) {
+                    .ld_search_stop(
+                      "None of the selected SNPs met the minimum LD threshold. Try another seed number or provide a genotypic file with enough LD!"
+                    )
+                  }
+                  if (s == 10 & (ldsup > ld_max & ldinf > ld_max)) {
+                    .ld_search_stop(
+                      "None of the selected SNPs met the maximum LD threshold. Try another seed number or conduct an LD pruning in your genotypic file!"
+                    )
+                  }
                 }
-                i <- i + 1
-                i2 <- i2 - 1
-                times <- times + 1
+                if (i > n | i < 1) {
+                  border <- TRUE
+                } else {
+                  border <- FALSE
+                }
+                s <- s + 1
               }
-              if (ldsup > ld_max) {
-                ldsup <- 100
-              } else if (ldinf > ld_max) {
-                ldinf <- 100
-              } else if (ldsup < ld_min) {
-                ldsup <- 100
-              } else if (ldinf < ld_min) {
-                ldinf <- 100
-              }
-              closest <- which.min(abs(c(ld_max - ldinf,  ld_max -ldsup)))
-              ld_between_QTNs_temp[x] <- 
-                ifelse(closest == 1 , ldinf, ldsup)
-              sup_temp[x] <-
-                ifelse(closest == 1 , i2 + 1, i - 1)
-              x <- x + 1
-              if ((!any(genotypes[i - 1, - (1:5)] == 0) &
-                   !any(genotypes[i2 + 1, - (1:5)] == 0) & dom)) {
-                warning(
-                  "No heterozygote found to simulate dominance.",
-                  call. = F,
-                  immediate. = T
-                )
-              }
-              if (s == 10 & (ldsup < ld_min & ldinf < ld_min)) {
-                stop(
-                  "None of the selected SNPs met the minimum LD threshold. Try another seed number or provide a genotypic file with enough LD!",
-                  call. = F
-                )
-              }
-              if (s == 10 & (ldsup > ld_max & ldinf > ld_max)) {
-                stop(
-                  "None of the selected SNPs met the maximum LD threshold. Try another seed number or conduct an LD pruning in your genotypic file!",
-                  call. = F
-                )
-              }
+            }, quiet = attempt > 1L)
+            failure <- run$failure
+            if (is.null(failure)) {
+              sup[[z]] <- sup_temp
+              inf[[z]] <- if (attempt == 1L) vector_of_add_QTN else anchor_temp
+              failure <- .ld_direct_violation(genotypes, inf[[z]], sup_temp,
+                                              ld_between_QTNs_temp, ld_method,
+                                              ld_min, ld_max)
             }
-            if (i > n | i < 1) {
-              border <- TRUE
-            } else {
-              border <- FALSE
+            if (is.null(failure)) {
+              .ld_emit_warnings(run$warnings)
+              if (verbose && attempt > 1L) {
+                message("* LD search, replicate ", z, ": contract met on attempt ", attempt,
+                        " (derived seed ", format(seed_a, scientific = FALSE), ")")
+              }
+              break
             }
-            s <- s + 1
+            if (.ld_give_up_now(failure, attempt)) {
+              SNPRelate::snpgdsClose(genofile)
+              .ld_search_giveup(failure, z, attempt)
+            }
+            attempt <- attempt + 1L
           }
           SNPRelate::snpgdsClose(genofile)
-          sup[[z]] <- sup_temp
-          inf[[z]] <- vector_of_add_QTN
-          .ld_check_direct(genotypes, vector_of_add_QTN, sup_temp, ld_between_QTNs_temp,
-                           ld_method, ld_min, ld_max, z)
           add_gen_info_inf[[z]] <-
             data.frame(
               type = "QTN_selected",
               trait = "trait_2",
-              genotypes[vector_of_add_QTN, ],
+              genotypes[inf[[z]], ],
               check.names = FALSE,
               fix.empty.names = FALSE
             )
@@ -1229,125 +1257,148 @@ qtn_linkage <-
           LD_summary_add <- vector("list", rep)
           seed_num <- c()
           for (z in 1:rep) {
-            s <- 1
-            border <- TRUE
             genofile <- SNPRelate::snpgdsOpen(gdsfile)
-            while (s <= 10 & border) {
-                seed_num[z] <- (seed * s) + z
-                set.seed(seed_num[z])
-              vector_of_add_QTN <-
-                sample(index, add_QTN_num, replace = FALSE)
-              x <- 1
-              sup_temp <- c()
-              ld_between_QTNs_temp <- c()
-              dif <- c()
-              new_vector_of_add_QTN <- c()
-              for (j in vector_of_add_QTN) {
-                times <- 1
-                ldsup <- 1
-                ldinf <- 1
-                i <- j + 1
-                i2 <- j - 1
-                while (times <= length(index)/2 & (ldsup > ld_max | ldsup < ld_min) &
-                       (ldinf > ld_max | ldinf < ld_min)) {
-                  if (i > n | i2 < 1) {
-                    warning(
-                      "Trying to find SNPs that match the \'ld_max\' and \'ld_min\' criteria.",
-                      call. = F,
-                      immediate. = T
-                    )
-                    seed_num[z] <- (seed * s) + z + x
+            attempt <- 1L
+            repeat {
+              seed_a <- .ld_attempt_seed(seed, attempt)
+              repaired <- attempt > 1L
+              s <- 1
+              border <- TRUE
+              run <- .ld_run_attempt({
+                while (s <= 10 & border) {
+                    seed_num[z] <- (seed_a * s) + z
                     set.seed(seed_num[z])
-                    j <-
-                      sample(setdiff(index, dif), 1, replace = FALSE)
+                  vector_of_add_QTN <-
+                    sample(index, add_QTN_num, replace = FALSE)
+                  x <- 1
+                  sup_temp <- c()
+                  ld_between_QTNs_temp <- c()
+                  dif <- c()
+                  new_vector_of_add_QTN <- c()
+                  for (j in vector_of_add_QTN) {
+                    times <- 1
                     ldsup <- 1
                     ldinf <- 1
                     i <- j + 1
                     i2 <- j - 1
+                    while (times <= length(index)/2 & (ldsup > ld_max | ldsup < ld_min) &
+                           (ldinf > ld_max | ldinf < ld_min)) {
+                      if (i > n | i2 < 1) {
+                        warning(
+                          "Trying to find SNPs that match the \'ld_max\' and \'ld_min\' criteria.",
+                          call. = F,
+                          immediate. = T
+                        )
+                        seed_num[z] <- (seed_a * s) + z + x
+                        set.seed(seed_num[z])
+                        j <-
+                          sample(setdiff(index, dif), 1, replace = FALSE)
+                        ldsup <- 1
+                        ldinf <- 1
+                        i <- j + 1
+                        i2 <- j - 1
+                      }
+                      snp1 <-
+                        gdsfmt::read.gdsn(
+                          gdsfmt::index.gdsn(genofile, "genotype"),
+                          start = c(1, j),
+                          count = c(-1, 1)
+                        )
+                      snp2 <-
+                        gdsfmt::read.gdsn(
+                          gdsfmt::index.gdsn(genofile, "genotype"),
+                          start = c(1, i),
+                          count = c(-1, 1)
+                        )
+                      snp3 <-
+                        gdsfmt::read.gdsn(
+                          gdsfmt::index.gdsn(genofile, "genotype"),
+                          start = c(1, i2),
+                          count = c(-1, 1)
+                        )
+                      ldsup <-
+                        abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = ld_method))[1]
+                      ldinf <-
+                        abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = ld_method))[1]
+                      if (is.nan(ldinf) | is.nan(ldsup)) {
+                        SNPRelate::snpgdsClose(genofile)
+                        stop("Monomorphic SNPs are not accepted", call. = F)
+                      }
+                      if ((ldsup > ld_max | ldsup < ld_min) &
+                          (ldinf > ld_max | ldinf < ld_min)) {
+                        seed_num[z] <- (seed_a * s) + z + x
+                        set.seed(seed_num[z])
+                        j <-
+                          sample(setdiff(index, dif), 1, replace = FALSE)
+                        ldsup <- 1
+                        ldinf <- 1
+                        i <- j + 1
+                        i2 <- j - 1
+                      } else {
+                        i <- i + 1
+                        i2 <- i2 - 1 
+                      }
+                      dif <- c(dif, j)                  
+                      times <- times + 1
+                    }
+                    if (ldsup > ld_max) {
+                      ldsup <- 100
+                    } else if (ldinf > ld_max) {
+                      ldinf <- 100
+                    } else if (ldsup < ld_min) {
+                      ldsup <- 100
+                    } else if (ldinf < ld_min) {
+                      ldinf <- 100
+                    }
+                    closest <- which.min(abs(c(ld_max - ldinf,  ld_max -ldsup)))
+                    ld_between_QTNs_temp[x] <- 
+                      ifelse(closest == 1 , ldinf, ldsup)
+                    sup_temp[x] <-
+                      ifelse(closest == 1 , i2 + 1, i - 1)
+                    new_vector_of_add_QTN[x] <- j
+                    x <- x + 1
+                    if (s == 10 & (ldsup < ld_min & ldinf < ld_min)) {
+                      .ld_search_stop(
+                        "None of the selected SNPs met the minimum LD threshold. Try another seed number or provide a genotypic file with enough LD!"
+                      )
+                    }
+                    if (s == 10 & (ldsup > ld_max & ldinf > ld_max)) {
+                      .ld_search_stop(
+                        "None of the selected SNPs met the maximum LD threshold. Try another seed number or conduct an LD pruning in your genotypic file!"
+                      )
+                    }
                   }
-                  snp1 <-
-                    gdsfmt::read.gdsn(
-                      gdsfmt::index.gdsn(genofile, "genotype"),
-                      start = c(1, j),
-                      count = c(-1, 1)
-                    )
-                  snp2 <-
-                    gdsfmt::read.gdsn(
-                      gdsfmt::index.gdsn(genofile, "genotype"),
-                      start = c(1, i),
-                      count = c(-1, 1)
-                    )
-                  snp3 <-
-                    gdsfmt::read.gdsn(
-                      gdsfmt::index.gdsn(genofile, "genotype"),
-                      start = c(1, i2),
-                      count = c(-1, 1)
-                    )
-                  ldsup <-
-                    abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = ld_method))[1]
-                  ldinf <-
-                    abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = ld_method))[1]
-                  if (is.nan(ldinf) | is.nan(ldsup)) {
-                    SNPRelate::snpgdsClose(genofile)
-                    stop("Monomorphic SNPs are not accepted", call. = F)
-                  }
-                  if ((ldsup > ld_max | ldsup < ld_min) &
-                      (ldinf > ld_max | ldinf < ld_min)) {
-                    seed_num[z] <- (seed * s) + z + x
-                    set.seed(seed_num[z])
-                    j <-
-                      sample(setdiff(index, dif), 1, replace = FALSE)
-                    ldsup <- 1
-                    ldinf <- 1
-                    i <- j + 1
-                    i2 <- j - 1
+                  if (i > n | i < 1) {
+                    border <- TRUE
                   } else {
-                    i <- i + 1
-                    i2 <- i2 - 1 
+                    border <- FALSE
                   }
-                  dif <- c(dif, j)                  
-                  times <- times + 1
+                  s <- s + 1
                 }
-                if (ldsup > ld_max) {
-                  ldsup <- 100
-                } else if (ldinf > ld_max) {
-                  ldinf <- 100
-                } else if (ldsup < ld_min) {
-                  ldsup <- 100
-                } else if (ldinf < ld_min) {
-                  ldinf <- 100
-                }
-                closest <- which.min(abs(c(ld_max - ldinf,  ld_max -ldsup)))
-                ld_between_QTNs_temp[x] <- 
-                  ifelse(closest == 1 , ldinf, ldsup)
-                sup_temp[x] <-
-                  ifelse(closest == 1 , i2 + 1, i - 1)
-                new_vector_of_add_QTN[x] <- j
-                x <- x + 1
-                if (s == 10 & (ldsup < ld_min & ldinf < ld_min)) {
-                  stop(
-                    "None of the selected SNPs met the minimum LD threshold. Try another seed number or provide a genotypic file with enough LD!",
-                    call. = F
-                  )
-                }
-                if (s == 10 & (ldsup > ld_max & ldinf > ld_max)) {
-                  stop(
-                    "None of the selected SNPs met the maximum LD threshold. Try another seed number or conduct an LD pruning in your genotypic file!",
-                    call. = F
-                  )
-                }
+              }, quiet = attempt > 1L)
+              failure <- run$failure
+              if (is.null(failure)) {
+                sup[[z]] <- sup_temp
+                inf[[z]] <- new_vector_of_add_QTN
+                failure <- .ld_direct_violation(genotypes, inf[[z]], sup_temp,
+                                                ld_between_QTNs_temp, ld_method,
+                                                ld_min, ld_max)
               }
-              if (i > n | i < 1) {
-                border <- TRUE
-              } else {
-                border <- FALSE
+              if (is.null(failure)) {
+                .ld_emit_warnings(run$warnings)
+                if (verbose && attempt > 1L) {
+                  message("* LD search, replicate ", z, ": contract met on attempt ", attempt,
+                          " (derived seed ", format(seed_a, scientific = FALSE), ")")
+                }
+                break
               }
-              s <- s + 1
+              if (.ld_give_up_now(failure, attempt)) {
+                SNPRelate::snpgdsClose(genofile)
+                .ld_search_giveup(failure, z, attempt)
+              }
+              attempt <- attempt + 1L
             }
-            sup[[z]] <- sup_temp
-            inf[[z]] <- new_vector_of_add_QTN
-            .ld_check_direct(genotypes, new_vector_of_add_QTN, sup_temp, ld_between_QTNs_temp,
-                             ld_method, ld_min, ld_max, z)
+            SNPRelate::snpgdsClose(genofile)
             add_gen_info_inf[[z]] <-
               data.frame(
                 type = "QTN_selected",
@@ -1386,7 +1437,6 @@ qtn_linkage <-
                 "QTN_for_trait_2"
               )
           }
-          SNPRelate::snpgdsClose(genofile)
           LD_summary_add <- do.call(rbind, LD_summary_add)
           data.table::fwrite(
             LD_summary_add,
@@ -1466,137 +1516,164 @@ qtn_linkage <-
           LD_summary_dom <- vector("list", rep)
           seed_num <- c()
           for (z in 1:rep) {
-            s <- 1
-            border <- TRUE
             genofile <- SNPRelate::snpgdsOpen(gdsfile)
-            while (s <= 10 & border) {
-                seed_num[z] <- (seed * s) + z + rep
-                set.seed(seed_num[z])
-              vector_of_dom_QTN <-
-                sample(index, dom_QTN_num, replace = FALSE)
-              sup_temp <- c()
-              ld_between_QTNs_temp <- c()
-              x <- 1
-              ld_between_QTNs_temp <- c()
-              dif <- c()
-              new_vector_of_dom_QTN <- c()
-              for (j in vector_of_dom_QTN) {
-                times <- 1
-                ldsup <- 1
-                ldinf <- 1
-                i <- j + 1
-                i2 <- j - 1
-                while (times <= length(index)/2 & (ldsup > ld_max | ldsup < ld_min) &
-                       (ldinf > ld_max | ldinf < ld_min)) {
-                  if (i > n | i2 < 1) {
-                    warning(
-                      "Trying to find SNPs that match the \'ld_max\' and \'ld_min\' criteria.",
-                      call. = F,
-                      immediate. = T
-                    )
-                    seed_num[z] <- (seed * s) + z + rep + x
+            attempt <- 1L
+            repeat {
+              seed_a <- .ld_attempt_seed(seed, attempt)
+              repaired <- attempt > 1L
+              s <- 1
+              border <- TRUE
+              run <- .ld_run_attempt({
+                while (s <= 10 & border) {
+                    seed_num[z] <- (seed_a * s) + z + rep
                     set.seed(seed_num[z])
-                    j <-
-                      sample(setdiff(index, dif), 1, replace = FALSE)
+                  vector_of_dom_QTN <-
+                    sample(index, dom_QTN_num, replace = FALSE)
+                  sup_temp <- c()
+                  ld_between_QTNs_temp <- c()
+                  x <- 1
+                  ld_between_QTNs_temp <- c()
+                  dif <- c()
+                  new_vector_of_dom_QTN <- c()
+                  for (j in vector_of_dom_QTN) {
+                    times <- 1
                     ldsup <- 1
                     ldinf <- 1
                     i <- j + 1
                     i2 <- j - 1
+                    while (times <= length(index)/2 & (ldsup > ld_max | ldsup < ld_min) &
+                           (ldinf > ld_max | ldinf < ld_min)) {
+                      if (i > n | i2 < 1) {
+                        warning(
+                          "Trying to find SNPs that match the \'ld_max\' and \'ld_min\' criteria.",
+                          call. = F,
+                          immediate. = T
+                        )
+                        seed_num[z] <- (seed_a * s) + z + rep + x
+                        set.seed(seed_num[z])
+                        j <-
+                          sample(setdiff(index, dif), 1, replace = FALSE)
+                        ldsup <- 1
+                        ldinf <- 1
+                        i <- j + 1
+                        i2 <- j - 1
+                      }
+                      snp1 <-
+                        gdsfmt::read.gdsn(
+                          gdsfmt::index.gdsn(genofile, "genotype"),
+                          start = c(1, j),
+                          count = c(-1, 1)
+                        )
+                      snp2 <-
+                        gdsfmt::read.gdsn(
+                          gdsfmt::index.gdsn(genofile, "genotype"),
+                          start = c(1, i),
+                          count = c(-1, 1)
+                        )
+                      snp3 <-
+                        gdsfmt::read.gdsn(
+                          gdsfmt::index.gdsn(genofile, "genotype"),
+                          start = c(1, i2),
+                          count = c(-1, 1)
+                        )
+                      ldsup <-
+                        abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = ld_method))[1]
+                      ldinf <-
+                        abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = ld_method))[1]
+                      if (is.nan(ldinf) | is.nan(ldsup)) {
+                        SNPRelate::snpgdsClose(genofile)
+                        stop("Monomorphic SNPs are not accepted", call. = F)
+                      }
+                      if ((!any(genotypes[i, - (1:5)] == 0) &
+                           !any(genotypes[i2, - (1:5)] == 0) & dom) |
+                          (ldsup > ld_max | ldsup < ld_min) &
+                          (ldinf > ld_max | ldinf < ld_min)) {
+                          seed_num[z] <- (seed_a * s) + z + rep + x
+                          set.seed(seed_num[z])
+                        j <-
+                          sample(setdiff(index, dif), 1, replace = FALSE)
+                        ldsup <- 1
+                        ldinf <- 1
+                        if (repaired) {
+                          i <- j + 1
+                          i2 <- j - 1
+                        } else {
+                          i <- i + 1
+                          i2 <- i2 - 1
+                        }
+                      } else {
+                        i <- i + 1
+                        i2 <- i2 - 1
+                      }
+                      dif <- c(dif, j)      
+                      times <- times + 1
+                    }
+                    if (ldsup > ld_max) {
+                      ldsup <- 100
+                    } else if (ldinf > ld_max) {
+                      ldinf <- 100
+                    } else if (ldsup < ld_min) {
+                      ldsup <- 100
+                    } else if (ldinf < ld_min) {
+                      ldinf <- 100
+                    }
+                    closest <- which.min(abs(c(ld_max - ldinf,  ld_max -ldsup)))
+                    ld_between_QTNs_temp[x] <- 
+                      ifelse(closest == 1 , ldinf, ldsup)
+                    sup_temp[x] <-
+                      ifelse(closest == 1 , i2 + 1, i - 1)
+                    new_vector_of_dom_QTN[x] <- j
+                    x <- x + 1
+                    if ((!any(genotypes[i - 1, - (1:5)] == 0) &
+                         !any(genotypes[i2 + 1, - (1:5)] == 0) & dom)) {
+                      warning(
+                        "No heterozygote found to simulate dominance.",
+                        call. = F,
+                        immediate. = T
+                      )
+                    }
+                    if (s == 10 & (ldsup < ld_min & ldinf < ld_min)) {
+                      .ld_search_stop(
+                        "None of the selected SNPs met the minimum LD threshold. Try another seed number or provide a genotypic file with enough LD!"
+                      )
+                    }
+                    if (s == 10 & (ldsup > ld_max & ldinf > ld_max)) {
+                      .ld_search_stop(
+                        "None of the selected SNPs met the maximum LD threshold. Try another seed number or conduct an LD pruning in your genotypic file!"
+                      )
+                    }
                   }
-                  snp1 <-
-                    gdsfmt::read.gdsn(
-                      gdsfmt::index.gdsn(genofile, "genotype"),
-                      start = c(1, j),
-                      count = c(-1, 1)
-                    )
-                  snp2 <-
-                    gdsfmt::read.gdsn(
-                      gdsfmt::index.gdsn(genofile, "genotype"),
-                      start = c(1, i),
-                      count = c(-1, 1)
-                    )
-                  snp3 <-
-                    gdsfmt::read.gdsn(
-                      gdsfmt::index.gdsn(genofile, "genotype"),
-                      start = c(1, i2),
-                      count = c(-1, 1)
-                    )
-                  ldsup <-
-                    abs(SNPRelate::snpgdsLDpair(snp1, snp2, method = ld_method))[1]
-                  ldinf <-
-                    abs(SNPRelate::snpgdsLDpair(snp1, snp3, method = ld_method))[1]
-                  if (is.nan(ldinf) | is.nan(ldsup)) {
-                    SNPRelate::snpgdsClose(genofile)
-                    stop("Monomorphic SNPs are not accepted", call. = F)
-                  }
-                  if ((!any(genotypes[i, - (1:5)] == 0) &
-                       !any(genotypes[i2, - (1:5)] == 0) & dom) |
-                      (ldsup > ld_max | ldsup < ld_min) &
-                      (ldinf > ld_max | ldinf < ld_min)) {
-                      seed_num[z] <- (seed * s) + z + rep + x
-                      set.seed(seed_num[z])
-                    j <-
-                      sample(setdiff(index, dif), 1, replace = FALSE)
-                    ldsup <- 1
-                    ldinf <- 1
-                    i <- i + 1
-                    i2 <- i2 - 1
+                  if (i > n | i < 1) {
+                    border <- TRUE
                   } else {
-                    i <- i + 1
-                    i2 <- i2 - 1
+                    border <- FALSE
                   }
-                  dif <- c(dif, j)      
-                  times <- times + 1
+                  s <- s + 1
                 }
-                if (ldsup > ld_max) {
-                  ldsup <- 100
-                } else if (ldinf > ld_max) {
-                  ldinf <- 100
-                } else if (ldsup < ld_min) {
-                  ldsup <- 100
-                } else if (ldinf < ld_min) {
-                  ldinf <- 100
-                }
-                closest <- which.min(abs(c(ld_max - ldinf,  ld_max -ldsup)))
-                ld_between_QTNs_temp[x] <- 
-                  ifelse(closest == 1 , ldinf, ldsup)
-                sup_temp[x] <-
-                  ifelse(closest == 1 , i2 + 1, i - 1)
-                new_vector_of_dom_QTN[x] <- j
-                x <- x + 1
-                if ((!any(genotypes[i - 1, - (1:5)] == 0) &
-                     !any(genotypes[i2 + 1, - (1:5)] == 0) & dom)) {
-                  warning(
-                    "No heterozygote found to simulate dominance.",
-                    call. = F,
-                    immediate. = T
-                  )
-                }
-                if (s == 10 & (ldsup < ld_min & ldinf < ld_min)) {
-                  stop(
-                    "None of the selected SNPs met the minimum LD threshold. Try another seed number or provide a genotypic file with enough LD!",
-                    call. = F
-                  )
-                }
-                if (s == 10 & (ldsup > ld_max & ldinf > ld_max)) {
-                  stop(
-                    "None of the selected SNPs met the maximum LD threshold. Try another seed number or conduct an LD pruning in your genotypic file!",
-                    call. = F
-                  )
-                }
+              }, quiet = attempt > 1L)
+              failure <- run$failure
+              if (is.null(failure)) {
+                sup[[z]] <- sup_temp
+                inf[[z]] <- new_vector_of_dom_QTN
+                failure <- .ld_direct_violation(genotypes, inf[[z]], sup_temp,
+                                                ld_between_QTNs_temp, ld_method,
+                                                ld_min, ld_max)
               }
-              if (i > n | i < 1) {
-                border <- TRUE
-              } else {
-                border <- FALSE
+              if (is.null(failure)) {
+                .ld_emit_warnings(run$warnings)
+                if (verbose && attempt > 1L) {
+                  message("* LD search, replicate ", z, ": contract met on attempt ", attempt,
+                          " (derived seed ", format(seed_a, scientific = FALSE), ")")
+                }
+                break
               }
-              s <- s + 1
+              if (.ld_give_up_now(failure, attempt)) {
+                SNPRelate::snpgdsClose(genofile)
+                .ld_search_giveup(failure, z, attempt)
+              }
+              attempt <- attempt + 1L
             }
             SNPRelate::snpgdsClose(genofile)
-            sup[[z]] <- sup_temp
-            inf[[z]] <- new_vector_of_dom_QTN
-            .ld_check_direct(genotypes, new_vector_of_dom_QTN, sup_temp, ld_between_QTNs_temp,
-                             ld_method, ld_min, ld_max, z)
             dom_gen_info_inf[[z]] <-
               data.frame(
                 type = "QTN_selected",
@@ -1784,12 +1861,19 @@ qtn_linkage <-
 }
 
 #' Stop with the LD-contract message
+#'
+#' `attempts` > 1 states that the direct-LD search was repeated with derived
+#' seeds (see `.ld_attempt_seed()`) before giving up.
 #' @keywords internal
 #' @noRd
-.ld_contract_stop <- function(reason, z, type_of_ld) {
+.ld_contract_stop <- function(reason, z, type_of_ld, attempts = 1L) {
   stop(
     "The LD contract could not be met for this seed and LD window (",
     type_of_ld, " LD, replicate ", z, "): ", reason, ". ",
+    if (attempts > 1L) {
+      paste0("The marker search was repeated ", attempts - 1L,
+             " more time(s) with derived seeds and still failed. ")
+    } else "",
     "Try a different `seed`, a different LD window (`ld_min`/`ld_max`), ",
     if (type_of_ld == "indirect") "`type_of_ld = \"direct\"`, " else "",
     "or a denser marker set.",
@@ -1859,43 +1943,177 @@ qtn_linkage <-
   invisible(TRUE)
 }
 
-#' Verify direct-LD selections: distinct markers, same chromosome, LD in window
+#' Direct-LD contract violation (reason string) or NULL when the pairs are valid
+#'
+#' Distinct markers, no marker shared between the two traits, both members of
+#' a pair on the same chromosome, absolute LD of every pair inside the
+#' inclusive window `[ld_min, ld_max]`, and the reported LD equal to the
+#' recomputed one.
 #' @keywords internal
 #' @noRd
-.ld_check_direct <- function(genotypes, anchors, partners, reported,
-                             ld_method, ld_min, ld_max, z) {
+.ld_direct_violation <- function(genotypes, anchors, partners, reported,
+                                 ld_method, ld_min, ld_max) {
   if (length(anchors) != length(partners)) {
-    .ld_contract_stop("the numbers of selected and linked markers differ",
-                      z, "direct")
+    return("the numbers of selected and linked markers differ")
   }
   if (any(anchors == partners)) {
-    .ld_contract_stop("a marker was paired with itself", z, "direct")
+    return("a marker was paired with itself")
   }
   if (anyDuplicated(anchors) || anyDuplicated(partners) ||
       anyDuplicated(.ld_key(genotypes, anchors)) ||
       anyDuplicated(.ld_key(genotypes, partners))) {
-    .ld_contract_stop("a trait would have a duplicated QTN", z, "direct")
+    return("a trait would have a duplicated QTN")
   }
   if (length(intersect(anchors, partners))) {
-    .ld_contract_stop("the same marker was selected as a QTN for both traits",
-                      z, "direct")
+    return("the same marker was selected as a QTN for both traits")
   }
   if (any(genotypes$chr[anchors] != genotypes$chr[partners])) {
-    .ld_contract_stop("a pair spans two chromosomes", z, "direct")
+    return("a pair spans two chromosomes")
   }
   ld <- vapply(seq_along(anchors), function(k) {
     .ld_pair(genotypes, anchors[k], partners[k], ld_method)
   }, numeric(1))
   tol <- 1e-9
   if (anyNA(ld) || any(ld < ld_min - tol | ld > ld_max + tol)) {
-    .ld_contract_stop("a selected pair has an absolute LD outside [ld_min, ld_max]",
-                      z, "direct")
+    return("a selected pair has an absolute LD outside [ld_min, ld_max]")
   }
   if (length(reported) != length(ld) || any(abs(ld - reported) > 1e-6)) {
-    .ld_contract_stop("the LD reported for a pair differs from its actual LD",
-                      z, "direct")
+    return("the LD reported for a pair differs from its actual LD")
   }
+  NULL
+}
+
+#' Verify direct-LD selections: distinct markers, same chromosome, LD in window
+#' @keywords internal
+#' @noRd
+.ld_check_direct <- function(genotypes, anchors, partners, reported,
+                             ld_method, ld_min, ld_max, z) {
+  reason <- .ld_direct_violation(genotypes, anchors, partners, reported,
+                                 ld_method, ld_min, ld_max)
+  if (!is.null(reason)) .ld_contract_stop(reason, z, "direct")
   invisible(TRUE)
+}
+
+# ---------------------------------------------------------------------------
+# Bounded retry of the direct-LD marker search (frozen v1 engine).
+#
+# The first attempt for every replicate is the original search with the
+# original seeds (bit-identical output whenever it meets the LD contract).
+# Only when it does not -- the contract check fails, or the search stops with
+# "None of the selected SNPs met the minimum/maximum LD threshold" or runs off
+# the marker set -- the replicate is searched again, up to
+# `.ld_max_attempts()` attempts in total (fewer if a retry attempt uses up every
+# candidate marker, see `.ld_give_up_now()`), from the seed
+# `.ld_attempt_seed(seed, attempt)`; attempts >= 2 also reset the neighbour
+# pointers after a re-sample (`repaired`), which the frozen dominance walks do
+# not (see the "LD architecture" section of ?create_phenotypes).
+# ---------------------------------------------------------------------------
+
+#' Maximum number of search attempts per replicate (the first is the frozen one)
+#' @keywords internal
+#' @noRd
+.ld_max_attempts <- function() 50L
+
+#' Distance between the seeds of consecutive attempts (a prime far larger than
+#' any replicate/QTN offset added to a seed)
+#' @keywords internal
+#' @noRd
+.ld_retry_stride <- 1000003
+
+#' Seed used by search attempt `attempt` (1 = the original seed, unchanged)
+#'
+#' Attempt `a` >= 2 moves the seed by `(a - 1) * .ld_retry_stride` towards
+#' zero (away from zero for `seed <= 0`), so `abs()` of the result never
+#' exceeds `max(abs(seed), (.ld_max_attempts() - 1) * .ld_retry_stride)` and the
+#' integer-range bound of `.v1_validate_seed_arith()` still holds.
+#' @keywords internal
+#' @noRd
+.ld_attempt_seed <- function(seed, attempt) {
+  if (attempt <= 1L) return(seed)
+  step <- (attempt - 1L) * .ld_retry_stride
+  if (seed > 0) seed - step else seed + step
+}
+
+#' Signal a (retriable) marker-search failure with the frozen message
+#' @keywords internal
+#' @noRd
+.ld_search_stop <- function(msg) {
+  stop(structure(class = c("ld_search_failed", "error", "condition"),
+                 list(message = msg, call = NULL)))
+}
+
+#' Evaluate one search attempt; return its retriable failure (or NULL)
+#'
+#' `expr` is evaluated in the caller's frame (lazy argument), so its
+#' assignments are visible to the caller. A search failure -- the frozen
+#' "None of the selected SNPs ..." stops, the out-of-range GDS read, and the
+#' exhaustion of every candidate marker (the frozen walk then ends in
+#' `sample.int()`'s "invalid first argument") -- is returned as a condition;
+#' every other error propagates unchanged. With `quiet`, warnings raised during
+#' the attempt are held back and returned.
+#' @keywords internal
+#' @noRd
+.ld_run_attempt <- function(expr, quiet = FALSE) {
+  held <- list()
+  failure <- withCallingHandlers(
+    tryCatch({
+      expr
+      NULL
+    },
+    ld_search_failed = function(e) e,
+    error = function(e) {
+      msg <- conditionMessage(e)
+      if (grepl("'start' is invalid", msg, fixed = TRUE)) {
+        e
+      } else if (identical(msg, "invalid first argument") &&
+                 grepl("sample", paste(deparse(conditionCall(e)), collapse = ""),
+                       fixed = TRUE)) {
+        structure(class = c("ld_search_exhausted", "ld_search_failed", "error",
+                            "condition"),
+                  list(message = paste0(
+                    "LD architecture: the marker search used up every candidate marker without ",
+                    "finding a pair inside the LD window [ld_min, ld_max]. Widen the window, use a ",
+                    "different `ld_method`, or provide a denser marker set."),
+                    call = NULL))
+      } else {
+        stop(e)
+      }
+    }),
+    warning = function(w) {
+      if (quiet) {
+        held[[length(held) + 1L]] <<- w
+        invokeRestart("muffleWarning")
+      }
+    }
+  )
+  list(failure = failure, warnings = held)
+}
+
+#' Stop retrying? After `.ld_max_attempts()` attempts, or when a retry attempt
+#' (>= 2) has used up every candidate marker (a full scan again would repeat)
+#' @keywords internal
+#' @noRd
+.ld_give_up_now <- function(failure, attempt) {
+  attempt >= .ld_max_attempts() ||
+    (attempt > 1L && inherits(failure, "ld_search_exhausted"))
+}
+
+#' Re-signal the warnings held back during a successful retry attempt
+#' @keywords internal
+#' @noRd
+.ld_emit_warnings <- function(held) {
+  for (w in held) {
+    warning(conditionMessage(w), call. = FALSE, immediate. = TRUE)
+  }
+  invisible(NULL)
+}
+
+#' Give up after `attempts` failed searches (condition: re-raise; else contract)
+#' @keywords internal
+#' @noRd
+.ld_search_giveup <- function(failure, z, attempts) {
+  if (inherits(failure, "condition")) stop(failure)
+  .ld_contract_stop(failure, z, "direct", attempts = attempts)
 }
 
 #' qtn_linkage() with an informative message when the search runs off the

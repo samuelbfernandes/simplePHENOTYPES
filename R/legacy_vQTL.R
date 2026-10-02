@@ -99,6 +99,7 @@ vQTL <- function(QTN,
     stop("vQTL: the vQTN genotype matrix has ", NCOL(QTN), " column(s) but ",
          "var_QTN_num = ", var_QTN_num, ".", call. = FALSE)
   }
+  .v1_check_vqtl_baseline(base_line_trait)
   base_line_trait <- scale(base_line_trait)
   n <- nrow(QTN)
   sigma <-
