@@ -13,7 +13,10 @@
   with fixed shared loci. The default random
   draw is unchanged. **LD** (`ld_type = "direct"`): `qtn = list(trait1_loci, trait2_loci)` gives linked pairs on one chromosome (element `i` of each);
   the pair r2 is computed, reported by `qtn_table()` and warned about when outside `[r2_min, r2_max]`; no marker
-  may be causal for both traits. `epistasis()` is still not available under `"ld"`.
+  may be causal for both traits, in any layer or `vary_qtn` replication: `vqtl()` or `additive()` draws after another
+  layer now skip loci that layer made causal (a single-layer draw is unchanged). `epistasis()` is still not available
+  under `"ld"`. A pleiotropy layout whose `n_pleio_major` / `prop_var_major` leave a single locus with variance warns that
+  the correlation is exactly +/-1.
 * A passed marker that is monomorphic (or heterozygous in every individual) now warns in every architecture:
   it carries no variance (random draws never pick such a marker).
 

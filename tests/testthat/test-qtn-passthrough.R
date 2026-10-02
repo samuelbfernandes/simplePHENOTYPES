@@ -368,3 +368,41 @@ test_that("round-9 review: active-unit guard, LD ownership in any layer order, m
   expect_error(sm |> additive(prop = 0.3, qtn = list("A", "B")),
                "chromosome identifiers")
 })
+
+test_that("round-10 review: fresh draws warn on one active unit; LD ownership covers random draws and replications", {
+  nm <- .qp_g$snp
+  w <- character()
+  withCallingHandlers(
+    suppressWarnings(simulate_phenotype(.qp_g, n_traits = 2, architecture = "pleiotropy",
+                                        cor = 0.3, n_pleio_major = 1,
+                                        prop_var_major = 1, seed = 33)) |>
+      additive(prop = 0.3, n_qtn = 4),
+    warning = function(c) { w <<- c(w, conditionMessage(c)); invokeRestart("muffleWarning") })
+  expect_true(any(grepl("receives variance", w)))
+  pr <- .qp_ld_pairs(3)
+  skip_if(nrow(pr) < 3L, "no in-window marker pairs in this subset")
+  s <- .qp_sim("ld")
+  # a random vqtl after a fixed additive never reuses its loci for the other trait
+  a <- s |> additive(prop = 0.3, qtn = list(nm[pr[1, 1]], nm[pr[1, 2]]))
+  for (sd in 1:4) {
+    sv <- suppressWarnings(simulate_phenotype(.qp_g, n_traits = 2, architecture = "ld",
+                                              seed = sd)) |>
+      additive(prop = 0.3, qtn = list(nm[pr[1, 1]], nm[pr[1, 2]])) |>
+      vqtl(prop = 0.1, same_as_add = FALSE, n_qtn = 2)
+    tb <- qtn_table(sv)
+    t1 <- tb$snp[tb$trait == "Trait_1"]
+    t2 <- tb$snp[tb$trait == "Trait_2"]
+    expect_length(intersect(t1, t2), 0L)
+  }
+  # replications: a later fixed layer is checked against every replication of an earlier random one
+  sr <- suppressWarnings(simulate_phenotype(.qp_g, n_traits = 2, architecture = "ld",
+                                            seed = 5, n_reps = 3, vary_qtn = TRUE)) |>
+    additive(prop = 0.3, n_qtn = 2)
+  rep_loci <- unlist(lapply(sr$layers[[1]]$qtn_reps, function(q) q[[1]]))
+  hit <- which(rep_loci != sr$layers[[1]]$qtn[[1]][1] & rep_loci != sr$layers[[1]]$qtn[[1]][2])
+  skip_if(length(hit) == 0L, "all replications share the canonical loci")
+  expect_error(sr |> vqtl(prop = 0.1, same_as_add = FALSE,
+                          qtn = list(nm[sr$layers[[1]]$qtn_reps[[2]][[2]][1]],
+                                     nm[sr$layers[[1]]$qtn_reps[[2]][[1]][1]])),
+               "already causal for the other trait")
+})

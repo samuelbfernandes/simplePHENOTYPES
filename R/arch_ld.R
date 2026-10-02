@@ -114,7 +114,11 @@
   r2_1 <- numeric(n_qtn)
   r2_2 <- numeric(n_qtn)
   cause <- rep(NA_integer_, n_qtn)
-  used <- integer(0)
+  # loci already causal in an earlier layer (any replication) are never drawn
+  # again here: a locus is causal for ONE trait across all layers, and this draw
+  # knows nothing of the other layer's assignment. Empty for the first layer, so
+  # a single-layer draw is unchanged.
+  used <- .ld_prior_loci(sim)$all
   max_tries <- 200L
 
   for (i in seq_len(n_qtn)) {
@@ -299,14 +303,9 @@
 #' @keywords internal
 #' @noRd
 .ld_check_cross_layer <- function(sim, user_qtn, type) {
-  prior <- lapply(1:2, function(t) {
-    unique(unlist(lapply(sim$layers, function(ly) {
-      if (is.null(ly$qtn) || identical(ly$type, "transcriptome")) return(NULL)
-      ly$qtn[[t]]
-    }), use.names = FALSE))
-  })
-  clash <- c(intersect(user_qtn[[1L]], prior[[2L]]),
-             intersect(user_qtn[[2L]], prior[[1L]]))
+  prior <- .ld_prior_loci(sim)
+  clash <- c(intersect(user_qtn[[1L]], prior$t2),
+             intersect(user_qtn[[2L]], prior$t1))
   if (length(clash)) {
     stop(type, "(qtn=): marker(s) ", paste(utils::head(sim$map$snp[clash], 5),
                                            collapse = ", "),
@@ -315,4 +314,24 @@
          "across all layers.", call. = FALSE)
   }
   invisible(user_qtn)
+}
+
+#' Loci already causal for each trait in earlier layers, over every replication
+#'
+#' The union of each earlier marker layer's `qtn` and, for `vary_qtn`, every
+#' replication's `qtn_reps`, per trait; `all` is their union. Ownership under
+#' `"ld"` is a property of every replication, not just the canonical one.
+#' @keywords internal
+#' @noRd
+.ld_prior_loci <- function(sim) {
+  per_trait <- function(t) {
+    unique(unlist(lapply(sim$layers, function(ly) {
+      if (is.null(ly$qtn) || identical(ly$type, "transcriptome")) return(NULL)
+      c(ly$qtn[[t]], unlist(lapply(ly$qtn_reps, function(q) q[[t]]),
+                            use.names = FALSE))
+    }), use.names = FALSE))
+  }
+  t1 <- as.integer(per_trait(1L))
+  t2 <- as.integer(per_trait(2L))
+  list(t1 = t1, t2 = t2, all = unique(c(t1, t2)))
 }

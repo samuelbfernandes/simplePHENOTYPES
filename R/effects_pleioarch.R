@@ -125,6 +125,23 @@
            "supplied in `qtn` (", pleio_n, ").", call. = FALSE)
   }
   n_minor <- pleio_n - n_major
+  # A drawn layout can also collapse to one active shared locus: with
+  # prop_var_major = 1 the minor loci get exactly zero effect (and with
+  # n_pleio_major = 0 there is no major class). The fixed path counts this above.
+  if (is.null(fixed) && pleio_n > 1L && nt > 1L) {
+    n_act <- (if (propMaj > 0) n_major else 0L) + (if (propMaj < 1) n_minor else 0L)
+    if (n_act == 1L && any(abs(R[upper.tri(R)]) < 1)) {
+      consequence <- .pleio_single_unit_consequence(R, spec_n < 1L | pi_vec >= 1,
+                                                    "locus", vg)
+      if (nzchar(consequence)) {
+        warning("architecture = \"pleiotropy\": only one shared (pleiotropic) QTN ",
+                "receives variance (`n_pleio_major` = ", n_major,
+                ", `prop_var_major` = ", propMaj, "); ", consequence,
+                ". Lower `prop_var_major` or add major loci so several loci ",
+                "carry the covariance.", call. = FALSE)
+      }
+    }
+  }
   # With a major/minor split, prop_var_major < 1 allocates (1 - prop_var_major)
   # of the pleiotropic variance to minor loci. If there are none, that share
   # would silently vanish (attenuating the realized correlation); reject rather

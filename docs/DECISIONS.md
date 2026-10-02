@@ -1795,9 +1795,12 @@ moves to the user.
   at random, `.candidate_markers()`) carries no variance: it is accepted with a warning, except where it makes the
   construction undefined (an "ld" pair: error; a pleiotropy layout with no informative shared locus: error, and a
   single informative shared locus warns that the correlation is then exactly +/-1, counting only loci that receive
-  variance under `n_pleio_major` / `prop_var_major`). Round 9: the LD ownership rule (a locus is causal for one trait
-  across ALL layers) is enforced whatever the layer order (additive after vqtl/dominance too), and a plain matrix (no
-  chromosome map) is refused for passed LD pairs with the same message as the random search.
+  variance under `n_pleio_major` / `prop_var_major`). Rounds 9-10: the LD ownership rule (a locus is causal for one trait
+  across ALL layers and ALL `vary_qtn` replications) holds whatever the layer order: passed loci are checked against every
+  earlier layer's loci (canonical and per-replication), and a random LD draw never picks a locus an earlier layer already
+  made causal (a single-layer draw is unchanged, bit-identical); a plain matrix (no chromosome map) is refused for passed LD
+  pairs with the same message as the random search. A drawn pleiotropy layout whose major/minor split leaves one locus with
+  variance (e.g. `n_pleio_major = 1`, `prop_var_major = 1`) warns that the correlation is exactly +/-1, as the fixed path does.
 Default draws and the independent path are unchanged (RNG order identical; `qtn = NULL` is bit-identical).
 Review owed (Codex): the all-shared rule, the effect/dist-when-uncontrolled path, the LD pair rules.
 
