@@ -4,8 +4,13 @@
 #' genotype can be trimmed once and then reused across simulations. It takes the
 #' simplePHENOTYPES numeric format (a data frame whose first five columns are
 #' `snp`, `allele`, `chr`, `pos`, `cm`, followed by one column per individual,
-#' e.g. [SNP55K_maize282_maf04]) or an individuals-by-markers numeric matrix
-#' coded `-1/0/1`, and returns the same object with the failing markers dropped.
+#' e.g. [SNP55K_maize282_maf04]), an individuals-by-markers numeric matrix
+#' coded `-1/0/1`, or a [Population][as_population()] (founders or the progeny of
+#' [cross()], [selfcross()] and [double_haploid()]), and returns the same kind of
+#' object with the failing markers dropped. Every genotype input that
+#' [simulate_phenotype()] accepts can therefore be filtered, so the same MAF,
+#' heterozygosity and LD constraints apply whatever the architecture or layer
+#' (additive, dominance, epistasis, vQTL) drawn from it afterwards.
 #'
 #' Filters are applied in order: monomorphic removal, minor-allele frequency,
 #' heterozygosity, then LD pruning. A marker must pass every requested filter to
@@ -50,9 +55,11 @@
 #' cubic solver -- `acos`/`cos`/`log` -- so, unlike the integer-exact composite
 #' r^2, it can differ from PLINK's in the last bit); and kb + `indep`. PLINK
 #' computes LD from
-#' *founders only*; simplePHENOTYPES has no pedigree, so every individual is
-#' treated as a founder (which is how the parity is verified) -- pass a
-#' founder-only genotype set to reproduce a PLINK run that had non-founders.
+#' *founders only*; `filter_geno()` does not apply that rule: it computes LD
+#' from **every individual it is given**, including the non-founders of a
+#' crossing `Population` (its pedigree is not consulted; the parity is verified
+#' on founder-only data frames) -- pass a founder-only genotype set, e.g. the
+#' founders before crossing, to reproduce a PLINK run that had non-founders.
 #' Missing calls (`NA`) are handled per pair on the complete observations (a
 #' `pairwise.complete.obs` correlation for `indep_pairwise`/`indep`, complete
 #' pairs only for `indep_pairphase`) and are **not** claimed identical to PLINK's
@@ -90,9 +97,14 @@
 #' 2007), and the block method one for Gabriel et al. (2002); the two pairwise
 #' pruners need no separate citation.
 #'
-#' @param geno the genotype object (numeric-format data frame, or an
-#'   individuals-by-markers `-1/0/1` matrix). Convert other formats with
-#'   [as_numeric()] first.
+#' @param geno the genotype object: a numeric-format data frame, an
+#'   individuals-by-markers `-1/0/1` matrix, or a `Population`. Convert other
+#'   formats with [as_numeric()] first. A `Population` is filtered on its
+#'   dosages (always `-1/0/1`, so `code_as` must stay `"-101"`); its genetic
+#'   map, individuals, ids and pedigree are kept, only the failing markers are
+#'   dropped. The result has a different marker map from the input, so it can
+#'   no longer be crossed with, or pooled by [c.Population()] with, an
+#'   unfiltered population: filter the founders once, before crossing.
 #' @param maf_above keep markers with minor-allele frequency `>= maf_above`. A
 #'   single finite number in `[0, 0.5]` (a vector or `NA` is an error).
 #' @param maf_below keep markers with minor-allele frequency `<= maf_below`. A
@@ -117,14 +129,16 @@
 #' @param block_max_kb maximum block span in kilobases for `blocks` (default
 #'   500).
 #' @param window_unit `"variants"` (default) or `"kb"` -- the unit of the pruning
-#'   `window`. `"kb"` needs the data-frame input (uses the `pos` column).
+#'   `window`. `"kb"` needs marker positions: the numeric-format data frame or
+#'   a `Population` (their `pos` column), not a bare matrix.
 #' @param code_as the genotype coding of `geno`: `"-101"` (default; major = 1,
 #'   het = 0, minor = -1) or `"012"` (major = 2, het = 1, minor = 0). This is
 #'   declared rather than guessed, because a marker with only `0`/`1` present is
 #'   ambiguous between the two schemes; values outside the declared set are an
 #'   error. It sets how minor-allele frequency and heterozygosity are computed.
 #' @param verbose report how many markers each filter removed (default `TRUE`).
-#' @return the filtered genotype object, in the same format as `geno`.
+#' @return the filtered genotype object, in the same format as `geno` (a
+#'   `Population` stays a `Population`).
 #' @references
 #' Purcell, S. \emph{et al.} (2007). PLINK: a tool set for whole-genome
 #' association and population-based linkage analyses. \emph{Am. J. Hum. Genet.}
@@ -184,8 +198,21 @@ filter_geno <- function(geno,
     }
   }
 
-  is_df <- is.data.frame(geno)
-  if (is_df) {
+  is_pop <- inherits(geno, "Population")
+  is_df <- !is_pop && is.data.frame(geno)
+  if (is_pop) {
+    # A Population stores phased strands; filter on their dosages (markers x
+    # individuals, always -1/0/1) and carry its genetic map along so the kb
+    # windows and Gabriel blocks work exactly as for the data frame.
+    .check_population(geno)
+    if (code_as != "-101") {
+      stop("A `Population` is always coded -1/0/1; leave code_as = \"-101\".",
+           call. = FALSE)
+    }
+    Dm  <- dosages(geno)
+    chr <- geno$map$chr
+    pos <- geno$map$pos
+  } else if (is_df) {
     if (ncol(geno) < 6L ||
         !identical(tolower(names(geno)[1:5]),
                    c("snp", "allele", "chr", "pos", "cm"))) {
@@ -229,8 +256,8 @@ filter_geno <- function(geno,
            call. = FALSE)
     }
   } else {
-    stop("`geno` must be a numeric-format data frame or an ",
-         "individuals-by-markers numeric matrix.", call. = FALSE)
+    stop("`geno` must be a numeric-format data frame, an individuals-by-",
+         "markers numeric matrix, or a Population.", call. = FALSE)
   }
 
   n_ind <- ncol(Dm)
@@ -329,7 +356,36 @@ filter_geno <- function(geno,
     stop("filter_geno(): no markers passed the filters.", call. = FALSE)
   }
 
+  if (is_pop) {
+    return(.subset_population_markers(geno, keep))
+  }
   if (is_df) geno[keep, , drop = FALSE] else geno[, keep, drop = FALSE]
+}
+
+#' Keep a subset of a Population's markers
+#'
+#' Drops marker rows from the map and both phased strands; individuals, ids,
+#' origin and the pedigree (keys identify individuals, not marker sets) are kept.
+#' @param pop a `Population`.
+#' @param keep logical (length = markers) or integer marker index.
+#' @keywords internal
+#' @noRd
+.subset_population_markers <- function(pop, keep) {
+  map <- pop$map[keep, , drop = FALSE]
+  rownames(map) <- NULL
+  # A factor `chr` would keep the levels of chromosomes that lost every
+  # marker, and an empty chromosome has no map span (print() would show -Inf).
+  if (is.factor(map$chr)) map$chr <- droplevels(map$chr)
+  out <- .new_population(map,
+                         pop$cis[keep, , drop = FALSE],
+                         pop$trans[keep, , drop = FALSE],
+                         pop$ids, pop$origin,
+                         keys = pop$keys, pedigree = pop$pedigree)
+  # Anything else recorded on the object (e.g. the `plan` of a mate() result)
+  # describes its individuals, not its markers, so it is kept.
+  extra <- setdiff(names(attributes(pop)), c("names", "class"))
+  for (a in extra) attr(out, a) <- attr(pop, a, exact = TRUE)
+  out
 }
 
 #' Validate a c(window, step, threshold) LD-pruning argument
@@ -381,7 +437,8 @@ filter_geno <- function(geno,
 #' `method = "pairwise"` reproduces PLINK's `--indep-pairwise` and
 #' `method = "vif"` its `--indep` (VIF) procedure -- **exactly** for ordinary use:
 #' complete-call genotypes, `step <= window`, all individuals treated as founders
-#' (matching PLINK's founder-only rule since the package has no pedigree), and --
+#' (PLINK's founder-only rule is not applied: a crossing Population's
+#' non-founders enter the LD computation like any other individual), and --
 #' for VIF -- at least as many individuals as markers in a window. Outside that
 #' the match is best-effort (see the exported `filter_geno()` LD section for the
 #' pathological corners); missing calls use the `cor()` fallback below and are not

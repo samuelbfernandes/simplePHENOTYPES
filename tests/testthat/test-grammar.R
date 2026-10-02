@@ -176,6 +176,118 @@ test_that("same_as_add reuses the additive QTNs", {
 })
 
 # ---------------------------------------------------------------------------
+# dominance(effect =): mirrors additive(effect =) (v1 dom_effect)
+# ---------------------------------------------------------------------------
+# The bundled maize lines are near-inbred (dominance needs heterozygotes), so
+# these tests use a small segregating panel coded -1/0/1.
+dom_panel <- local({
+  set.seed(42)
+  m <- vapply(stats::runif(60, 0.25, 0.5),
+              function(p) stats::rbinom(200, 2, p) - 1, numeric(200))
+  dimnames(m) <- list(paste0("i", 1:200), paste0("m", 1:60))
+  m
+})
+
+test_that("dominance(effect = base) stores the geometric series per trait", {
+  ph <- simulate_phenotype(dom_panel, n_traits = 2, seed = 1) |>
+    additive(prop = c(0.3, 0.3), n_qtn = 4) |>
+    dominance(prop = c(0.1, 0.1), effect = 0.3, same_as_add = FALSE, n_qtn = 5)
+  eff <- ph$layers[[2]]$effect
+  expect_length(eff, 2)
+  for (t in 1:2) expect_equal(eff[[t]], 0.3^(1:5))
+  # default is unchanged: base 0.5
+  d0 <- dominance(additive(simulate_phenotype(dom_panel, seed = 1),
+                           prop = 0.3, n_qtn = 4), prop = 0.1)
+  expect_equal(d0$layers[[2]]$effect[[1]], 0.5^(1:4))
+})
+
+test_that("dominance(effect = series) is stored verbatim", {
+  ser <- c(0.6, -0.3, 0.1)
+  ph <- simulate_phenotype(dom_panel, seed = 1) |>
+    additive(prop = 0.3, n_qtn = 4) |>
+    dominance(prop = 0.1, same_as_add = FALSE, n_qtn = 3, effect = ser)
+  expect_identical(ph$layers[[2]]$effect[[1]], ser)
+  expect_error(
+    dominance(additive(simulate_phenotype(dom_panel, seed = 1),
+                       prop = 0.3, n_qtn = 4),
+              prop = 0.1, same_as_add = FALSE, n_qtn = 3, effect = 1:2),
+    "n_qtn")
+})
+
+test_that("dominance(effect = series) with same_as_add follows the additive n_qtn", {
+  base <- additive(simulate_phenotype(dom_panel, seed = 1),
+                   prop = 0.3, n_qtn = 4)
+  ser <- c(0.4, 0.3, 0.2, 0.1)
+  ph <- dominance(base, prop = 0.1, same_as_add = TRUE, effect = ser)
+  expect_identical(ph$layers[[2]]$effect[[1]], ser)
+  expect_identical(ph$layers[[2]]$qtn, ph$layers[[1]]$qtn)
+  expect_error(dominance(base, prop = 0.1, same_as_add = TRUE,
+                         effect = c(0.4, 0.3, 0.2)),
+               "additive layer")
+})
+
+test_that("dominance(effect = list) gives each trait its own series", {
+  base <- simulate_phenotype(dom_panel, n_traits = 2, seed = 1,
+                             architecture = "independent") |>
+    additive(prop = c(0.3, 0.3), n_qtn = 3)
+  s1 <- c(0.5, 0.25, 0.125)
+  ph <- dominance(base, prop = c(0.1, 0.1), effect = list(s1, 0.7))
+  eff <- ph$layers[[2]]$effect
+  expect_identical(eff[[1]], s1)
+  expect_equal(eff[[2]], 0.7^(1:3))
+  expect_error(dominance(base, prop = c(0.1, 0.1), effect = list(s1)),
+               "dominance\\(effect=\\).*one element per trait")
+  expect_error(dominance(base, prop = c(0.1, 0.1), effect = list(s1, NULL)),
+               "dominance\\(effect=\\).*numeric")
+})
+
+test_that("dominance(effect =) is rejected under multi-trait pleiotropy", {
+  base <- simulate_phenotype(dom_panel, n_traits = 2,
+                             architecture = "pleiotropy", cor = 0.5,
+                             seed = 1) |>
+    additive(prop = c(0.3, 0.3), n_qtn = 6)
+  expect_error(dominance(base, prop = c(0.1, 0.1), effect = 0.3),
+               "pleiotropy.*cor")
+})
+
+test_that("epistasis(effect = list) gives each trait its own series", {
+  ph <- simulate_phenotype(dom_panel, n_traits = 2, seed = 3) |>
+    additive(prop = c(0.3, 0.3), n_qtn = 4) |>
+    epistasis(prop = c(0.1, 0.1), n_pairs = 3,
+              effect = list(0.3, c(0.5, 0.2, 0.1)))
+  eff <- ph$layers[[2]]$effect
+  expect_equal(eff[[1]], 0.3^(1:3))
+  expect_equal(eff[[2]], c(0.5, 0.2, 0.1))
+  # a scalar or single series is still shared by every trait
+  ph2 <- simulate_phenotype(dom_panel, n_traits = 2, seed = 3) |>
+    additive(prop = c(0.3, 0.3), n_qtn = 4) |>
+    epistasis(prop = c(0.1, 0.1), n_pairs = 3, effect = c(0.5, 0.2, 0.1))
+  expect_equal(ph2$layers[[2]]$effect[[1]], c(0.5, 0.2, 0.1))
+  expect_equal(ph2$layers[[2]]$effect[[2]], c(0.5, 0.2, 0.1))
+  # wrong list length, a NULL element, and a wrong series length are rejected
+  base <- simulate_phenotype(dom_panel, n_traits = 2, seed = 3) |>
+    additive(prop = c(0.3, 0.3), n_qtn = 4)
+  expect_error(epistasis(base, prop = c(0.1, 0.1), n_pairs = 3,
+                         effect = list(0.3)),
+               "one element per trait")
+  expect_error(epistasis(base, prop = c(0.1, 0.1), n_pairs = 3,
+                         effect = list(0.3, NULL)),
+               "every list element")
+  expect_error(epistasis(base, prop = c(0.1, 0.1), n_pairs = 3,
+                         effect = list(0.3, c(1, 2))),
+               "n_pairs")
+})
+
+test_that("epistasis(effect = list) is rejected under multi-trait pleiotropy", {
+  base <- simulate_phenotype(dom_panel, n_traits = 2,
+                             architecture = "pleiotropy", cor = 0.5, seed = 3) |>
+    additive(prop = c(0.3, 0.3), n_qtn = 4)
+  expect_error(epistasis(base, prop = c(0.1, 0.1), n_pairs = 2,
+                         effect = list(0.3, 0.4)),
+               "pleiotropy.*cor")
+})
+
+# ---------------------------------------------------------------------------
 # complex_phenotypes()
 # ---------------------------------------------------------------------------
 test_that("complex_phenotypes combines models and warns on differing seeds", {

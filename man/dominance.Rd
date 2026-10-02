@@ -10,7 +10,8 @@ dominance(
   same_as_add = TRUE,
   n_qtn = NULL,
   qtn = NULL,
-  dist = "geometric"
+  dist = "geometric",
+  effect = NULL
 )
 }
 \arguments{
@@ -39,6 +40,13 @@ you supply. Fixed loci are not redrawn by \code{vary_qtn}. (For \code{\link[=epi
 \code{qtn} describes interacting sets; see there.)}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
+
+\item{effect}{optional geometric base (scalar) or explicit effect series
+(length \code{n_qtn}, the number of dominance loci -- the additive layer's
+\code{n_qtn} when \code{same_as_add = TRUE}), used for every trait; or a
+length-\code{n_traits} list of these, one per trait (the counterpart of v1
+\code{dom_effect}). Not available under \code{architecture = "pleiotropy"}
+(multi-trait), whose correlated draw sets the effects.}
 }
 \value{
 the updated \code{phenotype_sim}.
@@ -106,6 +114,12 @@ ph
 simulate_phenotype(SNP55K_maize282_maf04, seed = 2) |>
   additive(prop = 0.4, n_qtn = 5) |>
   dominance(prop = 0.1, same_as_add = FALSE, n_qtn = 3)
+
+# Give the dominance effects yourself: a geometric base, or one value per QTN.
+simulate_phenotype(SNP55K_maize282_maf04, seed = 2) |>
+  additive(prop = 0.4, n_qtn = 5) |>
+  dominance(prop = 0.1, same_as_add = FALSE, n_qtn = 3,
+            effect = c(0.6, 0.3, 0.1))
 }
 \seealso{
 \code{\link[=additive]{additive()}}, \code{\link[=epistasis]{epistasis()}}, \code{\link[=vqtl]{vqtl()}}, \code{\link[=filter_geno]{filter_geno()}}.
