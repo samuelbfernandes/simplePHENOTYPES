@@ -332,6 +332,12 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
 #' @param n_qtn number of dominance QTNs for a fresh draw
 #'   (`same_as_add = FALSE`); ignored, with a warning, when the loci are reused
 #'   (`same_as_add = TRUE`) or fixed by `qtn`.
+#' @param effect optional geometric base (scalar) or explicit effect series
+#'   (length `n_qtn`, the number of dominance loci -- the additive layer's
+#'   `n_qtn` when `same_as_add = TRUE`), used for every trait; or a
+#'   length-`n_traits` list of these, one per trait (the counterpart of v1
+#'   `dom_effect`). Not available under `architecture = "pleiotropy"`
+#'   (multi-trait), whose correlated draw sets the effects.
 #' @return the updated `phenotype_sim`.
 #' @details
 #' Dominance is modelled as a deviation applied to heterozygotes (the het
@@ -394,8 +400,14 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
 #' simulate_phenotype(SNP55K_maize282_maf04, seed = 2) |>
 #'   additive(prop = 0.4, n_qtn = 5) |>
 #'   dominance(prop = 0.1, same_as_add = FALSE, n_qtn = 3)
+#'
+#' # Give the dominance effects yourself: a geometric base, or one value per QTN.
+#' simulate_phenotype(SNP55K_maize282_maf04, seed = 2) |>
+#'   additive(prop = 0.4, n_qtn = 5) |>
+#'   dominance(prop = 0.1, same_as_add = FALSE, n_qtn = 3,
+#'             effect = c(0.6, 0.3, 0.1))
 dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
-                      qtn = NULL, dist = "geometric") {
+                      qtn = NULL, dist = "geometric", effect = NULL) {
   .check_sim(sim)
   .require_markers(sim, "dominance")
   .validate_flag(same_as_add, "same_as_add")
@@ -418,11 +430,28 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
          "the cross-trait correlation through them. Omit `qtn`, or use ",
          "architecture = \"independent\" to fix loci.", call. = FALSE)
   }
-  if (pleio && !identical(dist, "geometric")) {
-    stop("dominance(): a non-default `dist` cannot be used under architecture = ",
-         "\"pleiotropy\" because effects come from the multivariate draw that ",
-         "controls `cor`.", call. = FALSE)
+  if (pleio && (!is.null(effect) || !identical(dist, "geometric"))) {
+    stop("dominance(): `effect` and non-default `dist` cannot be used under ",
+         "architecture = \"pleiotropy\" because effects come from the ",
+         "multivariate draw that controls `cor`.", call. = FALSE)
   }
+  # A list gives one effect specification per trait (each a geometric base or an
+  # explicit series, checked by .effect_series() when the layer is built).
+  if (is.list(effect)) {
+    if (length(effect) != sim$n_traits) {
+      stop("dominance(effect=): a list must have one element per trait (",
+           sim$n_traits, "); got ", length(effect), ".", call. = FALSE)
+    }
+    # NULL would silently fall back to the default series for that trait
+    bad <- which(!vapply(effect, function(x) is.numeric(x) && length(x) > 0L,
+                         logical(1)))
+    if (length(bad)) {
+      stop("dominance(effect=): every list element must be a numeric geometric ",
+           "base or effect series; element(s) ", paste(bad, collapse = ", "),
+           " are not.", call. = FALSE)
+    }
+  }
+  eff_for <- function(t) if (is.list(effect)) effect[[t]] else effect
   # Under "ld" a fresh dominance draw knows nothing of the additive layer's loci,
   # so it could make a marker causal for both traits across layers; only reusing
   # the additive linked loci keeps every causal locus trait-specific.
@@ -459,6 +488,11 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
     nq <- .resolve_n_qtn(sim, n_qtn, "dominance")
   }
 
+  # With same_as_add the locus count is the additive layer's; say so in the
+  # length error of an explicit `effect` series.
+  count_lab <- if (isTRUE(same_as_add) && is.null(user_qtn))
+    "n_qtn (set by the additive layer)" else "n_qtn"
+
   build <- function(rep_seed, rep = 0L) {
     if (!is.null(user_qtn)) {
       q <- user_qtn
@@ -479,7 +513,8 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
                                      shared = attr(q, "pleio_shared")))
     }
     e <- lapply(seq_len(sim$n_traits),
-                function(t) .effect_series(nq, dist))
+                function(t) .effect_series(nq, dist, eff_for(t),
+                                           count = count_lab))
     list(qtn = q, effect = e)
   }
 
@@ -542,7 +577,10 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
 #'   of length `n_traits` is never read as "one set per element". Rejected under
 #'   `architecture = "pleiotropy"` / `"ld"`.
 #' @param effect optional geometric base (scalar) or explicit effect series
-#'   (length `n_pairs`), used for every trait.
+#'   (length `n_pairs`, one value per interacting set), used for every trait;
+#'   or a length-`n_traits` list of these, one per trait (the counterpart of
+#'   v1 `epi_effect`). Not available under `architecture = "pleiotropy"`
+#'   (multi-trait), whose correlated draw sets the effects.
 #' @param interaction number of markers per epistatic QTN (default 2, pairwise).
 #' @param interaction_type how each marker in an interacting set contributes:
 #'   `"a"` (additive -- the centered dosage) or `"d"` (dominance -- the centered
@@ -654,6 +692,24 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
          "architecture = \"pleiotropy\" because effects come from the ",
          "multivariate draw that controls `cor`.", call. = FALSE)
   }
+  # A list gives one effect specification per trait (each a geometric base or an
+  # explicit series, checked by .effect_series() when the layer is built), as
+  # in additive() and dominance().
+  if (is.list(effect)) {
+    if (length(effect) != sim$n_traits) {
+      stop("epistasis(effect=): a list must have one element per trait (",
+           sim$n_traits, "); got ", length(effect), ".", call. = FALSE)
+    }
+    # NULL would silently fall back to the default series for that trait
+    bad <- which(!vapply(effect, function(x) is.numeric(x) && length(x) > 0L,
+                         logical(1)))
+    if (length(bad)) {
+      stop("epistasis(effect=): every list element must be a numeric geometric ",
+           "base or effect series; element(s) ", paste(bad, collapse = ", "),
+           " are not.", call. = FALSE)
+    }
+  }
+  eff_for <- function(t) if (is.list(effect)) effect[[t]] else effect
 
   build <- function(rep_seed, rep = 0L) {
     if (pleio) {
@@ -668,7 +724,8 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
     q <- if (!is.null(user_pairs)) user_pairs else
       .draw_qtn_pairs(sim, np, interaction, rep_seed)
     e <- lapply(seq_len(sim$n_traits),
-                function(t) .effect_series(np, dist, effect, count = "n_pairs"))
+                function(t) .effect_series(np, dist, eff_for(t),
+                                           count = "n_pairs"))
     list(qtn = q, effect = e)
   }
 

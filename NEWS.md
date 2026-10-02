@@ -147,6 +147,15 @@ G x E traits (item 4) and native coalescent founders (item 9) are not implemente
   (its variance by `reps`).
 
 ## New features
+* `filter_geno()` accepts a `Population` (founders or crossing progeny), so the
+  MAF, heterozygosity and LD filters cover every genotype input
+  `simulate_phenotype()` takes; the map, ids and pedigree are kept and only the
+  failing markers are dropped.
+* `dominance()` gains `effect =` (a geometric base, an explicit series of length
+  `n_qtn`, or a per-trait list), matching `additive()` and v1 `dom_effect`, and
+  `epistasis(effect =)` now also takes a per-trait list (one base or series per
+  trait, like `additive()`); both are rejected under multi-trait
+  `architecture = "pleiotropy"`, whose correlated draw sets the effects.
 * Every `Population` now records its pedigree (`parentage()`, `families()`), kept
   through subsetting and pooling; `as_population()` gains `pool =`.
 * `mating_design()` (random, factorial, nested, diallel, half-diallel) and `mate()`
