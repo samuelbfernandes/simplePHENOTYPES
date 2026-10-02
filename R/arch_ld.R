@@ -205,10 +205,11 @@
 #' trait-specific, so no locus may appear for both traits (or twice), and the
 #' two loci of a pair must be distinguishable genotype columns (squared
 #' correlation below 1) with some linkage to carry covariance. The r2 of every
-#' pair is computed and attached as the `"ld"` attribute (`cause = NA`: a hidden
-#' cause-of-LD locus is not needed to simulate, and is not known for loci you
-#' choose, so `ld_type = "indirect"` is accepted and simply reports no cause). A
-#' pair outside `[r2_min, r2_max]` (defaults 0.2 and 0.8) is allowed but warned
+#' pair is computed and attached as the `"ld"` attribute (`cause = NA`). The two
+#' loci of a pair must be on one chromosome (as in the random construction), and
+#' `ld_type = "indirect"` is refused: its defining hidden cause-of-LD marker is
+#' chosen by the search and cannot be established from passed loci. A pair
+#' outside `[r2_min, r2_max]` (defaults 0.2 and 0.8) is allowed but warned
 #' about, since the random search would not have returned it.
 #' @param user_qtn per-trait list from `.resolve_qtn_arg()`.
 #' @return `user_qtn` with the `"ld"` attribute.
@@ -234,6 +235,25 @@
          "`qtn = list(trait1_loci, trait2_loci)` with disjoint loci, element i ",
          "of each forming a linked pair.", call. = FALSE)
   }
+  a <- sim$arch_args
+  if (identical(a[["ld_type"]], "indirect")) {
+    stop(type, "(qtn=): ld_type = \"indirect\" links the two traits' causal loci ",
+         "through a hidden, non-causal cause-of-LD marker that the search ",
+         "chooses, which passed loci cannot establish. Use ld_type = \"direct\" ",
+         "(the default) with `qtn`, or let the architecture draw the loci.",
+         call. = FALSE)
+  }
+  # the architecture's pairs are physically linked: same chromosome
+  chr1 <- sim$map$chr[t1]
+  chr2 <- sim$map$chr[t2]
+  if (any(chr1 != chr2)) {
+    bad <- which(chr1 != chr2)
+    stop(type, "(qtn=): pair(s) ", paste(bad, collapse = ", "), " lie on ",
+         "different chromosomes (", paste(chr1[bad], "vs", chr2[bad],
+                                          collapse = "; "),
+         "); under architecture = \"ld\" the two traits' loci of a pair are ",
+         "linked, so they must be on the same chromosome.", call. = FALSE)
+  }
   g1 <- .geno_cols(sim, t1)
   g2 <- .geno_cols(sim, t2)
   r2 <- vapply(seq_along(t1), function(i) {
@@ -251,7 +271,6 @@
          "traits' causal loci cannot be told apart; choose a partner with ",
          "r2 < 1.", call. = FALSE)
   }
-  a <- sim$arch_args
   r2_max <- if (is.null(a[["r2_max"]])) 0.8 else a[["r2_max"]]
   r2_min <- if (is.null(a[["r2_min"]])) 0.2 else a[["r2_min"]]
   out <- which(r2 < r2_min | r2 > r2_max)

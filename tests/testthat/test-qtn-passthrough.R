@@ -166,7 +166,11 @@ test_that("ld: passed loci are linked pairs and their r2 is reported", {
   skip_if(nrow(pr) < 3L, "no in-window marker pairs in this subset")
   nm <- .qp_g$snp
   m <- as.matrix(.qp_g[, -(1:5)])
-  for (lt in c("direct", "indirect")) {
+  # indirect LD needs a hidden cause that passed loci cannot establish
+  expect_error(.qp_sim("ld", ld_type = "indirect") |>
+                 additive(prop = 0.4, qtn = list(nm[pr[, 1]], nm[pr[, 2]])),
+               "indirect")
+  for (lt in c("direct")) {
     sim <- .qp_sim("ld", ld_type = lt) |>
       additive(prop = 0.4, qtn = list(nm[pr[, 1]], nm[pr[, 2]]))
     tb <- qtn_table(sim)
@@ -199,16 +203,80 @@ test_that("ld: invalid passed loci are rejected with a fix", {
   expect_error(s |> additive(prop = 0.4,
                              qtn = list(nm[pr[, 1]], nm[c(pr[1, 1], pr[2, 2])])),
                "cannot be causal for both")
-  # an unlinked pair is used with a warning, not silently
-  far <- c(nm[10], nm[3900])
-  expect_warning(s |> additive(prop = 0.4, qtn = list(far[1], far[2])),
+  # an unlinked same-chromosome pair is used with a warning, not silently
+  chr <- .qp_g$chr
+  m <- as.matrix(.qp_g[, -(1:5)])
+  i <- which(chr == chr[1])[1]
+  r2all <- suppressWarnings(stats::cor(m[i, ], t(m[chr == chr[i], ]))^2)
+  jfar <- which(chr == chr[i])[which(r2all < 0.05)[1]]
+  expect_warning(s |> additive(prop = 0.4, qtn = list(nm[i], nm[jfar])),
                  "outside the architecture's window")
+  # a pair on different chromosomes is not linked: refused
+  j2 <- which(chr != chr[1])[1]
+  expect_error(s |> additive(prop = 0.4, qtn = list(nm[1], nm[j2])),
+               "different chromosomes")
   # one additive layer only, as before
   one <- s |> additive(prop = 0.4, qtn = list(nm[pr[1, 1]], nm[pr[1, 2]]))
   expect_error(one |> additive(prop = 0.1, qtn = list(nm[pr[2, 1]], nm[pr[2, 2]])),
                "single additive layer")
   # epistasis stays unsupported under ld, with the reason
   expect_error(one |> epistasis(prop = 0.1, n_pairs = 1), "not supported under")
+})
+
+test_that("round-8 review: reordered lists keep their effects, duplicate sets and constant loci are caught, epistasis warns", {
+  nm <- .qp_g$snp
+  sh <- nm[c(100, 800, 1500)]
+  p <- .qp_sim("pleiotropy")
+  # per-trait order is kept, so a positional effect stays on its own locus
+  r <- p |> additive(prop = 0.3, qtn = list(sh, rev(sh)),
+                     effect = list(c(1, 2, 3), c(10, 20, 30)))
+  tb <- qtn_table(r)
+  expect_equal(tb$snp[tb$trait == "Trait_2"], rev(sh))
+  expect_equal(tb$effect[tb$trait == "Trait_2"] / tb$effect[tb$trait == "Trait_2"][1],
+               c(1, 2, 3))
+  # the same set twice for one trait is not "the same sets for each trait"
+  hl <- .qp_het_loci()
+  m2 <- hl$sim$map$snp
+  s_a <- matrix(m2[hl$het[1:4]], ncol = 2)
+  pf <- suppressWarnings(simulate_phenotype(.qp_f2, n_traits = 2,
+                                            architecture = "pleiotropy", seed = 3)) |>
+    additive(prop = 0.3, n_qtn = 4)
+  expect_error(pf |> epistasis(prop = 0.1,
+                               qtn = list(rbind(s_a[1, ], s_a[1, ]),
+                                          s_a[1, , drop = FALSE])),
+               "more than once")
+  # constant passed loci do not count as shared units: all constant -> error
+  g <- .qp_g
+  g[c(10, 20, 30), -(1:5)] <- 1L
+  pc <- suppressWarnings(simulate_phenotype(g, n_traits = 2,
+                                            architecture = "pleiotropy",
+                                            cor = 0.3, seed = 1))
+  expect_error(suppressWarnings(pc |> additive(prop = 0.3,
+                                               qtn = g$snp[c(10, 20, 30)])),
+               "none of the loci")
+  # one informative locus among constant ones: the single-shared-unit warning
+  w <- character()
+  withCallingHandlers(pc |> additive(prop = 0.3, qtn = g$snp[c(10, 20, 30, 500)]),
+                      warning = function(c) {
+                        w <<- c(w, conditionMessage(c))
+                        invokeRestart("muffleWarning")
+                      })
+  expect_true(any(grepl("only one shared", w)))
+  # a monomorphic passed epistatic set warns
+  g2 <- .qp_g
+  g2[10, -(1:5)] <- 1L
+  pm <- suppressWarnings(simulate_phenotype(g2, n_traits = 2, seed = 1))
+  expect_warning(pm |> additive(prop = 0.2, n_qtn = 2) |>
+                   epistasis(prop = 0.1, qtn = rbind(c(g2$snp[10], g2$snp[50]),
+                                                     c(g2$snp[60], g2$snp[70]))),
+                 "monomorphic")
+  # vqtl follows the architecture rules
+  expect_error(.qp_sim("pleiotropy") |> additive(prop = 0.2, qtn = sh) |>
+                 vqtl(prop = 0.1, same_as_add = FALSE,
+                      qtn = list(sh, nm[c(400, 900, 1700)])),
+               "complex_phenotypes")
+  expect_error(.qp_sim("ld") |> vqtl(prop = 0.1, same_as_add = FALSE, qtn = nm[1:2]),
+               "cannot be causal for both")
 })
 
 test_that("ld: dominance takes disjoint pairs, and not a marker causal for the other trait", {
@@ -219,10 +287,11 @@ test_that("ld: dominance takes disjoint pairs, and not a marker causal for the o
     cc <- stats::cor(g)^2
     out <- matrix(NA_integer_, 0, 2)
     used <- integer(0)
+    chr_h <- hl$sim$map$chr[hl$het[1:600]]
     for (i in seq_len(ncol(g))) {
       if (i %in% used) next
       j <- which(cc[i, ] >= 0.3 & cc[i, ] <= 0.7 & seq_len(ncol(g)) != i &
-                   !(seq_len(ncol(g)) %in% used))
+                   chr_h == chr_h[i] & !(seq_len(ncol(g)) %in% used))
       if (length(j)) {
         out <- rbind(out, c(hl$het[i], hl$het[j[1]]))
         used <- c(used, i, j[1])

@@ -274,15 +274,18 @@ vqtl(sim,      prop, same_as_add = TRUE, n_qtn = NULL, qtn = NULL, dist = "geome
 - `dist`: within-layer effect distribution; default geometric. `effect` overrides with
   a geometric base or an explicit series (v1 `sim_method = "custom"`), or a
   length-`n_traits` list of these (one per trait) in `additive()`, `dominance()`
-  and `epistasis()`; rejected under multi-trait `"pleiotropy"` (DECISION-023).
+  and `epistasis()`; under multi-trait `"pleiotropy"` it is accepted only when no correlation
+  is controlled (no `cor`/`pi`, DECISION-023/043).
 - `qtn`: user-chosen loci (marker names or indices) replace the random choice in every
   architecture and each architecture keeps its construction (DECISION-043). Independent:
   the loci carry the effect series. Pleiotropy: every locus affects every trait (a vector,
   or the same loci for each trait; loci for only some traits are partial pleiotropy,
-  `complex_phenotypes()`); `effect`/`dist` set the effects unless a correlation is controlled
-  (`cor`, `pi`, ...), when the correlated draw does and `pi < 1` is refused. LD:
-  `list(trait1_loci, trait2_loci)` = disjoint linked pairs with reported r2; `epistasis()`
-  is not available under LD.
+  `complex_phenotypes()`); with `cor`/`pi` the correlated draw sets the effects and the
+  correlation is its target (`pi < 1` is refused with fixed loci); without them an explicit
+  `effect` sets the effects and the correlation is an outcome (no `effect`: the default draw,
+  implicit `cor = 0`). LD (`ld_type = "direct"`): `list(trait1_loci, trait2_loci)` = disjoint
+  linked pairs on one chromosome with reported r2; `epistasis()` is not available under LD.
+  `vqtl(qtn =)` follows the same pleiotropy / LD rules.
 - `additive(orthogonal = TRUE, a =, d =)`: the orthogonal genotypic model
   (Modeling convention, §2; DECISION-020). `a`/`d` are per-locus additive effects
   and dominance deviations (scalar or length-`n_qtn`); `effect` is rejected in this

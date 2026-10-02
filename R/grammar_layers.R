@@ -20,23 +20,28 @@
 #'   carry the effect series; under `"pleiotropy"` (multi-trait) every locus
 #'   affects every trait, so give a single vector (or the same loci for each
 #'   trait in a list); loci that affect only some traits are partial pleiotropy,
-#'   built with [complex_phenotypes()]. The effects are set by `effect` / `dist`
-#'   unless a correlation is controlled (`cor`, `pi`, ...), in which case the
-#'   correlated draw sets them and the genetic correlation is its target;
-#'   without either the correlation is just an outcome of the shared loci. `pi`
-#'   only matters for controlling a correlation, and `pi < 1` cannot be used
-#'   with fixed shared loci. Under `"ld"` give
+#'   built with [complex_phenotypes()]. If a correlation is controlled (`cor`,
+#'   `pi`, ...) the correlated draw sets the effects and the genetic correlation
+#'   is its target; otherwise the correlation is just an outcome of the shared
+#'   loci, and an explicit `effect` sets the effects (without it the default
+#'   draw does, with implicit `cor = 0`). `pi` only matters for controlling a
+#'   correlation, and `pi < 1` cannot be used with fixed shared loci. Under
+#'   `"ld"` (`ld_type = "direct"` only) give
 #'   `qtn = list(trait1_loci, trait2_loci)` of equal length -- the i-th locus of
-#'   each is a linked pair, no marker may be causal for both traits, and each
+#'   each is a linked pair on one chromosome, no marker may be causal for both traits, and each
 #'   pair's r2 is reported (by [qtn_table()]) and warned about when outside
 #'   `[r2_min, r2_max]`. Markers that are monomorphic (or heterozygous in every
 #'   individual) are accepted with a warning: they carry no variance.
 #' @param effect optional geometric base (scalar) or explicit effect series
 #'   (length `n_qtn`), used for every trait; or a length-`n_traits` list of these,
 #'   one per trait -- e.g. to re-score per-trait effects frozen from an earlier
-#'   simulation on fixed `qtn` in a single layer. Not available under
-#'   `architecture = "pleiotropy"` (multi-trait), whose correlated draw sets the
-#'   effects, nor with `orthogonal = TRUE` (use `a`).
+#'   simulation on fixed `qtn` in a single layer. Under
+#'   `architecture = "pleiotropy"` (multi-trait) it is accepted only when no
+#'   correlation is controlled (no `cor`, `pi`, ...): it then sets the effects of
+#'   the shared loci (the same series for every trait unless a per-trait list is
+#'   given) and the genetic correlation is an outcome. Without `effect` (or with
+#'   `cor` / `pi`) the pleiotropy draw sets the effects. Not available with
+#'   `orthogonal = TRUE` (use `a`).
 #' @param orthogonal use the orthogonal genotypic model instead of the
 #'   variance-partition coding (default `FALSE`). When `TRUE`, give per-locus
 #'   additive effects `a` and dominance deviations `d`; the additive and
@@ -356,8 +361,9 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
 #'   (length `n_qtn`, the number of dominance loci -- the additive layer's
 #'   `n_qtn` when `same_as_add = TRUE`), used for every trait; or a
 #'   length-`n_traits` list of these, one per trait (the counterpart of v1
-#'   `dom_effect`). Not available under `architecture = "pleiotropy"`
-#'   (multi-trait), whose correlated draw sets the effects.
+#'   `dom_effect`). Under `architecture = "pleiotropy"` (multi-trait) accepted
+#'   only when no correlation is controlled (no `cor`, `pi`, ...), as in
+#'   [additive()].
 #' @return the updated `phenotype_sim`.
 #' @details
 #' Dominance is modelled as a deviation applied to heterozygotes (the het
@@ -402,7 +408,7 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
 #' effect is scaled by the realized standard deviation of its heterozygote
 #' indicator. Fixing loci with `qtn =` works under every architecture: under
 #' "pleiotropy" every locus affects every trait (the same loci for each trait),
-#' with `effect` / `dist` setting the effects unless a correlation is controlled;
+#' with an explicit `effect` setting the effects when no correlation is controlled;
 #' under "ld" dominance reuses the additive layer's linked loci
 #' (`same_as_add = TRUE`) or takes `qtn = list(trait1_loci, trait2_loci)` of
 #' disjoint linked pairs (no marker may already be causal for the other trait in
@@ -616,8 +622,9 @@ dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
 #' @param effect optional geometric base (scalar) or explicit effect series
 #'   (length `n_pairs`, one value per interacting set), used for every trait;
 #'   or a length-`n_traits` list of these, one per trait (the counterpart of
-#'   v1 `epi_effect`). Not available under `architecture = "pleiotropy"`
-#'   (multi-trait), whose correlated draw sets the effects.
+#'   v1 `epi_effect`). Under `architecture = "pleiotropy"` (multi-trait) accepted
+#'   only when no correlation is controlled (no `cor`, `pi`, ...), as in
+#'   [additive()].
 #' @param interaction number of markers per epistatic QTN (default 2, pairwise).
 #' @param interaction_type how each marker in an interacting set contributes:
 #'   `"a"` (additive -- the centered dosage) or `"d"` (dominance -- the centered
@@ -724,7 +731,6 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
   if (!is.null(user_pairs) && pleio) {
     .pleio_check_user_units(sim, .expand_prop(prop, sim$n_traits), user_pairs,
                             "epistasis", TRUE)
-    user_pairs <- rep(list(user_pairs[[1L]]), sim$n_traits)
   }
   if (pleio && !series_path && (!is.null(effect) || !identical(dist, "geometric"))) {
     stop("epistasis(): `effect` and non-default `dist` cannot be used under ",
@@ -880,13 +886,23 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
   .cite_vqtl()
   prop <- .resolve_prop(sim, prop, "vqtl")
   occ <- .type_occurrence(sim, "vqtl")
-  user_qtn <- .resolve_qtn_arg(sim, qtn, "vqtl")
+  pleio <- identical(sim$architecture, "pleiotropy") && sim$n_traits > 1
+  user_qtn <- .resolve_qtn_arg(sim, qtn, "vqtl", equal = !pleio)
+  # passed vQTL loci follow the architecture's rules too (DECISION-043):
+  # pleiotropy = the same loci for every trait; ld = disjoint linked pairs
+  if (!is.null(user_qtn) && pleio) {
+    user_qtn <- .pleio_user_layout(user_qtn, "vqtl")$q
+  }
+  if (!is.null(user_qtn) && identical(sim$architecture, "ld")) {
+    .ld_check_cross_layer(sim, user_qtn, "vqtl")
+    user_qtn <- .ld_user_pairs(sim, user_qtn, "vqtl")
+  }
 
   add_layer <- .last_layer_of_type(sim, "additive")
   if (!is.null(user_qtn)) {
     if (!is.null(n_qtn)) {
       warning("vqtl(): `n_qtn` is ignored because `qtn` fixes the loci (",
-              length(user_qtn[[1]]), " QTNs).", call. = FALSE)
+              max(lengths(user_qtn)), " QTNs).", call. = FALSE)
     }
     same_as_add <- FALSE
   } else if (isTRUE(same_as_add) && !is.null(n_qtn)) {
@@ -899,7 +915,7 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
          call. = FALSE)
   }
   if (!is.null(user_qtn)) {
-    nq <- length(user_qtn[[1]])
+    nq <- max(lengths(user_qtn))
   } else if (isTRUE(same_as_add)) {
     nq <- add_layer$n_qtn
   } else {
@@ -1371,6 +1387,7 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
            "set.", call. = FALSE)
     }
   }
+  .warn_monomorphic(sim, lapply(mats, as.vector), "epistasis")
   mats
 }
 

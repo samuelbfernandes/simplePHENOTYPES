@@ -1774,19 +1774,21 @@ moves to the user.
   independent effects (an earlier draft of this decision mapped "listed for one trait" to PleioArch
   trait-specific loci; reversed by the maintainer, the pleiotropy architecture has no single-trait QTNs for
   user layouts). The correlation is not a default target: `pi` and `cor` matter only when a correlation is
-  controlled. Without `cor`, `pi`, `pi_target`, `pi_secondary`, `n_pleio_major`, `prop_var_major` the effects
-  are set by `effect` / `dist` (new: previously refused) and the genetic correlation is an outcome of the
-  shared loci; with any of them the correlated draw (DECISION-023: shared effects jointly MVN,
+  controlled. Without `cor`, `pi`, `pi_target`, `pi_secondary`, `n_pleio_major`, `prop_var_major` an explicit
+  `effect` sets the effects (new: previously refused; the series is the same for every trait unless a per-trait list
+  is given) and the genetic correlation is an outcome of the shared loci; with no `effect` the default draw
+  (implicit `cor = 0`, effects independent across traits) is unchanged; with any of them the correlated draw (DECISION-023: shared effects jointly MVN,
   `Sigma_ij = cor_ij sqrt(V_i V_j)`, MAF scaling, feasibility checks) sets the effects, `effect` / `dist` stay
   refused, and `pi < 1` is refused with fixed loci (it asks for trait-specific variance that shared loci cannot
   carry). The default random draw (no `qtn`, no `effect`) is bit-identical, including its optional
   trait-specific loci under `pi < 1` (DECISION-023). Dominance and epistasis follow the same rules.
-* **ld:** `qtn = list(trait1_loci, trait2_loci)`, equal length, element `i` of each a linked pair; no marker
+* **ld:** `qtn = list(trait1_loci, trait2_loci)`, equal length, element `i` of each a linked pair on one chromosome (round 8: a
+  cross-chromosome pair is an error); no marker
   may be causal for both traits or listed twice (also across layers for dominance: a marker already causal for
   the other trait is refused); a pair must be distinguishable columns (r2 < 1, a monomorphic marker is an error);
   the pair's r2 is computed and reported (`qtn_table()` `ld_r2`, `QTN_t1`, `QTN_t2`) and a pair outside
-  `[r2_min, r2_max]` is used but warned. `ld_type = "indirect"` accepts passed pairs and reports no hidden cause
-  (the cause does not enter genetic values and is unknown for chosen loci). Dominance under "ld" reuses the
+  `[r2_min, r2_max]` is used but warned. `ld_type = "indirect"` is refused with passed pairs (round 8: its hidden cause-of-LD marker is chosen by the
+  search and cannot be established from passed loci; use `"direct"`). Dominance under "ld" reuses the
   additive linked loci or takes disjoint passed pairs. `epistasis()` stays unsupported under "ld" (no linked-pair
   construction for sets, DECISION-023); a second additive layer is still rejected.
 * **all architectures:** a passed marker that is monomorphic or heterozygous in every individual (never drawn

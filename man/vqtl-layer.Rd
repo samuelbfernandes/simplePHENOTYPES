@@ -39,14 +39,15 @@ you supply. Fixed loci are not redrawn by \code{vary_qtn}. (For \code{\link[=epi
 carry the effect series; under \code{"pleiotropy"} (multi-trait) every locus
 affects every trait, so give a single vector (or the same loci for each
 trait in a list); loci that affect only some traits are partial pleiotropy,
-built with \code{\link[=complex_phenotypes]{complex_phenotypes()}}. The effects are set by \code{effect} / \code{dist}
-unless a correlation is controlled (\code{cor}, \code{pi}, ...), in which case the
-correlated draw sets them and the genetic correlation is its target;
-without either the correlation is just an outcome of the shared loci. \code{pi}
-only matters for controlling a correlation, and \code{pi < 1} cannot be used
-with fixed shared loci. Under \code{"ld"} give
+built with \code{\link[=complex_phenotypes]{complex_phenotypes()}}. If a correlation is controlled (\code{cor},
+\code{pi}, ...) the correlated draw sets the effects and the genetic correlation
+is its target; otherwise the correlation is just an outcome of the shared
+loci, and an explicit \code{effect} sets the effects (without it the default
+draw does, with implicit \code{cor = 0}). \code{pi} only matters for controlling a
+correlation, and \code{pi < 1} cannot be used with fixed shared loci. Under
+\code{"ld"} (\code{ld_type = "direct"} only) give
 \code{qtn = list(trait1_loci, trait2_loci)} of equal length -- the i-th locus of
-each is a linked pair, no marker may be causal for both traits, and each
+each is a linked pair on one chromosome, no marker may be causal for both traits, and each
 pair's r2 is reported (by \code{\link[=qtn_table]{qtn_table()}}) and warned about when outside
 \verb{[r2_min, r2_max]}. Markers that are monomorphic (or heterozygous in every
 individual) are accepted with a warning: they carry no variance.}

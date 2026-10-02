@@ -6,11 +6,12 @@
   `"ld"`, not only `"independent"` (it was an error there). Each architecture keeps its construction and only
   the choice of loci moves to the user (DECISION-043). **Pleiotropy:** every locus affects every trait, so give a
   single vector (or the same loci for each trait); loci that affect only some traits are partial pleiotropy and
-  are built with `complex_phenotypes()` (an error here, with that pointer). `effect` / `dist` now set the effects
-  of a pleiotropy layer when no correlation is controlled (no `cor`, `pi`, ...), and the genetic correlation is
-  then just an outcome of the shared loci; with `cor` or `pi` the correlated draw sets the effects as before
-  (`effect` / `dist` are still refused) and `pi < 1` cannot be combined with fixed shared loci. The default random
-  draw is unchanged. **LD:** `qtn = list(trait1_loci, trait2_loci)` gives linked pairs (element `i` of each);
+  are built with `complex_phenotypes()` (an error here, with that pointer). An explicit `effect` now sets the
+  effects of a pleiotropy layer when no correlation is controlled (no `cor`, `pi`, ...), and the genetic
+  correlation is then just an outcome of the shared loci; without `effect`, or with `cor` or `pi`, the pleiotropy
+  draw sets the effects as before (`effect` is still refused with `cor` / `pi`) and `pi < 1` cannot be combined
+  with fixed shared loci. The default random
+  draw is unchanged. **LD** (`ld_type = "direct"`): `qtn = list(trait1_loci, trait2_loci)` gives linked pairs on one chromosome (element `i` of each);
   the pair r2 is computed, reported by `qtn_table()` and warned about when outside `[r2_min, r2_max]`; no marker
   may be causal for both traits. `epistasis()` is still not available under `"ld"`.
 * A passed marker that is monomorphic (or heterozygous in every individual) now warns in every architecture:

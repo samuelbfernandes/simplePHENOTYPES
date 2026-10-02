@@ -99,9 +99,19 @@
     pleio_n <- part$pleio_n
     spec_n  <- rep(part$spec_n, nt)
   } else {
+    # only informative loci (polymorphic in the simulated individuals) carry
+    # the covariance: constant columns drop out of the realized value, so the
+    # guards count them, while the effect draws below use every supplied locus
     pleio_n <- length(fixed$shared)
+    n_inf   <- sum(fixed$shared %in% .candidate_markers(sim))
     spec_n  <- vapply(fixed$spec, length, 0L)
-    .pleio_check_layout(R, pi_vec, vg, pleio_n, spec_n)
+    if (n_inf < 1L && any(vg > 0)) {
+      stop("architecture = \"pleiotropy\": none of the loci in `qtn` varies in ",
+           "the simulated individuals (monomorphic or heterozygous in every ",
+           "one), so no shared locus can carry any variance or correlation.",
+           call. = FALSE)
+    }
+    .pleio_check_layout(R, pi_vec, vg, n_inf, spec_n)
   }
   if (n_major > pleio_n) {
     stop("`n_pleio_major` (", n_major, ") cannot exceed the number of shared ",
@@ -360,7 +370,8 @@
          "are partial pleiotropy: build one model per group of traits and ",
          "combine them with complex_phenotypes().", call. = FALSE)
   }
-  q <- rep(list(shared), nt)
+  # each trait keeps its own order: positional effects (effect =) belong to it
+  q <- lapply(user_qtn, as.integer)
   attr(q, "pleio_shared") <- as.integer(shared)
   list(shared = as.integer(shared), spec = rep(list(integer(0)), nt), q = q)
 }
@@ -968,6 +979,10 @@
     if (is_set) apply(x, 1L, paste, collapse = "-") else as.character(x)
   })
   unit <- if (is_set) "interacting set" else "locus"
+  if (any(vapply(keys, anyDuplicated, 0L) > 0L)) {
+    stop(component, "(qtn=): a ", unit, " is listed more than once for a ",
+         "trait; list each ", unit, " once.", call. = FALSE)
+  }
   if (!all(vapply(keys, function(k) setequal(k, keys[[1L]]), logical(1)))) {
     stop(component, "(qtn=): under architecture = \"pleiotropy\" every ", unit,
          " affects every trait, so `qtn` must list the same ",
