@@ -246,6 +246,11 @@
   # the architecture's pairs are physically linked: same chromosome
   chr1 <- sim$map$chr[t1]
   chr2 <- sim$map$chr[t2]
+  if (anyNA(chr1) || anyNA(chr2)) {
+    stop(type, "(qtn=): architecture = \"ld\" requires chromosome identifiers ",
+         "in the marker map to establish that a pair is linked; a plain ",
+         "matrix has no chromosome map.", call. = FALSE)
+  }
   if (any(chr1 != chr2)) {
     bad <- which(chr1 != chr2)
     stop(type, "(qtn=): pair(s) ", paste(bad, collapse = ", "), " lie on ",

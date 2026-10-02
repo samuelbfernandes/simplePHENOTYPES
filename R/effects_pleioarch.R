@@ -103,12 +103,18 @@
     # the covariance: constant columns drop out of the realized value, so the
     # guards count them, while the effect draws below use every supplied locus
     pleio_n <- length(fixed$shared)
-    n_inf   <- sum(fixed$shared %in% .candidate_markers(sim))
+    # (and only loci that are allotted variance: with n_pleio_major = k and
+    # prop_var_major = 1 the minor loci get exactly zero effect, with
+    # prop_var_major = 0 -- no major class -- every locus is minor)
+    is_major <- seq_along(fixed$shared) <= n_major
+    gets_var <- (is_major & propMaj > 0) | (!is_major & propMaj < 1)
+    n_inf   <- sum(fixed$shared %in% .candidate_markers(sim) & gets_var)
     spec_n  <- vapply(fixed$spec, length, 0L)
     if (n_inf < 1L && any(vg > 0)) {
       stop("architecture = \"pleiotropy\": none of the loci in `qtn` varies in ",
            "the simulated individuals (monomorphic or heterozygous in every ",
-           "one), so no shared locus can carry any variance or correlation.",
+           "one) or receives variance (see `n_pleio_major` / `prop_var_major`), ",
+           "so no shared locus can carry any variance or correlation.",
            call. = FALSE)
     }
     .pleio_check_layout(R, pi_vec, vg, n_inf, spec_n)

@@ -49,8 +49,10 @@ correlation, and \code{pi < 1} cannot be used with fixed shared loci. Under
 \code{qtn = list(trait1_loci, trait2_loci)} of equal length -- the i-th locus of
 each is a linked pair on one chromosome, no marker may be causal for both traits, and each
 pair's r2 is reported (by \code{\link[=qtn_table]{qtn_table()}}) and warned about when outside
-\verb{[r2_min, r2_max]}. Markers that are monomorphic (or heterozygous in every
-individual) are accepted with a warning: they carry no variance.}
+\verb{[r2_min, r2_max]}. A marker that is monomorphic (or heterozygous in every
+individual) carries no variance: it is accepted with a warning, except
+where it makes the architecture undefined (an \code{"ld"} pair, or a pleiotropy
+layout with no varying locus), which is an error.}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
 }

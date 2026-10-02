@@ -341,3 +341,30 @@ test_that("passed loci are not redrawn by vary_qtn in any architecture", {
     additive(prop = 0.4, qtn = sh)
   expect_identical(qtn_table(sim, rep = 1)$snp, qtn_table(sim, rep = 3)$snp)
 })
+
+test_that("round-9 review: active-unit guard, LD ownership in any layer order, matrix without chromosomes", {
+  nm <- .qp_g$snp
+  # four varying loci but one major with prop_var_major = 1: one active shared
+  # unit, so the correlation is exactly +/-1 -> warned
+  w <- character()
+  withCallingHandlers(
+    suppressWarnings(simulate_phenotype(.qp_g, n_traits = 2, architecture = "pleiotropy",
+                                        cor = 0.3, n_pleio_major = 1,
+                                        prop_var_major = 1, seed = 33)) |>
+      additive(prop = 0.3, qtn = nm[c(100, 800, 1500, 2200)]),
+    warning = function(c) { w <<- c(w, conditionMessage(c)); invokeRestart("muffleWarning") })
+  expect_true(any(grepl("only one shared", w)))
+  # LD: a fixed vqtl followed by an additive layer may not reuse a marker for the other trait
+  pr <- .qp_ld_pairs(2)
+  skip_if(nrow(pr) < 2L, "no in-window marker pairs in this subset")
+  s <- .qp_sim("ld")
+  v <- s |> vqtl(prop = 0.1, same_as_add = FALSE,
+                 qtn = list(nm[pr[1, 1]], nm[pr[1, 2]]))
+  expect_error(v |> additive(prop = 0.3, qtn = list(nm[pr[1, 2]], nm[pr[2, 2]])),
+               "already causal for the other trait")
+  # a plain matrix has no chromosome map
+  m <- matrix(sample(-1:1, 400, TRUE), 100, 4, dimnames = list(NULL, LETTERS[1:4]))
+  sm <- suppressWarnings(simulate_phenotype(m, architecture = "ld", n_traits = 2, seed = 1))
+  expect_error(sm |> additive(prop = 0.3, qtn = list("A", "B")),
+               "chromosome identifiers")
+})

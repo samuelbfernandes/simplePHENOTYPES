@@ -1792,8 +1792,12 @@ moves to the user.
   additive linked loci or takes disjoint passed pairs. `epistasis()` stays unsupported under "ld" (no linked-pair
   construction for sets, DECISION-023); a second additive layer is still rejected.
 * **all architectures:** a passed marker that is monomorphic or heterozygous in every individual (never drawn
-  at random, `.candidate_markers()`) is accepted with a warning: its design column is constant, so it carries no
-  variance.
+  at random, `.candidate_markers()`) carries no variance: it is accepted with a warning, except where it makes the
+  construction undefined (an "ld" pair: error; a pleiotropy layout with no informative shared locus: error, and a
+  single informative shared locus warns that the correlation is then exactly +/-1, counting only loci that receive
+  variance under `n_pleio_major` / `prop_var_major`). Round 9: the LD ownership rule (a locus is causal for one trait
+  across ALL layers) is enforced whatever the layer order (additive after vqtl/dominance too), and a plain matrix (no
+  chromosome map) is refused for passed LD pairs with the same message as the random search.
 Default draws and the independent path are unchanged (RNG order identical; `qtn = NULL` is bit-identical).
 Review owed (Codex): the all-shared rule, the effect/dist-when-uncontrolled path, the LD pair rules.
 
@@ -1905,5 +1909,5 @@ asserted with nested `expect_warning()`. `test-v130-parity.R` and the RDS refere
 | 040 | Batched integer-I/O crossing core `mate_many_core()`; `mate()` runs every plan row in one call; R draws in plan order so the batch equals the sequential run bit for bit; ~6x cheaper per call at 14,000 markers | locked (2026-09-30) |
 | 041 | Crossover interference `interference = NULL \| list(nu, p)` (`1 <= nu <= 1e6`) on `cross`/`selfcross`/`double_haploid`/`mate`/`crossbreed` and, by propagation, `single_seed_descent`/`bulk`/`pedigree`/`recurrent_selection`/`cross_usefulness`/`combining_ability` (simulated only)/`progeny_test`: two-pathway gamma model on the bivalent, 1/2 thinning to the gamete, expected crossovers per Morgan unchanged, drawn in R, default NULL = Poisson/isqg stream bit-identical; `NULL` also resolves to the option `simplePHENOTYPES.interference` when set (round 9) | locked (2026-09-30) |
 | 042 | Frozen v1 direct-LD search: first attempt unchanged (bit-identical), then up to 50 retries per replicate from derived seeds `seed -/+ (a-1)*1000003` with the dominance-walk neighbour reset; window never relaxed, every pair verified; indirect LD not retried | locked (2026-10-01) |
-| 043 | `qtn =` accepted in every architecture, each keeping its construction: pleiotropy = every locus affects every trait (partial pleiotropy -> `complex_phenotypes()`, error), `effect`/`dist` set effects unless a correlation is controlled (`cor`, `pi`, ...), else the correlated draw; `pi < 1` refused with fixed loci; ld = `list(trait1, trait2)` disjoint linked pairs with reported r2 (indirect reports no cause; epistasis still unsupported); monomorphic passed markers warned | locked (2026-10-02) |
+| 043 | `qtn =` accepted in every architecture, each keeping its construction: pleiotropy = every locus affects every trait (partial pleiotropy -> `complex_phenotypes()`, error), an explicit `effect` sets effects when no correlation is controlled (no `cor`/`pi`), else (and by default) the correlated draw with implicit `cor = 0`; `pi < 1` refused with fixed loci; ld = `list(trait1, trait2)` disjoint linked pairs on one chromosome with reported r2 (`ld_type = "indirect"` refused; epistasis still unsupported; ownership enforced in any layer order); constant passed markers warned (errors where the construction becomes undefined) | locked (2026-10-02) |
 | 044 | `write_qtn_table()` (all `qtn_table()` columns, text/JSON, several reps stacked with `rep`) + `write_phenotypes(qtn_file, split_markers, markers_files, rep)`: causal markers = union of `qtn_table()` marker-layer `snp` over the selected reps (genes excluded), non-causal = the rest; numeric-format text / self-describing JSON, chunked writing | locked (2026-10-02) |

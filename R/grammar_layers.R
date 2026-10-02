@@ -30,8 +30,10 @@
 #'   `qtn = list(trait1_loci, trait2_loci)` of equal length -- the i-th locus of
 #'   each is a linked pair on one chromosome, no marker may be causal for both traits, and each
 #'   pair's r2 is reported (by [qtn_table()]) and warned about when outside
-#'   `[r2_min, r2_max]`. Markers that are monomorphic (or heterozygous in every
-#'   individual) are accepted with a warning: they carry no variance.
+#'   `[r2_min, r2_max]`. A marker that is monomorphic (or heterozygous in every
+#'   individual) carries no variance: it is accepted with a warning, except
+#'   where it makes the architecture undefined (an `"ld"` pair, or a pleiotropy
+#'   layout with no varying locus), which is an error.
 #' @param effect optional geometric base (scalar) or explicit effect series
 #'   (length `n_qtn`), used for every trait; or a length-`n_traits` list of these,
 #'   one per trait -- e.g. to re-score per-trait effects frozen from an earlier
@@ -244,6 +246,7 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
     if (series_path || isTRUE(orthogonal)) pleio_layout <- NULL
   }
   if (!is.null(user_qtn) && identical(sim$architecture, "ld")) {
+    .ld_check_cross_layer(sim, user_qtn, "additive")   # a vqtl()/dominance() may precede
     user_qtn <- .ld_user_pairs(sim, user_qtn, "additive")
   }
   # "ld" pairs each trait's causal loci as distinct linked markers within one
