@@ -4,7 +4,7 @@
 \alias{complex_phenotypes}
 \title{Combine single-architecture models under a common heritability}
 \usage{
-complex_phenotypes(..., h2, reps = 1)
+complex_phenotypes(..., h2, reps = 1, resid_cor = NULL)
 }
 \arguments{
 \item{...}{two or more \code{phenotype_sim} objects.}
@@ -24,6 +24,12 @@ single-record target share \code{V_G / (V_G + V_E)}; the entry-mean target is
 sample covariance \code{Cov(G, e)} is zero. The inputs' own \code{reps} are not used
 (their residuals are discarded); with \code{reps = 1} the result is bit-identical
 to a call without it.}
+
+\item{resid_cor}{target \strong{residual} correlation between traits of the common
+residual: \code{NULL} (default, independent residuals, bit-identical to a call
+without it), one value in \verb{[-1, 1]} for every pair, or an \verb{n_traits x n_traits} symmetric positive semi-definite matrix with unit diagonal. Built
+as in \code{\link[=simulate_phenotype]{simulate_phenotype()}}: each trait keeps exactly its \code{1 - h2} residual
+variance and only correlation is induced.}
 }
 \value{
 a combined \code{phenotype_sim} (architecture "complex").

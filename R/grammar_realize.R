@@ -18,6 +18,10 @@
 #' the genetic and transcriptome components (including a derived transcriptome's
 #' environmental part, a persistent entry-level quantity) are untouched.
 #'
+#' With `sim$resid_cor` set, the per-trait unit residuals are mixed through the
+#' Cholesky factor of the target correlation ([.correlated_residuals()]); `NULL`
+#' (default) keeps the independent path untouched.
+#'
 #' RNG (residual draws) stays in R. The residual sub-seed is
 #' independent of the layers, so adding a layer does not perturb other layers'
 #' QTN draws; it does change the residual (less residual variance), which is the
@@ -44,15 +48,31 @@
     Gen <- .genetic_matrix(sim, rep)
     Tx  <- .transcriptome_matrix(sim, rep)
 
+    resid_var_t <- numeric(nt)
+    vqtl_prop_t <- numeric(nt)
     for (t in seq_len(nt)) {
       total_prop <- sum(vapply(mean_layers,
                                function(l) .expand_prop(l$prop, nt)[t], 0))
-      vqtl_prop <- sum(vapply(vqtl_layers,
-                              function(l) .expand_prop(l$prop, nt)[t], 0))
-      resid_var <- max(0, 1 - total_prop - vqtl_prop)
+      vqtl_prop_t[t] <- sum(vapply(vqtl_layers,
+                                   function(l) .expand_prop(l$prop, nt)[t], 0))
+      resid_var_t[t] <- max(0, 1 - total_prop - vqtl_prop_t[t])
+    }
 
-      seed_r <- .layer_seed(sim$seed, paste0("residual_t", t), rep - 1L)
-      resid <- .seeded_residual(seed_r, n, resid_var)
+    # Cross-trait residual correlation (resid_cor); NULL leaves every draw below
+    # exactly as it was (same sub-seeds, same number of draws, bit-identical).
+    Rm <- if (is.null(sim$resid_cor)) NULL else
+      .correlated_residuals(sim, rep, resid_var_t)
+
+    for (t in seq_len(nt)) {
+      vqtl_prop <- vqtl_prop_t[t]
+      resid_var <- resid_var_t[t]
+
+      if (is.null(Rm)) {
+        seed_r <- .layer_seed(sim$seed, paste0("residual_t", t), rep - 1L)
+        resid <- .seeded_residual(seed_r, n, resid_var)
+      } else {
+        resid <- Rm[, t]
+      }
       resid <- .apply_vqtl(resid, vqtl_layers, sim, t, rep, vqtl_prop)
       # Entry-mean replication: the phenotype is the mean of `reps` independent
       # records of the same genotype, so the residual (including the vqtl
@@ -806,6 +826,98 @@
     cov2_AD = (vg - vA - vD) / vp,
     var_cA = stats::var(cA) / vp, var_cD = stats::var(cD) / vp,
     cov2_comp = (vg - stats::var(cA) - stats::var(cD)) / vp)
+}
+
+#' Residual matrix with a target cross-trait correlation
+#'
+#' Draws each trait's unit-variance residual exactly as the independent path does
+#' (same `residual_t<t>` sub-seed, same number of draws, so trait 1 and every
+#' marginal stream is unchanged), mixes the columns with the upper Cholesky
+#' factor of the target correlation matrix, re-standardizes each column to unit
+#' sample variance, and scales by `sqrt(resid_var)`. Each trait's residual
+#' variance is therefore exactly its h2-implied target; only correlation is
+#' induced. The realized sample correlation equals the target up to sampling
+#' error of order `1/sqrt(n)`. A trait with zero residual variance stays zero.
+#' @keywords internal
+#' @noRd
+.correlated_residuals <- function(sim, rep, resid_var, tag = "residual_t") {
+  n <- sim$n_ind
+  nt <- length(resid_var)
+  Z <- vapply(seq_len(nt), function(t) {
+    seed_r <- .layer_seed(sim$seed, paste0(tag, t), rep - 1L)
+    .seeded_residual(seed_r, n, 1)
+  }, numeric(n))
+  Z <- matrix(Z, nrow = n, ncol = nt)
+  U <- .resid_cor_factor(sim$resid_cor)
+  W <- Z %*% U
+  for (t in seq_len(nt)) {
+    s <- stats::sd(W[, t])
+    W[, t] <- if (resid_var[t] > 0 && is.finite(s) && s > 0) {
+      (W[, t] - mean(W[, t])) / s * sqrt(resid_var[t])
+    } else {
+      0
+    }
+  }
+  W
+}
+
+#' Factor U with t(U) %*% U = R (Cholesky; eigen square root if R is singular)
+#' @keywords internal
+#' @noRd
+.resid_cor_factor <- function(Rm) {
+  U <- tryCatch(chol(Rm), error = function(e) NULL)
+  if (!is.null(U)) return(U)
+  ev <- eigen(Rm, symmetric = TRUE)
+  t(ev$vectors %*% (t(ev$vectors) * sqrt(pmax(ev$values, 0))))
+}
+
+#' Validate the residual-correlation argument; return a full matrix or NULL
+#'
+#' `NULL` = independent residuals. A scalar is the common pairwise correlation;
+#' a matrix must be n_traits x n_traits, symmetric, unit diagonal, entries in
+#' [-1, 1] and positive semi-definite (same style as the genetic `cor`).
+#' @keywords internal
+#' @noRd
+.validate_resid_cor <- function(resid_cor, n_traits, arg = "resid_cor") {
+  if (is.null(resid_cor)) return(NULL)
+  if (n_traits < 2L) {
+    stop("`", arg, "` is a cross-trait correlation and needs n_traits >= 2.",
+         call. = FALSE)
+  }
+  if (is.matrix(resid_cor)) {
+    if (!is.numeric(resid_cor) || !all(dim(resid_cor) == c(n_traits, n_traits))) {
+      stop("`", arg, "` matrix must be numeric and ", n_traits, " x ", n_traits,
+           ".", call. = FALSE)
+    }
+    Rm <- resid_cor
+    if (any(!is.finite(Rm)) || any(Rm < -1 | Rm > 1)) {
+      stop("Every entry of the `", arg, "` matrix must be finite and between ",
+           "-1 and 1.", call. = FALSE)
+    }
+    if (!isTRUE(all.equal(Rm, t(Rm), tolerance = 1e-12,
+                          check.attributes = FALSE))) {
+      stop("The `", arg, "` matrix must be symmetric.", call. = FALSE)
+    }
+    if (any(abs(diag(Rm) - 1) > 1e-12)) {
+      stop("The diagonal of the `", arg, "` matrix must equal 1.", call. = FALSE)
+    }
+  } else {
+    if (!is.numeric(resid_cor) || length(resid_cor) != 1L ||
+        !is.finite(resid_cor) || resid_cor < -1 || resid_cor > 1) {
+      stop("`", arg, "` must be NULL, one finite value between -1 and 1, or a ",
+           "valid correlation matrix.", call. = FALSE)
+    }
+    Rm <- matrix(resid_cor, n_traits, n_traits)
+    diag(Rm) <- 1
+  }
+  Rm <- (Rm + t(Rm)) / 2
+  dimnames(Rm) <- NULL
+  if (min(eigen(Rm, symmetric = TRUE, only.values = TRUE)$values) < -1e-8) {
+    stop("`", arg, "` must be positive semi-definite", if (!is.matrix(resid_cor))
+      paste0(" (a common correlation across ", n_traits, " traits must be at ",
+             "least -1/", n_traits - 1L, ")") else "", ".", call. = FALSE)
+  }
+  Rm
 }
 
 #' Draw a residual under a fixed sub-seed, restoring the prior RNG state

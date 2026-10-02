@@ -1,5 +1,7 @@
 # simplePHENOTYPES (development version)
 
+* `simulate_phenotype()` and `complex_phenotypes()` gain `resid_cor`: a target correlation between the traits' *residuals* (`cor` stays the genetic one), the grammar equivalent of v1 `cor_res`. `NULL` (default) is bit-identical to before; a scalar or an `n_traits x n_traits` symmetric PSD matrix with unit diagonal mixes the per-trait standardized draws through its Cholesky factor and re-standardizes, so each trait's residual variance, realized h2 and `var_budget` are unchanged and only correlation is induced (realized sample correlation matches the target up to `1/sqrt(n)` sampling error; a `vqtl()` component dilutes it).
+
 * `architecture = "ld"` gains `ld_phase = c("coded", "coupling", "repulsion")`: a haplotype-derived phase for each linked pair. `"coupling"`/`"repulsion"` flip trait 2's additive effect so that the linkage-induced covariance sign(e1*e2*r) is +1/-1 for every pair; the signed r is kept as the `"r"` attribute of the layer's `$ld` frame. The default `"coded"` is bit-identical to before.
 
 ## Engine requests from breedingDesigner SPEC-0020 (2026-09)

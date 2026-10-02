@@ -1794,6 +1794,32 @@ boundary is unchanged (R draws every event). The legacy `create_phenotypes()` is
 
 ---
 
+## DECISION-042: residual correlation between traits (`resid_cor`)
+
+**Decision:** `simulate_phenotype(resid_cor = NULL)` and `complex_phenotypes(resid_cor = NULL)`: the target
+correlation of the traits' **residuals** (`cor` stays the genetic correlation, DECISION-010). `NULL` leaves
+the draw path untouched (same sub-seeds, same draws, bit-identical output). A scalar (common pairwise value,
+>= `-1/(n_traits - 1)`) or an `n_traits x n_traits` matrix, validated symmetric, unit diagonal, entries in
+[-1, 1], positive semi-definite (the same style as `cor`); needs `n_traits >= 2`.
+
+**Construction:** per trait the unit-variance residual is drawn under the unchanged `residual_t<t>` sub-seed
+(`complex_resid_t<t>` for `complex_phenotypes()`), the n x n_traits matrix is multiplied by the upper Cholesky
+factor of the target (eigen square root if singular), and each column is re-standardized (mean 0, exact unit
+sample variance) and scaled by `sqrt(1 - sum(prop))`. Each trait therefore keeps exactly its `h2`-implied
+residual variance; realized h2 and `var_budget` are unchanged and only the cross-trait correlation is
+induced. RNG stays in R (DECISION-006).
+
+**Scope / limits:** the realized sample correlation equals the target up to sampling error of order
+`1/sqrt(n)` (it is not forced exact, unlike the variance). A `vqtl()` heterogeneity component is drawn
+independently per trait after the mixing and dilutes the correlation; `reps` rescales each trait by its own
+`1/sqrt(reps)` afterwards, which keeps the correlation. The phenotypic correlation mixes the genetic and
+residual correlations by their variance shares. This is the grammar counterpart of v1 `cor_res` (frozen
+legacy function unchanged, DECISION-008); no v1 bit-parity is owed (DECISION-009).
+
+**Date:** 2026-10-02
+
+---
+
 ## Decision Log Summary
 
 | ID | Decision | Status |
@@ -1839,3 +1865,4 @@ boundary is unchanged (R draws every event). The legacy `create_phenotypes()` is
 | 039 | `population_from_haplotypes()` / `haplotypes()`: known-phase 0/1 constructor (1 = counted allele, dosage = cis + trans - 1, markers x individuals), `map$counted` only if supplied (validated: character, non-empty symbol, `NA` = unknown), same map validation as `as_population()`, no RNG, no Rust | locked (2026-09-30) |
 | 040 | Batched integer-I/O crossing core `mate_many_core()`; `mate()` runs every plan row in one call; R draws in plan order so the batch equals the sequential run bit for bit; ~6x cheaper per call at 14,000 markers | locked (2026-09-30) |
 | 041 | Crossover interference `interference = NULL \| list(nu, p)` (`1 <= nu <= 1e6`) on `cross`/`selfcross`/`double_haploid`/`mate`/`crossbreed` and, by propagation, `single_seed_descent`/`bulk`/`pedigree`/`recurrent_selection`/`cross_usefulness`/`combining_ability` (simulated only)/`progeny_test`: two-pathway gamma model on the bivalent, 1/2 thinning to the gamete, expected crossovers per Morgan unchanged, drawn in R, default NULL = Poisson/isqg stream bit-identical | locked (2026-09-30) |
+| 042 | Residual correlation between traits: `resid_cor = NULL \| scalar \| matrix` on `simulate_phenotype()` / `complex_phenotypes()` (genetic stays `cor`); unit draws under the unchanged sub-seeds mixed through `chol(R)` and re-standardized per trait, so each trait's residual variance, realized h2 and `var_budget` are unchanged; `NULL` bit-identical; sample correlation = target up to `1/sqrt(n)`; vqtl dilutes it | locked (2026-10-02) |

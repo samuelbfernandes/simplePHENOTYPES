@@ -149,11 +149,21 @@ simulate_phenotype(
   individuals  = NULL,           # subset of individuals to simulate
   model        = "A",           # one-call model: "A" | "AD" | "AE"
   reps         = 1,             # records per entry; residual variance V_E / reps
+  resid_cor    = NULL,          # residual correlation between traits (scalar or matrix); NULL = independent
   ...                            # architecture-specific args
 )
 ```
 
 Returns a `phenotype_sim` object (h² = 0 until a layer is added).
+
+**Residual correlation (`resid_cor`, DECISION-042).** `cor` is the *genetic* correlation;
+`resid_cor` is the target correlation between the traits' *residuals*: `NULL` (independent, as before), one
+value for every pair (>= `-1/(n_traits - 1)`), or an `n_traits x n_traits` symmetric PSD matrix with unit
+diagonal. Per-trait residual variance is still `1 - sum(prop)` exactly (each column is re-standardized), so
+realized H2 and `var_budget` do not change; the realized sample correlation matches the target up to
+sampling error of order `1/sqrt(n)`. A `vqtl()` heterogeneity component is drawn independently per trait and
+dilutes it; `reps` scales each trait's residual and leaves the correlation as is. The phenotypic correlation
+is a variance-weighted mix of the genetic and residual correlations.
 
 **Entry-mean replication (`reps`, DECISION-038).** `reps` is a positive whole number (scalar or
 one per trait): the phenotype is the mean of `reps` independent records of the same genotype
@@ -310,7 +320,7 @@ vqtl(sim,      prop, same_as_add = TRUE, n_qtn = NULL, qtn = NULL, dist = "geome
 ### 4.3 `complex_phenotypes()` — combine architectures
 
 ```
-complex_phenotypes(..., h2, reps = 1)   # ... = two or more phenotype_sim objects
+complex_phenotypes(..., h2, reps = 1, resid_cor = NULL)   # ... = two or more phenotype_sim objects
 ```
 
 - Combines the inputs' genetic values, **weighted by their genetic variances**.
@@ -468,6 +478,11 @@ simulated pedigree can be phenotyped directly without converting back to a dosag
   type before an existing one shifts that layer's occurrence index, so its draws
   change (the second `additive()` is keyed by occurrence 1 whatever precedes it).
 - The caller's RNG state is left untouched (sub-seeds are set and restored).
+- `resid_cor = NULL` leaves the residual draw untouched (bit-identical). Otherwise each trait's unit
+  residual is drawn under its own `residual_t<t>` sub-seed exactly as before, the columns are mixed
+  through `chol(R)`, each column is re-standardized (mean 0, exact unit variance) and scaled by
+  `sqrt(1 - sum(prop))`, so per-trait residual variance and the realized h2 / `var_budget` are
+  unchanged and only correlation is induced (DECISION-042).
 - `reps` does not alter the RNG stream: the residual of each trait is drawn under the same sub-seed
   `residual_t<t>` with the same number of draws, and is scaled by `1/sqrt(reps[t])` afterwards, so a
   seeded `reps = r` phenotype equals the `reps = 1` genetic value plus the `reps = 1` residual divided
@@ -640,7 +655,7 @@ Var(y_bar) = V_G + V_E/reps + 2Cov(G,e)/sqrt(reps), so they match the targets up
 | `type_of_ld` | `ld_type` | modernized (O5) |
 | `ld_max` / `ld_min` | `r2_max` / `r2_min` | modernized (O5) |
 | `cor` | `cor` (PleioArch, §13) | v1's buggy Cholesky `cor` replaced by the PleioArch engine for any number of traits (DECISION-013); the name `cor` is kept. Scalar or full matrix. v1 `cor` also survives in the frozen legacy fn |
-| `cor_res` | residual-correlation arg | retained in legacy fn; grammar equivalent TBD |
+| `cor_res` | `resid_cor` | residual (environmental) correlation between traits, `NULL` = independent (DECISION-042); scalar or full matrix, also on `complex_phenotypes()`. v1 `cor_res` scales the residual covariance as `sqrt(V) R sqrt(V)`; the grammar mixes standardized draws through `chol(R)` and re-standardizes each trait, so per-trait variance stays its `h2` target |
 | `rep` | `n_reps` | |
 | `vary_QTN` | `vary_qtn` | |
 | `constraints = list(maf_above, maf_below, hets)` | `filter_geno(maf_above=, maf_below=, hets=)` | applied to the genotype once, upstream of every architecture and layer (additive/dominance/epistasis/vqtl); takes the data frame, matrix or a `Population`. v1 filtered only the randomly drawn QTNs, not the LD partner markers |

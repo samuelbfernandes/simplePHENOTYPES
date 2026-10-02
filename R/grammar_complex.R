@@ -37,6 +37,12 @@
 #'   sample covariance `Cov(G, e)` is zero. The inputs' own `reps` are not used
 #'   (their residuals are discarded); with `reps = 1` the result is bit-identical
 #'   to a call without it.
+#' @param resid_cor target **residual** correlation between traits of the common
+#'   residual: `NULL` (default, independent residuals, bit-identical to a call
+#'   without it), one value in `[-1, 1]` for every pair, or an `n_traits x
+#'   n_traits` symmetric positive semi-definite matrix with unit diagonal. Built
+#'   as in [simulate_phenotype()]: each trait keeps exactly its `1 - h2` residual
+#'   variance and only correlation is induced.
 #' @return a combined `phenotype_sim` (architecture "complex").
 #' @export
 #' @examples
@@ -47,7 +53,7 @@
 #' indep <- simulate_phenotype(SNP55K_maize282_maf04, n_traits = 2, seed = 11)
 #' indep <- additive(indep, prop = 0.3, n_qtn = 3)
 #' both <- complex_phenotypes(pleio, indep, h2 = 0.5)
-complex_phenotypes <- function(..., h2, reps = 1) {
+complex_phenotypes <- function(..., h2, reps = 1, resid_cor = NULL) {
   models <- list(...)
   if (length(models) < 2) {
     stop("complex_phenotypes() needs at least two phenotype_sim objects.",
@@ -103,6 +109,7 @@ complex_phenotypes <- function(..., h2, reps = 1) {
 
   h2v <- .validate_proportion(h2, "h2", nt)
   reps <- .validate_reps(reps, nt)
+  Rres <- .validate_resid_cor(resid_cor, nt)
   h2v <- .expand_prop(h2v, nt)
   combined <- array(0, dim = c(n, nt, nr))
   for (r in seq_len(nr)) {
@@ -122,9 +129,16 @@ complex_phenotypes <- function(..., h2, reps = 1) {
   long <- vector("list", nt * nr)
   k <- 0L
   for (r in seq_len(nr)) {
+    Em <- if (is.null(Rres)) NULL else
+      .correlated_residuals(list(seed = seed, n_ind = n, resid_cor = Rres), r,
+                            pmax(0, 1 - h2v), tag = "complex_resid_t")
     for (t in seq_len(nt)) {
-      seed_r <- .layer_seed(seed, paste0("complex_resid_t", t), r - 1L)
-      e <- .seeded_residual(seed_r, n, max(0, 1 - h2v[t]))
+      if (is.null(Em)) {
+        seed_r <- .layer_seed(seed, paste0("complex_resid_t", t), r - 1L)
+        e <- .seeded_residual(seed_r, n, max(0, 1 - h2v[t]))
+      } else {
+        e <- Em[, t]
+      }
       if (reps[t] != 1L) {
         e <- e / sqrt(reps[t])     # entry mean of `reps` records: residual / sqrt(reps)
       }
@@ -142,6 +156,7 @@ complex_phenotypes <- function(..., h2, reps = 1) {
   out$seed <- seed
   out$h2 <- h2v
   out$reps <- reps
+  out$resid_cor <- Rres
   out$n_reps <- nr
   out$layers <- list()
   # A combined model is terminal and has no per-input state: clear everything

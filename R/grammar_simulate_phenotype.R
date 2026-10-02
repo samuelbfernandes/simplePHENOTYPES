@@ -149,6 +149,29 @@
 #'   [transcriptome()] layer: a `transcriptome_sim` from `simulate_transcriptome()`,
 #'   or `TRUE` to derive one from `geno` with default settings. Give at most one of
 #'   `expression` / `transcriptome`.
+#' @param resid_cor target **residual** (environmental) correlation between traits;
+#'   `cor` is the *genetic* correlation. `NULL` (default) draws independent
+#'   residuals, bit-identical to output before the argument existed. A single
+#'   value in `[-1, 1]` is the common pairwise correlation (for `n_traits` traits
+#'   it must be at least `-1/(n_traits - 1)`); or give an `n_traits x n_traits`
+#'   symmetric positive semi-definite matrix with unit diagonal and entries in
+#'   `[-1, 1]`. Needs `n_traits >= 2`. Each trait's residual is drawn exactly as
+#'   in the independent case (same sub-seed), the traits are mixed through the
+#'   Cholesky factor of the correlation matrix and each column is re-standardized
+#'   to the same exact variance, so every trait's residual variance is still its
+#'   `h2`-implied `1 - sum(prop)` target and only correlation is induced
+#'   (trait 1's residual is unchanged up to rounding). The correlation is a target: the realized
+#'   sample correlation matches it up to sampling error of order `1/sqrt(n)`, and
+#'   it is a statement about the homoskedastic residual: a [vqtl()] heterogeneity
+#'   component is drawn independently per trait and dilutes it, and
+#'   `reps > 1` scales every trait's residual by its own `1/sqrt(reps)`, which leaves
+#'   the correlation unchanged. Because the realized-variance standardization is
+#'   applied per trait, the realized `h2` and the printed `var_budget` are
+#'   unaffected by `resid_cor`; the residual still has a nonzero sample covariance
+#'   with the genetic values (as without it) and, with `resid_cor`, the traits'
+#'   residuals are correlated, so the phenotypic correlation is
+#'   a mix of the genetic (`cor`) and residual (`resid_cor`) correlations,
+#'   weighted by the variance shares.
 #' @param reps number of independent records averaged into each entry's
 #'   phenotype (default 1; entry-mean replication, the AlphaSimR
 #'   `setPheno(varE, reps)` semantics): a positive whole number, or a vector of
@@ -293,6 +316,7 @@ simulate_phenotype <- function(geno = NULL,
                                expression = NULL,
                                transcriptome = NULL,
                                reps = 1,
+                               resid_cor = NULL,
                                ...) {
   architecture <- match.arg(architecture)
   n_traits <- .validate_count(n_traits, "n_traits", minimum = 1L)
@@ -301,6 +325,7 @@ simulate_phenotype <- function(geno = NULL,
   .validate_flag(vary_qtn, "vary_qtn")
   seed <- .validate_seed(seed)
   reps <- .validate_reps(reps, n_traits)
+  resid_cor <- .validate_resid_cor(resid_cor, n_traits)
   model <- toupper(match.arg(toupper(model), c("A", "AD", "AE")))
   if (!is.null(h2)) {
     h2 <- .validate_proportion(h2, "h2", n_traits)
@@ -382,6 +407,7 @@ simulate_phenotype <- function(geno = NULL,
       h2           = h2,
       mean         = mean,
       reps         = reps,
+      resid_cor    = resid_cor,
       arch_args    = arch_args,
       layers       = list(),
       pheno        = NULL,

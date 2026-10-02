@@ -19,6 +19,7 @@ simulate_phenotype(
   expression = NULL,
   transcriptome = NULL,
   reps = 1,
+  resid_cor = NULL,
   ...
 )
 }
@@ -161,6 +162,30 @@ variance by \code{1/reps}). The realized denominator
 is then the variance of the full stored phenotype, which includes the
 unreplicated transcriptome component and its covariances.}
 
+\item{resid_cor}{target \strong{residual} (environmental) correlation between traits;
+\code{cor} is the \emph{genetic} correlation. \code{NULL} (default) draws independent
+residuals, bit-identical to output before the argument existed. A single
+value in \verb{[-1, 1]} is the common pairwise correlation (for \code{n_traits} traits
+it must be at least \code{-1/(n_traits - 1)}); or give an \verb{n_traits x n_traits}
+symmetric positive semi-definite matrix with unit diagonal and entries in
+\verb{[-1, 1]}. Needs \code{n_traits >= 2}. Each trait's residual is drawn exactly as
+in the independent case (same sub-seed), the traits are mixed through the
+Cholesky factor of the correlation matrix and each column is re-standardized
+to the same exact variance, so every trait's residual variance is still its
+\code{h2}-implied \code{1 - sum(prop)} target and only correlation is induced
+(trait 1's residual is unchanged up to rounding). The correlation is a target: the realized
+sample correlation matches it up to sampling error of order \code{1/sqrt(n)}, and
+it is a statement about the homoskedastic residual: a \code{\link[=vqtl]{vqtl()}} heterogeneity
+component is drawn independently per trait and dilutes it, and
+\code{reps > 1} scales every trait's residual by its own \code{1/sqrt(reps)}, which leaves
+the correlation unchanged. Because the realized-variance standardization is
+applied per trait, the realized \code{h2} and the printed \code{var_budget} are
+unaffected by \code{resid_cor}; the residual still has a nonzero sample covariance
+with the genetic values (as without it) and, with \code{resid_cor}, the traits'
+residuals are correlated, so the phenotypic correlation is
+a mix of the genetic (\code{cor}) and residual (\code{resid_cor}) correlations,
+weighted by the variance shares.}
+
 \item{...}{architecture-specific arguments (validated -- an unknown name is
 an error, and an argument for a different architecture warns). For
 \code{"pleiotropy"}: \code{cor}, \code{pi} (or the two-trait \code{pi_target} /
@@ -176,6 +201,25 @@ r2 with a randomly drawn anchor SNP (so realized r2 skews toward \code{r2_max}),
 \code{"random"} takes a uniformly random in-window partner. Perfectly collinear
 markers (r2 = 1) are never used as a partner, and the window must satisfy
 \code{0 < r2_max} and \code{r2_min < 1}.
+
+Under \code{"ld"}, \code{ld_phase = c("coded", "coupling", "repulsion")} sets the
+\strong{haplotype-derived phase} of each linked pair. The r2 window ignores the
+sign of the pair's dosage correlation r, so with the default \code{"coded"} the
+sign of the linkage-induced covariance -- \code{sign(e1 * e2 * r)} per pair,
+\code{e1}/\code{e2} the pair's trait-1/trait-2 additive effects -- follows the
+arbitrary marker coding and the effect series. \code{"coupling"} flips trait
+2's effect wherever needed so that every pair's sign is positive (the allele
+raising trait 1 travels with the allele raising trait 2; positive
+linkage-induced genetic correlation); \code{"repulsion"} makes every pair's sign
+negative (the allele raising trait 1 travels with the allele lowering trait
+2). Only trait 2's additive effects change: the loci, trait 1's effects,
+r and r2 are those of \code{"coded"}. It acts on the \code{\link[=additive]{additive()}} layer's
+effects (also per replication with \code{vary_qtn = TRUE}); a \code{\link[=dominance]{dominance()}}
+layer reusing the linked loci (\code{same_as_add = TRUE}) keeps its own
+deviations untouched. It is applied after the positional
+\code{additive(phase =)} alternation, which it overrides pair by pair on trait
+2. The signed r of each pair is kept as the \code{"r"} attribute of the layer's
+\verb{$ld} pair frame.
 
 \code{cor} is the target \strong{genetic} correlation and works for any number of
 traits: a scalar applied to every trait pair, or a full

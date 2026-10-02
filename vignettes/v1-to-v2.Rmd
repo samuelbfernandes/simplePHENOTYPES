@@ -277,14 +277,31 @@ num <- as_numeric("WGS_chrm_1.hmp.txt")    # or .vcf, .gds, .bed, ...
 simulate_phenotype(num, h2 = 0.2, n_qtn = 3, seed = 200)
 ```
 
+# Residual correlation
+
+v1's `cor_res` becomes `resid_cor`. `cor` is the *genetic* correlation;
+`resid_cor` is the correlation between the traits' *residuals* (`NULL`, the
+default, keeps them independent, exactly as before). It takes one value for every
+pair or a full `n_traits x n_traits` correlation matrix, and also exists on
+`complex_phenotypes()`:
+
+```{r v2-resid-cor, eval = FALSE}
+simulate_phenotype(geno, h2 = c(0.3, 0.6), n_qtn = 3, n_traits = 2, seed = 1,
+                   resid_cor = 0.5)
+```
+
+Each trait's residual variance still equals its `h2` target (the draws are mixed
+through the Cholesky factor of the matrix and re-standardized per trait), so the
+realized heritability and the printed variance budget do not change. The
+correlation is a target: the realized sample correlation agrees with it up to
+sampling error of order `1/sqrt(n)`. A `vqtl()` component is drawn independently
+per trait and dilutes it. Like all grammar draws it owes v1 no bit-parity.
+
 # Not yet in the grammar
 
 A few v1 knobs do not have a grammar equivalent yet and remain only in the frozen
 `create_phenotypes()`:
 
-- **Residual correlation** (`cor_res`) — the grammar controls *genetic*
-  correlation (`cor`); a residual-correlation argument is planned but not yet
-  implemented.
 - **`big_add_QTN_effect`** — intentionally dropped (use an explicit `effect`).
 - **`architecture = "partially"`** as a single call — recreated with
   `complex_phenotypes()`, as shown above.
