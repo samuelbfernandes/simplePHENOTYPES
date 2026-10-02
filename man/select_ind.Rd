@@ -13,7 +13,7 @@ select_ind(
   trait = 1L,
   direction = c("high", "low"),
   method = c("mass", "within_family", "among_family", "combined", "index",
-    "quadratic_index", "random", "culling"),
+    "quadratic_index", "random", "culling", "bqp"),
   family = NULL,
   weights = NULL,
   quad_weights = NULL,
@@ -22,7 +22,9 @@ select_ind(
   rep = 1L,
   culling = NULL,
   sequential = FALSE,
-  n_per_family = NULL
+  n_per_family = NULL,
+  lambda = 1,
+  min_gain = NULL
 )
 }
 \arguments{
@@ -99,6 +101,12 @@ methods (the mean of the kept scores minus the mean of all candidates, over
 the sample SD of all candidates). The default \code{NULL} keeps the proportional
 allocation. The scheme wrappers \code{\link[=pedigree]{pedigree()}} and \code{\link[=recurrent_selection]{recurrent_selection()}} use
 mass selection only and do not forward it.}
+
+\item{lambda}{relatedness penalty weight for \code{method = "bqp"} (default 1;= 0).}
+
+\item{min_gain}{for \code{method = "bqp"}: NULL (default, no trait constraints), or
+the paper's minimum desired gain \code{d_j} in percent of a standard deviation of
+the standardized trait (one value, or one per trait when \code{weights} is given).}
 }
 \value{
 the selected individuals as a \code{Population} (when \code{sim} is
@@ -230,6 +238,24 @@ and intermediate optima. \code{"random"} draws at random (a drift control); its
 \code{differential} and \code{intensity} attributes are the \emph{realized} values on the
 \code{on} criterion of the individuals drawn (expected 0, either sign), not those of
 the random draw score, and \code{on} is validated.
+\code{"bqp"} is the relatedness-penalized binary quadratic programming selection of
+Montesinos-Lopez et al. (2025): it chooses \strong{exactly} \code{N} individuals
+maximizing \eqn{\sum_i\sum_j w_j s_{ij} x_i - \lambda\sum_i\sum_k G_{ik}
+x_i x_k}, with \eqn{x_i \in \{0,1\}}, \eqn{s_{ij}} the standardized criterion
+of trait \code{j}, \code{weights} the economic weights \eqn{w_j} (omitted: the single
+criterion \code{on}/\code{trait}, weight 1) and \eqn{G} the VanRaden genomic
+relationship matrix of the individuals (\code{\link[=g_matrix]{g_matrix()}}). \code{lambda} is the paper's
+penalty weight \code{k} (\code{lambda = 0} reduces to truncation on the merit).
+\code{min_gain} adds the paper's per-trait constraints
+\eqn{\sum_i s_{ij} x_i \ge N d_j/100}, with \eqn{d_j} in percent of a standard
+deviation (the standardized scale is this package's reading of the paper's
+\eqn{n\sigma_j d_j/100}); an unattainable constraint is an error. The paper
+solves the problem with CVXR; here it is solved without dependencies and
+deterministically: exact enumeration when \code{choose(n, N) <= 2e5}, otherwise a
+greedy construction followed by best-improvement 1-swap local search (a
+heuristic with no optimality guarantee; the greedy start ignores \code{min_gain},
+which the swap phase enforces by penalty). The attribute \code{"bqp"} of the result
+reports the objective, the solver used and the arguments (DECISION-042).
 \code{"culling"} is independent culling levels: \code{culling} gives one proportion per
 trait (traits in \code{trait}, default the first \code{length(culling)}), and an individual
 is kept iff it is in the top \code{culling[t]} fraction of every trait (simultaneous;
@@ -297,6 +323,11 @@ the Royal Society of Edinburgh} 52:399--433. \doi{10.1017/S0080456800012163};
 Falconer DS, Mackay TFC (1996) Introduction to Quantitative Genetics, 4th
 ed. Longman; Lynch M, Walsh B (1998) Genetics and Analysis of
 Quantitative Traits. Sinauer.
+Relatedness-penalized selection by binary quadratic programming
+(\code{"bqp"}): Montesinos-Lopez OA, Montesinos-Lopez A, Hernandez-Suarez CM,
+Alemu A (2025) A selection index with minimal genetic relatedness for
+multi-trait data via binary quadratic programming. \emph{Plant Methods}
+22:7. \doi{10.1186/s13007-025-01484-4}
 Breeding schemes: Bernardo R (2020) Breeding for Quantitative Traits in Plants,
 3rd ed. Stemma Press.
 }

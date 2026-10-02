@@ -357,13 +357,13 @@ against it. These are open questions to resolve, not settled decisions.
   (e.g. `method = "mass"` on externally computed GEBVs) needs no engine code — it
   enters via the `on` custom-criterion hook; the index methods do not use `on`.
 - **Modern methods — NEXT.**
-  - **BQP relatedness-minimizing multi-trait index** (Montesinos-López et al. 2026,
-    *Plant Methods*, doi:10.1186/s13007-025-01484-4): a discrete (binary) multi-trait
-    index that also minimizes genetic relatedness among the selected set, solved by
-    binary quadratic programming. Overlaps `optimum_contribution()` (same gain↔
-    diversity goal, discrete vs. continuous); open decision: exact MIQP solver
-    dependency vs. a dependency-free greedy+swap heuristic on the existing
-    `g_matrix()`.
+  - [x] **BQP relatedness-penalized multi-trait selection — DONE** (Montesinos-López
+    et al. 2025, *Plant Methods* 22:7, doi:10.1186/s13007-025-01484-4) as
+    `select_ind(method = "bqp")` (`lambda`, `min_gain`, `weights`): exactly N
+    individuals maximizing the weighted standardized merit minus `lambda` x the
+    genomic-relationship quadratic form; dependency-free and deterministic (exact
+    enumeration when `choose(n, N) <= 2e5`, else greedy + 1-swap local search; no
+    CVXR/MIQP dependency). DECISION-043.
   - **PopVar-style cross selection from real data** (Mohammadi, Tiede & Smith 2015,
     *Crop Sci* 55:2068): the real-data counterpart of `cross_usefulness()` —
     predict biparental progeny mean/variance/correlated response from **estimated

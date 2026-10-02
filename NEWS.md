@@ -2,6 +2,8 @@
 
 * `simulate_phenotype()` and `complex_phenotypes()` gain `resid_cor`: a target correlation between the traits' *residuals* (`cor` stays the genetic one), the grammar equivalent of v1 `cor_res`. `NULL` (default) is bit-identical to before; a scalar or an `n_traits x n_traits` symmetric PSD matrix with unit diagonal mixes the per-trait standardized draws through its Cholesky factor and re-standardizes, so each trait's residual variance, realized h2 and `var_budget` are unchanged and only correlation is induced (realized sample correlation matches the target up to `1/sqrt(n)` sampling error; a `vqtl()` component dilutes it).
 
+* `select_ind(method = "bqp")`: relatedness-penalized selection of exactly N individuals by binary quadratic programming (Montesinos-Lopez et al. 2025, *Plant Methods* 22:7), maximizing the weighted standardized merit minus `lambda` times the genomic-relationship quadratic form, with optional per-trait `min_gain` constraints. Dependency-free and deterministic (exact enumeration up to `choose(n, N) = 2e5`, else greedy + 1-swap local search); also listed in `selection_methods()`.
+
 * `architecture = "ld"` gains `ld_phase = c("coded", "coupling", "repulsion")`: a haplotype-derived phase for each linked pair. `"coupling"`/`"repulsion"` flip trait 2's additive effect so that the linkage-induced covariance sign(e1*e2*r) is +1/-1 for every pair; the signed r is kept as the `"r"` attribute of the layer's `$ld` frame. The default `"coded"` is bit-identical to before.
 
 ## Engine requests from breedingDesigner SPEC-0020 (2026-09)

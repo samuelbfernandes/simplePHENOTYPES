@@ -1820,6 +1820,31 @@ legacy function unchanged, DECISION-008); no v1 bit-parity is owed (DECISION-009
 
 ---
 
+## DECISION-043: BQP relatedness-penalized selection, `select_ind(method = "bqp")`
+
+**Decision:** `select_ind(method = "bqp", lambda = 1, min_gain = NULL, weights = NULL)` selects exactly `N`
+individuals maximizing `sum_j sum_i w_j s_ij x_i - lambda sum_i sum_k G_ik x_i x_k`, `x_i in {0, 1}`,
+`sum_i x_i = N` (Montesinos-Lopez, Montesinos-Lopez, Hernandez-Suarez & Alemu 2025, *Plant Methods* 22:7,
+doi:10.1186/s13007-025-01484-4, Eq. 1-2; `lambda` is the paper's penalty weight `k`, default 1). `s_ij` is the
+standardized criterion of trait `j` (`on`; with `weights = NULL` the single `on`/`trait` criterion, weight 1);
+`G` is the VanRaden matrix of the individuals (`g_matrix()`), diagonal included as in the paper's double sum.
+`min_gain` is the paper's per-trait constraint `sum_i s_ij x_i >= RHS_j` (Eq. 3-4) with `d_j` in percent of a
+standard deviation on the standardized scale (our reading of `RHS_j = n sigma_j d_j / 100`); infeasible = error.
+
+**Solver:** the paper uses CVXR; here a dependency-free deterministic solver (no RNG): exact enumeration when
+`choose(n, N) <= 2e5` (first lexicographic optimum on ties), otherwise greedy construction + best-improvement
+1-swap local search (a heuristic, no optimality guarantee; the greedy start ignores `min_gain`, the swap phase
+enforces it by a large penalty). `lambda = 0` is truncation on the merit. The result carries the `"bqp"`
+attribute (objective, solver, `lambda`, `min_gain`). A once-per-session citation notice is emitted.
+Registered in `selection_methods()` as `bqp`. Overlaps `optimum_contribution()` (discrete vs continuous).
+Not compared with the paper's numerical results (no reference data); the tests pin the solver to brute force.
+
+**Reaffirms:** DECISION-006 (no RNG in the solver), DECISION-016.
+
+**Date:** 2026-10-02
+
+---
+
 ## Decision Log Summary
 
 | ID | Decision | Status |
@@ -1866,3 +1891,4 @@ legacy function unchanged, DECISION-008); no v1 bit-parity is owed (DECISION-009
 | 040 | Batched integer-I/O crossing core `mate_many_core()`; `mate()` runs every plan row in one call; R draws in plan order so the batch equals the sequential run bit for bit; ~6x cheaper per call at 14,000 markers | locked (2026-09-30) |
 | 041 | Crossover interference `interference = NULL \| list(nu, p)` (`1 <= nu <= 1e6`) on `cross`/`selfcross`/`double_haploid`/`mate`/`crossbreed` and, by propagation, `single_seed_descent`/`bulk`/`pedigree`/`recurrent_selection`/`cross_usefulness`/`combining_ability` (simulated only)/`progeny_test`: two-pathway gamma model on the bivalent, 1/2 thinning to the gamete, expected crossovers per Morgan unchanged, drawn in R, default NULL = Poisson/isqg stream bit-identical | locked (2026-09-30) |
 | 042 | Residual correlation between traits: `resid_cor = NULL \| scalar \| matrix` on `simulate_phenotype()` / `complex_phenotypes()` (genetic stays `cor`); unit draws under the unchanged sub-seeds mixed through `chol(R)` and re-standardized per trait, so each trait's residual variance, realized h2 and `var_budget` are unchanged; `NULL` bit-identical; sample correlation = target up to `1/sqrt(n)`; vqtl dilutes it | locked (2026-10-02) |
+| 043 | `select_ind(method = "bqp", lambda, min_gain)`: Montesinos-Lopez et al. 2025 relatedness-penalized BQP selection of exactly N (weighted standardized merit minus `lambda` x'Gx on the VanRaden G; per-trait `min_gain` constraints); dependency-free deterministic solver (exact enumeration if `choose(n,N) <= 2e5`, else greedy + 1-swap local search), no RNG | locked (2026-10-02) |

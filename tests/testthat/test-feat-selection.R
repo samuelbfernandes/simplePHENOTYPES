@@ -194,7 +194,7 @@ test_that("select_ind() defaults are unchanged without n_per_family", {
   expect_equal(as.integer(table(fam_of[attr(s, "selected")])), c(3L, 4L, 5L))
   # the argument is appended: positional order of the old signature is intact
   nm <- names(formals(select_ind))
-  expect_identical(utils::tail(nm, 1), "n_per_family")
+  expect_identical(utils::tail(nm, 3), c("n_per_family", "lambda", "min_gain"))
   expect_identical(nm[1:3], c("sim", "n", "prop"))
   # mass selection still needs one of n / prop / intensity
   expect_error(select_ind(ph, method = "within_family", family = x$fam),
