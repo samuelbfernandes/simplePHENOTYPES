@@ -210,8 +210,10 @@ test_that("V1C-F5a: direct LD same_add_dom pairs are inside [ld_min, ld_max] or 
     }
   }
   # before the fix the old branch silently returned out-of-window pairs for
-  # ~90% of seeds; those runs must now be rejected, and seed 30 still runs
-  expect_gt(n_err, 0)
+  # ~90% of seeds; those runs were rejected (round 1) and, since round 9, the
+  # search is repeated with derived seeds (test-v1ld-search.R), so all of these
+  # seeds now return verified pairs; a failure would still be the contract error
+  expect_equal(n_err, 0)
   expect_gt(n_ok, 0)
 })
 
@@ -229,7 +231,9 @@ test_that("V1C-F5a: direct LD dominance-only pairs are linked (same chromosome, 
       error = function(e) conditionMessage(e))
     if (is.character(r)) {
       n_err <- n_err + 1
-      expect_match(r, "LD contract")
+      # the LD contract is now met by the retry attempts; the only remaining
+      # stop is the separate guard on heterozygosity at the dominance markers
+      expect_match(r, "All individuals are homozygote")
     } else {
       n_ok <- n_ok + 1
       ld <- .a1_read(home, "LD_Summary_Dominance.txt")
@@ -240,8 +244,8 @@ test_that("V1C-F5a: direct LD dominance-only pairs are linked (same chromosome, 
     }
   }
   # the frozen dominance walk does not reset its neighbour pointers after a
-  # re-sample, so pairs span chromosomes for most seeds: those are rejected
-  expect_gt(n_err, 0)
+  # re-sample, so its pairs span chromosomes for most seeds (round 1: rejected);
+  # since round 9 the retry attempts reset them and return verified pairs
   expect_gt(n_ok, 0)
 })
 
@@ -409,7 +413,7 @@ test_that("V1C-F10: the residual correlation is labelled as the input, not a sam
   .a1_cp(G, add_QTN_num = 3, add_effect = c(0.3, 0.2), ntraits = 2,
          h2 = c(0.5, 0.5), cor_res = cr, rep = 2, model = "A", seed = 1,
          home = home)
-  log <- readLines(file.path(home, "Log_Sim.txt"))
+  log <- readLines(file.path(home, "Log_Sim.txt"), warn = FALSE)
   expect_false(any(grepl("Sample Residual Correlation", log, fixed = TRUE)))
   expect_true(any(grepl("as specified by `cor_res`", log, fixed = TRUE)))
 })
@@ -423,12 +427,17 @@ test_that("V1C-F11: dominance on data without heterozygotes is caught (A+D warns
   v <- as.matrix(G0[, -(1:5)])
   v[v == 0] <- 1
   G0[, -(1:5)] <- v
+  # create_phenotypes() emits two warnings here; under edition 3 expect_warning()
+  # captures one and lets the other bubble up, so each is asserted explicitly.
   expect_warning(
-    create_phenotypes(geno_obj = G0, add_QTN_num = 2, dom_QTN_num = 2,
-                      add_effect = 0.2, dom_effect = 0.3, h2 = 0.5, rep = 1,
-                      model = "AD", seed = 5, to_r = TRUE, verbose = FALSE,
-                      home_dir = .a1_home(), output_dir = ""),
-    "selected dominance QTNs"
+    expect_warning(
+      create_phenotypes(geno_obj = G0, add_QTN_num = 2, dom_QTN_num = 2,
+                        add_effect = 0.2, dom_effect = 0.3, h2 = 0.5, rep = 1,
+                        model = "AD", seed = 5, to_r = TRUE, verbose = FALSE,
+                        home_dir = .a1_home(), output_dir = ""),
+      "selected dominance QTNs"
+    ),
+    "None of the dominance QTNs has a heterozygous individual"
   )
   expect_error(
     .a1_cp(G0, dom_QTN_num = 2, dom_effect = 0.3, h2 = 0.5, rep = 1,
@@ -796,9 +805,14 @@ test_that("Codex F04: a marker set too small for the LD search fails informative
              rep = 1, model = "A", architecture = "LD", type_of_ld = "direct",
              ld_min = 0.05, ld_max = 0.8, ld_method = "corr", seed = s),
       error = function(e) conditionMessage(e))
-    expect_true(is.character(r))
-    expect_false(grepl("'start' is invalid", r, fixed = TRUE))
-    expect_match(r, "ran past|LD contract|Monomorphic")
+    # an informative error, or (since round 9) a verified pair found by a
+    # retry attempt; never the cryptic gdsfmt message
+    if (is.character(r)) {
+      expect_false(grepl("'start' is invalid", r, fixed = TRUE))
+      expect_match(r, "ran past|LD contract|Monomorphic")
+    } else {
+      expect_s3_class(r, "data.frame")
+    }
   }
 })
 

@@ -218,13 +218,19 @@ test_that("a VCF gives the same table from a file path and from a data frame", {
   writeLines(fx_vcf_lines(hdr, rows), vcf)
   df <- utils::read.delim(vcf, skip = 1, check.names = FALSE, header = TRUE,
                           stringsAsFactors = FALSE, colClasses = "character")
+  # each import emits two warnings (multiallelic and partial calls); under
+  # edition 3 expect_warning() captures one, so both are asserted explicitly
   expect_warning(
-    a <- suppressMessages(as_numeric(vcf, to_r = TRUE, verbose = FALSE)),
-    "VCF genotype call")
+    expect_warning(
+      a <- suppressMessages(as_numeric(vcf, to_r = TRUE, verbose = FALSE)),
+      "multiallelic"),
+    "partially missing or haploid")
   expect_warning(
-    b <- suppressMessages(as_numeric(df, from = "vcf", to_r = TRUE,
-                                     verbose = FALSE)),
-    "VCF genotype call")
+    expect_warning(
+      b <- suppressMessages(as_numeric(df, from = "vcf", to_r = TRUE,
+                                       verbose = FALSE)),
+      "multiallelic"),
+    "partially missing or haploid")
   ma <- as.matrix(a[, hdr])
   mb <- as.matrix(b[, hdr])
   dimnames(ma) <- dimnames(mb) <- NULL

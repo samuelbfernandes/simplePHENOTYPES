@@ -55,8 +55,10 @@ smallest; one value (a vector is an error, except per trait for
 
 \item{method}{selection method (see the Method section).}
 
-\item{family}{optional grouping vector (length = individuals, no \code{NA}) for the
-family methods.}
+\item{family}{optional grouping vector (length = individuals) for the family
+methods. Every individual needs a non-\code{NA}, non-empty label: \code{NA} and empty
+(\code{""}) labels are errors, because they would silently drop the individual or
+merge unrelated ones into one pseudo-family.}
 
 \item{weights}{economic weights (one per trait) for \code{method = "index"}, or the
 linear weights \code{w} for \code{method = "quadratic_index"}.}

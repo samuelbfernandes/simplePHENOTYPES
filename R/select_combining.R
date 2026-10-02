@@ -132,6 +132,7 @@ combining_ability <- function(candidates, testers = NULL, qtn, a, d = 0,
                               ref = NULL, seed = NULL, interference = NULL) {
   design <- match.arg(design)
   method <- match.arg(method)
+  interference_given <- !is.null(interference)
   interference <- .check_interference(interference, "combining_ability")
   .check_population(candidates)
   .check_distinct(candidates, "candidates")
@@ -172,7 +173,7 @@ combining_ability <- function(candidates, testers = NULL, qtn, a, d = 0,
            call. = FALSE)
     }
   } else if (!is.null(n_progeny) || !is.null(h2) || !is.null(var_e) ||
-             !is.null(ref) || !is.null(seed) || !is.null(interference)) {
+             !is.null(ref) || !is.null(seed) || interference_given) {
     stop("combining_ability(): `n_progeny`, `h2`, `var_e`, `ref`, `seed` and ",
          "`interference` apply to method = \"simulated\" only.", call. = FALSE)
   }

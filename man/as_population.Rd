@@ -9,7 +9,10 @@ as_population(geno, individuals = NULL, pool = NA_character_)
 \arguments{
 \item{geno}{a numeric-format data frame whose first five columns are
 \code{c("snp", "allele", "chr", "pos", "cm")}, as returned by \code{\link[=as_numeric]{as_numeric()}},
-with the remaining columns individuals coded -1/0/1.}
+with the remaining columns individuals coded -1/0/1. An optional character
+column \code{counted} right after \code{cm} (see \code{as_numeric(counted_column = )}) is
+read as the counted-allele record, not as an individual; it must name one
+allele per marker (\code{NA} = unknown), consistent with the \code{allele} label.}
 
 \item{individuals}{optional character or numeric vector selecting which
 individuals to keep, in the order given. Defaults to all of them.}
@@ -81,11 +84,14 @@ with \code{\link[=c.Population]{c.Population()}}) would then silently mix up the
 panels \strong{jointly}, or give each the same reference alleles with
 \code{as_numeric(method = "reference", ref_allele = )}. \code{as_numeric()} records the
 allele it counted as +1 at every marker (the \code{"counted_allele"} attribute of
-its result, see \code{\link[=as_numeric]{as_numeric()}}), and \code{as_population()} keeps it. When both
+its result, see \code{\link[=as_numeric]{as_numeric()}}), and \code{as_population()} keeps it; the optional
+\code{counted} column of \code{as_numeric(counted_column = TRUE)} (placed after \code{cm})
+carries the same record through text files and row subsetting and, when
+present, is the record used. When both
 populations carry that record, \code{\link[=cross]{cross()}} and \code{\link[=c.Population]{c.Population()}} compare it per
 marker and \strong{stop} if the two panels count different alleles as +1. Where a
-record is missing on either side (numeric data read back from a text file,
-subsetted rows, other software), the \code{allele} label is compared instead: the
+record is missing on either side (numeric data read back from a text file
+or subsetted without the \code{counted} column, other software), the \code{allele} label is compared instead: the
 check warns when the two panels list a marker's alleles in opposite order (a
 sign the orientation may differ) and stops when they share no allele. The
 check only sees what these records show: it cannot detect a difference that

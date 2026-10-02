@@ -56,7 +56,8 @@
 #' @param prefix progeny id prefix; progeny are named `<prefix>_1`, `<prefix>_2`,
 #'   ... in plan order. Default: the pool name(s) involved, joined by `x`
 #'   (e.g. `"A"` or `"AxB"`), or `"prog"` for a single unnamed population.
-#' @param interference `NULL` (default: Poisson crossovers, the isqg stream) or
+#' @param interference `NULL` (default: the option `simplePHENOTYPES.interference`
+#'   if set, else Poisson crossovers, the isqg stream) or
 #'   `list(nu = , p = )`, the two-pathway gamma model of crossover interference
 #'   applied to every row; see [cross()].
 #' @return A `Population` of all progeny, in plan order, with attribute `plan`

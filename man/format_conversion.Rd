@@ -19,7 +19,8 @@ format_conversion(
   model = "Add",
   impute = "None",
   method = "frequency",
-  verbose = TRUE
+  verbose = TRUE,
+  counted_column = FALSE
 )
 }
 \arguments{
@@ -71,6 +72,12 @@ codes is set to missing and reported in a warning.}
 \code{"reference"} (requires \code{ref_allele}).}
 
 \item{verbose}{Logical; print progress messages when \code{TRUE}.}
+
+\item{counted_column}{Logical (default \code{FALSE}). When \code{TRUE} the
+result, and the file written, gets a character column \code{counted}
+immediately after \code{cm} holding the allele coded +1 at each marker (the
+durable form of the \code{"counted_allele"} attribute, which a text file
+cannot carry). The default leaves the output unchanged.}
 }
 \value{
 When \code{to_r = TRUE}: a data.frame with columns

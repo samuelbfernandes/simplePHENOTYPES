@@ -50,12 +50,12 @@
          "n_traits = 2.", call. = FALSE)
   }
   a <- sim$arch_args
-  ld_type <- if (is.null(a$ld_type)) "direct" else
-    match.arg(a$ld_type, c("direct", "indirect"))
-  r2_max <- if (is.null(a$r2_max)) 0.8 else a$r2_max
-  r2_min <- if (is.null(a$r2_min)) 0.2 else a$r2_min
-  partner <- if (is.null(a$partner)) "strongest" else
-    match.arg(a$partner, c("strongest", "random"))
+  ld_type <- if (is.null(a[["ld_type"]])) "direct" else
+    match.arg(a[["ld_type"]], c("direct", "indirect"))
+  r2_max <- if (is.null(a[["r2_max"]])) 0.8 else a[["r2_max"]]
+  r2_min <- if (is.null(a[["r2_min"]])) 0.2 else a[["r2_min"]]
+  partner <- if (is.null(a[["partner"]])) "strongest" else
+    match.arg(a[["partner"]], c("strongest", "random"))
   tol1 <- 1 - 1e-12          # r2 >= tol1: identical (or mirrored) dosage columns
   chr <- sim$map$chr
   pos <- sim$map$pos

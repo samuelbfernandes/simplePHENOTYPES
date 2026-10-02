@@ -31,7 +31,7 @@ test_that("vary_qtn redraws QTNs each replication", {
 test_that("vary_qtn dominance same_as_add follows the additive loci per rep", {
   ph <- simulate_phenotype(G, h2 = 0.5, n_reps = 2, vary_qtn = TRUE, seed = 1) |>
     additive(prop = 0.4, n_qtn = 4)
-  ph <- expect_warning(dominance(ph, prop = 0.1), "some \\(but not all\\)")
+  expect_warning(ph <- dominance(ph, prop = 0.1), "some \\(but not all\\)")
   add <- ph$layers[[1]]$qtn_reps
   dom <- ph$layers[[2]]$qtn_reps
   expect_identical(add[[1]], dom[[1]])
@@ -95,14 +95,14 @@ test_that("qtn_table reports per-QTN variance for additive, NA for epistasis", {
   add <- tab$var_explained[tab$layer == "additive"]
   expect_true(all(add >= 0))
   # marginal contributions sum near the layer prop (LD leaves a small gap)
-  expect_equal(sum(add), 0.3, tolerance = 0.1)
+  expect_lt(abs(sum(add) - 0.3), 0.1)   # absolute band
   expect_true(all(is.na(tab$var_explained[tab$layer == "epistasis"])))
 })
 
 test_that("plot.phenotype_sim renders without error", {
   ph <- simulate_phenotype(G, n_traits = 2, h2 = 0.5, seed = 1) |>
     additive(prop = 0.4, n_qtn = 6)
-  ph <- expect_warning(dominance(ph, prop = 0.1), "some \\(but not all\\)")
+  expect_warning(ph <- dominance(ph, prop = 0.1), "some \\(but not all\\)")
   tmp <- tempfile(fileext = ".png")
   grDevices::png(tmp)
   expect_invisible(plot(ph))

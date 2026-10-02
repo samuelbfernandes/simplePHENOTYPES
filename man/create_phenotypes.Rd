@@ -431,9 +431,10 @@ When the LD search cannot deliver distinct, linked marker pairs inside
 \verb{[ld_min, ld_max]} for the chosen \code{seed} (indirect: a marker selected for
 both traits or a duplicated QTN; direct: a pair outside the window, on
 two chromosomes or paired with itself), the call stops with an "LD
-contract" error: change \code{seed}, the LD window or \code{type_of_ld}. The
-direct-LD dominance branches (\code{model} containing "D") meet the contract for
-only a minority of seeds.
+contract" error: change \code{seed}, the LD window or \code{type_of_ld}. For
+\code{type_of_ld = "direct"} the search is first run exactly as in earlier
+releases and, only when that attempt fails, repeated with derived seeds
+(section "Direct-LD search retries"), so the error is now rare.
 \item \code{h2} outside \verb{[0, 1]}; \code{h2} positive but not above 0.05 (that is,
 \verb{0 < h2 <= 0.05}, including exactly 0.05) with \code{rep > 1} (see \code{seed});
 \code{to_r = TRUE} with several rows of \code{h2} unless a single trait is
@@ -445,7 +446,10 @@ symmetric, positive semi-definite correlation matrix.
 geometric-series base, or with a length that is neither 1 nor the number
 of QTNs.
 \item Variance QTL (\code{"V"}) with \code{ntraits > 1}, with \code{h2 = 0}, or with
-\code{var_effect} values that make the standard-deviation multiplier negative.
+\code{var_effect} values that make the standard-deviation multiplier negative,
+or with a constant additive baseline (for example \code{model = "AV"} with
+\code{add_effect = 0}: the variance multiplier is undefined, so the call stops
+instead of returning NaN phenotypes).
 \item Unknown \code{output_format}, \code{output_format = "wide"} with \code{ntraits > 1}
 and \code{rep = 1}, \code{rep}/\code{model}/\code{seed} that are missing or malformed, and
 more QTNs than markers.
@@ -462,6 +466,36 @@ change which markers enter a genetic value (an epistatic interaction, for
 example, multiplies the intended columns). The \code{architecture = "LD"}
 searches are stricter: a duplicated QTN or a QTN pair sharing a chromosome
 position is reported as an "LD contract" error (see above).
+}
+
+\section{Direct-LD search retries}{
+
+With \code{architecture = "LD"} and \code{type_of_ld = "direct"} the marker search of
+every replicate first runs exactly as in earlier releases (same seeds, same
+random draws); whenever that attempt meets the LD contract (distinct markers
+on one chromosome with an absolute LD inside the inclusive window
+\verb{[ld_min, ld_max]}, and the reported LD equal to the recomputed one) its
+output is unchanged, bit for bit. Only when it does not (the contract check
+fails, the search stops with "None of the selected SNPs met the minimum/maximum
+LD threshold", or it runs past the first/last marker) the replicate is
+searched again, up to 50 attempts in total, from the seed
+\code{seed - (a - 1) * 1000003} for attempt \code{a} (\code{seed + (a - 1) * 1000003} when
+\code{seed <= 0}); the retry seeds are then combined with the replicate and QTN
+offsets exactly like the original one. Retry attempts also reset the
+neighbour pointers after a marker is re-drawn, which the earlier dominance
+walks (\code{model} containing "D") did not: they kept pairing the new marker
+with the neighbours of the old one, so most pairs failed the contract. The
+window itself is never relaxed: every accepted pair is verified against
+\verb{[ld_min, ld_max]} and the chromosome constraint. After 50 failed attempts
+the "LD contract" error is raised as before; a retry attempt that uses up
+every candidate marker without finding a pair inside the window (a window too
+narrow for the data, which used to end in the cryptic "invalid first
+argument") stops the search at once with an informative error. The seed of the attempt that
+succeeded is the one written to the \verb{Seed_num_for_*} file and, when
+\code{verbose = TRUE}, a message names the attempt. Indirect LD is not
+retried. A dominance-only model (\code{"D"}) can still stop with the
+"All individuals are homozygote for the selected dominance QTNs" error,
+which is a separate check on the selected markers.
 }
 
 \examples{

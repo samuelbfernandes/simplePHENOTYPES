@@ -1249,7 +1249,14 @@ check_in <-
 #' `seed * s + z (+ rep) (+ x)` with the retry counter `s` running up to 10
 #' (`z` <= `rep`, `x` <= the number of QTNs of one class), so its bound is
 #' about `10 * seed`. `ld = TRUE` adds that bound; `n_qtn` is the total number
-#' of QTNs requested (an upper bound for `x`).
+#' of QTNs requested (an upper bound for `x`). The direct-LD search is also
+#' repeated with the seeds `.ld_attempt_seed(seed, attempt)` (at most
+#' `.ld_max_attempts()` attempts, see R/legacy_QTN_linkage.R); those move the
+#' seed towards zero by up to `(.ld_max_attempts() - 1) * .ld_retry_stride`, so
+#' their magnitude never exceeds `max(abs(seed), ld_span)` with that span (about
+#' 4.9e7) and the same multiplier 10 and offsets bound them. For every seed
+#' with `abs(seed)` above the span the accepted interval is therefore exactly
+#' the one that applied before the retry attempts existed.
 #' @keywords internal
 #' @noRd
 .v1_validate_seed_arith <- function(seed, rep, h2, null_setting, wide,
@@ -1273,10 +1280,12 @@ check_in <-
   if (!is.null(seed)) {
     ld_mult <- if (ld) 10 else 1   # linkage retry seeds: seed * s, s <= 10
     ld_extra <- if (ld) 2 * rep + max(0, sum(n_qtn, na.rm = TRUE)) else 0
+    # direct-LD retry attempts: |derived seed| <= max(|seed|, ld_span)
+    ld_span <- if (ld) (.ld_max_attempts() - 1) * .ld_retry_stride else 0
     worst_of <- function(sd) {
       max(mult * abs(sd + rep),
           (if (wide) 2 else 1) * abs(sd) + rep + 100,
-          ld_mult * abs(sd) + ld_extra)
+          ld_mult * max(abs(sd), ld_span) + ld_extra)
     }
     if (worst_of(seed) > .Machine$integer.max) {
       # exact inclusive magnitude bound: the largest a >= 0 such that both
@@ -1320,6 +1329,10 @@ check_in <-
                floor((M - rep - 100) / (if (wide) 2 else 1)),
                floor((M - ld_extra) / ld_mult))
       accepted <- function(sd) worst_of(sd) <= M
+      if (ld && ld_mult * ld_span + ld_extra > M) {
+        a <- 1
+        b <- 0   # the retry-seed span alone overflows: no seed is accepted
+      }
       if (a <= b) {
         while (a <= b && !accepted(a)) a <- a + 1
         while (a <= b && !accepted(b)) b <- b - 1
@@ -1539,6 +1552,28 @@ check_in <-
     stop("Variance QTL: the standard-deviation multiplier 1 + sum(var_effect * (dosage + 1)) is negative (or missing) for some individuals, ",
          "which would produce missing phenotypes. Use smaller or positive `var_effect` values.",
          call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+#' Reject a variance-QTL simulation whose additive baseline is constant
+#'
+#' The vQTL scale multiplier is `sqrt((var(baseline) / h2 - var(baseline)) /
+#' median(sigma)^2)` applied to `scale(baseline)`; with a constant baseline
+#' (for example `add_effect = 0`) `var(baseline)` is 0 and `scale()` returns
+#' NaN, so every phenotype would be NaN with no message.
+#' @keywords internal
+#' @noRd
+.v1_check_vqtl_baseline <- function(base_line_trait) {
+  b <- as.numeric(base_line_trait)
+  if (length(b) < 2L || anyNA(b) || !all(is.finite(b)) ||
+      !isTRUE(stats::var(b) > 0)) {
+    stop("Variance QTL (a model containing \"V\"): the baseline additive ",
+         "component is constant (or missing), for example because ",
+         "`add_effect = 0`, so the variance multiplier is undefined and every ",
+         "phenotype would be NaN. Use non-zero `add_effect` values with a ",
+         "model such as \"AV\" (or `same_mv_QTN = TRUE` with non-zero ",
+         "`add_effect`).", call. = FALSE)
   }
   invisible(TRUE)
 }

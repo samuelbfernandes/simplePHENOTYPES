@@ -3,7 +3,8 @@
 #' One place to apply every marker filter simplePHENOTYPES implements, so a
 #' genotype can be trimmed once and then reused across simulations. It takes the
 #' simplePHENOTYPES numeric format (a data frame whose first five columns are
-#' `snp`, `allele`, `chr`, `pos`, `cm`, followed by one column per individual,
+#' `snp`, `allele`, `chr`, `pos`, `cm` (and optionally the `counted` column of
+#' `as_numeric(counted_column = TRUE)`), followed by one column per individual,
 #' e.g. [SNP55K_maize282_maf04]), an individuals-by-markers numeric matrix
 #' coded `-1/0/1`, or a [Population][as_population()] (founders or the progeny of
 #' [cross()], [selfcross()] and [double_haploid()]), and returns the same kind of
@@ -221,17 +222,24 @@ filter_geno <- function(geno,
            "individual. Use as_numeric() to convert other formats.",
            call. = FALSE)
     }
-    non_num <- !vapply(geno[, -(1:5), drop = FALSE],
+    # an optional `counted` column (as_numeric(counted_column = TRUE)) follows
+    # `cm`: it is metadata, kept with its marker, not an individual
+    k <- .n_meta(geno)
+    if (ncol(geno) <= k) {
+      stop("`geno` needs at least one individual column after the metadata ",
+           "columns.", call. = FALSE)
+    }
+    non_num <- !vapply(geno[, -seq_len(k), drop = FALSE],
                        function(col) is.numeric(col) ||
                          (is.logical(col) && all(is.na(col))), logical(1))
     if (any(non_num)) {
       stop("`geno` genotype columns must be numeric (-1/0/1 or 0/1/2); ",
            "non-numeric column(s): ",
-           paste(utils::head(names(geno)[-(1:5)][non_num], 5L), collapse = ", "),
+           paste(utils::head(names(geno)[-seq_len(k)][non_num], 5L), collapse = ", "),
            if (sum(non_num) > 5L) ", ..." else "",
            ". Convert the genotypes with as_numeric() first.", call. = FALSE)
     }
-    Dm  <- as.matrix(geno[, -(1:5), drop = FALSE])   # markers x individuals
+    Dm  <- as.matrix(geno[, -seq_len(k), drop = FALSE])   # markers x individuals
     chr <- geno$chr
     pos <- geno$pos
     needs_map <- (window_unit == "kb" &&
@@ -284,9 +292,12 @@ filter_geno <- function(geno,
   # or missing data biases the frequency toward zero.
   n_called <- rowSums(!is.na(dose))
   allele_ct <- rowSums(dose, na.rm = TRUE)
-  p   <- ifelse(n_called > 0L, allele_ct / (2 * n_called), 0)
-  maf <- pmin(p, 1 - p)
-  maf[n_called == 0L] <- 0
+  # The minor-allele COUNT is an exact integer, so maf = minor / (2 * called)
+  # is one correctly rounded division: a marker at exactly 0.1 gives the same
+  # double whichever allele is coded +1 (pmin(p, 1 - p) rounded 1 - 0.9 below
+  # 0.1 and dropped it under the inclusive `maf_above = 0.1`).
+  minor_ct <- pmin(allele_ct, 2 * n_called - allele_ct)
+  maf <- ifelse(n_called > 0L, minor_ct / (2 * n_called), 0)
   n_het <- rowSums(dose == 1L, na.rm = TRUE)
 
   keep <- rep(TRUE, n_mrk)
@@ -359,7 +370,19 @@ filter_geno <- function(geno,
   if (is_pop) {
     return(.subset_population_markers(geno, keep))
   }
-  if (is_df) geno[keep, , drop = FALSE] else geno[, keep, drop = FALSE]
+  if (is_df) {
+    out <- geno[keep, , drop = FALSE]
+    # `[` keeps a data frame's extra attributes unchanged, so the per-marker
+    # "counted_allele" record would stay at its full length and no longer match
+    # the kept rows; subset it with them (a `counted` column needs nothing)
+    cnt <- attr(geno, "counted_allele", exact = TRUE)
+    if (!is.null(cnt) && length(cnt) == nrow(geno)) {
+      attr(out, "counted_allele") <- cnt[keep]
+    }
+    out
+  } else {
+    geno[, keep, drop = FALSE]
+  }
 }
 
 #' Keep a subset of a Population's markers

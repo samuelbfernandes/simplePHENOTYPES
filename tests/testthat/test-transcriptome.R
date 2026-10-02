@@ -352,7 +352,7 @@ test_that("the GREML estimator recovers a planted heritability from the GRM", {
   for (h2 in c(0.2, 0.6)) {
     Y <- t(vapply(1:30, function(i) plant(h2), numeric(n)))
     est <- simplePHENOTYPES:::.greml_h2(Y, K)
-    expect_equal(mean(est), h2, tolerance = 0.08)            # unbiased within sampling error
+    expect_lt(abs(mean(est) - h2), 0.08)   # absolute band            # unbiased within sampling error
   }
   # a constant gene has no variance to partition
   expect_equal(simplePHENOTYPES:::.greml_h2(matrix(3, 1, n), K), 0)

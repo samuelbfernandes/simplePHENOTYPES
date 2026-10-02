@@ -169,8 +169,10 @@
 #'   smallest; one value (a vector is an error, except per trait for
 #'   `method = "culling"`).
 #' @param method selection method (see the Method section).
-#' @param family optional grouping vector (length = individuals, no `NA`) for the
-#'   family methods.
+#' @param family optional grouping vector (length = individuals) for the family
+#'   methods. Every individual needs a non-`NA`, non-empty label: `NA` and empty
+#'   (`""`) labels are errors, because they would silently drop the individual or
+#'   merge unrelated ones into one pseudo-family.
 #' @param weights economic weights (one per trait) for `method = "index"`, or the
 #'   linear weights `w` for `method = "quadratic_index"`.
 #' @param quad_weights symmetric `n_traits x n_traits` matrix of quadratic
@@ -326,7 +328,17 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
            "needs a family (NA would silently exclude it from selection).",
            call. = FALSE)
     }
-    as.character(family)
+    # an empty (or blank) label is almost always a missing value written as "":
+    # refuse it with the fix instead of treating it as a family
+    fam_chr <- as.character(family)
+    if (any(!nzchar(trimws(fam_chr)))) {
+      stop("`family` has ", sum(!nzchar(trimws(fam_chr))), " empty label(s) (\"\"); ",
+           "every individual needs a non-empty family label. Replace the empty ",
+           "labels with the real family names (for example family[family == \"\"] <- ",
+           "\"unknown\", or give each such individual its own label), or remove ",
+           "those individuals before selecting.", call. = FALSE)
+    }
+    fam_chr
   } else NULL
   fam_alloc <- if (!is.null(n_per_family)) .resolve_n_per_family(n_per_family, fam)
 
@@ -732,8 +744,20 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
          "index weights are undefined (constant or missing phenotypes?).",
          call. = FALSE)
   }
-  s <- svd(P)
-  tol <- max(dim(P)) * .Machine$double.eps * (if (length(s$d)) s$d[1L] else 0)
+  # Scale-invariant solve: b = P^{-1} r is unchanged when P and r are divided by
+  # any positive constants and the quotient of the constants is restored at the
+  # end, so work with P / mP and r / mr (both O(1)) and rescale last. Solving
+  # directly overflowed 1 / d (weights NaN) for a finite covariance at denormal
+  # scale; the weights are an error only if they are genuinely not representable.
+  # Powers of two, so dividing and restoring are exact (results for ordinary
+  # scales are bit-identical to the unscaled solve).
+  p2 <- function(x) if (x > 0) 2^floor(log2(x)) else 0
+  mP <- p2(max(abs(P)))
+  mr <- p2(max(abs(r)))
+  Pn <- if (mP > 0) P / mP else P
+  rn <- if (mr > 0) r / mr else r
+  s <- svd(Pn)
+  tol <- max(dim(Pn)) * .Machine$double.eps * (if (length(s$d)) s$d[1L] else 0)
   pos <- s$d > tol
   if (!all(pos)) {
     warning("method = \"index\": the phenotypic covariance is singular (rank ",
@@ -744,7 +768,18 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
   }
   Pinv <- s$v[, pos, drop = FALSE] %*%
     ((1 / s$d[pos]) * t(s$u[, pos, drop = FALSE]))
-  Pinv %*% r
+  b <- Pinv %*% rn
+  if (mP > 0 && mr > 0) {
+    ratio <- mr / mP
+    b <- if (is.finite(ratio) && ratio > 0) b * ratio else (b / mP) * mr
+  }
+  if (any(!is.finite(b))) {
+    stop("method = \"index\": the index weights overflow (non-finite): the ",
+         "phenotypic covariance is on an extreme (denormal-scale) magnitude ",
+         "relative to the genetic covariance. Rescale the traits.",
+         call. = FALSE)
+  }
+  b
 }
 
 #' Lush combined-selection index score
@@ -777,12 +812,15 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
   # phenotype origin; centre on the candidate mean.
   mu <- mean(values)
   dev <- values - mu
-  fam_mean <- tapply(dev, fam, mean)
-  fam_n    <- tapply(dev, fam, length)
+  # Group by integer code, not by name (a robust grouping; `select_ind()` already
+  # rejects NA and empty labels before this point).
+  fam_id   <- match(fam, unique(fam))
+  fam_mean <- as.numeric(tapply(dev, fam_id, mean))
+  fam_n    <- tabulate(fam_id)
   score <- numeric(length(values))
   for (i in seq_along(values)) {
-    f <- fam[i]
-    n <- fam_n[[f]]
+    f <- fam_id[i]
+    n <- fam_n[f]
     # 1 - t written as (1 - r) + r (1 - h2): exact near t = 1 (both differences
     # are exact there), so the weights below stay accurate and bounded
     # (b1 <= h2, and b2 finite) arbitrarily close to it. Only t = 1 exactly
@@ -802,7 +840,7 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
     # under/overflow at extreme scales):
     b1 <- h2 * (1 - r) / one_minus_t
     b2 <- h2 * n * r * (1 - h2) / ((1 + (n - 1) * t) * one_minus_t)
-    score[i] <- b1 * dev[i] + b2 * fam_mean[[f]]
+    score[i] <- b1 * dev[i] + b2 * fam_mean[f]
   }
   stats::setNames(score, names(values))
 }

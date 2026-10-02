@@ -99,7 +99,6 @@
 ^_config\.yml$
 ^man/figures/SP_logo\.png$
 ^man/figures/legacy_SP_logo\.png$
-^data-raw$
 
 # Purled vignette scripts and rendered HTML: build artifacts that would
 # otherwise ship stale copies of the vignette code.

@@ -220,7 +220,7 @@ test_that("selfing progressively reduces heterozygosity", {
   # Roughly halves each generation; assert the ordering rather than exact rates.
   expect_gt(het(f2), het(f3))
   expect_gt(het(f3), het(f4))
-  expect_equal(het(f2), 0.5, tolerance = 0.08)
+  expect_lt(abs(het(f2) - 0.5), 0.08)   # absolute band (edition 2 compared absolutely)
 })
 
 # ---------------------------------------------------------------------------
@@ -270,6 +270,6 @@ test_that("simulate_phenotype accepts a Population", {
   expect_identical(nrow(ph$pheno), 50L)
   expect_identical(sort(unique(ph$pheno$id)), sort(f2$ids))
   # Realized heritability should land near the requested proportion.
-  expect_equal(.realized_h2(ph), 0.6, tolerance = 0.25)
+  expect_lt(abs(.realized_h2(ph) - 0.6), 0.25)   # absolute band
   expect_output(print(ph), "Population")
 })

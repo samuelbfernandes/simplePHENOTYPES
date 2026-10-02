@@ -24,7 +24,8 @@ several must be named, and the names are the pools the plan refers to.}
 ... in plan order. Default: the pool name(s) involved, joined by \code{x}
 (e.g. \code{"A"} or \code{"AxB"}), or \code{"prog"} for a single unnamed population.}
 
-\item{interference}{\code{NULL} (default: Poisson crossovers, the isqg stream) or
+\item{interference}{\code{NULL} (default: the option \code{simplePHENOTYPES.interference}
+if set, else Poisson crossovers, the isqg stream) or
 \code{list(nu = , p = )}, the two-pathway gamma model of crossover interference
 applied to every row; see \code{\link[=cross]{cross()}}.}
 }
