@@ -406,3 +406,12 @@ test_that("round-10 review: fresh draws warn on one active unit; LD ownership co
                                      nm[sr$layers[[1]]$qtn_reps[[2]][[1]][1]])),
                "already causal for the other trait")
 })
+
+test_that("round-11 review: under ld, every replication of a varying layer has disjoint trait loci", {
+  sr <- suppressWarnings(simulate_phenotype(.qp_g, n_traits = 2, architecture = "ld",
+                                            seed = 163, n_reps = 3, vary_qtn = TRUE)) |>
+    additive(prop = 0.3, n_qtn = 2)
+  for (q in sr$layers[[1]]$qtn_reps) {
+    expect_length(intersect(q[[1]], q[[2]]), 0L)
+  }
+})

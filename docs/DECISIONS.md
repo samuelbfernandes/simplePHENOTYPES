@@ -1795,12 +1795,16 @@ moves to the user.
   at random, `.candidate_markers()`) carries no variance: it is accepted with a warning, except where it makes the
   construction undefined (an "ld" pair: error; a pleiotropy layout with no informative shared locus: error, and a
   single informative shared locus warns that the correlation is then exactly +/-1, counting only loci that receive
-  variance under `n_pleio_major` / `prop_var_major`). Rounds 9-10: the LD ownership rule (a locus is causal for one trait
-  across ALL layers and ALL `vary_qtn` replications) holds whatever the layer order: passed loci are checked against every
-  earlier layer's loci (canonical and per-replication), and a random LD draw never picks a locus an earlier layer already
-  made causal (a single-layer draw is unchanged, bit-identical); a plain matrix (no chromosome map) is refused for passed LD
+  variance under `n_pleio_major` / `prop_var_major`). Rounds 9-11: the LD ownership rule (a locus is causal for one trait
+  across all LAYERS) holds whatever the layer order and within every replication: passed loci are checked against every
+  earlier layer's loci (canonical and every `vary_qtn` replication, conservatively), and a random LD draw never picks a
+  locus an earlier layer already made causal (a single-layer draw is unchanged, bit-identical). Replications of ONE varying
+  layer are independent draws (independent datasets): within each replication the two traits' loci are disjoint, but a marker
+  may belong to different traits in different replications (round 11; enforcing otherwise would change the historical
+  first-layer draws); a plain matrix (no chromosome map) is refused for passed LD
   pairs with the same message as the random search. A drawn pleiotropy layout whose major/minor split leaves one locus with
-  variance (e.g. `n_pleio_major = 1`, `prop_var_major = 1`) warns that the correlation is exactly +/-1, as the fixed path does.
+  variance (e.g. `n_pleio_major = 1`, `prop_var_major = 1`) warns, as the fixed path does: exactly +/-1 when neither trait has trait-specific variance (`pi = 1`), otherwise that the
+  whole covariance rests on one locus (one noisy draw).
 Default draws and the independent path are unchanged (RNG order identical; `qtn = NULL` is bit-identical).
 Review owed (Codex): the all-shared rule, the effect/dist-when-uncontrolled path, the LD pair rules.
 
