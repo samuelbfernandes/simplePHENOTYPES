@@ -45,7 +45,10 @@ of length \code{n_traits} is never read as "one set per element". Rejected under
 \code{architecture = "pleiotropy"} / \code{"ld"}.}
 
 \item{effect}{optional geometric base (scalar) or explicit effect series
-(length \code{n_pairs}), used for every trait.}
+(length \code{n_pairs}, one value per interacting set), used for every trait;
+or a length-\code{n_traits} list of these, one per trait (the counterpart of
+v1 \code{epi_effect}). Not available under \code{architecture = "pleiotropy"}
+(multi-trait), whose correlated draw sets the effects.}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
 }

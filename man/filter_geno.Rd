@@ -21,9 +21,14 @@ filter_geno(
 )
 }
 \arguments{
-\item{geno}{the genotype object (numeric-format data frame, or an
-individuals-by-markers \code{-1/0/1} matrix). Convert other formats with
-\code{\link[=as_numeric]{as_numeric()}} first.}
+\item{geno}{the genotype object: a numeric-format data frame, an
+individuals-by-markers \code{-1/0/1} matrix, or a \code{Population}. Convert other
+formats with \code{\link[=as_numeric]{as_numeric()}} first. A \code{Population} is filtered on its
+dosages (always \code{-1/0/1}, so \code{code_as} must stay \code{"-101"}); its genetic
+map, individuals, ids and pedigree are kept, only the failing markers are
+dropped. The result has a different marker map from the input, so it can
+no longer be crossed with, or pooled by \code{\link[=c.Population]{c.Population()}} with, an
+unfiltered population: filter the founders once, before crossing.}
 
 \item{maf_above}{keep markers with minor-allele frequency \verb{>= maf_above}. A
 single finite number in \verb{[0, 0.5]} (a vector or \code{NA} is an error).}
@@ -58,7 +63,8 @@ one tag marker per block (default \code{FALSE}); must be \code{TRUE} or \code{FA
 500).}
 
 \item{window_unit}{\code{"variants"} (default) or \code{"kb"} -- the unit of the pruning
-\code{window}. \code{"kb"} needs the data-frame input (uses the \code{pos} column).}
+\code{window}. \code{"kb"} needs marker positions: the numeric-format data frame or
+a \code{Population} (their \code{pos} column), not a bare matrix.}
 
 \item{code_as}{the genotype coding of \code{geno}: \code{"-101"} (default; major = 1,
 het = 0, minor = -1) or \code{"012"} (major = 2, het = 1, minor = 0). This is
@@ -69,15 +75,21 @@ error. It sets how minor-allele frequency and heterozygosity are computed.}
 \item{verbose}{report how many markers each filter removed (default \code{TRUE}).}
 }
 \value{
-the filtered genotype object, in the same format as \code{geno}.
+the filtered genotype object, in the same format as \code{geno} (a
+\code{Population} stays a \code{Population}).
 }
 \description{
 One place to apply every marker filter simplePHENOTYPES implements, so a
 genotype can be trimmed once and then reused across simulations. It takes the
 simplePHENOTYPES numeric format (a data frame whose first five columns are
 \code{snp}, \code{allele}, \code{chr}, \code{pos}, \code{cm}, followed by one column per individual,
-e.g. \link{SNP55K_maize282_maf04}) or an individuals-by-markers numeric matrix
-coded \code{-1/0/1}, and returns the same object with the failing markers dropped.
+e.g. \link{SNP55K_maize282_maf04}), an individuals-by-markers numeric matrix
+coded \code{-1/0/1}, or a \link[=as_population]{Population} (founders or the progeny of
+\code{\link[=cross]{cross()}}, \code{\link[=selfcross]{selfcross()}} and \code{\link[=double_haploid]{double_haploid()}}), and returns the same kind of
+object with the failing markers dropped. Every genotype input that
+\code{\link[=simulate_phenotype]{simulate_phenotype()}} accepts can therefore be filtered, so the same MAF,
+heterozygosity and LD constraints apply whatever the architecture or layer
+(additive, dominance, epistasis, vQTL) drawn from it afterwards.
 }
 \details{
 Filters are applied in order: monomorphic removal, minor-allele frequency,
@@ -124,9 +136,11 @@ tolerance of a realised haplotypic r^2 (that r^2 comes from a transcendental
 cubic solver -- \code{acos}/\code{cos}/\code{log} -- so, unlike the integer-exact composite
 r^2, it can differ from PLINK's in the last bit); and kb + \code{indep}. PLINK
 computes LD from
-\emph{founders only}; simplePHENOTYPES has no pedigree, so every individual is
-treated as a founder (which is how the parity is verified) -- pass a
-founder-only genotype set to reproduce a PLINK run that had non-founders.
+\emph{founders only}; \code{filter_geno()} does not apply that rule: it computes LD
+from \strong{every individual it is given}, including the non-founders of a
+crossing \code{Population} (its pedigree is not consulted; the parity is verified
+on founder-only data frames) -- pass a founder-only genotype set, e.g. the
+founders before crossing, to reproduce a PLINK run that had non-founders.
 Missing calls (\code{NA}) are handled per pair on the complete observations (a
 \code{pairwise.complete.obs} correlation for \code{indep_pairwise}/\code{indep}, complete
 pairs only for \code{indep_pairphase}) and are \strong{not} claimed identical to PLINK's

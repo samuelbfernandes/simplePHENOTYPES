@@ -63,3 +63,70 @@ test_that("filter_geno rejects a non-numeric-format data frame", {
   bad <- data.frame(a = 1:3, b = 4:6)
   expect_error(filter_geno(bad, verbose = FALSE), "numeric format")
 })
+
+test_that("filter_geno filters a Population and keeps map, ids and pedigree", {
+  sub <- G[G$chr %in% unique(G$chr)[1:2], ]
+  pop <- as_population(sub, individuals = 1:12, pool = "A")
+  pf <- filter_geno(pop, maf_above = 0.42, verbose = FALSE)
+  expect_s3_class(pf, "Population")
+  expect_lt(nrow(pf$map), nrow(pop$map))
+  expect_identical(pf$ids, pop$ids)
+  expect_identical(pf$keys, pop$keys)
+  expect_identical(pf$pedigree, pop$pedigree)
+  expect_identical(nrow(pf$cis), nrow(pf$map))
+  expect_identical(nrow(pf$trans), nrow(pf$map))
+  expect_identical(rownames(dosages(pf)), pf$map$snp)
+  expect_true(all(c("snp", "chr", "pos", "cm") %in% names(pf$map)))
+  # same marker set as filtering the data frame it came from
+  df_f <- filter_geno(sub[, c(1:5, 5 + 1:12)], maf_above = 0.42, verbose = FALSE)
+  expect_identical(pf$map$snp, as.character(df_f$snp))
+  # the retained markers all satisfy the threshold on the Population's dosages
+  d <- dosages(pf)
+  p <- rowMeans((d + 1) / 2)
+  expect_true(all(pmin(p, 1 - p) >= 0.42))
+  # hets filter on a Population
+  ph <- filter_geno(pop, hets = "include", verbose = FALSE)
+  expect_true(all(rowSums(dosages(ph) == 0) > 0))
+  # a bare -1/0/1 Population cannot be declared 0/1/2
+  expect_error(filter_geno(pop, code_as = "012", verbose = FALSE), "-1/0/1")
+  # a factor `chr` drops the levels of chromosomes that lost every marker
+  tiny <- data.frame(snp = c("m1", "m2"), allele = c("A/G", "A/G"),
+                     chr = factor(c("1", "2")), pos = c(1, 1), cm = c(0, 0),
+                     i1 = c(1, 1), i2 = c(-1, 1), i3 = c(0, 1), i4 = c(-1, 1),
+                     stringsAsFactors = FALSE)
+  pf1 <- filter_geno(as_population(tiny), remove_monomorphic = TRUE,
+                     verbose = FALSE)
+  expect_identical(pf1$map$snp, "m1")
+  expect_identical(levels(pf1$map$chr), "1")
+  expect_false(grepl("Inf", paste(capture.output(print(pf1)), collapse = "")))
+})
+
+test_that("filter_geno keeps a mate() result's plan attribute", {
+  sub <- G[G$chr %in% unique(G$chr)[1:2], ]
+  pop <- as_population(sub, individuals = 1:6)
+  prog <- mate(mating_design(pop, design = "random", n_crosses = 3,
+                            progeny_per_cross = 2, seed = 2), pop, seed = 7)
+  skip_if(is.null(attr(prog, "plan")), "mate() result carries no plan here")
+  pf <- filter_geno(prog, maf_above = 0.1, verbose = FALSE)
+  expect_identical(attr(pf, "plan"), attr(prog, "plan"))
+})
+
+test_that("a filtered Population still crosses and simulates", {
+  sub <- G[G$chr %in% unique(G$chr)[1:2], ]
+  pop <- filter_geno(as_population(sub, individuals = 1:6),
+                     maf_above = 0.42, indep_pairwise = c(50, 5, 0.5),
+                     verbose = FALSE)
+  f1 <- cross(pop[1], pop[2], n = 1, seed = 3)
+  expect_s3_class(f1, "Population")
+  expect_identical(nrow(f1$map), nrow(pop$map))
+  # progeny of a cross is itself filterable: an F2 segregates -1/0/1
+  f2 <- selfcross(f1[1], n = 30, seed = 4)
+  f2f <- filter_geno(f2, maf_above = 0.2, hets = "include", verbose = FALSE)
+  expect_s3_class(f2f, "Population")
+  expect_lte(nrow(f2f$map), nrow(f2$map))
+  ph <- simulate_phenotype(f2f, seed = 5) |>
+    additive(prop = 0.4, n_qtn = 3) |>
+    dominance(prop = 0.1)
+  expect_s3_class(ph, "phenotype_sim")
+  expect_true(all(qtn_table(ph)$snp %in% f2f$map$snp))
+})

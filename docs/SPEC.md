@@ -248,14 +248,16 @@ All take `prop` (proportion of V_P) and return an updated `phenotype_sim`.
 additive(sim,  prop, n_qtn = NULL, qtn = NULL, effect = NULL,
          phase = c("coupling","repulsion"), dist = "geometric",
          orthogonal = FALSE, a = NULL, d = NULL)
-dominance(sim, prop, same_as_add = TRUE, n_qtn = NULL, qtn = NULL, dist = "geometric")
+dominance(sim, prop, same_as_add = TRUE, n_qtn = NULL, qtn = NULL, dist = "geometric", effect = NULL)
 epistasis(sim, prop, n_pairs = NULL, interaction = 2, interaction_type = "a", qtn = NULL, effect = NULL, dist = "geometric")
 vqtl(sim,      prop, same_as_add = TRUE, n_qtn = NULL, qtn = NULL, dist = "geometric")
 ```
 
 - `prop`: scalar or length-`n_traits` vector.
 - `dist`: within-layer effect distribution; default geometric. `effect` overrides with
-  an explicit series (v1 `sim_method = "custom"`).
+  a geometric base or an explicit series (v1 `sim_method = "custom"`), or a
+  length-`n_traits` list of these (one per trait) in `additive()`, `dominance()`
+  and `epistasis()`; rejected under multi-trait `"pleiotropy"` (DECISION-023).
 - `additive(orthogonal = TRUE, a =, d =)`: the orthogonal genotypic model
   (Modeling convention, §2; DECISION-020). `a`/`d` are per-locus additive effects
   and dominance deviations (scalar or length-`n_qtn`); `effect` is rejected in this
@@ -576,6 +578,7 @@ ph  <- simulate_phenotype(f2, seed = 3) |> additive(prop = 0.5, n_qtn = 3)
 | `cor_res` | residual-correlation arg | retained in legacy fn; grammar equivalent TBD |
 | `rep` | `n_reps` | |
 | `vary_QTN` | `vary_qtn` | |
+| `constraints = list(maf_above, maf_below, hets)` | `filter_geno(maf_above=, maf_below=, hets=)` | applied to the genotype once, upstream of every architecture and layer (additive/dominance/epistasis/vqtl); takes the data frame, matrix or a `Population`. v1 filtered only the randomly drawn QTNs, not the LD partner markers |
 | `seed` | `seed` | |
 | `output_format` / `out_geno` / `output_dir` / `home_dir` / `to_r` | `write_*()` exporters | long is default; object always returned |
 
