@@ -34,7 +34,25 @@ marker names (matched against the map) or column indices; a vector is used
 for every trait, or a length-\code{n_traits} list sets each trait's loci
 separately (every element the same length). \code{n_qtn} is then taken from what
 you supply. Fixed loci are not redrawn by \code{vary_qtn}. (For \code{\link[=epistasis]{epistasis()}},
-\code{qtn} describes interacting sets; see there.)}
+\code{qtn} describes interacting sets; see there.) Every architecture accepts
+\code{qtn}, and each keeps its construction: under \code{"independent"} the loci
+carry the effect series; under \code{"pleiotropy"} (multi-trait) every locus
+affects every trait, so give a single vector (or the same loci for each
+trait in a list); loci that affect only some traits are partial pleiotropy,
+built with \code{\link[=complex_phenotypes]{complex_phenotypes()}}. If a correlation is controlled (\code{cor},
+\code{pi}, ...) the correlated draw sets the effects and the genetic correlation
+is its target; otherwise the correlation is just an outcome of the shared
+loci, and an explicit \code{effect} sets the effects (without it the default
+draw does, with implicit \code{cor = 0}). \code{pi} only matters for controlling a
+correlation, and \code{pi < 1} cannot be used with fixed shared loci. Under
+\code{"ld"} (\code{ld_type = "direct"} only) give
+\code{qtn = list(trait1_loci, trait2_loci)} of equal length -- the i-th locus of
+each is a linked pair on one chromosome, no marker may be causal for both traits, and each
+pair's r2 is reported (by \code{\link[=qtn_table]{qtn_table()}}) and warned about when outside
+\verb{[r2_min, r2_max]}. A marker that is monomorphic (or heterozygous in every
+individual) carries no variance: it is accepted with a warning, except
+where it makes the architecture undefined (an \code{"ld"} pair, or a pleiotropy
+layout with no varying locus), which is an error.}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
 }

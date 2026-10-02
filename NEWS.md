@@ -1,5 +1,67 @@
 # simplePHENOTYPES (development version)
 
+## Passing QTNs in every architecture (2026-10)
+
+* `additive()`, `dominance()` and `epistasis()` accept `qtn =` under `architecture = "pleiotropy"` and
+  `"ld"`, not only `"independent"` (it was an error there). Each architecture keeps its construction and only
+  the choice of loci moves to the user (DECISION-043). **Pleiotropy:** every locus affects every trait, so give a
+  single vector (or the same loci for each trait); loci that affect only some traits are partial pleiotropy and
+  are built with `complex_phenotypes()` (an error here, with that pointer). An explicit `effect` now sets the
+  effects of a pleiotropy layer when no correlation is controlled (no `cor`, `pi`, ...), and the genetic
+  correlation is then just an outcome of the shared loci; without `effect`, or with `cor` or `pi`, the pleiotropy
+  draw sets the effects as before (`effect` is still refused with `cor` / `pi`) and `pi < 1` cannot be combined
+  with fixed shared loci. The default random
+  draw is unchanged. **LD** (`ld_type = "direct"`): `qtn = list(trait1_loci, trait2_loci)` gives linked pairs on one chromosome (element `i` of each);
+  the pair r2 is computed, reported by `qtn_table()` and warned about when outside `[r2_min, r2_max]`; no marker
+  may be causal for both traits, across layers (and within each `vary_qtn` replication): `vqtl()` or `additive()` draws after another
+  layer now skip loci that layer made causal (a single-layer draw is unchanged). `epistasis()` is still not available
+  under `"ld"`. A pleiotropy layout whose `n_pleio_major` / `prop_var_major` leave a single locus with variance warns that
+  the correlation is exactly +/-1 (with `pi = 1`; otherwise that the covariance rests on one locus).
+* A passed marker that is monomorphic (or heterozygous in every individual) now warns in every architecture:
+  it carries no variance (random draws never pick such a marker).
+
+## Writing the QTN table and splitting the markers (2026-10)
+
+* New `write_qtn_table(sim, file, rep = 1L, file_type = c("text", "json"), sep = "\t")` writes every
+  column of `qtn_table()` as a delimited text file (`data.table::fwrite()`) or as JSON (one object per
+  row, UTF-8, 17 significant digits, `NA` as `null`, the conventions of `write_phenotypes()`). `rep`
+  may be a vector of replications or `"all"`: the rows are then stacked with a leading `rep` column,
+  which keeps the per-replication architectures of a `vary_qtn = TRUE` simulation apart. Gene rows of
+  `transcriptome()` layers are included.
+* `write_phenotypes()` gains `qtn_file` (also write the QTN table, same `file_type` / `sep`),
+  `split_markers` (also write the marker data as two files: the **causal** markers and every
+  **non-causal** marker, plus the QTN table), `markers_files = c(causal =, noncausal =)` (override the
+  default marker paths `<stem>_qtn_markers.<ext>` / `<stem>_noncausal_markers.<ext>`; the table
+  defaults to `<stem>_qtn_table.<ext>`) and `rep` (which replications' QTN table and causal set are
+  written; `"all"` for every one). The causal set is the union over the selected replications of the
+  `snp` values of `qtn_table()` for every marker layer (additive, dominance, every member of an
+  epistatic set, vqtl, both traits' loci under `architecture = "ld"`, shared and specific loci under
+  `"pleiotropy"`); transcriptome genes are not markers. Text marker files are in the package's numeric
+  format (`snp`, `allele`, `chr`, `pos`, `cm`, optional `counted`, one column per simulated
+  individual, `NA` for missing metadata), so `as_numeric()`, `as_population()` and
+  `simulate_phenotype()` read them back. JSON marker files are one object
+  `{"individuals": [...], "markers": [{snp, allele, chr, pos, cm, maf, genotypes: [...]}, ...]}`;
+  the causal file adds a top-level `qtn_table` array and a per-marker `causal_for` array of
+  `{trait, layer, set}` (plus `rep` when several replications). Both layouts are written in chunks
+  of 2,000 markers, so the whole genotype matrix is not materialised for data-frame or matrix input. Output paths must be
+  distinct (error otherwise); `split_markers` on a genotype-free (expression-only) phenotype is an
+  informative error. Default behaviour of `write_phenotypes()` is unchanged when the new arguments
+  are off (return value, file content, byte-identical).
+* Export safety: `write_phenotypes()` with companions and `write_qtn_table()` preflight every
+  destination (directory exists and is writable, not a directory, file name within 255 bytes --
+  default companion names included --, symlinks followed with loop and depth errors), compare
+  paths after resolving them (relative/absolute spellings, symlinked directories and files; on
+  macOS also Unicode normalisation form and case; hard links are not detected), write every file
+  into a private staging directory created exclusively beside its destination (short fixed names
+  keeping the extension, so `.gz` text output is still compressed; no name can collide with a
+  requested output or a foreign file), and commit the set as a group: existing files keep their
+  permission mode, are moved into the staging directory as backups and put back if any step fails;
+  a backup that cannot be put back is kept and its location named in the error, so previous content
+  is never silently lost. A symlinked destination is written through. A Population input's dosage
+  matrix is built once per export. JSON output is independent of the session's `LC_NUMERIC`;
+  classed metadata (e.g. `bit64::integer64`) is encoded as `jsonlite` encodes it. The one-file
+  `write_phenotypes()` call is unchanged (byte-identical output).
+
 ## Follow-ups and gaps after the audit (2026-10)
 
 Feature and test work that closes the open follow-ups listed after the independent audit and the

@@ -32,10 +32,11 @@ usefulness_parents <- function(seed = 11) {
   population_from_haplotypes(g, g, map, ids = ids)
 }
 
+# (constant loci among the passed QTNs warn; irrelevant to what is tested)
 parents_sim <- function(pop) {
-  simulate_phenotype(pop, h2 = 0.5, seed = 7) |>
+  suppressWarnings(simulate_phenotype(pop, h2 = 0.5, seed = 7) |>
     additive(qtn = paste0("b", 1:6),
-             effect = c(1, -0.5, 0.8, 0.3, -0.9, 0.6))
+             effect = c(1, -0.5, 0.8, 0.3, -0.9, 0.6)))
 }
 
 PAIRS <- rbind(c(1, 3), c(2, 4))               # each a ones x zeros pair
@@ -109,9 +110,9 @@ test_that("the interference setting moves the usefulness of dh and selfcross, re
   skip_on_cran()
   pop <- usefulness_parents()
   # QTN on the linked chromosome so the family variance is a linkage statistic
-  sim <- simulate_phenotype(pop, h2 = 0.5, seed = 7) |>
+  sim <- suppressWarnings(simulate_phenotype(pop, h2 = 0.5, seed = 7) |>
     additive(qtn = c(paste0("a", c(10, 30, 50, 70, 90)), "b1", "b2"),
-             effect = c(1, -0.5, 0.8, 0.3, -0.9, 0.2, -0.2))
+             effect = c(1, -0.5, 0.8, 0.3, -0.9, 0.2, -0.2)))
   for (sc in c("dh", "selfcross")) {
     u0 <- cross_usefulness(sim, PAIRS, sc, n_progeny = 100, generations = 1,
                            seed = 3)

@@ -1758,6 +1758,122 @@ the walk repair.
 
 ---
 
+## DECISION-043: user-supplied QTNs (`qtn =`) in every architecture
+
+**Context:** `additive()`, `dominance()` and `epistasis()` accepted `qtn =` only under `architecture =
+"independent"`; "pleiotropy" (multi-trait) and "ld" rejected it, because fixed loci applied to every trait
+would bypass the correlated PleioArch draw (realized correlation +1 whatever `cor`) or make one marker causal
+for both traits of a linked pair (DECISIONS 007/013/014/023). Picking loci at random (`n_qtn`) worked
+everywhere, so the two ways of choosing loci were not interchangeable.
+
+**Decision:** every architecture takes `qtn =` and keeps its own construction; only the *choice of loci*
+moves to the user.
+* **pleiotropy:** every locus affects every trait, so `qtn` is a vector (or the same loci / sets for each
+  trait, order free; epistatic sets match as ordered tuples). Loci that affect only some traits are partial
+  pleiotropy and belong to `complex_phenotypes()`: they are an error with that pointer, not silently
+  independent effects (an earlier draft of this decision mapped "listed for one trait" to PleioArch
+  trait-specific loci; reversed by the maintainer, the pleiotropy architecture has no single-trait QTNs for
+  user layouts). The correlation is not a default target: `pi` and `cor` matter only when a correlation is
+  controlled. Without `cor`, `pi`, `pi_target`, `pi_secondary`, `n_pleio_major`, `prop_var_major` an explicit
+  `effect` sets the effects (new: previously refused; the series is the same for every trait unless a per-trait list
+  is given) and the genetic correlation is an outcome of the shared loci; with no `effect` the default draw
+  (implicit `cor = 0`, effects independent across traits) is unchanged; with any of them the correlated draw (DECISION-023: shared effects jointly MVN,
+  `Sigma_ij = cor_ij sqrt(V_i V_j)`, MAF scaling, feasibility checks) sets the effects, `effect` / `dist` stay
+  refused, and `pi < 1` is refused with fixed loci (it asks for trait-specific variance that shared loci cannot
+  carry). The default random draw (no `qtn`, no `effect`) is bit-identical, including its optional
+  trait-specific loci under `pi < 1` (DECISION-023). Dominance and epistasis follow the same rules.
+* **ld:** `qtn = list(trait1_loci, trait2_loci)`, equal length, element `i` of each a linked pair on one chromosome (round 8: a
+  cross-chromosome pair is an error); no marker
+  may be causal for both traits or listed twice (also across layers for dominance: a marker already causal for
+  the other trait is refused); a pair must be distinguishable columns (r2 < 1, a monomorphic marker is an error);
+  the pair's r2 is computed and reported (`qtn_table()` `ld_r2`, `QTN_t1`, `QTN_t2`) and a pair outside
+  `[r2_min, r2_max]` is used but warned. `ld_type = "indirect"` is refused with passed pairs (round 8: its hidden cause-of-LD marker is chosen by the
+  search and cannot be established from passed loci; use `"direct"`). Dominance under "ld" reuses the
+  additive linked loci or takes disjoint passed pairs. `epistasis()` stays unsupported under "ld" (no linked-pair
+  construction for sets, DECISION-023); a second additive layer is still rejected.
+* **all architectures:** a passed marker that is monomorphic or heterozygous in every individual (never drawn
+  at random, `.candidate_markers()`) carries no variance: it is accepted with a warning, except where it makes the
+  construction undefined (an "ld" pair: error; a pleiotropy layout with no informative shared locus: error, and a
+  single informative shared locus warns that the correlation is then exactly +/-1, counting only loci that receive
+  variance under `n_pleio_major` / `prop_var_major`). Rounds 9-11: the LD ownership rule (a locus is causal for one trait
+  across all LAYERS) holds whatever the layer order and within every replication: passed loci are checked against every
+  earlier layer's loci (canonical and every `vary_qtn` replication, conservatively), and a random LD draw never picks a
+  locus an earlier layer already made causal (a single-layer draw is unchanged, bit-identical). Replications of ONE varying
+  layer are independent draws (independent datasets): within each replication the two traits' loci are disjoint, but a marker
+  may belong to different traits in different replications (round 11; enforcing otherwise would change the historical
+  first-layer draws); a plain matrix (no chromosome map) is refused for passed LD
+  pairs with the same message as the random search. A drawn pleiotropy layout whose major/minor split leaves one locus with
+  variance (e.g. `n_pleio_major = 1`, `prop_var_major = 1`) warns, as the fixed path does: exactly +/-1 when neither trait has trait-specific variance (`pi = 1`), otherwise that the
+  whole covariance rests on one locus (one noisy draw).
+Default draws and the independent path are unchanged (RNG order identical; `qtn = NULL` is bit-identical).
+Review owed (Codex): the all-shared rule, the effect/dist-when-uncontrolled path, the LD pair rules.
+
+**Date:** 2026-10-02
+
+---
+
+## DECISION-044: QTN table export and causal / non-causal marker split in `write_phenotypes()`
+
+**Context:** the grammar's phenotype file carried no record of the loci that produced it; the v1
+engine wrote `Additive_QTNs.txt` / `QTN_effects_summary.txt` beside the phenotypes. Users also asked
+for the marker data split into the causal and the non-causal markers (e.g. to run a GWAS or
+prediction model on the non-causal markers alone with the truth kept separately), including when the
+phenotypes are written as JSON.
+
+**Decision:** (1) `write_qtn_table()` writes every column of `qtn_table()` (text via
+`data.table::fwrite()`, JSON via jsonlite with the `write_phenotypes()` conventions: UTF-8, 17
+significant digits, `NA` -> `null`, array of row objects); `rep` may be several replications or
+`"all"`, stacked with a leading `rep` column. (2) `write_phenotypes()` gains `qtn_file`,
+`split_markers`, `markers_files` and `rep` as trailing arguments; defaults leave the existing
+behaviour byte-identical. (3) The causal set is defined from the table, not from the layers
+directly: the union over the selected replications of the `snp` values of `qtn_table()` for marker
+layers (additive, dominance, every member of an epistatic set, vqtl, both traits' loci under `"ld"`,
+shared and trait-specific loci under `"pleiotropy"`); `transcriptome()` gene rows are kept in the
+table but are not markers. A marker causal in any selected replication is in the causal file and
+never in the non-causal one; `rep` does not change the phenotype file, which always holds every
+replication. (4) Marker files keep map order and the simulated individuals (an `individuals =`
+subset, or a Population's ids), with the dosage the engine used (`.geno_cols()`, -1/0/1). Text
+files use the numeric format (`snp`, `allele`, `chr`, `pos`, `cm`[, `counted`], individuals) so
+`as_numeric()` / `as_population()` / `simulate_phenotype()` read them back; metadata the input did
+not carry (a plain matrix) is `NA`. JSON files are one self-describing object
+(`individuals`, [`qtn_table`,] `markers` with per-marker `genotypes` and, in the causal file,
+`causal_for = [{trait, layer, set[, rep]}]`). (5) Writing is chunked (2,000 markers per chunk,
+vectorised JSON encoding) so the full genotype matrix is never materialised; on the bundled
+10,650 x 280 panel the split takes 0.3 s (text) / 0.5 s (JSON); a synthetic 50,000 x 300 panel
+takes 0.7 s (text, 36 MB) / 2.3 s (JSON, 40 MB) with a peak R heap of about 320 MB, of which the
+input data frame and simulation account for roughly 170 MB. (6) Default companion names derive from `file`:
+`<stem>_qtn_table.<ext>`, `<stem>_qtn_markers.<ext>`, `<stem>_noncausal_markers.<ext>` (`txt` /
+`json` when `file` has no extension); all paths must be distinct. Nothing is written when an
+argument is invalid. No RNG is drawn; `qtn_table()` and the genotype accessors are the only inputs,
+so this is I/O only (no theory review needed beyond the causal-set definition).
+
+**Round 8-9 (Codex review) amendments:** text marker files are in the numeric format, so `as_numeric()` and
+`simulate_phenotype()` read them back; `as_population()` additionally needs a non-empty file with a complete crossing
+map (`chr`, `pos`, `cm` without missing values), which a matrix-origin export or an empty partition does not provide.
+Data-frame and matrix input stream in chunks of 2,000 markers. Every destination is preflighted before anything is written: its directory exists and is
+writable, it is not a directory, its file name (and that of every default companion derived from
+`file`) fits 255 bytes, and a symlinked destination -- live or dangling -- is followed to its
+target (a link loop or more than 40 links is an error). Paths are compared after resolving them
+(through leaf links, then an existing leaf in full, otherwise the longest existing ancestor plus
+the missing tail; on macOS Unicode-normalised and case-folded, on Windows case-folded; two hard
+links to one file are not detected). With companions, and in `write_qtn_table()`, every file is
+written into a private staging directory `.<token>.stage` created exclusively (`dir.create()`) in
+its destination directory, under short fixed names `1<ext>`, `2<ext>`, ... that keep the extension
+of the user's path (so `fwrite()` still gzip-compresses a `.gz` name); because the directory is
+the export's own, no staged or backup name can coincide with a requested output or a foreign file.
+The set is then committed: an existing destination keeps its permission mode, is moved into the
+staging directory as `b<i>`, and is put back if any rename fails, every return checked; a backup
+that cannot be put back is kept in its staging directory, which the error names together with the
+destination left in a mixed state, so previous content is never silently lost. On success the
+staging directory is removed; one that cannot be removed is named in a warning. A symlinked
+destination is written through (link kept, target updated or created). Best effort over
+same-directory `file.rename()`, exercised on POSIX, not on Windows. The plain one-file call writes
+directly and is byte-identical to earlier releases.
+
+**Date:** 2026-10-02
+
+---
+
 ## Note: testthat edition 3 (2026-10)
 
 The package declares `Config/testthat/edition: 3` (DESCRIPTION). Expectations that relied on edition 2's
@@ -1792,7 +1908,7 @@ asserted with nested `expect_warning()`. `test-v130-parity.R` and the RDS refere
 | 019 | Breeding value (`on = "bv"`, OCS default, index merit) = classical average-effect A = Σαⱼ(xⱼ−2pⱼ), αⱼ = aⱼ+dⱼ(qⱼ−pⱼ) reconstructed analytically from known QTN effects (LD- and HWE-robust); epistasis-induced marginals omitted; index methods ignore `on` | locked (2026-09-13) |
 | 020 | orthogonal genotypic model as `additive(orthogonal = TRUE, a =, d =)` (orthogonal in expectation under random mating → per-locus HWE, e.g. F2; LD is fine, but nonrandom multilocus association breaks it; A is the transmitting average effect, Falconer 1985): per-locus a/d, whole value scaled to `prop`; budget reports realized Var(A)/Var(g), Var(D)/Var(g) + an `add_dom_cov` row 2Cov(A,D)/Var(g) (=0 in expectation under random mating; nonzero for structured / finite samples) closing to `prop`; degree of dominance d/abs(a) meaningful; d!=0 requires a het per locus (checked per-locus); `qtn_table()` gains a `d` column; new args appended to the signature (positional compat kept); incompatible with vary_qtn / dominance() / pleiotropy(multi) / ld | locked (2026-09-13) |
 | 021 | `phenotype_value(x, qtn, effect, h2/var_e, ref, seed)` = fixed additive value (`additive_value()`) + independent residual on a **frozen** variance (no per-population rescale), so the parametric h²=Var(g)/(Var(g)+var_e) declines as variance is exhausted (faithful cross-gen `on="pheno"`); exactly one of h2/var_e (h2 → var_e=Var(g_ref)(1−h2)/h2); RNG in R; version bump 1.4.0-9002 so downstream can pin | locked (2026-09-14) |
-| 023 | `cor` control extends to dominance + epistasis under "pleiotropy": per-component PleioArch covariance (shared units MVN-correlated, trait-specific independent, split by `pi`), each unit scaled by its realized design-column sd, constant units left out of the allocation; every component targets `cor` (realized correlation converges as units and individuals grow under approximate linkage equilibrium; attenuated on average with few units; strong LD can prevent convergence), and the total targets `cor` when layers' per-trait `prop` profiles are proportional (scalar `prop`), else attenuated with a warning giving its large-sample target; fixed `qtn=` rejected under pleiotropy/ld and `effect=`/`dist` under pleiotropy; under "ld" dominance must reuse the additive linked loci (`same_as_add = TRUE`), epistasis and a second additive layer are rejected (SPEC §5.3 restriction); a derived `transcriptome()` layer's genome-mediated signal is outside `cor` (warned under pleiotropy); additive draw unchanged (bit-identical) | locked (2026-09-25) |
+| 023 | `cor` control extends to dominance + epistasis under "pleiotropy": per-component PleioArch covariance (shared units MVN-correlated, trait-specific independent, split by `pi`), each unit scaled by its realized design-column sd, constant units left out of the allocation; every component targets `cor` (realized correlation converges as units and individuals grow under approximate linkage equilibrium; attenuated on average with few units; strong LD can prevent convergence), and the total targets `cor` when layers' per-trait `prop` profiles are proportional (scalar `prop`), else attenuated with a warning giving its large-sample target; fixed `qtn=` rejected under pleiotropy/ld (accepted since DECISION-043) and `effect=`/`dist` under pleiotropy; under "ld" dominance must reuse the additive linked loci (`same_as_add = TRUE`), epistasis and a second additive layer are rejected (SPEC §5.3 restriction); a derived `transcriptome()` layer's genome-mediated signal is outside `cor` (warned under pleiotropy); additive draw unchanged (bit-identical) | locked (2026-09-25) |
 | 024 | A `Population` records its pedigree (`keys` + `pedigree` frame; founders from `as_population(pool =)`, progeny from every mating, ancestors kept by `[`, pooled by key in `c()`); links are deterministic keys, not display ids, so colliding ids stay safe; bookkeeping draws nothing (genotypes / RNG bit-identical); accessors `parentage()`, `families()` | locked (2026-09-27) |
 | 025 | `mating_design()` writes random / factorial / nested / diallel / half-diallel plans; `mate()` runs `{mother, father, n}` plans across named pools (one seed, plan order; self / DH rows; ids `<prefix>_<k>`); a one-row plan equals the equivalent `cross()` / `selfcross()` / `double_haploid()`; `recurrent_selection()` keeps `.intermate()` (RNG order) | locked (2026-09-27) |
 | 026 | `combining_ability()` (topcross / factorial / diallel; `"expected"` = exact conditional cross means on a frozen `(qtn, a, d)`, `"simulated"` via `mate()`), GCA/SCA centred to sum zero, Griffing method-4 diallel GCA; `template_effects()` exports a simulation's realized `a`, `d`; `phenotype_value(d =)` scores `A + D` with a broad-sense `h2` | locked (2026-09-28) |
@@ -1812,3 +1928,5 @@ asserted with nested `expect_warning()`. `test-v130-parity.R` and the RDS refere
 | 040 | Batched integer-I/O crossing core `mate_many_core()`; `mate()` runs every plan row in one call; R draws in plan order so the batch equals the sequential run bit for bit; ~6x cheaper per call at 14,000 markers | locked (2026-09-30) |
 | 041 | Crossover interference `interference = NULL \| list(nu, p)` (`1 <= nu <= 1e6`) on `cross`/`selfcross`/`double_haploid`/`mate`/`crossbreed` and, by propagation, `single_seed_descent`/`bulk`/`pedigree`/`recurrent_selection`/`cross_usefulness`/`combining_ability` (simulated only)/`progeny_test`: two-pathway gamma model on the bivalent, 1/2 thinning to the gamete, expected crossovers per Morgan unchanged, drawn in R, default NULL = Poisson/isqg stream bit-identical; `NULL` also resolves to the option `simplePHENOTYPES.interference` when set (round 9) | locked (2026-09-30) |
 | 042 | Frozen v1 direct-LD search: first attempt unchanged (bit-identical), then up to 50 retries per replicate from derived seeds `seed -/+ (a-1)*1000003` with the dominance-walk neighbour reset; window never relaxed, every pair verified; indirect LD not retried | locked (2026-10-01) |
+| 043 | `qtn =` accepted in every architecture, each keeping its construction: pleiotropy = every locus affects every trait (partial pleiotropy -> `complex_phenotypes()`, error), an explicit `effect` sets effects when no correlation is controlled (no `cor`/`pi`), else (and by default) the correlated draw with implicit `cor = 0`; `pi < 1` refused with fixed loci; ld = `list(trait1, trait2)` disjoint linked pairs on one chromosome with reported r2 (`ld_type = "indirect"` refused; epistasis still unsupported; ownership enforced in any layer order); constant passed markers warned (errors where the construction becomes undefined) | locked (2026-10-02) |
+| 044 | `write_qtn_table()` (all `qtn_table()` columns, text/JSON, several reps stacked with `rep`) + `write_phenotypes(qtn_file, split_markers, markers_files, rep)`: causal markers = union of `qtn_table()` marker-layer `snp` over the selected reps (genes excluded), non-causal = the rest; numeric-format text / self-describing JSON, chunked writing | locked (2026-10-02) |

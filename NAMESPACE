@@ -65,6 +65,7 @@ export(template_effects)
 export(transcriptome)
 export(vqtl)
 export(write_phenotypes)
+export(write_qtn_table)
 import(stats)
 import(utils)
 importFrom(data.table,

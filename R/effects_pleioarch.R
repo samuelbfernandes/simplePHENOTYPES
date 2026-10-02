@@ -53,10 +53,16 @@
 #' @param n_qtn total QTNs per trait.
 #' @param prop_vec per-trait additive variance proportions (length `n_traits`).
 #' @param sub_seed deterministic sub-seed.
+#' @param fixed optional user-supplied layout from [.pleio_user_layout()]
+#'   (`list(shared, spec)`): the shared loci (causal for every trait) and each
+#'   trait's own loci. The loci are then not sampled and the shared/specific
+#'   partition is the layout's, so `n_qtn` is not used; the variance split
+#'   between the two classes is still `pi` and the covariance construction,
+#'   scaling and feasibility checks are unchanged. Counts may differ by trait.
 #' @return list(qtn = <list len n_traits>, effect = <list len n_traits>).
 #' @keywords internal
 #' @noRd
-.pleio_draw <- function(sim, n_qtn, prop_vec, sub_seed) {
+.pleio_draw <- function(sim, n_qtn, prop_vec, sub_seed, fixed = NULL) {
   a  <- sim$arch_args
   nt <- sim$n_traits
   # Only when the user actually asked for correlation control: `cor` absent
@@ -86,15 +92,56 @@
 
   .check_pleio_feasible(sigma, R, pi_vec)
 
-  # QTN-count partition: pleiotropic (shared) vs trait-specific.
-  part <- .pleio_partition(n_qtn, pi_vec, R, vg = vg)
-  pleio_n <- part$pleio_n
-  spec_n  <- part$spec_n
+  # QTN-count partition: pleiotropic (shared) vs trait-specific. A user layout
+  # fixes both, and the loci; the guards then apply to the supplied counts.
+  if (is.null(fixed)) {
+    part <- .pleio_partition(n_qtn, pi_vec, R, vg = vg)
+    pleio_n <- part$pleio_n
+    spec_n  <- rep(part$spec_n, nt)
+  } else {
+    # only informative loci (polymorphic in the simulated individuals) carry
+    # the covariance: constant columns drop out of the realized value, so the
+    # guards count them, while the effect draws below use every supplied locus
+    pleio_n <- length(fixed$shared)
+    # (and only loci that are allotted variance: with n_pleio_major = k and
+    # prop_var_major = 1 the minor loci get exactly zero effect, with
+    # prop_var_major = 0 -- no major class -- every locus is minor)
+    is_major <- seq_along(fixed$shared) <= n_major
+    gets_var <- (is_major & propMaj > 0) | (!is_major & propMaj < 1)
+    n_inf   <- sum(fixed$shared %in% .candidate_markers(sim) & gets_var)
+    spec_n  <- vapply(fixed$spec, length, 0L)
+    if (n_inf < 1L && any(vg > 0)) {
+      stop("architecture = \"pleiotropy\": none of the loci in `qtn` varies in ",
+           "the simulated individuals (monomorphic or heterozygous in every ",
+           "one) or receives variance (see `n_pleio_major` / `prop_var_major`), ",
+           "so no shared locus can carry any variance or correlation.",
+           call. = FALSE)
+    }
+    .pleio_check_layout(R, pi_vec, vg, n_inf, spec_n)
+  }
   if (n_major > pleio_n) {
     stop("`n_pleio_major` (", n_major, ") cannot exceed the number of shared ",
-         "pleiotropic QTNs implied by `pi` (", pleio_n, ").", call. = FALSE)
+         "pleiotropic QTNs ", if (is.null(fixed)) "implied by `pi` (" else
+           "supplied in `qtn` (", pleio_n, ").", call. = FALSE)
   }
   n_minor <- pleio_n - n_major
+  # A drawn layout can also collapse to one active shared locus: with
+  # prop_var_major = 1 the minor loci get exactly zero effect (and with
+  # n_pleio_major = 0 there is no major class). The fixed path counts this above.
+  if (is.null(fixed) && pleio_n > 1L && nt > 1L) {
+    n_act <- (if (propMaj > 0) n_major else 0L) + (if (propMaj < 1) n_minor else 0L)
+    if (n_act == 1L && any(abs(R[upper.tri(R)]) < 1)) {
+      consequence <- .pleio_single_unit_consequence(R, spec_n < 1L | pi_vec >= 1,
+                                                    "locus", vg)
+      if (nzchar(consequence)) {
+        warning("architecture = \"pleiotropy\": only one shared (pleiotropic) QTN ",
+                "receives variance (`n_pleio_major` = ", n_major,
+                ", `prop_var_major` = ", propMaj, "); ", consequence,
+                ". Lower `prop_var_major` or add major loci so several loci ",
+                "carry the covariance.", call. = FALSE)
+      }
+    }
+  }
   # With a major/minor split, prop_var_major < 1 allocates (1 - prop_var_major)
   # of the pleiotropic variance to minor loci. If there are none, that share
   # would silently vanish (attenuating the realized correlation); reject rather
@@ -102,7 +149,7 @@
   if (n_major > 0L && n_minor == 0L && propMaj < 1) {
     stop("`prop_var_major` (", propMaj, ") < 1 assigns ", round(1 - propMaj, 3),
          " of the pleiotropic variance to minor loci, but none remain ",
-         "(n_pleio_major equals the shared-QTN count implied by `pi`: ",
+         "(n_pleio_major equals the shared-QTN count: ",
          pleio_n, "). Increase `n_qtn`, lower `n_pleio_major`, or set ",
          "`prop_var_major = 1`.", call. = FALSE)
   }
@@ -118,32 +165,37 @@
          call. = FALSE)
   }
 
-  cand <- .candidate_markers(sim)
-  need <- pleio_n + nt * spec_n
-  if (need > length(cand)) {
-    stop("architecture = \"pleiotropy\": the shared + trait-specific QTNs need ",
-         need, " distinct markers but only ", length(cand), " candidates exist. ",
-         "Lower n_qtn, or raise pi (shared units are reused by every trait, so ",
-         "a larger pi needs fewer distinct markers).", call. = FALSE)
-  }
   old <- .Random.seed_safe()
   if (!is.null(sub_seed)) {
     set.seed(sub_seed)
     on.exit(.restore_seed(old))
   }
-  drawn <- sample(cand, need, replace = FALSE)
-  pleio_idx <- drawn[seq_len(pleio_n)]
-  spec_idx <- lapply(seq_len(nt), function(t) {
-    if (spec_n <= 0) {
-      return(integer(0))
+  if (is.null(fixed)) {
+    cand <- .candidate_markers(sim)
+    need <- pleio_n + nt * spec_n[1L]
+    if (need > length(cand)) {
+      stop("architecture = \"pleiotropy\": the shared + trait-specific QTNs need ",
+           need, " distinct markers but only ", length(cand), " candidates exist. ",
+           "Lower n_qtn, or raise pi (shared units are reused by every trait, so ",
+           "a larger pi needs fewer distinct markers).", call. = FALSE)
     }
-    drawn[pleio_n + (t - 1L) * spec_n + seq_len(spec_n)]
-  })
+    drawn <- sample(cand, need, replace = FALSE)
+    pleio_idx <- drawn[seq_len(pleio_n)]
+    spec_idx <- lapply(seq_len(nt), function(t) {
+      if (spec_n[t] <= 0) {
+        return(integer(0))
+      }
+      drawn[pleio_n + (t - 1L) * spec_n[t] + seq_len(spec_n[t])]
+    })
+  } else {
+    pleio_idx <- fixed$shared
+    spec_idx <- fixed$spec
+  }
 
   eff_major <- .draw_mvnorm(n_major, sigma * propMaj)
   eff_minor <- .draw_mvnorm(n_minor, sigma * (1 - propMaj))
   eff_spec <- lapply(seq_len(nt),
-                     function(t) .draw_univariate(spec_n,
+                     function(t) .draw_univariate(spec_n[t],
                                                   (1 - pi_vec[t]) * vg[t]))
 
   maf <- sim$maf
@@ -159,7 +211,7 @@
   effect <- vector("list", nt)
   for (t in seq_len(nt)) {
     eff_pleio <- c(eff_major[, t], eff_minor[, t]) * pleio_scale
-    eff_t <- if (spec_n > 0) eff_spec[[t]] * scale_idx(spec_idx[[t]]) else
+    eff_t <- if (spec_n[t] > 0) eff_spec[[t]] * scale_idx(spec_idx[[t]]) else
       numeric(0)
     qtn_t <- c(pleio_idx, spec_idx[[t]])
     effect_t <- c(eff_pleio, eff_t)
@@ -274,6 +326,77 @@
          "shared and trait-specific ", place, " fit.", call. = FALSE)
   }
   list(pleio_n = pleio_n, spec_n = spec_n)
+}
+
+#' Guard for a user-supplied pleiotropic layout (all loci shared)
+#'
+#' The counterpart of the guards in [.pleio_partition()] when the loci come from
+#' `qtn =`: every supplied locus is shared, so a request for trait-specific
+#' variance (`pi_t < 1`) has nothing to live on. `pi` only matters when a
+#' correlation is being controlled; the default (`pi = 1`) puts all the variance
+#' on the shared loci.
+#' @param pleio_n number of shared loci; `spec_n` per-trait specific counts (0).
+#' @keywords internal
+#' @noRd
+.pleio_check_layout <- function(R, pi_vec, vg, pleio_n, spec_n,
+                                arg = "qtn", unit = "QTN", units = "QTNs",
+                                place = "loci", one = "locus") {
+  nt <- length(pi_vec)
+  need_spec <- which(pi_vec < 1 & vg > 0 & spec_n < 1L)
+  if (length(need_spec)) {
+    stop("architecture = \"pleiotropy\": `", arg, "` fixes the ", place,
+         ", and each one affects every trait, but pi = ",
+         paste(round(pi_vec[need_spec], 3), collapse = ", "),
+         " (< 1) requests trait-specific variance. `pi` is only needed to ",
+         "control a correlation; use pi = 1 (the default). Trait-specific ",
+         units, " are partial pleiotropy: combine models with ",
+         "complex_phenotypes().", call. = FALSE)
+  }
+  if (pleio_n == 1L && nt > 1L && any(abs(R[upper.tri(R)]) < 1)) {
+    consequence <- .pleio_single_unit_consequence(R, spec_n < 1L | pi_vec >= 1,
+                                                  one, vg)
+    if (nzchar(consequence)) {
+      warning("architecture = \"pleiotropy\": only one shared (pleiotropic) ",
+              unit, " is supplied in `", arg, "`; ", consequence, ". Supply ",
+              "several shared ", place, " to carry the covariance.",
+              call. = FALSE)
+    }
+  }
+  invisible()
+}
+
+#' Validate a user `qtn` under pleiotropy: every locus is shared by every trait
+#'
+#' Under `architecture = "pleiotropy"` a causal locus affects **every** trait
+#' (that is what pleiotropy means here), so a user layout must list the same loci
+#' for every trait: a single vector, or a list whose elements hold the same loci
+#' (order may differ). A locus that affects only some of the traits is partial
+#' pleiotropy, which is built by combining models with [complex_phenotypes()], not
+#' inside one pleiotropy model; it is rejected with that pointer instead of being
+#' silently treated as independent effects.
+#'
+#' @param user_qtn per-trait list of marker indices.
+#' @param type layer name for messages.
+#' @return `list(shared, spec, q)`: the shared loci (trait 1's order), empty
+#'   trait-specific sets, and `q`, the per-trait lists carrying the
+#'   `"pleio_shared"` attribute the correlated draws expect.
+#' @keywords internal
+#' @noRd
+.pleio_user_layout <- function(user_qtn, type = "additive") {
+  nt <- length(user_qtn)
+  shared <- user_qtn[[1L]]
+  same <- vapply(user_qtn, function(v) setequal(v, shared), logical(1))
+  if (!all(same)) {
+    stop(type, "(qtn=): under architecture = \"pleiotropy\" every causal locus ",
+         "affects every trait, so `qtn` must list the same loci for each trait ",
+         "(a single vector does this). Loci that affect only some of the traits ",
+         "are partial pleiotropy: build one model per group of traits and ",
+         "combine them with complex_phenotypes().", call. = FALSE)
+  }
+  # each trait keeps its own order: positional effects (effect =) belong to it
+  q <- lapply(user_qtn, as.integer)
+  attr(q, "pleio_shared") <- as.integer(shared)
+  list(shared = as.integer(shared), spec = rep(list(integer(0)), nt), q = q)
 }
 
 #' Per-pair consequence of a single shared unit, as warning text
@@ -860,4 +983,57 @@
   R <- matrix(cor_g, nt, nt)
   diag(R) <- 1
   R
+}
+
+#' Validate user-supplied dominance loci / epistatic sets under pleiotropy
+#'
+#' Units (loci for dominance, interacting sets for epistasis) arrive as `q`, a
+#' per-trait list of index vectors or set matrices. As for additive loci
+#' ([.pleio_user_layout()]) every unit must be listed for every trait: a unit
+#' that affects only some traits is partial pleiotropy (`complex_phenotypes()`).
+#' Sets match as ordered tuples (`c(3, 9)` and `c(9, 3)` are different sets, as in
+#' the correlated draw).
+#' @return `q` with every trait given trait 1's units, invisibly.
+#' @keywords internal
+#' @noRd
+.pleio_check_user_units <- function(sim, prop, q, component, is_set) {
+  nt <- length(q)
+  keys <- lapply(q, function(x) {
+    if (is_set) apply(x, 1L, paste, collapse = "-") else as.character(x)
+  })
+  unit <- if (is_set) "interacting set" else "locus"
+  if (any(vapply(keys, anyDuplicated, 0L) > 0L)) {
+    stop(component, "(qtn=): a ", unit, " is listed more than once for a ",
+         "trait; list each ", unit, " once.", call. = FALSE)
+  }
+  if (!all(vapply(keys, function(k) setequal(k, keys[[1L]]), logical(1)))) {
+    stop(component, "(qtn=): under architecture = \"pleiotropy\" every ", unit,
+         " affects every trait, so `qtn` must list the same ",
+         if (is_set) "sets" else "loci", " for each trait. A ", unit, " that ",
+         "affects only some of the traits is partial pleiotropy: build one ",
+         "model per group of traits and combine them with ",
+         "complex_phenotypes().", call. = FALSE)
+  }
+  n_units <- length(keys[[1L]])
+  .pleio_check_layout(.pleio_cor_matrix(sim), .pleio_pi_vector(sim),
+                      prop, n_units, rep(0L, nt),
+                      unit = if (is_set) "interacting set" else "QTN",
+                      units = if (is_set) "sets" else "QTNs",
+                      place = if (is_set) "sets" else "loci",
+                      one = if (is_set) "set" else "locus")
+  invisible(q)
+}
+
+#' Is a correlation being controlled under pleiotropy?
+#'
+#' TRUE when the user gave any of `cor`, `pi`, `pi_target`, `pi_secondary`,
+#' `n_pleio_major`, `prop_var_major`. Without them the shared loci's effects are
+#' just set (by `effect` / `dist`, or the default draw) and the genetic
+#' correlation is an outcome of the shared loci, not a target.
+#' @keywords internal
+#' @noRd
+.pleio_controlled <- function(sim) {
+  a <- sim$arch_args
+  any(!vapply(a[c("cor", "pi", "pi_target", "pi_secondary", "n_pleio_major",
+                  "prop_var_major")], is.null, logical(1)))
 }

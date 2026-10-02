@@ -126,10 +126,11 @@ test_that("sample_parents(): repeated slots keep the source key, unique ids, val
 test_that(".additive_model() sums layers that share markers on the realized scale (C9)", {
   f2 <- .ad9_f2(60)
   base <- suppressMessages(simulate_phenotype(f2, h2 = 0.5, seed = 3))
-  ph <- suppressMessages(
+  # (the F2 has all-heterozygous markers among these loci: the passed-QTN warning)
+  ph <- suppressWarnings(suppressMessages(
     base |>
       additive(qtn = c(1, 5, 9), prop = 0.2, effect = c(0.3, 0.2, 0.1)) |>
-      additive(qtn = c(5, 9, 20), prop = 0.3, effect = c(0.4, -0.1, 0.2)))
+      additive(qtn = c(5, 9, 20), prop = 0.3, effect = c(0.4, -0.1, 0.2))))
   m <- simplePHENOTYPES:::.additive_model(ph, 1L)
   sc <- function(ly) {
     comp <- simplePHENOTYPES:::.component_raw(ly, ph, 1L, 1L)
