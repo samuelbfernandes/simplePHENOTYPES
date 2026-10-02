@@ -116,6 +116,12 @@ cross_usefulness <- function(sim, pairs = NULL,
     stop("`select_top` must be a single value in (0, 1).", call. = FALSE)
   }
   i_val <- .intensity_from_p(select_top)
+  if (!is.numeric(trait) || length(trait) != 1L || !is.finite(trait) ||
+      trait != floor(trait) || trait < 1 || trait > sim$n_traits) {
+    stop("cross_usefulness(): `trait` must be a single whole number in 1..",
+         sim$n_traits, "; got ", paste(format(trait), collapse = ", "), ".",
+         call. = FALSE)
+  }
   model <- .additive_model(sim, trait)          # fixed loci + effects (by name)
   pairs <- .resolve_pairs(pairs, pop)
   seed <- .validate_seed(seed)

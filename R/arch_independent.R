@@ -38,7 +38,7 @@
   if (sim$architecture == "ld") {
     return(.draw_qtn_ld(sim, n_qtn))
   }
-  if (isTRUE(sim$arch_args$distinct_chr) && nt > 1) {
+  if (isTRUE(sim$arch_args[["distinct_chr"]]) && nt > 1) {
     return(.draw_qtn_distinct_chr(sim, n_qtn, cand))
   }
   lapply(seq_len(nt), function(t) sample(cand, n_qtn, replace = FALSE))

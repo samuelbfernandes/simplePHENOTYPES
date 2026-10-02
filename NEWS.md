@@ -9,6 +9,134 @@
 * `select_ind(method = "bqp")`: relatedness-penalized selection of exactly N individuals by binary quadratic programming (Montesinos-Lopez et al. 2025, *Plant Methods* 22:7), maximizing the weighted standardized merit minus `lambda` times the genomic-relationship quadratic form, with optional per-trait `min_gain` constraints. Dependency-free and deterministic (exact enumeration up to `choose(n, N) = 2e5`, else greedy + 1-swap local search); also listed in `selection_methods()`.
 
 * `architecture = "ld"` gains `ld_phase = c("coded", "coupling", "repulsion")`: a haplotype-derived phase for each linked pair. `"coupling"`/`"repulsion"` flip trait 2's additive effect so that the linkage-induced covariance sign(e1*e2*r) is +1/-1 for every pair; the signed r is kept as the `"r"` attribute of the layer's `$ld` frame. The default `"coded"` is bit-identical to before.
+## Passing QTNs in every architecture (2026-10)
+
+* `additive()`, `dominance()` and `epistasis()` accept `qtn =` under `architecture = "pleiotropy"` and
+  `"ld"`, not only `"independent"` (it was an error there). Each architecture keeps its construction and only
+  the choice of loci moves to the user (DECISION-043). **Pleiotropy:** every locus affects every trait, so give a
+  single vector (or the same loci for each trait); loci that affect only some traits are partial pleiotropy and
+  are built with `complex_phenotypes()` (an error here, with that pointer). An explicit `effect` now sets the
+  effects of a pleiotropy layer when no correlation is controlled (no `cor`, `pi`, ...), and the genetic
+  correlation is then just an outcome of the shared loci; without `effect`, or with `cor` or `pi`, the pleiotropy
+  draw sets the effects as before (`effect` is still refused with `cor` / `pi`) and `pi < 1` cannot be combined
+  with fixed shared loci. The default random
+  draw is unchanged. **LD** (`ld_type = "direct"`): `qtn = list(trait1_loci, trait2_loci)` gives linked pairs on one chromosome (element `i` of each);
+  the pair r2 is computed, reported by `qtn_table()` and warned about when outside `[r2_min, r2_max]`; no marker
+  may be causal for both traits, across layers (and within each `vary_qtn` replication): `vqtl()` or `additive()` draws after another
+  layer now skip loci that layer made causal (a single-layer draw is unchanged). `epistasis()` is still not available
+  under `"ld"`. A pleiotropy layout whose `n_pleio_major` / `prop_var_major` leave a single locus with variance warns that
+  the correlation is exactly +/-1 (with `pi = 1`; otherwise that the covariance rests on one locus).
+* A passed marker that is monomorphic (or heterozygous in every individual) now warns in every architecture:
+  it carries no variance (random draws never pick such a marker).
+
+## Writing the QTN table and splitting the markers (2026-10)
+
+* New `write_qtn_table(sim, file, rep = 1L, file_type = c("text", "json"), sep = "\t")` writes every
+  column of `qtn_table()` as a delimited text file (`data.table::fwrite()`) or as JSON (one object per
+  row, UTF-8, 17 significant digits, `NA` as `null`, the conventions of `write_phenotypes()`). `rep`
+  may be a vector of replications or `"all"`: the rows are then stacked with a leading `rep` column,
+  which keeps the per-replication architectures of a `vary_qtn = TRUE` simulation apart. Gene rows of
+  `transcriptome()` layers are included.
+* `write_phenotypes()` gains `qtn_file` (also write the QTN table, same `file_type` / `sep`),
+  `split_markers` (also write the marker data as two files: the **causal** markers and every
+  **non-causal** marker, plus the QTN table), `markers_files = c(causal =, noncausal =)` (override the
+  default marker paths `<stem>_qtn_markers.<ext>` / `<stem>_noncausal_markers.<ext>`; the table
+  defaults to `<stem>_qtn_table.<ext>`) and `rep` (which replications' QTN table and causal set are
+  written; `"all"` for every one). The causal set is the union over the selected replications of the
+  `snp` values of `qtn_table()` for every marker layer (additive, dominance, every member of an
+  epistatic set, vqtl, both traits' loci under `architecture = "ld"`, shared and specific loci under
+  `"pleiotropy"`); transcriptome genes are not markers. Text marker files are in the package's numeric
+  format (`snp`, `allele`, `chr`, `pos`, `cm`, optional `counted`, one column per simulated
+  individual, `NA` for missing metadata), so `as_numeric()`, `as_population()` and
+  `simulate_phenotype()` read them back. JSON marker files are one object
+  `{"individuals": [...], "markers": [{snp, allele, chr, pos, cm, maf, genotypes: [...]}, ...]}`;
+  the causal file adds a top-level `qtn_table` array and a per-marker `causal_for` array of
+  `{trait, layer, set}` (plus `rep` when several replications). Both layouts are written in chunks
+  of 2,000 markers, so the whole genotype matrix is not materialised for data-frame or matrix input. Output paths must be
+  distinct (error otherwise); `split_markers` on a genotype-free (expression-only) phenotype is an
+  informative error. Default behaviour of `write_phenotypes()` is unchanged when the new arguments
+  are off (return value, file content, byte-identical).
+* Export safety: `write_phenotypes()` with companions and `write_qtn_table()` preflight every
+  destination (directory exists and is writable, not a directory, file name within 255 bytes --
+  default companion names included --, symlinks followed with loop and depth errors), compare
+  paths after resolving them (relative/absolute spellings, symlinked directories and files; on
+  macOS also Unicode normalisation form and case; hard links are not detected), write every file
+  into a private staging directory created exclusively beside its destination (short fixed names
+  keeping the extension, so `.gz` text output is still compressed; no name can collide with a
+  requested output or a foreign file), and commit the set as a group: existing files keep their
+  permission mode, are moved into the staging directory as backups and put back if any step fails;
+  a backup that cannot be put back is kept and its location named in the error, so previous content
+  is never silently lost. A symlinked destination is written through. A Population input's dosage
+  matrix is built once per export. JSON output is independent of the session's `LC_NUMERIC`;
+  classed metadata (e.g. `bit64::integer64`) is encoded as `jsonlite` encodes it. The one-file
+  `write_phenotypes()` call is unchanged (byte-identical output).
+
+## Follow-ups and gaps after the audit (2026-10)
+
+Feature and test work that closes the open follow-ups listed after the independent audit and the
+SPEC-0020 engine requests. Default behaviour and random streams are unchanged unless a bullet says
+otherwise.
+
+* `cross()`, `selfcross()`, `double_haploid()`, `mate()`, `crossbreed()` and the wrappers that forward
+  `interference` (`single_seed_descent()`, `bulk()`, `pedigree()`, `recurrent_selection()`,
+  `cross_usefulness()`, `combining_ability()`, `progeny_test()`) now read the package option
+  `simplePHENOTYPES.interference` (a `list(nu =, p =)`) when `interference` is `NULL`, so one
+  crossover-interference model can be set for a whole session or scheme. Precedence: explicit argument,
+  then option, then Poisson. Unset (the default) is bit-identical to before; an invalid option value is
+  an error naming the option. `interference = NULL` means "not given", so a single call cannot switch the
+  option off (use `options()` or `withr::local_options()`).
+* Pedigree key hashing (`.stable_key()`) is vectorised: identical keys, about 3x faster; roughly 30% of the
+  time of a `double_haploid(n = 100)` call on a 14,000-marker, 20-chromosome map before, about 13% after.
+* `as_numeric()` gains `counted_column = FALSE`. With `TRUE`, the result and the numeric text file carry a
+  `counted` column (the allele coded +1 at each marker) right after `cm`; `as_population()`,
+  `filter_geno()` and `as_numeric()` accept it, and the cross-pool orientation guard then works on panels
+  read from files or subsetted by rows. Default output is unchanged (byte-identical).
+* `filter_geno()` now subsets the `"counted_allele"` attribute together with the kept markers (it
+  previously stayed full length).
+* `as_numeric()`: the "default output file already exists" warning is issued when the file is written, not
+  before conversion, so a failed conversion no longer warns.
+* `create_phenotypes(architecture = "LD", type_of_ld = "direct")`: the marker search is repeated, up to 50
+  attempts per replicate with derived seeds, when its first attempt does not meet the LD contract (distinct
+  markers on one chromosome with an absolute LD inside `[ld_min, ld_max]`). Calls that succeeded before
+  return bit-identical output; the dominance models (`"D"`, `"AD"`), which met the contract for only about
+  5% of seeds, now meet it for essentially all seeds. A dominance-only model can still stop with the "All
+  individuals are homozygote for the selected dominance QTNs" message. Indirect LD is not retried. See the
+  new section "Direct-LD search retries" in `?create_phenotypes`.
+* Direct LD with `model = "A"`, `vary_QTN = TRUE` and `rep > 1` no longer fails with "The file ... has been
+  created or opened".
+* A direct-LD search that uses up every candidate marker without finding a pair inside the window now stops
+  with an informative error instead of "invalid first argument".
+* Tests: the package now uses testthat edition 3 (`Config/testthat/edition: 3`); expectations that relied on
+  edition 2's absolute numeric tolerance were rewritten as explicit absolute bands (same numeric bands).
+  `cross_usefulness()` `"dh"` and `"selfcross"` families now have crossover-dispersion tests under
+  interference; a test evaluates the code of every vignette (`test-vignettes.R`); the new script
+  `dev/test-installed.sh` builds, installs and tests the package as CI does (see `dev/README.md`).
+* Tests: the proposals of the independent audit that were not yet covered are adopted: 141 new test blocks
+  (about 1,700 expectations) for the v2 engine in 8 files (`test-adopt-v2-grammar.R`, `-effects.R`,
+  `-selection.R`, `-ocs.R`, `-prediction.R`, `-transcriptome.R`, `-crossing.R`, `-io.R`; this includes two
+  fixed-table tests of the PLINK-style LD pruning helpers, `.plink_calc_lnlike()` and
+  `.plink_blocks_classify()`, and the hand-table checks of `.plink_hap_rsq()`), and 51 test blocks
+  (about 770 expectations) for the frozen v1 engine and the build scripts in 3 files
+  (`test-adopt-v1-core.R`, `test-adopt-v1-pleio.R`, `test-adopt-aux.R`): exact partial-pleiotropy parity
+  against the v1.3.0 reference, the vQTL equation and draw order, the evals/CI/hook scripts run against
+  scratch repositories, `tools/msrv.R`, metadata drift guards. New frozen RDS references were not added.
+
+* **Defects found while adopting the audit tests (fixed).**
+  `additive()`/`dominance()` architectures that take only `pi_target` or only
+  `pi_secondary` no longer fail with "Use either pi or ..." (exact argument matching);
+  `filter_geno()` computes the minor allele frequency from allele counts, so a marker at
+  exactly the `maf_above` cutoff is kept whichever allele is coded as minor;
+  the family methods of `select_ind()` stop with an error and a suggested fix when a family label is empty (`""`) (previously `method = "combined"` failed with "subscript out of bounds");
+  the Smith-Hazel index weights are invariant to a common scaling of the covariance
+  matrices (a case that cannot be represented gives a clear overflow error);
+  `cross_usefulness(trait = )` is validated; `simulate_phenotype()` accepts and ignores
+  the `counted` column of `as_numeric(counted_column = TRUE)`; a transcriptome layer
+  prints as `(N genes)`. `create_phenotypes()` with a vQTL model and a constant additive
+  baseline (`add_effect = 0`) stops with an error naming `add_effect` instead of returning
+  `NaN` phenotypes. `.Rbuildignore` no longer lists `^data-raw$` twice and the README logo
+  uses the GitHub URL so the CRAN page renders it.
+* **testthat edition 3** is enabled (`Config/testthat/edition: 3`); expectations that
+  relied on edition 2 semantics were corrected, parity fixtures are unchanged.
 
 ## Engine requests from breedingDesigner SPEC-0020 (2026-09)
 

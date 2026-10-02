@@ -38,6 +38,11 @@
 #' @param method Allele orientation method: \code{"frequency"} (default) or
 #'   \code{"reference"} (requires \code{ref_allele}).
 #' @param verbose Logical; print progress messages when \code{TRUE}.
+#' @param counted_column Logical (default \code{FALSE}). When \code{TRUE} the
+#'   result, and the file written, gets a character column \code{counted}
+#'   immediately after \code{cm} holding the allele coded +1 at each marker (the
+#'   durable form of the \code{"counted_allele"} attribute, which a text file
+#'   cannot carry). The default leaves the output unchanged.
 #' @return When \code{to_r = TRUE}: a data.frame with columns
 #'   \code{snp, allele, chr, pos, cm} followed by one column per sample.
 #'   When \code{to_r = FALSE}: \code{invisible(NULL)}.
@@ -57,7 +62,8 @@ format_conversion <- function(file,
                                model      = "Add",
                                impute     = "None",
                                method     = "frequency",
-                               verbose    = TRUE) {
+                               verbose    = TRUE,
+                               counted_column = FALSE) {
 
   custom_hets <- !missing(hets)
   custom_homo <- !missing(homo)
@@ -68,6 +74,14 @@ format_conversion <- function(file,
   method <- match.arg(method, c("frequency", "reference"))
   if (!is.logical(verbose) || length(verbose) != 1L || is.na(verbose)) {
     stop("`verbose` must be TRUE or FALSE.", call. = FALSE)
+  }
+  if (!is.logical(counted_column) || length(counted_column) != 1L ||
+      is.na(counted_column)) {
+    stop("`counted_column` must be TRUE or FALSE.", call. = FALSE)
+  }
+  if (counted_column && identical(model, "Dom")) {
+    stop("`counted_column = TRUE` records the allele counted as +1, and ",
+         "model = \"Dom\" counts no allele.", call. = FALSE)
   }
   for (nm in c("to_r", "to_file")) {
     value <- get(nm)
@@ -106,7 +120,8 @@ format_conversion <- function(file,
   }
 
   # ---- auto-generate output file name -------------------------------------
-  if (is.null(file_name) && to_file && to == "numeric") {
+  default_name <- is.null(file_name) && to_file && to == "numeric"
+  if (default_name) {
     if (all(file_class == "character")) {
       # Rewrite only the extension of the file name itself (".hmp.txt", or the
       # last ".ext", after an optional .gz/.bz2); never the directory part, and
@@ -144,13 +159,9 @@ format_conversion <- function(file,
     # A default name is derived from the label, so different inputs can share
     # it (a hash cannot make names unique, and a case-insensitive file system
     # folds case). The writer overwrites, so an existing default-named file is
-    # reported rather than replaced silently; file.exists() on the target
-    # already reflects the file system's case folding.
-    if (file.exists(file_name)) {
-      warning("default output file ", file_name, " already exists and is ",
-              "overwritten; pass `file_name` (or the explicit argument) to ",
-              "choose another name", call. = FALSE)
-    }
+    # reported rather than replaced silently; that check is made by
+    # .write_numeric() just before the file is written, so a conversion that
+    # fails never warns about a file it did not touch.
   }
 
   # ---- detect format -------------------------------------------------------
@@ -208,42 +219,47 @@ format_conversion <- function(file,
   }
 
   # ---- dispatch ------------------------------------------------------------
+  # Every handler only converts (to_file = FALSE, to_r = TRUE): the optional
+  # `counted` column and the file write happen once, below.
   G <- switch(
     from,
     vcf         = ,
     vcfr        = ,
     vcfr_object = handle_vcf(file, from, file_class, file_name,
-                              to_file, to_r, to, code_as,
+                              FALSE, TRUE, to, code_as,
                               model, impute, method, verbose),
 
     hapmap      = handle_hapmap(file, file_class, file_name,
-                                to_file, to_r, to, code_as, ref_allele,
+                                FALSE, TRUE, to, code_as, ref_allele,
                                 model, impute, method, verbose),
 
     table       = handle_table(file, file_class, file_name,
-                               to_file, to_r, to, code_as, ref_allele,
+                               FALSE, TRUE, to, code_as, ref_allele,
                                hets, homo, model, impute, method, verbose),
 
     gds         = ,
-    gds_object  = handle_gds(file, file_name, to_file, to_r, to,
+    gds_object  = handle_gds(file, file_name, FALSE, TRUE, to,
                               code_as, model, impute, method, verbose),
 
-    bed         = handle_bed(file, file_name, to_file, to_r, to,
+    bed         = handle_bed(file, file_name, FALSE, TRUE, to,
                              code_as, model, impute, method, verbose),
 
-    ped         = handle_ped(file, file_name, to_file, to_r, to,
+    ped         = handle_ped(file, file_name, FALSE, TRUE, to,
                              code_as, model, impute, method, verbose),
 
-    finalreport = handle_finalreport(file, file_name, to_file, to_r, to,
+    finalreport = handle_finalreport(file, file_name, FALSE, TRUE, to,
                                      code_as, model, impute, method, verbose),
 
-    numeric     = handle_numeric(file, file_name, to_file, to_r, code_as,
+    numeric     = handle_numeric(file, file_name, FALSE, TRUE, code_as,
                                  model, impute, method, ref_allele, verbose),
 
     stop(paste0('Format "', from, '" is not supported. ',
                 'Use one of: "hapmap", "vcf", "gds", "bed", "ped", ',
                 '"finalreport", "table".'), call. = FALSE)
   )
+
+  if (counted_column) G <- .add_counted_column(G)
+  if (to_file) .write_numeric(G, file_name, default_name, verbose)
 
   if (verbose) message("Genotype conversion complete.")
   if (to_r) return(G)

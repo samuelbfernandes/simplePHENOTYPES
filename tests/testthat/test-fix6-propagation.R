@@ -29,10 +29,12 @@ het_founders <- function(n = 8L, seed = 11) {
   population_from_haplotypes(cis, trans, map, ids = ids)
 }
 
+# (the all-heterozygous F1 parents make some of these loci constant: the
+# passed-QTN warning is expected and irrelevant to what is tested)
 qtn_pheno <- function(p) {
-  simulate_phenotype(p, h2 = 0.5, seed = 7) |>
+  suppressWarnings(simulate_phenotype(p, h2 = 0.5, seed = 7) |>
     additive(qtn = paste0("b", 1:6),
-             effect = c(1, -0.5, 0.8, 0.3, -0.9, 0.6))
+             effect = c(1, -0.5, 0.8, 0.3, -0.9, 0.6)))
 }
 
 # Crossover counts per strand on chromosome 1: the number of haplotype switches
@@ -213,9 +215,9 @@ test_that("interference changes the stream and is seed-reproducible", {
   sim <- qtn_pheno(fx)
   # QTN on the heterozygous chromosome, so the family variance is a linkage
   # statistic that the meiosis model moves
-  simA <- simulate_phenotype(fx, h2 = 0.5, seed = 7) |>
+  simA <- suppressWarnings(simulate_phenotype(fx, h2 = 0.5, seed = 7) |>
     additive(qtn = c(paste0("a", c(10, 30, 50, 70, 90)), "b1", "b2"),
-             effect = c(1, -0.5, 0.8, 0.3, -0.9, 0.2, -0.2))
+             effect = c(1, -0.5, 0.8, 0.3, -0.9, 0.2, -0.2)))
   u0 <- cross_usefulness(simA, cbind(1:2, 3:4), "cross", n_progeny = 20, seed = 3)
   u1 <- cross_usefulness(simA, cbind(1:2, 3:4), "cross", n_progeny = 20, seed = 3,
                          interference = IF)

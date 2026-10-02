@@ -57,8 +57,10 @@ smallest; one value (a vector is an error, except per trait for
 
 \item{method}{selection method (see the Method section).}
 
-\item{family}{optional grouping vector (length = individuals, no \code{NA}) for the
-family methods.}
+\item{family}{optional grouping vector (length = individuals) for the family
+methods. Every individual needs a non-\code{NA}, non-empty label: \code{NA} and empty
+(\code{""}) labels are errors, because they would silently drop the individual or
+merge unrelated ones into one pseudo-family.}
 
 \item{weights}{economic weights (one per trait) for \code{method = "index"}, or the
 linear weights \code{w} for \code{method = "quadratic_index"}.}
@@ -260,7 +262,7 @@ deterministically: exact enumeration when \code{choose(n, N) <= 2e5}, otherwise 
 greedy construction followed by best-improvement 1-swap local search (a
 heuristic with no optimality guarantee; the greedy start ignores \code{min_gain},
 which the swap phase enforces by penalty). The attribute \code{"bqp"} of the result
-reports the objective, the solver used and the arguments (DECISION-042).
+reports the objective, the solver used and the arguments (DECISION-046).
 \code{"culling"} is independent culling levels: \code{culling} gives one proportion per
 trait (traits in \code{trait}, default the first \code{length(culling)}), and an individual
 is kept iff it is in the top \code{culling[t]} fraction of every trait (simultaneous;

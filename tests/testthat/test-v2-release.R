@@ -20,8 +20,8 @@ test_that("causal loci must carry usable variation", {
     additive(prop = 0.5, n_qtn = 1)
   expect_identical(ph$layers[[1]]$qtn[[1]], 2L)
   expect_error(
-    simulate_phenotype(M, seed = 1) |>
-      additive(prop = 0.5, qtn = "monomorphic"),
+    suppressWarnings(simulate_phenotype(M, seed = 1) |>
+      additive(prop = 0.5, qtn = "monomorphic")),
     "zero usable variation"
   )
 })

@@ -41,14 +41,18 @@ vector whose length is a multiple of \code{interaction} (filled by row). A matri
 or vector is used for \strong{every} trait. A \strong{list} must have one element per
 trait (as in \code{\link[=additive]{additive()}}), each element that trait's sets (a matrix or
 vector as above), and every trait must get the same number of sets -- a list
-of length \code{n_traits} is never read as "one set per element". Rejected under
-\code{architecture = "pleiotropy"} / \code{"ld"}.}
+of length \code{n_traits} is never read as "one set per element". Under
+\code{architecture = "pleiotropy"} every set affects every trait (the same sets
+for each trait; sets match as ordered tuples; sets for only some traits are
+partial pleiotropy, \code{\link[=complex_phenotypes]{complex_phenotypes()}}). Not available under
+\code{architecture = "ld"}.}
 
 \item{effect}{optional geometric base (scalar) or explicit effect series
 (length \code{n_pairs}, one value per interacting set), used for every trait;
 or a length-\code{n_traits} list of these, one per trait (the counterpart of
-v1 \code{epi_effect}). Not available under \code{architecture = "pleiotropy"}
-(multi-trait), whose correlated draw sets the effects.}
+v1 \code{epi_effect}). Under \code{architecture = "pleiotropy"} (multi-trait) accepted
+only when no correlation is controlled (no \code{cor}, \code{pi}, ...), as in
+\code{\link[=additive]{additive()}}.}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
 }
@@ -81,8 +85,9 @@ trait-specific sets (independent effects), drawn with the same covariance as
 the additive layer, so the epistatic component targets \code{cor} (its realized
 correlation converges as the sets and individuals grow, for loci in
 approximate linkage equilibrium; DECISION-023). Each set's effect is scaled by the realized standard
-deviation of its centered-product design column; \verb{effect =} and fixed
-\verb{qtn =} are rejected there. \code{epistasis()} is not supported under
+deviation of its centered-product design column; \verb{effect =} is rejected there
+while a correlation is controlled (without \code{cor} / \code{pi} it sets the effects, and
+fixed \verb{qtn =} sets are accepted). \code{epistasis()} is not supported under
 \code{architecture = "ld"}: that architecture makes each trait's causal loci
 distinct markers in LD within the r2 window, and epistatic sets have no such
 linked construction -- they would be unlinked and could reuse a marker

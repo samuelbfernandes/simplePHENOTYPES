@@ -49,11 +49,14 @@
 #' panels **jointly**, or give each the same reference alleles with
 #' `as_numeric(method = "reference", ref_allele = )`. `as_numeric()` records the
 #' allele it counted as +1 at every marker (the `"counted_allele"` attribute of
-#' its result, see [as_numeric()]), and `as_population()` keeps it. When both
+#' its result, see [as_numeric()]), and `as_population()` keeps it; the optional
+#' `counted` column of `as_numeric(counted_column = TRUE)` (placed after `cm`)
+#' carries the same record through text files and row subsetting and, when
+#' present, is the record used. When both
 #' populations carry that record, [cross()] and [c.Population()] compare it per
 #' marker and **stop** if the two panels count different alleles as +1. Where a
-#' record is missing on either side (numeric data read back from a text file,
-#' subsetted rows, other software), the `allele` label is compared instead: the
+#' record is missing on either side (numeric data read back from a text file
+#' or subsetted without the `counted` column, other software), the `allele` label is compared instead: the
 #' check warns when the two panels list a marker's alleles in opposite order (a
 #' sign the orientation may differ) and stops when they share no allele. The
 #' check only sees what these records show: it cannot detect a difference that
@@ -61,7 +64,10 @@
 #'
 #' @param geno a numeric-format data frame whose first five columns are
 #'   `c("snp", "allele", "chr", "pos", "cm")`, as returned by [as_numeric()],
-#'   with the remaining columns individuals coded -1/0/1.
+#'   with the remaining columns individuals coded -1/0/1. An optional character
+#'   column `counted` right after `cm` (see `as_numeric(counted_column = )`) is
+#'   read as the counted-allele record, not as an individual; it must name one
+#'   allele per marker (`NA` = unknown), consistent with the `allele` label.
 #' @param individuals optional character or numeric vector selecting which
 #'   individuals to keep, in the order given. Defaults to all of them.
 #' @param pool optional label for the founder pool these individuals come from
@@ -94,19 +100,33 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
   # (+1) allele, when as_numeric() recorded it (the "counted_allele" attribute of
   # its result), is what the orientation check compares; numeric data without
   # it (older files, subsetted or rebuilt data frames) keeps the label-only check.
-  counted <- .check_counted(attr(geno, "counted_allele", exact = TRUE),
-                            geno$allele, nrow(geno),
-                            "attr(geno, \"counted_allele\")")
+  # The durable form is the optional `counted` column right after `cm`
+  # (as_numeric(counted_column = TRUE)): it survives text files and row
+  # subsetting, so when present it is authoritative and the attribute (an
+  # R-object-only convenience that a text file cannot carry) is not consulted.
+  k <- .n_meta(geno)
+  if (ncol(geno) <= k) {
+    stop("`geno` needs at least one individual column after the metadata ",
+         "columns.", call. = FALSE)
+  }
+  counted <- if (k == 6L) {
+    .check_counted(.counted_col_values(geno[[6L]]), geno$allele, nrow(geno),
+                   "geno$counted")
+  } else {
+    .check_counted(attr(geno, "counted_allele", exact = TRUE),
+                   geno$allele, nrow(geno),
+                   "attr(geno, \"counted_allele\")")
+  }
   map <- .make_map(geno$snp, geno$chr, geno$pos, geno$cm, geno$allele, counted)
 
-  geno_values <- geno[, -(1:5), drop = FALSE]
+  geno_values <- geno[, -seq_len(k), drop = FALSE]
   if (!all(vapply(geno_values, is.numeric, logical(1)))) {
     stop("Every genotype column must be numeric and coded -1/0/1.",
          call. = FALSE)
   }
   dose <- as.matrix(geno_values)   # markers x individuals
   storage.mode(dose) <- "double"
-  colnames(dose) <- colnames(geno)[-(1:5)]
+  colnames(dose) <- colnames(geno)[-seq_len(k)]
   # Individual ids identify individuals in mating plans and the pedigree.
   if (anyNA(colnames(dose)) || any(!nzchar(colnames(dose))) ||
       anyDuplicated(colnames(dose))) {

@@ -9,7 +9,11 @@ write_phenotypes(
   file,
   format = c("long", "wide"),
   sep = "\\t",
-  file_type = c("text", "json")
+  file_type = c("text", "json"),
+  qtn_file = NULL,
+  split_markers = FALSE,
+  markers_files = NULL,
+  rep = 1L
 )
 }
 \arguments{
@@ -22,9 +26,27 @@ write_phenotypes(
 \item{sep}{field separator (default tab); text files only.}
 
 \item{file_type}{\code{"text"} (default, a delimited file) or \code{"json"}.}
+
+\item{qtn_file}{optional path; when given, the QTN table of \code{\link[=qtn_table]{qtn_table()}} is
+also written there with \code{\link[=write_qtn_table]{write_qtn_table()}}, in the same \code{file_type} and
+\code{sep}. Default \code{NULL} (not written, unless \code{split_markers = TRUE}).}
+
+\item{split_markers}{\code{TRUE} also writes the marker data as two files, causal
+and non-causal markers (see Details), plus the QTN table. Default \code{FALSE}.
+Needs genotypes: a phenotype built from expression alone has no markers.}
+
+\item{markers_files}{optional named character vector
+\code{c(causal = path, noncausal = path)} overriding the default marker file
+names used by \code{split_markers = TRUE}.}
+
+\item{rep}{replication(s) whose QTN table and causal set are written: a
+vector of replication numbers or \code{"all"}. Default \code{1L}. Only matters with
+\code{vary_qtn = TRUE}; see Details. Does not affect the phenotype file.}
 }
 \value{
-\code{file}, invisibly.
+\code{file}, invisibly, when no companion file is written; otherwise a
+named character vector of every path written (\code{phenotypes}, and whichever
+of \code{qtn_table}, \code{causal}, \code{noncausal} apply), invisibly.
 }
 \description{
 Writes the long (default) or wide table as a delimited text file or as JSON.
@@ -42,6 +64,104 @@ for \code{"long"}, written as UTF-8 with 17 significant digits so every value re
 back exactly (e.g. \code{jsonlite::read_json(file, simplifyVector = TRUE)}, or
 \code{pandas.read_json()} in Python). It needs the \pkg{jsonlite} package.
 }
+\section{Companion files (QTN table and split marker data)}{
+
+The phenotype file alone does not say which markers produced it. Two options
+write that information next to it, in the same \code{file_type} (and \code{sep}):
+\itemize{
+\item \code{qtn_file}: the QTN table of \code{\link[=qtn_table]{qtn_table()}}, every column, through
+\code{\link[=write_qtn_table]{write_qtn_table()}}.
+\item \code{split_markers = TRUE}: the marker data are split into two files, one with
+the \strong{causal} markers and one with every \strong{non-causal} marker, so a
+downstream analysis can be run on the non-causal markers alone (or on both)
+with the truth kept separately. The QTN table is written too (to \code{qtn_file},
+or to a default name) because it is the companion of the causal file.
+}
+
+Default names are derived from \code{file}: \verb{<stem>_qtn_table.<ext>},
+\verb{<stem>_qtn_markers.<ext>} and \verb{<stem>_noncausal_markers.<ext>}, where
+\code{stem} is \code{file} without its extension (\code{ext}; \code{txt} or \code{json} when \code{file}
+has none). \code{markers_files = c(causal = ..., noncausal = ...)} overrides the
+two marker paths. All paths must be distinct.
+
+\strong{Causal set.} A marker is causal when any layer (\code{additive()},
+\code{dominance()}, \code{epistasis()} -- every member of an interacting set --,
+\code{vqtl()}, and under \code{architecture = "ld"} the loci of both traits) of any
+trait uses it in any of the replications selected by \code{rep}: the union of the
+\code{snp} values of \code{\link[=qtn_table]{qtn_table()}} over those replications, excluding the gene
+rows of \code{transcriptome()} layers (genes are not markers). With
+\code{vary_qtn = TRUE} the replications differ in their QTNs, so pass
+\code{rep = "all"} (or the vector of replications of interest) to make the causal
+file cover every replication of the phenotype file; a marker causal in one
+selected replication but not another is in the causal file, never in the
+non-causal one. \code{rep} only affects the QTN table and the causal set -- the
+phenotype file always holds every replication, as before.
+
+\strong{Text layout of the marker files} (\code{file_type = "text"}): the package's
+numeric format -- columns \code{snp}, \code{allele}, \code{chr}, \code{pos}, \code{cm} (then \code{counted}
+when the input carried it), then one column per simulated individual with
+the -1/0/1 dosage -- so \code{\link[=as_numeric]{as_numeric()}} and \code{\link[=simulate_phenotype]{simulate_phenotype()}} read each
+file back. \code{\link[=as_population]{as_population()}} reads a file too, provided it is not empty and
+its map is complete (\code{chr}, \code{pos} and \code{cm} without missing values): a
+matrix-origin simulation has no such map, and a file with no markers (no
+causal marker, or every marker causal) cannot found a population. Missing
+metadata (e.g. no allele label for a matrix input) is written as \code{NA}.
+Markers keep their map order. The causal text file has no embedded QTN
+table; the QTN table text file is its companion.
+
+\strong{JSON layout of the marker files} (\code{file_type = "json"}): one object
+\verb{\{"individuals": [...], "markers": [...]\}}. \code{individuals} lists the
+simulated individuals' ids; each element of \code{markers} is an object with
+\code{snp}, \code{allele}, \code{chr}, \code{pos}, \code{cm}, \code{maf} (and \code{counted} when available) and
+\code{genotypes}, an array with one dosage per individual in \code{individuals} order
+(\code{null} for a missing value). The causal file adds, at the top level,
+\code{qtn_table} (the rows of \code{\link[=write_qtn_table]{write_qtn_table()}} for the selected replications,
+with a \code{rep} field when several), and in every marker object a \code{causal_for}
+array of \verb{\{trait, layer, set\}} objects (plus \code{rep} when several
+replications) naming the layers that use the marker, so a reader can join
+without the table. Gene rows of \code{transcriptome()} layers appear in
+\code{qtn_table} but have no marker object. Numbers carry 17 significant digits,
+so \code{jsonlite::read_json(file, simplifyVector = TRUE)} returns the
+\code{individuals} vector, a \code{markers} data frame whose \code{genotypes} column is a
+list of vectors, and (causal file) the \code{qtn_table} data frame; in Python,
+\code{json.load()} then \code{pandas.DataFrame(obj["markers"])}.
+
+Marker data can be large (tens of thousands of markers by hundreds of
+individuals); both layouts are written in chunks of markers. For a
+data-frame or matrix input the chunks stream from the user's object, so no
+second copy of the genotypes is made. A \code{Population} stores haplotypes, not
+dosages, so its one markers-by-individuals dosage matrix is built once and
+held in memory for the duration of the export.
+
+\strong{Safety.} Before anything is written, every path is checked: its
+directory must exist and be writable, it must not be a directory, and no
+two paths may resolve to the same file (relative and absolute spellings,
+symlinked directories and symlinked files -- live or dangling -- are
+resolved; on macOS the comparison also ignores case and Unicode
+normalisation form, on Windows case; two \emph{hard links} to one file have
+unrelated names and are not detected). A file name longer than 255 bytes --
+including a default companion name derived from a long \code{file} -- is
+rejected before anything is written. With companions, all files are first
+written into a private staging directory (\verb{.<token>.stage}, created
+exclusively in each destination directory) under short fixed names that
+keep the destination's extension, so a \code{.gz} destination is still
+compressed by the text writer and no staged file can share a name with a
+requested output or with anything else in the directory. The set is then
+moved into place as a group: an existing file keeps its permission mode and
+is first moved into the staging directory as its backup, and if any step of
+that move fails the backups are put back. Should a backup itself fail to go
+back, its staging directory is kept and the error names it and the
+destination, so the previous content is never silently lost. A destination
+that is a symbolic link is written through (the link stays, its target is
+updated or created); a link loop or a chain of more than 40 links is an
+error. This is a best-effort guarantee built on \code{file.rename()} within one
+directory; it has been exercised on POSIX file systems, not on Windows, and
+a staging directory that cannot be removed (its parent made read-only
+meanwhile) is named in a warning rather than silently left. The plain
+one-file call writes directly, as earlier versions did. JSON numbers use a
+period as decimal mark whatever the session's \code{LC_NUMERIC}.
+}
+
 \examples{
 data("SNP55K_maize282_maf04")
 ph <- simulate_phenotype(SNP55K_maize282_maf04, n_traits = 2, seed = 1) |>
@@ -65,8 +185,22 @@ if (requireNamespace("jsonlite", quietly = TRUE)) {
   unlink(out_json)
 }
 
-unlink(c(out, out_wide))
+# Phenotypes plus the QTN table that produced them.
+out_qtn <- file.path(tempdir(), "phenotypes_qtn.txt")
+write_phenotypes(ph, file = out, qtn_file = out_qtn)
+head(read.delim(out_qtn))
+
+# Phenotypes, QTN table, and the marker data split into causal and
+# non-causal markers (default names derived from `file`).
+files <- write_phenotypes(ph, file = out, split_markers = TRUE)
+files
+causal <- read.delim(files[["causal"]])
+causal$snp                              # the QTNs, in map order
+nrow(read.delim(files[["noncausal"]]))  # every other marker
+
+unlink(c(out, out_wide, out_qtn, files))
 }
 \seealso{
-\code{\link[=phenotypes_long]{phenotypes_long()}}, \code{\link[=phenotypes_wide]{phenotypes_wide()}}.
+\code{\link[=phenotypes_long]{phenotypes_long()}}, \code{\link[=phenotypes_wide]{phenotypes_wide()}}, \code{\link[=write_qtn_table]{write_qtn_table()}},
+\code{\link[=qtn_table]{qtn_table()}}.
 }

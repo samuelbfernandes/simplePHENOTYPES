@@ -347,8 +347,8 @@ test_that("all-heterozygous loci are excluded from the candidate pool (F2)", {
   # dominance on a constant het indicator is refused with the specific message
   M2 <- .ag_matrix(n = 50, m = 20)
   M2[, 3] <- 0
-  expect_error(simulate_phenotype(M2, seed = 1) |>
-                 additive(prop = 0.3, qtn = 4) |> dominance(prop = 0.1, qtn = 3),
+  expect_error(suppressWarnings(simulate_phenotype(M2, seed = 1) |>
+                 additive(prop = 0.3, qtn = 4) |> dominance(prop = 0.1, qtn = 3)),
                "no heterozygous|every individual")
 })
 

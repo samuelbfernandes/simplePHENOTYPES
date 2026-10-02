@@ -363,7 +363,7 @@ against it. These are open questions to resolve, not settled decisions.
     individuals maximizing the weighted standardized merit minus `lambda` x the
     genomic-relationship quadratic form; dependency-free and deterministic (exact
     enumeration when `choose(n, N) <= 2e5`, else greedy + 1-swap local search; no
-    CVXR/MIQP dependency). DECISION-043.
+    CVXR/MIQP dependency). DECISION-046.
   - **PopVar-style cross selection from real data** (Mohammadi, Tiede & Smith 2015,
     *Crop Sci* 55:2068): the real-data counterpart of `cross_usefulness()` —
     predict biparental progeny mean/variance/correlated response from **estimated

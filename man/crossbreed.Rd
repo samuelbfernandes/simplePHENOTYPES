@@ -29,7 +29,8 @@ as the list).}
 
 \item{seed}{optional RNG seed; the caller's RNG state is restored on exit.}
 
-\item{interference}{\code{NULL} (default, Poisson crossovers) or \code{list(nu = , p = )},
+\item{interference}{\code{NULL} (default: the option \code{simplePHENOTYPES.interference}
+if set, else Poisson crossovers) or \code{list(nu = , p = )},
 the crossover interference model of \code{\link[=cross]{cross()}}, applied to every generation.}
 }
 \value{

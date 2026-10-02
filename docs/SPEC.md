@@ -156,7 +156,7 @@ simulate_phenotype(
 
 Returns a `phenotype_sim` object (h² = 0 until a layer is added).
 
-**Residual correlation (`resid_cor`, DECISION-042).** `cor` is the *genetic* correlation;
+**Residual correlation (`resid_cor`, DECISION-045).** `cor` is the *genetic* correlation;
 `resid_cor` is the target correlation between the traits' *residuals*: `NULL` (independent, as before), one
 value for every pair (>= `-1/(n_traits - 1)`), or an `n_traits x n_traits` symmetric PSD matrix with unit
 diagonal. Per-trait residual variance is still `1 - sum(prop)` exactly (each column is re-standardized), so
@@ -284,7 +284,18 @@ vqtl(sim,      prop, same_as_add = TRUE, n_qtn = NULL, qtn = NULL, dist = "geome
 - `dist`: within-layer effect distribution; default geometric. `effect` overrides with
   a geometric base or an explicit series (v1 `sim_method = "custom"`), or a
   length-`n_traits` list of these (one per trait) in `additive()`, `dominance()`
-  and `epistasis()`; rejected under multi-trait `"pleiotropy"` (DECISION-023).
+  and `epistasis()`; under multi-trait `"pleiotropy"` it is accepted only when no correlation
+  is controlled (no `cor`/`pi`, DECISION-023/043).
+- `qtn`: user-chosen loci (marker names or indices) replace the random choice in every
+  architecture and each architecture keeps its construction (DECISION-043). Independent:
+  the loci carry the effect series. Pleiotropy: every locus affects every trait (a vector,
+  or the same loci for each trait; loci for only some traits are partial pleiotropy,
+  `complex_phenotypes()`); with `cor`/`pi` the correlated draw sets the effects and the
+  correlation is its target (`pi < 1` is refused with fixed loci); without them an explicit
+  `effect` sets the effects and the correlation is an outcome (no `effect`: the default draw,
+  implicit `cor = 0`). LD (`ld_type = "direct"`): `list(trait1_loci, trait2_loci)` = disjoint
+  linked pairs on one chromosome with reported r2; `epistasis()` is not available under LD.
+  `vqtl(qtn =)` follows the same pleiotropy / LD rules.
 - `additive(orthogonal = TRUE, a =, d =)`: the orthogonal genotypic model
   (Modeling convention, §2; DECISION-020). `a`/`d` are per-locus additive effects
   and dominance deviations (scalar or length-`n_qtn`); `effect` is rejected in this
@@ -436,6 +447,12 @@ every `nu`, `p`. Then `r(d) = (1 - P0(d))/2`, `P0(d) = exp(-2 p d) [1 - F_e(2 nu
 expected number of crossovers per Morgan unchanged. The draws are made in R (their own stream) and the
 sorted chiasma positions go to the unchanged Rust core.
 
+**Session-wide default.** When `interference` is `NULL`, the option `simplePHENOTYPES.interference`
+(a `list(nu = , p = )`, validated by the same rules) is used if set, so one model can apply to a whole session or
+scheme: explicit argument, then option, then Poisson. With the option unset every draw and RNG state is
+bit-identical to before. `NULL` means "not given", so one call cannot switch a set option off (use `options()` or
+`withr::local_options()`).
+
 **Per-call cost and batching (DECISION-040).** Every crossing function runs through one batched
 integer-strand call into the Rust core (`mate_many_core()`); `mate()` executes all rows of a plan in one
 call, drawing row by row in plan order, so a plan equals the same sequence of `cross()` /
@@ -482,7 +499,7 @@ simulated pedigree can be phenotyped directly without converting back to a dosag
   residual is drawn under its own `residual_t<t>` sub-seed exactly as before, the columns are mixed
   through `chol(R)`, each column is re-standardized (mean 0, exact unit variance) and scaled by
   `sqrt(1 - sum(prop))`, so per-trait residual variance and the realized h2 / `var_budget` are
-  unchanged and only correlation is induced (DECISION-042).
+  unchanged and only correlation is induced (DECISION-045).
 - `reps` does not alter the RNG stream: the residual of each trait is drawn under the same sub-seed
   `residual_t<t>` with the same number of draws, and is scaled by `1/sqrt(reps[t])` afterwards, so a
   seeded `reps = r` phenotype equals the `reps = 1` genetic value plus the `reps = 1` residual divided
@@ -655,7 +672,7 @@ Var(y_bar) = V_G + V_E/reps + 2Cov(G,e)/sqrt(reps), so they match the targets up
 | `type_of_ld` | `ld_type` | modernized (O5) |
 | `ld_max` / `ld_min` | `r2_max` / `r2_min` | modernized (O5) |
 | `cor` | `cor` (PleioArch, §13) | v1's buggy Cholesky `cor` replaced by the PleioArch engine for any number of traits (DECISION-013); the name `cor` is kept. Scalar or full matrix. v1 `cor` also survives in the frozen legacy fn |
-| `cor_res` | `resid_cor` | residual (environmental) correlation between traits, `NULL` = independent (DECISION-042); scalar or full matrix, also on `complex_phenotypes()`. v1 `cor_res` scales the residual covariance as `sqrt(V) R sqrt(V)`; the grammar mixes standardized draws through `chol(R)` and re-standardizes each trait, so per-trait variance stays its `h2` target |
+| `cor_res` | `resid_cor` | residual (environmental) correlation between traits, `NULL` = independent (DECISION-045); scalar or full matrix, also on `complex_phenotypes()`. v1 `cor_res` scales the residual covariance as `sqrt(V) R sqrt(V)`; the grammar mixes standardized draws through `chol(R)` and re-standardizes each trait, so per-trait variance stays its `h2` target |
 | `rep` | `n_reps` | |
 | `vary_QTN` | `vary_qtn` | |
 | `constraints = list(maf_above, maf_below, hets)` | `filter_geno(maf_above=, maf_below=, hets=)` | applied to the genotype once, upstream of every architecture and layer (additive/dominance/epistasis/vqtl); takes the data frame, matrix or a `Population`. v1 filtered only the randomly drawn QTNs, not the LD partner markers |

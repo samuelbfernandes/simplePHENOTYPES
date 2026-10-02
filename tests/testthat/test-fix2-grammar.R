@@ -90,16 +90,16 @@ test_that("the orthogonal d guard names the all-heterozygous cause too (B12)", {
   M <- .fx2_matrix(n = 60, m = 40)
   M[, 1] <- 0                                   # heterozygous in every individual
   expect_error(
-    simulate_phenotype(M, seed = 1) |>
-      additive(prop = 0.3, orthogonal = TRUE, a = 0.5, d = 0.5, qtn = c(1, 2)),
+    suppressWarnings(simulate_phenotype(M, seed = 1) |>
+      additive(prop = 0.3, orthogonal = TRUE, a = 0.5, d = 0.5, qtn = c(1, 2))),
     "heterozygous in every individual")
   expect_error(
-    simulate_phenotype(M, seed = 1) |>
-      additive(prop = 0.3, orthogonal = TRUE, a = 0.5, d = 0.5, qtn = c(1, 2)),
+    suppressWarnings(simulate_phenotype(M, seed = 1) |>
+      additive(prop = 0.3, orthogonal = TRUE, a = 0.5, d = 0.5, qtn = c(1, 2))),
     "no heterozygous individuals")
   # d = 0 on that locus is inert and stays valid
-  ok <- simulate_phenotype(M, seed = 1) |>
-    additive(prop = 0.3, orthogonal = TRUE, a = 0.5, d = c(0, 0.5), qtn = c(1, 2))
+  ok <- suppressWarnings(simulate_phenotype(M, seed = 1) |>
+    additive(prop = 0.3, orthogonal = TRUE, a = 0.5, d = c(0, 0.5), qtn = c(1, 2)))
   expect_true(all(is.finite(ok$pheno$value)))
 })
 

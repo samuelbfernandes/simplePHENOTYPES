@@ -50,11 +50,6 @@ separate `simBreed` package).
 **Rationale:** Different input semantics (transcript vs marker); designing it alongside the
 marker-based redesign would muddy both.
 **Date:** 2026-06 (locked)
-**Status:** **superseded by DECISION-022** (2026-10-02). Once the grammar, the crossing
-engine and the fixed-scale accessors were stable, expression simulation was brought
-forward into v2 as a process *downstream of the genome* (`simulate_transcriptome()`,
-`transcriptome()`, `observe_counts()`; `SPEC-transcriptome.md`) rather than as a separate
-transcript input format, which removes the "different input semantics" objection.
 
 ---
 
@@ -185,7 +180,7 @@ for the >2-trait fallback. v1's `cor`/`cor_res` also survive inside the frozen
 (`core` + `r-pkg` + `py-pkg`)?
 
 **Decision:** Single rextendr package with `src/rust/` (per ARCHITECTURE.md §4). The
-Cargo-workspace bootstrap in `TODO.md` (appendix, legacy item 7) (root `Cargo.toml`, members
+Cargo-workspace bootstrap in `TODO_newfeatures.md` item 7 (root `Cargo.toml`, members
 `core`/`py-pkg`, `git mv` into `r-pkg/`, `maturin new py-pkg`) is **dropped**.
 
 **Rationale:** CRAN acceptance is non-negotiable; a single rextendr package is the
@@ -887,103 +882,9 @@ qtn, effect, var_e = ve)` (documented, with an example, in `pedigree()`).
 
 ---
 
-## DECISION-022: transcriptome simulation and the genome → transcriptome → phenotype model
-
-**Question:** DECISION-005 deferred expression-based simulation to v3 ("different
-input semantics; would muddy the marker redesign"). The v2 grammar, the crossing
-engine, and the fixed-scale accessors are now stable. How do we add gene-expression
-simulation and expression-mediated phenotypes — and how much of it now?
-
-**Decision:** Add expression as a **downstream genetic process** and expose three
-phenotype **bases** through one interface, reusing the existing machinery.
-
-- **Expression generator — hybrid latent-factor eQTL, not a mechanistic GRN.**
-  Normalized (~Gaussian) expression `E_g = mu_g + G_g + R_g` per gene:
-  - `G_g` = a per-gene **cis** score (markers in a physical-bp window; the dosage ×
-    effect model, localized) plus a **trans** score mediated by `Q << T` latent
-    regulatory factors (each a genetic hub with a few QTL and sparse gene
-    loadings). cis and trans covary (LD/structure), so the **combined** genetic
-    score is scaled to the per-gene target `h2_g`, and `Cov(cis,trans)` is reported
-    as its own budget row — the **same pattern as the orthogonal model's
-    `add_dom_cov` row** (DECISION-020).
-  - `R_g` = shared **non-genetic** module factors (same loadings) + gene noise, so
-    co-expression is **decoupled from heritability** (genes co-express even at
-    `h2_g = 0`). `omega_g` = cis fraction; `kappa_g` = residual module fraction;
-    `h2_g` = total genetic variance — three non-competing controls.
-  - **Fixed reference calibration:** all means/frequencies/sd's are frozen on the
-    founder population and never re-estimated on descendants — the fixed-scale
-    principle of `additive_value()`/`phenotype_value()` (DECISION-020/021), which
-    is what makes a simulated transcriptome usable across a crossing/selection
-    pipeline.
-
-- **No annotation, no reference data required.** Defaults come from a named
-  calibration **profile** (`generic_bulk`), presented as a benchmarking compromise
-  **not** biological constants. Gene coordinates are synthesized on physical bp
-  when no annotation is given (cis is never silently a cM window). A user may
-  optionally supply an annotation, or supply expression to **mimic** (calibrate the
-  generator's moments + low-rank co-expression, and h² if genotypes are paired,
-  then regenerate) — mimic calibrates the **expression model only**, never the
-  phenotype slopes. When paired genotypes are supplied, per-gene `h2` is calibrated
-  by a **GREML-style** estimator (REML on a GRM). An **example dataset** (a
-  synthetic gene annotation and an example expression matrix for the bundled SNP55K
-  panel) ships so every basis runs out-of-the-box.
-
-- **Phenotype bases inferred from inputs, one `transcriptome()` layer.** The basis
-  follows from which inputs `simulate_phenotype()` receives (no explicit `basis=`);
-  markers-only is the default. `expression =` is **real/observed** expression;
-  `transcriptome =` (`TRUE` or a `transcriptome_sim`) is **genome-derived**
-  expression. The continuous-predictor layer is `transcriptome()`, held to the
-  **same variance-budget / realized-h² / effect-table / reproducibility guarantees
-  as the genome path**. Four modes:
-  - `geno` (default) → markers only, `y = Zδ + η` (unchanged);
-  - `expression = E` (no `geno`) → transcriptome alone, `y = Ẽs + η`;
-  - `geno` + `transcriptome =` → **derived** G→E→Y, `y = Z(δ + Bs) + Rs + η`,
-    separating mediated-genetic (`Bs`), direct-genetic (`δ`), and env-mediated
-    (`Rs`); the total genetic score is scaled jointly to the target h² and the
-    mediated/direct split reported with its covariance;
-  - `geno` + `expression = E` (**both real**) → `y = Zδ + Ẽs + η`, a direct marker
-    effect plus an observed-expression effect with **no simulated mediation**; their
-    realized covariance (expression is biologically downstream of the genome) is
-    reported, not asserted.
-
-- **Scope.** The normalized generator, the transcriptome and
-  genome→transcriptome phenotype bases, `mimic` calibration, the RNA-seq **count**
-  observation layer (`observe_counts()`, NB), the genotype-free generator and
-  additive-by-additive epistatic expression (`simulate_transcriptome(epistasis =)`)
-  are all implemented. Still explicit non-scope: directed regulatory networks and
-  tissue specificity.
-
-- **Reuse & boundary.** Reuse genotype ingestion, QTN sampling, the
-  variance-realization ("scale-to-target") step, the map, and the RNG-in-R
-  discipline. All stochastic draws stay in R (DECISION-006); the model is sparse /
-  low-rank and scales to `T ~ 10^4` genes with sparse products; **no Rust** until
-  profiling proves a deterministic bottleneck.
-
-**Rationale:** Gene expression is itself a set of genetically controlled
-quantitative traits, so the genome→transcriptome arrow is the existing additive
-model applied per gene; only the transcriptome→phenotype arrow is new (continuous
-predictors → generated slopes). A latent-factor model gives cis + trans + modules
-from one low-rank construct that scales to whole transcriptomes, where a mechanistic
-GRN would need wiring no annotation can justify and a dense trait-by-trait
-correlation (PleioArch) cannot scale. Two of the design's load-bearing pieces — the
-covariance budget row and fixed reference calibration — are patterns the package
-already uses, which keeps the addition coherent with the codebase. Known ground
-truth (which variant is a cis/trans-eQTL, which gene mediates) makes the generator a
-benchmark for eQTL/TWAS/mediation methods.
-
-**Supersedes:** DECISION-005 ("expression-based simulation deferred to v3") — brought
-forward, with expression modeled as downstream of the genome rather than as a
-separate transcript input format.
-**Reaffirms:** DECISION-006 (RNG in R; surgical Rust), DECISION-020/021 (fixed-scale
-values; realized variance reporting with a covariance row), DECISION-009 (realized,
-not asserted, variance partition).
-**Date:** drafted 2026-09-16; ratified 2026-10-02, when the full feature set of
-`SPEC-transcriptome.md` was built and reviewed (the draft lived in
-`DECISION-022-transcriptome-DRAFT.md` until then).
-
----
-
 ## DECISION-023: genetic-correlation control extends to dominance and epistasis
+
+*(DECISION-022 is the transcriptome decision, drafted in its own file.)*
 
 **Context:** the 2026-09-17 audit (grammar P1/P4, effects-arch O2/X1) found that
 `cor` controlled only the **additive** layer. Under `architecture = "pleiotropy"`
@@ -1634,8 +1535,9 @@ reader gets it. It is not a new column and does not change the `allele` label or
 `as_population()` keeps it as `map$counted`; the cross-pool orientation guard errors when both
 populations carry it and disagree at a marker, and falls back to the label-only check (warning on
 opposite order, error on disjoint alleles) when either side lacks it. Legacy numeric input without
-the record behaves as before. Persistence through numeric text files is out of scope (a text file
-cannot carry the attribute; row-subsetting a data frame drops it). Documented in `?as_numeric`,
+the record behaves as before. Persistence through numeric text files was out of scope in round 2 (a
+text file cannot carry the attribute; row-subsetting a data frame drops it); it is now available as an
+opt-in column (round 9 addendum below). Documented in `?as_numeric`,
 `?as_population` and `docs/BACKEND_CONTRACT.md`.
 
 **Addendum (round 6, Codex G5):** the default output file name of `as_numeric()` for an inline object
@@ -1643,6 +1545,26 @@ cannot carry the attribute; row-subsetting a data frame drops it). Documented in
 trimmed (a symbol `hmp` gives `hmp_numeric.txt`; an inline data frame
 `inline_data.frame_1077_x_670_numeric.txt`), so the label's `<`/`>` no longer reach the file system. The
 written content is unchanged. The `counted_allele` validation of the haplotype constructor is in DECISION-039.
+
+**Addendum (round 9, gap A):** the record is now persistable. `as_numeric(counted_column = TRUE)` (new last
+argument of `format_conversion()`, default `FALSE` = output unchanged to the byte) adds a character column
+`counted` immediately after `cm`, holding the counted allele per marker (`NA` = unknown), to the returned data
+frame and to the numeric text file. Every reader of numeric-format data (`as_numeric()` on a table or file,
+`as_population()`, `filter_geno()`, `detect_format()`) accepts it. The column is recognised when the sixth column
+is named `counted` (case-insensitive) and is not numeric (a numeric column of that name remains an individual); a
+logical all-`NA` column from a text round trip is read as unknown. It is validated by `.check_counted()`
+(character, one non-empty symbol per marker, consistent with the `allele` label; otherwise an error). When
+present it is authoritative: it feeds `map$counted` and the orientation guard, and the attribute is not
+consulted (even if both exist and disagree), so panels read back from files or row-subsetted are still compared
+marker by marker. `counted_column = TRUE` is an error under `model = "Dom"` and for numeric input with neither
+column nor attribute. The attribute remains an R-object convenience: `[` keeps it at its original length and
+order, so it does not follow row subsetting or reordering; the column is the durable form. `filter_geno()` now
+subsets the attribute with the kept rows. Callers that hard-code five metadata columns (the frozen v1
+`genotypes()` / `create_phenotypes()`) do not accept the column: pass the table without it.
+
+**Addendum (round 9, gap B):** the existing-default-file warning of `as_numeric()` is raised by the single writer
+immediately before the file is written (same message), so a conversion that fails never warns; the per-format
+handlers no longer write.
 
 **Date:** 2026-09-30
 
@@ -1790,11 +1712,169 @@ do not run meiosis (`select_ind()`, `select_ocs()`, `optimum_contribution()`, `s
 take it. Rationale: a scheme with a single `interference` value must not silently mix models. The Rust
 boundary is unchanged (R draws every event). The legacy `create_phenotypes()` is untouched (DECISION-008).
 
+**Addendum (round 9, scheme-level default):** `interference = NULL` no longer always means Poisson: it means "not
+given", resolved to the option `simplePHENOTYPES.interference` (a `list(nu =, p =)`) if set, else Poisson.
+Precedence: explicit non-`NULL` argument, then the option, then Poisson. Resolution is centralised in
+`.check_interference()` (the one validator every crossing function calls), so no wrapper duplicates it; the
+option is validated by the same rules and an invalid value is an error naming the option. The option unset
+leaves every draw and every RNG state bit-identical to the Poisson/isqg path (DECISION-012). With the option
+set, draws are the gamma-model stream exactly as if the list were passed to each call; the option does not
+change the stream otherwise, and no RNG is added. A single call cannot override the option back to Poisson with
+`NULL` (`NULL` = unset); use `options()` / `withr::local_options()`. `combining_ability(method = "expected")`
+still errors only on an explicitly supplied `interference`, not on the option. Pedigree key hashing
+(`.stable_key()`) was vectorised in the same round (identical keys; Rust and RNG untouched). Review owed: the
+independent (Codex) theory review of the option resolution.
+
 **Date:** 2026-09-30
 
 ---
 
-## DECISION-042: residual correlation between traits (`resid_cor`)
+## DECISION-042: bounded retry of the direct-LD marker search in the frozen v1 engine
+
+**Context:** `create_phenotypes(architecture = "LD", type_of_ld = "direct")` met its LD contract (distinct
+markers on one chromosome, absolute LD inside `[ld_min, ld_max]`) for only about 5% of seeds with dominance
+(`model = "D"`, `"AD"`; 3 of 60 seeds on the maize282 panel) because the frozen dominance walks keep stale
+neighbour pointers after re-drawing the anchor marker (and the same-QTN branch re-seeds identically and
+reports the original anchor); the additive walk is correct (60 of 60).
+
+**Decision:** the first attempt of every replicate is the unchanged frozen walk (same seeds, same RNG
+consumption). Only if the LD contract check fails (or the walk stops with "None of the selected SNPs met ..." or
+runs off the marker set) is the replicate searched again: at most 50 attempts, from the derived seed
+`seed - sign(seed) * (a - 1) * 1000003` (`seed + (a - 1) * 1000003` for `seed <= 0`; it moves towards zero, so
+the integer-range bound of `.v1_validate_seed_arith()` is unchanged), with the neighbour pointers reset after a
+re-draw (which the frozen dominance walks omit; in the same-QTN branch the re-seed also adds the anchor index
+and the reported anchor is the re-drawn marker; these repairs apply to attempts >= 2 only). The window
+`[ld_min, ld_max]` is never relaxed: every accepted pair is verified (distinct, same chromosome, |LD| in the
+inclusive window, reported LD equal to the recomputed LD). Outputs that met the contract on the first attempt
+are bit-identical to 1.3.x (D1); the RDS parity references are untouched. Indirect LD is **not** retried (its
+failures have another cause and are pinned by an existing test). A dominance-only model can still stop at the
+separate "All individuals are homozygote for the selected dominance QTNs" guard (about 20% of seeds on that
+panel); the retry criterion was not extended to it. Accepted pairs come from rejection sampling over seeds
+(the marginal distribution is that of the frozen walk conditional on the contract, not a uniform draw over valid
+pairs). Documented in `?create_phenotypes` ("Direct-LD search retries"). Review owed (Codex): the retry rule and
+the walk repair.
+
+**Date:** 2026-10-01
+
+---
+
+## DECISION-043: user-supplied QTNs (`qtn =`) in every architecture
+
+**Context:** `additive()`, `dominance()` and `epistasis()` accepted `qtn =` only under `architecture =
+"independent"`; "pleiotropy" (multi-trait) and "ld" rejected it, because fixed loci applied to every trait
+would bypass the correlated PleioArch draw (realized correlation +1 whatever `cor`) or make one marker causal
+for both traits of a linked pair (DECISIONS 007/013/014/023). Picking loci at random (`n_qtn`) worked
+everywhere, so the two ways of choosing loci were not interchangeable.
+
+**Decision:** every architecture takes `qtn =` and keeps its own construction; only the *choice of loci*
+moves to the user.
+* **pleiotropy:** every locus affects every trait, so `qtn` is a vector (or the same loci / sets for each
+  trait, order free; epistatic sets match as ordered tuples). Loci that affect only some traits are partial
+  pleiotropy and belong to `complex_phenotypes()`: they are an error with that pointer, not silently
+  independent effects (an earlier draft of this decision mapped "listed for one trait" to PleioArch
+  trait-specific loci; reversed by the maintainer, the pleiotropy architecture has no single-trait QTNs for
+  user layouts). The correlation is not a default target: `pi` and `cor` matter only when a correlation is
+  controlled. Without `cor`, `pi`, `pi_target`, `pi_secondary`, `n_pleio_major`, `prop_var_major` an explicit
+  `effect` sets the effects (new: previously refused; the series is the same for every trait unless a per-trait list
+  is given) and the genetic correlation is an outcome of the shared loci; with no `effect` the default draw
+  (implicit `cor = 0`, effects independent across traits) is unchanged; with any of them the correlated draw (DECISION-023: shared effects jointly MVN,
+  `Sigma_ij = cor_ij sqrt(V_i V_j)`, MAF scaling, feasibility checks) sets the effects, `effect` / `dist` stay
+  refused, and `pi < 1` is refused with fixed loci (it asks for trait-specific variance that shared loci cannot
+  carry). The default random draw (no `qtn`, no `effect`) is bit-identical, including its optional
+  trait-specific loci under `pi < 1` (DECISION-023). Dominance and epistasis follow the same rules.
+* **ld:** `qtn = list(trait1_loci, trait2_loci)`, equal length, element `i` of each a linked pair on one chromosome (round 8: a
+  cross-chromosome pair is an error); no marker
+  may be causal for both traits or listed twice (also across layers for dominance: a marker already causal for
+  the other trait is refused); a pair must be distinguishable columns (r2 < 1, a monomorphic marker is an error);
+  the pair's r2 is computed and reported (`qtn_table()` `ld_r2`, `QTN_t1`, `QTN_t2`) and a pair outside
+  `[r2_min, r2_max]` is used but warned. `ld_type = "indirect"` is refused with passed pairs (round 8: its hidden cause-of-LD marker is chosen by the
+  search and cannot be established from passed loci; use `"direct"`). Dominance under "ld" reuses the
+  additive linked loci or takes disjoint passed pairs. `epistasis()` stays unsupported under "ld" (no linked-pair
+  construction for sets, DECISION-023); a second additive layer is still rejected.
+* **all architectures:** a passed marker that is monomorphic or heterozygous in every individual (never drawn
+  at random, `.candidate_markers()`) carries no variance: it is accepted with a warning, except where it makes the
+  construction undefined (an "ld" pair: error; a pleiotropy layout with no informative shared locus: error, and a
+  single informative shared locus warns that the correlation is then exactly +/-1, counting only loci that receive
+  variance under `n_pleio_major` / `prop_var_major`). Rounds 9-11: the LD ownership rule (a locus is causal for one trait
+  across all LAYERS) holds whatever the layer order and within every replication: passed loci are checked against every
+  earlier layer's loci (canonical and every `vary_qtn` replication, conservatively), and a random LD draw never picks a
+  locus an earlier layer already made causal (a single-layer draw is unchanged, bit-identical). Replications of ONE varying
+  layer are independent draws (independent datasets): within each replication the two traits' loci are disjoint, but a marker
+  may belong to different traits in different replications (round 11; enforcing otherwise would change the historical
+  first-layer draws); a plain matrix (no chromosome map) is refused for passed LD
+  pairs with the same message as the random search. A drawn pleiotropy layout whose major/minor split leaves one locus with
+  variance (e.g. `n_pleio_major = 1`, `prop_var_major = 1`) warns, as the fixed path does: exactly +/-1 when neither trait has trait-specific variance (`pi = 1`), otherwise that the
+  whole covariance rests on one locus (one noisy draw).
+Default draws and the independent path are unchanged (RNG order identical; `qtn = NULL` is bit-identical).
+Review owed (Codex): the all-shared rule, the effect/dist-when-uncontrolled path, the LD pair rules.
+
+**Date:** 2026-10-02
+
+---
+
+## DECISION-044: QTN table export and causal / non-causal marker split in `write_phenotypes()`
+
+**Context:** the grammar's phenotype file carried no record of the loci that produced it; the v1
+engine wrote `Additive_QTNs.txt` / `QTN_effects_summary.txt` beside the phenotypes. Users also asked
+for the marker data split into the causal and the non-causal markers (e.g. to run a GWAS or
+prediction model on the non-causal markers alone with the truth kept separately), including when the
+phenotypes are written as JSON.
+
+**Decision:** (1) `write_qtn_table()` writes every column of `qtn_table()` (text via
+`data.table::fwrite()`, JSON via jsonlite with the `write_phenotypes()` conventions: UTF-8, 17
+significant digits, `NA` -> `null`, array of row objects); `rep` may be several replications or
+`"all"`, stacked with a leading `rep` column. (2) `write_phenotypes()` gains `qtn_file`,
+`split_markers`, `markers_files` and `rep` as trailing arguments; defaults leave the existing
+behaviour byte-identical. (3) The causal set is defined from the table, not from the layers
+directly: the union over the selected replications of the `snp` values of `qtn_table()` for marker
+layers (additive, dominance, every member of an epistatic set, vqtl, both traits' loci under `"ld"`,
+shared and trait-specific loci under `"pleiotropy"`); `transcriptome()` gene rows are kept in the
+table but are not markers. A marker causal in any selected replication is in the causal file and
+never in the non-causal one; `rep` does not change the phenotype file, which always holds every
+replication. (4) Marker files keep map order and the simulated individuals (an `individuals =`
+subset, or a Population's ids), with the dosage the engine used (`.geno_cols()`, -1/0/1). Text
+files use the numeric format (`snp`, `allele`, `chr`, `pos`, `cm`[, `counted`], individuals) so
+`as_numeric()` / `as_population()` / `simulate_phenotype()` read them back; metadata the input did
+not carry (a plain matrix) is `NA`. JSON files are one self-describing object
+(`individuals`, [`qtn_table`,] `markers` with per-marker `genotypes` and, in the causal file,
+`causal_for = [{trait, layer, set[, rep]}]`). (5) Writing is chunked (2,000 markers per chunk,
+vectorised JSON encoding) so the full genotype matrix is never materialised; on the bundled
+10,650 x 280 panel the split takes 0.3 s (text) / 0.5 s (JSON); a synthetic 50,000 x 300 panel
+takes 0.7 s (text, 36 MB) / 2.3 s (JSON, 40 MB) with a peak R heap of about 320 MB, of which the
+input data frame and simulation account for roughly 170 MB. (6) Default companion names derive from `file`:
+`<stem>_qtn_table.<ext>`, `<stem>_qtn_markers.<ext>`, `<stem>_noncausal_markers.<ext>` (`txt` /
+`json` when `file` has no extension); all paths must be distinct. Nothing is written when an
+argument is invalid. No RNG is drawn; `qtn_table()` and the genotype accessors are the only inputs,
+so this is I/O only (no theory review needed beyond the causal-set definition).
+
+**Round 8-9 (Codex review) amendments:** text marker files are in the numeric format, so `as_numeric()` and
+`simulate_phenotype()` read them back; `as_population()` additionally needs a non-empty file with a complete crossing
+map (`chr`, `pos`, `cm` without missing values), which a matrix-origin export or an empty partition does not provide.
+Data-frame and matrix input stream in chunks of 2,000 markers. Every destination is preflighted before anything is written: its directory exists and is
+writable, it is not a directory, its file name (and that of every default companion derived from
+`file`) fits 255 bytes, and a symlinked destination -- live or dangling -- is followed to its
+target (a link loop or more than 40 links is an error). Paths are compared after resolving them
+(through leaf links, then an existing leaf in full, otherwise the longest existing ancestor plus
+the missing tail; on macOS Unicode-normalised and case-folded, on Windows case-folded; two hard
+links to one file are not detected). With companions, and in `write_qtn_table()`, every file is
+written into a private staging directory `.<token>.stage` created exclusively (`dir.create()`) in
+its destination directory, under short fixed names `1<ext>`, `2<ext>`, ... that keep the extension
+of the user's path (so `fwrite()` still gzip-compresses a `.gz` name); because the directory is
+the export's own, no staged or backup name can coincide with a requested output or a foreign file.
+The set is then committed: an existing destination keeps its permission mode, is moved into the
+staging directory as `b<i>`, and is put back if any rename fails, every return checked; a backup
+that cannot be put back is kept in its staging directory, which the error names together with the
+destination left in a mixed state, so previous content is never silently lost. On success the
+staging directory is removed; one that cannot be removed is named in a warning. A symlinked
+destination is written through (link kept, target updated or created). Best effort over
+same-directory `file.rename()`, exercised on POSIX, not on Windows. The plain one-file call writes
+directly and is byte-identical to earlier releases.
+
+**Date:** 2026-10-02
+
+---
+
+## DECISION-045: residual correlation between traits (`resid_cor`)
 
 **Decision:** `simulate_phenotype(resid_cor = NULL)` and `complex_phenotypes(resid_cor = NULL)`: the target
 correlation of the traits' **residuals** (`cor` stays the genetic correlation, DECISION-010). `NULL` leaves
@@ -1820,7 +1900,7 @@ legacy function unchanged, DECISION-008); no v1 bit-parity is owed (DECISION-009
 
 ---
 
-## DECISION-043: BQP relatedness-penalized selection, `select_ind(method = "bqp")`
+## DECISION-046: BQP relatedness-penalized selection, `select_ind(method = "bqp")`
 
 **Decision:** `select_ind(method = "bqp", lambda = 1, min_gain = NULL, weights = NULL)` selects exactly `N`
 individuals maximizing `sum_j sum_i w_j s_ij x_i - lambda sum_i sum_k G_ik x_i x_k`, `x_i in {0, 1}`,
@@ -1845,6 +1925,15 @@ Not compared with the paper's numerical results (no reference data); the tests p
 
 ---
 
+## Note: testthat edition 3 (2026-10)
+
+The package declares `Config/testthat/edition: 3` (DESCRIPTION). Expectations that relied on edition 2's
+absolute numeric tolerance were rewritten as explicit absolute bands with the same numeric values (no genetics
+expectation was loosened); `expect_warning()` returns the condition in edition 3, and each of several warnings is
+asserted with nested `expect_warning()`. `test-v130-parity.R` and the RDS references are unchanged.
+
+---
+
 ## Decision Log Summary
 
 | ID | Decision | Status |
@@ -1853,7 +1942,7 @@ Not compared with the paper's numerical results (no reference data); the tests p
 | 002 | Port isqg algorithms to Rust (own the code) | locked |
 | 003 | `create_phenotypes()` v1 signature preserved | locked (refined by 008) |
 | 004 | Multi-generation stays in simplePHENOTYPES | locked |
-| 005 | Expression-based simulation → v3 | superseded by 022 (2026-10-02) |
+| 005 | Expression-based simulation → v3 | locked |
 | 006 | Rust surgical/bottleneck-only; stochastic core in R | locked (reaffirmed by 011) |
 | 007 | PleioArch for `"pleiotropy"` | locked (refined by 010) |
 | 008 | `create_phenotypes()` = frozen legacy, not a delegation shim | locked (2026-06-10) |
@@ -1870,8 +1959,7 @@ Not compared with the paper's numerical results (no reference data); the tests p
 | 019 | Breeding value (`on = "bv"`, OCS default, index merit) = classical average-effect A = Σαⱼ(xⱼ−2pⱼ), αⱼ = aⱼ+dⱼ(qⱼ−pⱼ) reconstructed analytically from known QTN effects (LD- and HWE-robust); epistasis-induced marginals omitted; index methods ignore `on` | locked (2026-09-13) |
 | 020 | orthogonal genotypic model as `additive(orthogonal = TRUE, a =, d =)` (orthogonal in expectation under random mating → per-locus HWE, e.g. F2; LD is fine, but nonrandom multilocus association breaks it; A is the transmitting average effect, Falconer 1985): per-locus a/d, whole value scaled to `prop`; budget reports realized Var(A)/Var(g), Var(D)/Var(g) + an `add_dom_cov` row 2Cov(A,D)/Var(g) (=0 in expectation under random mating; nonzero for structured / finite samples) closing to `prop`; degree of dominance d/abs(a) meaningful; d!=0 requires a het per locus (checked per-locus); `qtn_table()` gains a `d` column; new args appended to the signature (positional compat kept); incompatible with vary_qtn / dominance() / pleiotropy(multi) / ld | locked (2026-09-13) |
 | 021 | `phenotype_value(x, qtn, effect, h2/var_e, ref, seed)` = fixed additive value (`additive_value()`) + independent residual on a **frozen** variance (no per-population rescale), so the parametric h²=Var(g)/(Var(g)+var_e) declines as variance is exhausted (faithful cross-gen `on="pheno"`); exactly one of h2/var_e (h2 → var_e=Var(g_ref)(1−h2)/h2); RNG in R; version bump 1.4.0-9002 so downstream can pin | locked (2026-09-14) |
-| 022 | transcriptome simulation: hybrid latent-factor eQTL (cis in a physical-bp window + trans via Q≪T latent regulatory factors + non-genetic co-expression modules + gene noise), normalized Gaussian scale; per-gene `h2_g`, cis fraction `omega_g`, residual module fraction `kappa_g` as non-competing knobs; **joint** cis/trans genetic scaling with a reported `cis_trans_cov` budget row (cf. `add_dom_cov`, DECISION-020); **fixed reference calibration** (DECISION-020/021); no annotation/reference data required (named `generic_bulk` profile; synthetic physical-bp coords; optional `mimic=` calibrates the expression generator only, GREML per-gene h²; ships an example annotation + expression dataset for SNP55K); phenotype bases inferred from inputs via a `transcriptome()` layer — markers-only (default) / `expression=` real transcriptome alone / `geno`+`transcriptome=` derived G→E→Y (`y = Z(δ+Bs)+Rs+η`, mediated+direct) / `geno`+`expression=` both real (`y = Zδ+Ẽs+η`, no simulated mediation, realized G–E cov reported) — all with genome-path rigor; counts (`observe_counts()`) and epistatic expression implemented, GRN/tissue specificity remain non-scope; RNG in R (DECISION-006), no Rust yet | locked (2026-10-02; drafted 2026-09-16) |
-| 023 | `cor` control extends to dominance + epistasis under "pleiotropy": per-component PleioArch covariance (shared units MVN-correlated, trait-specific independent, split by `pi`), each unit scaled by its realized design-column sd, constant units left out of the allocation; every component targets `cor` (realized correlation converges as units and individuals grow under approximate linkage equilibrium; attenuated on average with few units; strong LD can prevent convergence), and the total targets `cor` when layers' per-trait `prop` profiles are proportional (scalar `prop`), else attenuated with a warning giving its large-sample target; fixed `qtn=` rejected under pleiotropy/ld and `effect=`/`dist` under pleiotropy; under "ld" dominance must reuse the additive linked loci (`same_as_add = TRUE`), epistasis and a second additive layer are rejected (SPEC §5.3 restriction); a derived `transcriptome()` layer's genome-mediated signal is outside `cor` (warned under pleiotropy); additive draw unchanged (bit-identical) | locked (2026-09-25) |
+| 023 | `cor` control extends to dominance + epistasis under "pleiotropy": per-component PleioArch covariance (shared units MVN-correlated, trait-specific independent, split by `pi`), each unit scaled by its realized design-column sd, constant units left out of the allocation; every component targets `cor` (realized correlation converges as units and individuals grow under approximate linkage equilibrium; attenuated on average with few units; strong LD can prevent convergence), and the total targets `cor` when layers' per-trait `prop` profiles are proportional (scalar `prop`), else attenuated with a warning giving its large-sample target; fixed `qtn=` rejected under pleiotropy/ld (accepted since DECISION-043) and `effect=`/`dist` under pleiotropy; under "ld" dominance must reuse the additive linked loci (`same_as_add = TRUE`), epistasis and a second additive layer are rejected (SPEC §5.3 restriction); a derived `transcriptome()` layer's genome-mediated signal is outside `cor` (warned under pleiotropy); additive draw unchanged (bit-identical) | locked (2026-09-25) |
 | 024 | A `Population` records its pedigree (`keys` + `pedigree` frame; founders from `as_population(pool =)`, progeny from every mating, ancestors kept by `[`, pooled by key in `c()`); links are deterministic keys, not display ids, so colliding ids stay safe; bookkeeping draws nothing (genotypes / RNG bit-identical); accessors `parentage()`, `families()` | locked (2026-09-27) |
 | 025 | `mating_design()` writes random / factorial / nested / diallel / half-diallel plans; `mate()` runs `{mother, father, n}` plans across named pools (one seed, plan order; self / DH rows; ids `<prefix>_<k>`); a one-row plan equals the equivalent `cross()` / `selfcross()` / `double_haploid()`; `recurrent_selection()` keeps `.intermate()` (RNG order) | locked (2026-09-27) |
 | 026 | `combining_ability()` (topcross / factorial / diallel; `"expected"` = exact conditional cross means on a frozen `(qtn, a, d)`, `"simulated"` via `mate()`), GCA/SCA centred to sum zero, Griffing method-4 diallel GCA; `template_effects()` exports a simulation's realized `a`, `d`; `phenotype_value(d =)` scores `A + D` with a broad-sense `h2` | locked (2026-09-28) |
@@ -1884,11 +1972,14 @@ Not compared with the paper's numerical results (no reference data); the tests p
 | 033 | Layer sub-seed = position-sensitive rolling hash of the draw label, mixed with `(seed, occurrence of the layer type)`; replaces the permutation-invariant character-code sum (replications 12/21 and traits 12/21 were byte-identical); collision-resistant over ordinary ranges (31-bit, not injective; see the seed-123 collision in the body); adding/removing/reordering a layer never changes other-type layers, inserting a same-type layer shifts later same-type layers by design; every seeded grammar value changed (no v1 parity owed, DECISION-009) | locked (2026-09-29) |
 | 034 | Additive + dominance on shared loci (variance-partition coding): the realized genetic variance is `prop_A + prop_D + 2Cov(c_A,c_D)` for one additive and one dominance layer (general: `Var(c_A) + Var(c_D) + 2Cov(c_A,c_D)`), a structural, allele-coding-dependent bias; report it (`$ad_report`: requested, realized, Var(A), Var(D), 2Cov(A,D), component `Var(c_A)`, `Var(c_D)`, `2Cov(c_A,c_D)` (exact closure for any number of layers), per trait, fractions of V_P) and note `additive(orthogonal = TRUE, ...)` in `print()`, help and SPEC §2; the "finite-sample / usually tracks closely" wording is removed | locked (2026-09-29) |
 | 035 | Transcriptome `genes$h2_realized` = realized `Var(G)/Var(P)` (includes `2Cov(G,R)`, not bounded by 1); `h2_var_ratio` = identical alias; bounded allocation `Var(G)/(Var(G)+Var(R))` renamed `h2_allocated` (not a heritability); mimic GREML guard on the intercept-projected spectrum of K | locked (2026-09-30) |
-| 036 | `as_numeric()` records the `+1`-counted allele per marker as the `counted_allele` attribute (no dosage, column or label change); `as_population()` keeps `map$counted`; cross-pool guard errors on disagreement, else label-only fallback; not persisted through text files | locked (2026-09-30) |
+| 036 | `as_numeric()` records the `+1`-counted allele per marker as the `counted_allele` attribute (no dosage, column or label change); `as_population()` keeps `map$counted`; cross-pool guard errors on disagreement, else label-only fallback; persisted through text files only by the opt-in `counted_column = TRUE` (a `counted` column after `cm`, authoritative when present; round 9) | locked (2026-09-30) |
 | 037 | v1 `create_phenotypes()`: duplicated `chr_pos` accepted in pleiotropic / partially pleiotropic, rejected ("LD contract") in `"LD"`; the grammar also accepts duplicated `chr`/`pos` | locked (2026-09-30) |
 | 038 | Entry-mean replication in the grammar: `reps` divides the residual (incl. vqtl) by `sqrt(reps)` after the unchanged draw (target residual variance `V_E/reps`; realized: residual value = `reps = 1` realized residual / `sqrt(reps)`, so its variance is the `reps = 1` realized variance / `reps`; vqtl `[V0+Vv+2Cov]/reps`); `h2`/props stay single-record targets; realized H2 = `Var(G)/Var(y)` (includes `2Cov(G,e)/sqrt(reps)`) on the entry-mean scale with the single-record value alongside; replication is conditional on a fixed transcriptome covariate; `reps = 1` bit-identical; constant-time `.geno_label()` replaces `deparse(substitute(geno))` | locked (2026-09-30) |
 | 039 | `population_from_haplotypes()` / `haplotypes()`: known-phase 0/1 constructor (1 = counted allele, dosage = cis + trans - 1, markers x individuals), `map$counted` only if supplied (validated: character, non-empty symbol, `NA` = unknown), same map validation as `as_population()`, no RNG, no Rust | locked (2026-09-30) |
 | 040 | Batched integer-I/O crossing core `mate_many_core()`; `mate()` runs every plan row in one call; R draws in plan order so the batch equals the sequential run bit for bit; ~6x cheaper per call at 14,000 markers | locked (2026-09-30) |
-| 041 | Crossover interference `interference = NULL \| list(nu, p)` (`1 <= nu <= 1e6`) on `cross`/`selfcross`/`double_haploid`/`mate`/`crossbreed` and, by propagation, `single_seed_descent`/`bulk`/`pedigree`/`recurrent_selection`/`cross_usefulness`/`combining_ability` (simulated only)/`progeny_test`: two-pathway gamma model on the bivalent, 1/2 thinning to the gamete, expected crossovers per Morgan unchanged, drawn in R, default NULL = Poisson/isqg stream bit-identical | locked (2026-09-30) |
-| 042 | Residual correlation between traits: `resid_cor = NULL \| scalar \| matrix` on `simulate_phenotype()` / `complex_phenotypes()` (genetic stays `cor`); unit draws under the unchanged sub-seeds mixed through `chol(R)` and re-standardized per trait, so each trait's residual variance, realized h2 and `var_budget` are unchanged; `NULL` bit-identical; sample correlation = target up to `1/sqrt(n)`; vqtl dilutes it | locked (2026-10-02) |
-| 043 | `select_ind(method = "bqp", lambda, min_gain)`: Montesinos-Lopez et al. 2025 relatedness-penalized BQP selection of exactly N (weighted standardized merit minus `lambda` x'Gx on the VanRaden G; per-trait `min_gain` constraints); dependency-free deterministic solver (exact enumeration if `choose(n,N) <= 2e5`, else greedy + 1-swap local search), no RNG | locked (2026-10-02) |
+| 041 | Crossover interference `interference = NULL \| list(nu, p)` (`1 <= nu <= 1e6`) on `cross`/`selfcross`/`double_haploid`/`mate`/`crossbreed` and, by propagation, `single_seed_descent`/`bulk`/`pedigree`/`recurrent_selection`/`cross_usefulness`/`combining_ability` (simulated only)/`progeny_test`: two-pathway gamma model on the bivalent, 1/2 thinning to the gamete, expected crossovers per Morgan unchanged, drawn in R, default NULL = Poisson/isqg stream bit-identical; `NULL` also resolves to the option `simplePHENOTYPES.interference` when set (round 9) | locked (2026-09-30) |
+| 042 | Frozen v1 direct-LD search: first attempt unchanged (bit-identical), then up to 50 retries per replicate from derived seeds `seed -/+ (a-1)*1000003` with the dominance-walk neighbour reset; window never relaxed, every pair verified; indirect LD not retried | locked (2026-10-01) |
+| 043 | `qtn =` accepted in every architecture, each keeping its construction: pleiotropy = every locus affects every trait (partial pleiotropy -> `complex_phenotypes()`, error), an explicit `effect` sets effects when no correlation is controlled (no `cor`/`pi`), else (and by default) the correlated draw with implicit `cor = 0`; `pi < 1` refused with fixed loci; ld = `list(trait1, trait2)` disjoint linked pairs on one chromosome with reported r2 (`ld_type = "indirect"` refused; epistasis still unsupported; ownership enforced in any layer order); constant passed markers warned (errors where the construction becomes undefined) | locked (2026-10-02) |
+| 044 | `write_qtn_table()` (all `qtn_table()` columns, text/JSON, several reps stacked with `rep`) + `write_phenotypes(qtn_file, split_markers, markers_files, rep)`: causal markers = union of `qtn_table()` marker-layer `snp` over the selected reps (genes excluded), non-causal = the rest; numeric-format text / self-describing JSON, chunked writing | locked (2026-10-02) |
+| 045 | Residual correlation between traits: `resid_cor = NULL \| scalar \| matrix` on `simulate_phenotype()` / `complex_phenotypes()` (genetic stays `cor`); unit draws under the unchanged sub-seeds mixed through `chol(R)` and re-standardized per trait, so each trait's residual variance, realized h2 and `var_budget` are unchanged; `NULL` bit-identical; sample correlation = target up to `1/sqrt(n)`; vqtl dilutes it | locked (2026-10-02) |
+| 046 | `select_ind(method = "bqp", lambda, min_gain)`: Montesinos-Lopez et al. 2025 relatedness-penalized BQP selection of exactly N (weighted standardized merit minus `lambda` x'Gx on the VanRaden G; per-trait `min_gain` constraints); dependency-free deterministic solver (exact enumeration if `choose(n,N) <= 2e5`, else greedy + 1-swap local search), no RNG | locked (2026-10-02) |

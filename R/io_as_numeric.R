@@ -47,12 +47,25 @@
 #' separately converted panels count the same allele. Two panels that both
 #' carry it and count different alleles at a marker are refused when crossed or
 #' pooled (e.g. an all-`AA` panel and an all-`GG` panel would otherwise both
-#' encode `+1` and cross to an F1 of `+1` instead of the heterozygote `0`). The
-#' attribute lives in the R object only: it is not written to a numeric text file,
-#' and it is dropped by row-subsetting the data frame, so numeric data read back
-#' from a file (or created by other software) carries no record and the older
-#' label-only check is used instead; convert panels that will be crossed
-#' **jointly**, or with the same `ref_allele`, to be safe.
+#' encode `+1` and cross to an F1 of `+1` instead of the heterozygote `0`).
+#' The attribute is a convenience of the R object: a numeric text file cannot
+#' carry it, and `[` keeps it unchanged when it subsets or reorders the rows of
+#' the data frame (so it no longer lines up with them). The durable form is the
+#' optional `counted` column: with `counted_column = TRUE` the result, and the
+#' file written, gain a character column `counted` immediately after `cm`
+#' (before the individuals), holding the same allele per marker (`NA` where it
+#' is not known). It travels with its marker through files and row
+#' subsetting, [as_population()], [filter_geno()] and `as_numeric()` itself
+#' accept it, and when present it is the record used, so two panels read back
+#' from files, or subsetted, are still checked against each other. The default
+#' (`counted_column = FALSE`) writes exactly the five metadata columns and
+#' changes no value. `counted_column = TRUE` is an error under `model = "Dom"`
+#' (no allele is counted) and for numeric input that carries neither the
+#' column nor the attribute; numeric input that already has the column keeps
+#' it. A numeric data frame without the column (or with a numeric sixth column,
+#' which is an individual) has no record and gets the older label-only check:
+#' convert panels that will be crossed **jointly**, or with the same
+#' `ref_allele`, to be safe.
 #'
 #' Calls are matched case-insensitively. A marker with more than two alleles is
 #' set to missing with a warning that counts the affected markers; missing
@@ -75,7 +88,8 @@
 #'
 #' @section The output, and the `cm` column:
 #' The result has five metadata columns — `snp`, `allele`, `chr`, `pos`, `cm` —
-#' followed by one column per individual. The types are the same for every input
+#' followed by one column per individual (with `counted_column = TRUE`, a sixth
+#' metadata column `counted` follows `cm`; see "Which allele is counted"). The types are the same for every input
 #' format: `snp`, `allele` and `chr` are character, `pos` is integer (double only
 #' if a position is not a whole number below 2^31, and integer `NA` when the
 #' input carries no positions), `cm` is double, and the genotype columns are
@@ -117,6 +131,9 @@
 #'     \item{`model`}{`"Add"` (default), `"Dom"`, `"Left"` or `"Right"`.}
 #'     \item{`from`}{input format, when automatic detection is not wanted.}
 #'     \item{`verbose`}{print progress messages.}
+#'     \item{`counted_column`}{`FALSE` (default) or `TRUE`: add the
+#'       `counted` column (the allele coded +1 at each marker) after `cm`; see
+#'       "Which allele is counted".}
 #'   }
 #' @details When `to_file = TRUE` and no `file_name` is given, the default
 #'   output name is `<label>_numeric.txt`, where the label is the name of the
@@ -133,7 +150,8 @@
 #'   explicit `file_name` is used as given, without a warning. Pass `file_name`
 #'   to choose the output path.
 #' @return The genotypes in numeric format: five metadata columns
-#'   (`snp`, `allele`, `chr`, `pos`, `cm`) followed by one column per
+#'   (`snp`, `allele`, `chr`, `pos`, `cm`), plus the optional `counted` column
+#'   when `counted_column = TRUE`, followed by one column per
 #'   individual. Returned as a data frame when `to_r = TRUE`, otherwise written
 #'   to file.
 #' @seealso [synthetic_map()] to supply a genetic map, [as_population()] and

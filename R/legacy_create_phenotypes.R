@@ -32,9 +32,10 @@
 #'   `[ld_min, ld_max]` for the chosen `seed` (indirect: a marker selected for
 #'   both traits or a duplicated QTN; direct: a pair outside the window, on
 #'   two chromosomes or paired with itself), the call stops with an "LD
-#'   contract" error: change `seed`, the LD window or `type_of_ld`. The
-#'   direct-LD dominance branches (`model` containing "D") meet the contract for
-#'   only a minority of seeds.
+#'   contract" error: change `seed`, the LD window or `type_of_ld`. For
+#'   `type_of_ld = "direct"` the search is first run exactly as in earlier
+#'   releases and, only when that attempt fails, repeated with derived seeds
+#'   (section "Direct-LD search retries"), so the error is now rare.
 #'   \item `h2` outside `[0, 1]`; `h2` positive but not above 0.05 (that is,
 #'   `0 < h2 <= 0.05`, including exactly 0.05) with `rep > 1` (see `seed`);
 #'   `to_r = TRUE` with several rows of `h2` unless a single trait is
@@ -46,7 +47,10 @@
 #'   geometric-series base, or with a length that is neither 1 nor the number
 #'   of QTNs.
 #'   \item Variance QTL (`"V"`) with `ntraits > 1`, with `h2 = 0`, or with
-#'   `var_effect` values that make the standard-deviation multiplier negative.
+#'   `var_effect` values that make the standard-deviation multiplier negative,
+#'   or with a constant additive baseline (for example `model = "AV"` with
+#'   `add_effect = 0`: the variance multiplier is undefined, so the call stops
+#'   instead of returning NaN phenotypes).
 #'   \item Unknown `output_format`, `output_format = "wide"` with `ntraits > 1`
 #'   and `rep = 1`, `rep`/`model`/`seed` that are missing or malformed, and
 #'   more QTNs than markers.
@@ -61,6 +65,34 @@
 #' example, multiplies the intended columns). The `architecture = "LD"`
 #' searches are stricter: a duplicated QTN or a QTN pair sharing a chromosome
 #' position is reported as an "LD contract" error (see above).
+#'
+#' @section Direct-LD search retries:
+#' With `architecture = "LD"` and `type_of_ld = "direct"` the marker search of
+#' every replicate first runs exactly as in earlier releases (same seeds, same
+#' random draws); whenever that attempt meets the LD contract (distinct markers
+#' on one chromosome with an absolute LD inside the inclusive window
+#' `[ld_min, ld_max]`, and the reported LD equal to the recomputed one) its
+#' output is unchanged, bit for bit. Only when it does not (the contract check
+#' fails, the search stops with "None of the selected SNPs met the minimum/maximum
+#' LD threshold", or it runs past the first/last marker) the replicate is
+#' searched again, up to 50 attempts in total, from the seed
+#' `seed - (a - 1) * 1000003` for attempt `a` (`seed + (a - 1) * 1000003` when
+#' `seed <= 0`); the retry seeds are then combined with the replicate and QTN
+#' offsets exactly like the original one. Retry attempts also reset the
+#' neighbour pointers after a marker is re-drawn, which the earlier dominance
+#' walks (`model` containing "D") did not: they kept pairing the new marker
+#' with the neighbours of the old one, so most pairs failed the contract. The
+#' window itself is never relaxed: every accepted pair is verified against
+#' `[ld_min, ld_max]` and the chromosome constraint. After 50 failed attempts
+#' the "LD contract" error is raised as before; a retry attempt that uses up
+#' every candidate marker without finding a pair inside the window (a window too
+#' narrow for the data, which used to end in the cryptic "invalid first
+#' argument") stops the search at once with an informative error. The seed of the attempt that
+#' succeeded is the one written to the `Seed_num_for_*` file and, when
+#' `verbose = TRUE`, a message names the attempt. Indirect LD is not
+#' retried. A dominance-only model (`"D"`) can still stop with the
+#' "All individuals are homozygote for the selected dominance QTNs" error,
+#' which is a separate check on the selected markers.
 #' @export
 #' @import utils
 #' @import stats

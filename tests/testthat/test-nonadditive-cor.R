@@ -108,18 +108,25 @@ test_that("pi partitions epistatic sets into shared + trait-specific", {
   expect_length(unique(c(q[[1]], q[[2]])), 2L * n_sets) # loci all disjoint
 })
 
-test_that("fixed loci are rejected under pleiotropy and ld (audit P4)", {
-  base_p <- .pleio(0.5, 1) |> additive(prop = 0.3, n_qtn = 10)
-  expect_error(dominance(base_p, prop = 0.1, qtn = c(1, 2)), "cannot honour")
-  expect_error(epistasis(base_p, prop = 0.1, qtn = matrix(c(1, 2), 1)),
-               "cannot honour")
+test_that("fixed loci are validated, not rejected, under pleiotropy and ld (audit P4, DECISION-043)", {
+  base_p <- .pleio(0.5, 1, pi = 0.5) |> additive(prop = 0.3, n_qtn = 10)
+  # a vector is shared by every trait; with pi < 1 there are no trait-specific
+  # loci to carry the specific variance (partial pleiotropy is complex_phenotypes())
+  expect_error(dominance(base_p, prop = 0.1, qtn = c(1, 2)), "pi = 1")
+  expect_error(epistasis(base_p, prop = 0.1, qtn = matrix(c(1, 2), 1)), "pi = 1")
+  # with pi = 1 (the default) every locus is shared, which is valid
+  all_shared <- .pleio(0.5, 1) |> additive(prop = 0.3, n_qtn = 10)
+  expect_no_error(suppressWarnings(
+    dominance(all_shared, prop = 0.1, qtn = c(1, 2), same_as_add = FALSE)))
   data("SNP55K_maize282_maf04", envir = environment())
   base_ld <- simulate_phenotype(SNP55K_maize282_maf04, architecture = "ld",
                                 n_traits = 2, seed = 1) |>
     additive(prop = 0.3, n_qtn = 3)
   expect_error(epistasis(base_ld, prop = 0.1, qtn = matrix(c(1, 2), 1)),
                "not supported under architecture = \"ld\"")
-  expect_error(dominance(base_ld, prop = 0.1, qtn = c(1, 2)), "cannot honour")
+  # a vector would put the same marker on both traits of a linked pair
+  expect_error(dominance(base_ld, prop = 0.1, qtn = c(1, 2)),
+               "cannot be causal for both")
 })
 
 test_that("explicit effects / dist are rejected under pleiotropy", {

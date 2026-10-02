@@ -156,14 +156,14 @@ test_that("a non-zero d is rejected per locus, not collectively over the set", {
   skip_if(is.na(hetless) || is.na(segreg))
   # d != 0 on the hetless locus must error even though the other locus segregates
   expect_error(
-    additive(ph, orthogonal = TRUE, a = 0.5, qtn = c(hetless, segreg),
-             d = c(0.5, 0)),
+    suppressWarnings(additive(ph, orthogonal = TRUE, a = 0.5,
+                              qtn = c(hetless, segreg), d = c(0.5, 0))),
     "heterozyg")
   # d = 0 on the hetless locus (d != 0 only where there are hets) is fine
   expect_error(
-    suppressMessages(
+    suppressWarnings(suppressMessages(
       additive(ph, orthogonal = TRUE, a = 0.5, qtn = c(hetless, segreg),
-               d = c(0, 0.5))),
+               d = c(0, 0.5)))),
     NA)
 })
 

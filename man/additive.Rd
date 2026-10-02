@@ -36,14 +36,36 @@ marker names (matched against the map) or column indices; a vector is used
 for every trait, or a length-\code{n_traits} list sets each trait's loci
 separately (every element the same length). \code{n_qtn} is then taken from what
 you supply. Fixed loci are not redrawn by \code{vary_qtn}. (For \code{\link[=epistasis]{epistasis()}},
-\code{qtn} describes interacting sets; see there.)}
+\code{qtn} describes interacting sets; see there.) Every architecture accepts
+\code{qtn}, and each keeps its construction: under \code{"independent"} the loci
+carry the effect series; under \code{"pleiotropy"} (multi-trait) every locus
+affects every trait, so give a single vector (or the same loci for each
+trait in a list); loci that affect only some traits are partial pleiotropy,
+built with \code{\link[=complex_phenotypes]{complex_phenotypes()}}. If a correlation is controlled (\code{cor},
+\code{pi}, ...) the correlated draw sets the effects and the genetic correlation
+is its target; otherwise the correlation is just an outcome of the shared
+loci, and an explicit \code{effect} sets the effects (without it the default
+draw does, with implicit \code{cor = 0}). \code{pi} only matters for controlling a
+correlation, and \code{pi < 1} cannot be used with fixed shared loci. Under
+\code{"ld"} (\code{ld_type = "direct"} only) give
+\code{qtn = list(trait1_loci, trait2_loci)} of equal length -- the i-th locus of
+each is a linked pair on one chromosome, no marker may be causal for both traits, and each
+pair's r2 is reported (by \code{\link[=qtn_table]{qtn_table()}}) and warned about when outside
+\verb{[r2_min, r2_max]}. A marker that is monomorphic (or heterozygous in every
+individual) carries no variance: it is accepted with a warning, except
+where it makes the architecture undefined (an \code{"ld"} pair, or a pleiotropy
+layout with no varying locus), which is an error.}
 
 \item{effect}{optional geometric base (scalar) or explicit effect series
 (length \code{n_qtn}), used for every trait; or a length-\code{n_traits} list of these,
 one per trait -- e.g. to re-score per-trait effects frozen from an earlier
-simulation on fixed \code{qtn} in a single layer. Not available under
-\code{architecture = "pleiotropy"} (multi-trait), whose correlated draw sets the
-effects, nor with \code{orthogonal = TRUE} (use \code{a}).}
+simulation on fixed \code{qtn} in a single layer. Under
+\code{architecture = "pleiotropy"} (multi-trait) it is accepted only when no
+correlation is controlled (no \code{cor}, \code{pi}, ...): it then sets the effects of
+the shared loci (the same series for every trait unless a per-trait list is
+given) and the genetic correlation is an outcome. Without \code{effect} (or with
+\code{cor} / \code{pi}) the pleiotropy draw sets the effects. Not available with
+\code{orthogonal = TRUE} (use \code{a}).}
 
 \item{phase}{QTN effect-sign pattern, \code{"coupling"} (default) or
 \code{"repulsion"}. Under \code{"repulsion"} the effect \strong{signs alternate across the
@@ -142,8 +164,9 @@ grammar cannot express, because per-component scaling washes a global degree
 out), and the breeding value used by \code{\link[=select_ind]{select_ind()}} / \code{\link[=optimum_contribution]{optimum_contribution()}}
 picks up the dominance-induced average effect automatically. Because the
 effects are fixed, this mode does not draw a separate \code{dominance()} layer, is
-incompatible with \code{vary_qtn}, and (like \verb{qtn =}) cannot be used with the
-correlation-controlling \code{"pleiotropy"} (multi-trait) or \code{"ld"} architectures.
+incompatible with \code{vary_qtn}, and cannot be used with the
+correlation-controlling \code{"pleiotropy"} (multi-trait) or \code{"ld"} architectures
+(their effects come from the correlated draw; \verb{qtn =} alone is accepted).
 }
 
 \examples{

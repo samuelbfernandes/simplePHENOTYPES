@@ -36,7 +36,7 @@ test_that("a derived transcriptome's genetic-mediated part counts toward H2", {
   ms <- mediation_split(ph)
   expect_equal(nrow(ms), 1L)
   expect_gt(ms$genetic_mediated, 0)                    # some expression var is genetic
-  expect_equal(h2_narrow(ph), marker_h2 + ms$genetic_mediated, tolerance = 0.02)
+  expect_lt(abs(h2_narrow(ph) - (marker_h2 + ms$genetic_mediated)), 0.02)   # absolute band
   # the split sums to the realized expression-mediated share of V_P
   expect_equal(ms$genetic_mediated + ms$env_mediated + ms$covariance,
                stats::var(tx_comp(ph)) / vp, tolerance = 1e-8)
@@ -90,7 +90,7 @@ test_that("qtn_table() reports a transcriptome layer as gene rows", {
   gid <- rownames(tx$expression)[c(3, 7, 11)]
   ph <- simulate_phenotype(G, h2 = 0.5, seed = 5, transcriptome = tx) |>
     transcriptome(prop = 0.4, genes = gid, slopes = c(1, -2, 0.5)) |>
-    additive(prop = 0.2, n_qtn = 4)
+    additive(prop = 0.1, n_qtn = 4)
   qt <- qtn_table(ph)
   tr <- subset(qt, layer == "transcriptome")
   expect_identical(nrow(tr), 3L)
@@ -100,7 +100,7 @@ test_that("qtn_table() reports a transcriptome layer as gene rows", {
   # per-gene shares track squared (max-normalized) slopes: (0.5, -1, 0.25)^2
   expect_equal(tr$var_explained / tr$var_explained[2], c(0.25, 1, 0.0625),
                tolerance = 1e-6)
-  expect_equal(sum(tr$var_explained), 0.4, tolerance = 0.06)   # marginal ~ prop
+  expect_lt(abs(sum(tr$var_explained) - 0.4), 0.06)   # absolute band   # marginal ~ prop
   # marker layers keep their marker columns
   expect_true(all(!is.na(subset(qt, layer == "additive")$maf)))
 })

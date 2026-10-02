@@ -112,21 +112,37 @@
 #' list / named numeric vector with `nu` (a single number in `[1, 1e6]`) and optionally
 #' `p` (a single number in `[0, 1]`, default 0). Returns `NULL` or
 #' `list(nu =, p =)`.
+#'
+#' Resolution order: an explicit non-NULL argument, else the package option
+#' `simplePHENOTYPES.interference` (read here, once per call, so every function
+#' that validates its `interference` argument through this one picks it up),
+#' else `NULL`. An invalid option value errors naming the option. With the
+#' option unset this is exactly the previous behaviour (no extra draw, no state).
 #' @param x the argument as given.
 #' @param fn name of the calling function, for the message.
 #' @keywords internal
 #' @noRd
 .check_interference <- function(x, fn = "cross") {
-  if (is.null(x)) return(NULL)
+  opt <- is.null(x)
+  if (opt) {
+    x <- getOption("simplePHENOTYPES.interference")
+    if (is.null(x)) return(NULL)
+  }
+  # how the value is named in a message: the argument, or the option it came from
+  lab <- if (opt) "option `simplePHENOTYPES.interference`" else "`interference`"
+  sub <- function(nm) {
+    if (opt) paste0("`simplePHENOTYPES.interference$", nm, "`")
+    else paste0("`interference$", nm, "`")
+  }
   if (!(is.list(x) || (is.numeric(x) && !is.null(names(x)))) ||
       is.data.frame(x)) {
-    stop(fn, "(): `interference` must be NULL or a list(nu =, p =) (a named ",
+    stop(fn, "(): ", lab, " must be NULL or a list(nu =, p =) (a named ",
          "numeric vector also works).", call. = FALSE)
   }
   nm <- names(x)
   if (is.null(nm) || anyNA(nm) || any(!nzchar(nm)) || anyDuplicated(nm) ||
       !all(nm %in% c("nu", "p")) || !"nu" %in% nm) {
-    stop(fn, "(): `interference` must be named with `nu` (required) and ",
+    stop(fn, "(): ", lab, " must be named with `nu` (required) and ",
          "optionally `p`, e.g. list(nu = 2.6, p = 0).", call. = FALSE)
   }
   num1 <- function(v) {
@@ -135,14 +151,14 @@
   nu <- x[["nu"]]
   p <- if ("p" %in% nm) x[["p"]] else 0
   if (!num1(nu) || nu < 1 || nu > .NU_MAX) {
-    stop(fn, "(): `interference$nu` must be one finite number in [1, ",
+    stop(fn, "(): ", sub("nu"), " must be one finite number in [1, ",
          format(.NU_MAX, scientific = FALSE), "] (the shape of the gamma ",
          "model; 1 is no interference; larger values are numerically ",
          "indistinguishable from a fixed spacing); got ",
          paste(format(nu), collapse = ", "), ".", call. = FALSE)
   }
   if (!num1(p) || p < 0 || p > 1) {
-    stop(fn, "(): `interference$p` must be one number in [0, 1] (the share of ",
+    stop(fn, "(): ", sub("p"), " must be one number in [0, 1] (the share of ",
          "chiasmata from the non-interfering pathway); got ",
          paste(format(p), collapse = ", "), ".", call. = FALSE)
   }
@@ -482,8 +498,9 @@
 #' [as_population()]).
 #'
 #' @section Crossover interference:
-#' By default (`interference = NULL`) crossovers are Poisson, i.e. there is no
-#' interference, and the random draws are exactly isqg's. Give
+#' By default (`interference = NULL`, with the option below unset) crossovers
+#' are Poisson, i.e. there is no interference, and the random draws are exactly
+#' isqg's. Give
 #' `interference = list(nu = , p = )` for a two-pathway gamma model of
 #' interference (`nu` plays the role of AlphaSimR's `v`, whose default `2.6`
 #' approximates Kosambi's map function):
@@ -520,6 +537,23 @@
 #' AlphaSimR). The draws are made in R; the Rust core only applies the drawn
 #' crossovers and is unchanged.
 #'
+#' To use one interference model for a whole session or scheme without passing
+#' `interference =` to every call, set the option `simplePHENOTYPES.interference`
+#' to a `list(nu = , p = )` (`NULL`, the default, is Poisson crossovers). An
+#' `interference` argument that is `NULL` is then replaced by the option, in
+#' [cross()], [selfcross()], [double_haploid()], [mate()], [crossbreed()] and in
+#' every function that forwards it ([single_seed_descent()], [bulk()],
+#' [pedigree()], [recurrent_selection()], [cross_usefulness()],
+#' [combining_ability()], [progeny_test()]), so the precedence is: an explicit
+#' non-`NULL` argument, then the option, then Poisson. The option is validated by
+#' the same rules as the argument, and an invalid value is an error that names the
+#' option. Because `NULL` means "not given", an individual call cannot switch
+#' the option off with `interference = NULL`; use
+#' `withr::local_options(simplePHENOTYPES.interference = NULL)` (or
+#' `options()`) for that. With the option set, the draws are those of the gamma
+#' model (not isqg's stream), exactly as when the same list is passed to every
+#' call; with it unset nothing changes, draw for draw.
+#'
 #' @param mother,father single-individual `Population`s (use `[` to select one).
 #'   Their roles are symmetric apart from which homologue a progeny inherits
 #'   first; there is no sex-specific recombination. Crossing an individual with
@@ -530,8 +564,9 @@
 #'   before the call works equally well. With a `seed` the caller's RNG state is
 #'   restored on exit (a seeded call does not disturb the ambient stream); with
 #'   `seed = NULL` the draws consume the ambient stream.
-#' @param interference `NULL` (default: Poisson crossovers, no interference, the
-#'   isqg random stream) or `list(nu = , p = )` for the two-pathway gamma model
+#' @param interference `NULL` (default: the option `simplePHENOTYPES.interference`
+#'   if set, else Poisson crossovers, no interference, the isqg random stream) or
+#'   `list(nu = , p = )` for the two-pathway gamma model
 #'   of crossover interference (see the section "Crossover interference").
 #'   `1 <= nu <= 1e6` is the interference strength (1 = none), `p` in `[0, 1]` (default
 #'   0 when omitted) the share of chiasmata that do not interfere. The expected

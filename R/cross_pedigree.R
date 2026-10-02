@@ -27,18 +27,34 @@
   # "<count>[<bytes>:<value>...]" (e.g. pool "A|B" + id "X" never equals pool
   # "A" + id "B|X"), and a missing value is "~", which no "<bytes>:" prefix
   # can produce (so NA never equals the string "NA" or "<NA>").
+  # Vectorised per part (no per-element closure calls): the text is identical
+  # to the element-by-element encoding it replaced, byte for byte.
+  digits <- charToRaw("0123456789abcdef")
   enc <- vapply(list(...), function(p) {
     if (is.double(p)) {
       # a double's exact bits (16 hex digits, little-endian): no rounding, and
-      # no locale-dependent decimal mark
-      h <- as.character(writeBin(p, raw(), endian = "little"))
-      p <- vapply(split(h, rep(seq_along(p), each = 8L)), paste, "",
-                  collapse = "")
+      # no locale-dependent decimal mark. Each value is the 19 ASCII bytes
+      # "16:" + 16 lowercase hex digits, laid out as the columns of a raw
+      # matrix and turned into one string at once (a double is never NA here,
+      # whatever its bits).
+      n <- length(p)
+      b <- as.integer(writeBin(p, raw(), endian = "little"))
+      m <- matrix(raw(1L), 19L, n)
+      m[1:3, ] <- charToRaw("16:")
+      m[seq(4L, 18L, 2L), ] <- matrix(digits[b %/% 16L + 1L], 8L)
+      m[seq(5L, 19L, 2L), ] <- matrix(digits[b %% 16L + 1L], 8L)
+      return(paste0(n, "[", rawToChar(as.vector(m)), "]"))
     }
     # one encoding, so ids that R treats as identical (e.g. a UTF-8 and a
     # Latin-1 "\u00e9") give the same bytes, byte counts and key
     p <- enc2utf8(as.character(p))
-    el <- ifelse(is.na(p), "~", paste0(nchar(p, type = "bytes"), ":", p))
+    # (paste0() with a zero-length part still emits the ":", so an empty part
+    # is handled apart)
+    el <- character(0)
+    if (length(p)) {
+      el <- paste0(nchar(p, type = "bytes"), ":", p)
+      el[is.na(p)] <- "~"
+    }
     paste0(length(p), "[", paste(el, collapse = ""), "]")
   }, character(1))
   stable_hash_core(paste(enc, collapse = ""))

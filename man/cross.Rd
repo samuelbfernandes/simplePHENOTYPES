@@ -20,8 +20,9 @@ before the call works equally well. With a \code{seed} the caller's RNG state is
 restored on exit (a seeded call does not disturb the ambient stream); with
 \code{seed = NULL} the draws consume the ambient stream.}
 
-\item{interference}{\code{NULL} (default: Poisson crossovers, no interference, the
-isqg random stream) or \code{list(nu = , p = )} for the two-pathway gamma model
+\item{interference}{\code{NULL} (default: the option \code{simplePHENOTYPES.interference}
+if set, else Poisson crossovers, no interference, the isqg random stream) or
+\code{list(nu = , p = )} for the two-pathway gamma model
 of crossover interference (see the section "Crossover interference").
 \verb{1 <= nu <= 1e6} is the interference strength (1 = none), \code{p} in \verb{[0, 1]} (default
 0 when omitted) the share of chiasmata that do not interfere. The expected
@@ -66,8 +67,9 @@ order that does not depend on the storage type of \code{chr} or on the locale (s
 }
 \section{Crossover interference}{
 
-By default (\code{interference = NULL}) crossovers are Poisson, i.e. there is no
-interference, and the random draws are exactly isqg's. Give
+By default (\code{interference = NULL}, with the option below unset) crossovers
+are Poisson, i.e. there is no interference, and the random draws are exactly
+isqg's. Give
 \code{interference = list(nu = , p = )} for a two-pathway gamma model of
 interference (\code{nu} plays the role of AlphaSimR's \code{v}, whose default \code{2.6}
 approximates Kosambi's map function):
@@ -104,6 +106,23 @@ year and journal only; the formulas above were derived and are checked
 numerically in this package's tests, not copied from either paper or from
 AlphaSimR). The draws are made in R; the Rust core only applies the drawn
 crossovers and is unchanged.
+
+To use one interference model for a whole session or scheme without passing
+\verb{interference =} to every call, set the option \code{simplePHENOTYPES.interference}
+to a \code{list(nu = , p = )} (\code{NULL}, the default, is Poisson crossovers). An
+\code{interference} argument that is \code{NULL} is then replaced by the option, in
+\code{\link[=cross]{cross()}}, \code{\link[=selfcross]{selfcross()}}, \code{\link[=double_haploid]{double_haploid()}}, \code{\link[=mate]{mate()}}, \code{\link[=crossbreed]{crossbreed()}} and in
+every function that forwards it (\code{\link[=single_seed_descent]{single_seed_descent()}}, \code{\link[=bulk]{bulk()}},
+\code{\link[=pedigree]{pedigree()}}, \code{\link[=recurrent_selection]{recurrent_selection()}}, \code{\link[=cross_usefulness]{cross_usefulness()}},
+\code{\link[=combining_ability]{combining_ability()}}, \code{\link[=progeny_test]{progeny_test()}}), so the precedence is: an explicit
+non-\code{NULL} argument, then the option, then Poisson. The option is validated by
+the same rules as the argument, and an invalid value is an error that names the
+option. Because \code{NULL} means "not given", an individual call cannot switch
+the option off with \code{interference = NULL}; use
+\code{withr::local_options(simplePHENOTYPES.interference = NULL)} (or
+\code{options()}) for that. With the option set, the draws are those of the gamma
+model (not isqg's stream), exactly as when the same list is passed to every
+call; with it unset nothing changes, draw for draw.
 }
 
 \examples{
