@@ -71,13 +71,89 @@ phenotypes_wide <- function(sim) {
 #' back exactly (e.g. `jsonlite::read_json(file, simplifyVector = TRUE)`, or
 #' `pandas.read_json()` in Python). It needs the \pkg{jsonlite} package.
 #'
+#' @section Companion files (QTN table and split marker data):
+#' The phenotype file alone does not say which markers produced it. Two options
+#' write that information next to it, in the same `file_type` (and `sep`):
+#'
+#' * `qtn_file`: the QTN table of [qtn_table()], every column, through
+#'   [write_qtn_table()].
+#' * `split_markers = TRUE`: the marker data are split into two files, one with
+#'   the **causal** markers and one with every **non-causal** marker, so a
+#'   downstream analysis can be run on the non-causal markers alone (or on both)
+#'   with the truth kept separately. The QTN table is written too (to `qtn_file`,
+#'   or to a default name) because it is the companion of the causal file.
+#'
+#' Default names are derived from `file`: `<stem>_qtn_table.<ext>`,
+#' `<stem>_qtn_markers.<ext>` and `<stem>_noncausal_markers.<ext>`, where
+#' `stem` is `file` without its extension (`ext`; `txt` or `json` when `file`
+#' has none). `markers_files = c(causal = ..., noncausal = ...)` overrides the
+#' two marker paths. All paths must be distinct.
+#'
+#' **Causal set.** A marker is causal when any layer (`additive()`,
+#' `dominance()`, `epistasis()` -- every member of an interacting set --,
+#' `vqtl()`, and under `architecture = "ld"` the loci of both traits) of any
+#' trait uses it in any of the replications selected by `rep`: the union of the
+#' `snp` values of [qtn_table()] over those replications, excluding the gene
+#' rows of `transcriptome()` layers (genes are not markers). With
+#' `vary_qtn = TRUE` the replications differ in their QTNs, so pass
+#' `rep = "all"` (or the vector of replications of interest) to make the causal
+#' file cover every replication of the phenotype file; a marker causal in one
+#' selected replication but not another is in the causal file, never in the
+#' non-causal one. `rep` only affects the QTN table and the causal set -- the
+#' phenotype file always holds every replication, as before.
+#'
+#' **Text layout of the marker files** (`file_type = "text"`): the package's
+#' numeric format -- columns `snp`, `allele`, `chr`, `pos`, `cm` (then `counted`
+#' when the input carried it), then one column per simulated individual with
+#' the -1/0/1 dosage -- so each file is a valid input for [as_numeric()],
+#' [as_population()] and [simulate_phenotype()]. Missing metadata (e.g. no
+#' allele label for a matrix input) is written as `NA`. Markers keep their map
+#' order. The causal text file has no embedded QTN table; the QTN table text
+#' file is its companion.
+#'
+#' **JSON layout of the marker files** (`file_type = "json"`): one object
+#' `{"individuals": [...], "markers": [...]}`. `individuals` lists the
+#' simulated individuals' ids; each element of `markers` is an object with
+#' `snp`, `allele`, `chr`, `pos`, `cm`, `maf` (and `counted` when available) and
+#' `genotypes`, an array with one dosage per individual in `individuals` order
+#' (`null` for a missing value). The causal file adds, at the top level,
+#' `qtn_table` (the rows of [write_qtn_table()] for the selected replications,
+#' with a `rep` field when several), and in every marker object a `causal_for`
+#' array of `{trait, layer, set}` objects (plus `rep` when several
+#' replications) naming the layers that use the marker, so a reader can join
+#' without the table. Gene rows of `transcriptome()` layers appear in
+#' `qtn_table` but have no marker object. Numbers carry 17 significant digits,
+#' so `jsonlite::read_json(file, simplifyVector = TRUE)` returns the
+#' `individuals` vector, a `markers` data frame whose `genotypes` column is a
+#' list of vectors, and (causal file) the `qtn_table` data frame; in Python,
+#' `json.load()` then `pandas.DataFrame(obj["markers"])`.
+#'
+#' Marker data can be large (tens of thousands of markers by hundreds of
+#' individuals); both layouts are written in chunks of markers, so the whole
+#' genotype matrix is never materialised at once.
+#'
 #' @param sim a `phenotype_sim`.
 #' @param file output path.
 #' @param format "long" (default) or "wide".
 #' @param sep field separator (default tab); text files only.
 #' @param file_type `"text"` (default, a delimited file) or `"json"`.
-#' @return `file`, invisibly.
-#' @seealso [phenotypes_long()], [phenotypes_wide()].
+#' @param qtn_file optional path; when given, the QTN table of [qtn_table()] is
+#'   also written there with [write_qtn_table()], in the same `file_type` and
+#'   `sep`. Default `NULL` (not written, unless `split_markers = TRUE`).
+#' @param split_markers `TRUE` also writes the marker data as two files, causal
+#'   and non-causal markers (see Details), plus the QTN table. Default `FALSE`.
+#'   Needs genotypes: a phenotype built from expression alone has no markers.
+#' @param markers_files optional named character vector
+#'   `c(causal = path, noncausal = path)` overriding the default marker file
+#'   names used by `split_markers = TRUE`.
+#' @param rep replication(s) whose QTN table and causal set are written: a
+#'   vector of replication numbers or `"all"`. Default `1L`. Only matters with
+#'   `vary_qtn = TRUE`; see Details. Does not affect the phenotype file.
+#' @return `file`, invisibly, when no companion file is written; otherwise a
+#'   named character vector of every path written (`phenotypes`, and whichever
+#'   of `qtn_table`, `causal`, `noncausal` apply), invisibly.
+#' @seealso [phenotypes_long()], [phenotypes_wide()], [write_qtn_table()],
+#'   [qtn_table()].
 #' @export
 #' @examples
 #' data("SNP55K_maize282_maf04")
@@ -102,27 +178,511 @@ phenotypes_wide <- function(sim) {
 #'   unlink(out_json)
 #' }
 #'
-#' unlink(c(out, out_wide))
+#' # Phenotypes plus the QTN table that produced them.
+#' out_qtn <- file.path(tempdir(), "phenotypes_qtn.txt")
+#' write_phenotypes(ph, file = out, qtn_file = out_qtn)
+#' head(read.delim(out_qtn))
+#'
+#' # Phenotypes, QTN table, and the marker data split into causal and
+#' # non-causal markers (default names derived from `file`).
+#' files <- write_phenotypes(ph, file = out, split_markers = TRUE)
+#' files
+#' causal <- read.delim(files[["causal"]])
+#' causal$snp                              # the QTNs, in map order
+#' nrow(read.delim(files[["noncausal"]]))  # every other marker
+#'
+#' unlink(c(out, out_wide, out_qtn, files))
 write_phenotypes <- function(sim, file, format = c("long", "wide"),
-                             sep = "\t", file_type = c("text", "json")) {
+                             sep = "\t", file_type = c("text", "json"),
+                             qtn_file = NULL, split_markers = FALSE,
+                             markers_files = NULL, rep = 1L) {
   .check_sim(sim)
   format <- match.arg(format)
   file_type <- match.arg(file_type)
+  .validate_flag(split_markers, "split_markers")
+  .check_path_arg(file, "file")
   tab <- if (format == "long") phenotypes_long(sim) else phenotypes_wide(sim)
   if (file_type == "json") {
-    if (!requireNamespace("jsonlite", quietly = TRUE)) {
-      stop("write_phenotypes(): `file_type = \"json\"` needs the jsonlite ",
-           "package; install it with install.packages(\"jsonlite\").",
-           call. = FALSE)
+    .require_jsonlite("write_phenotypes")
+  }
+  # Resolve and validate every companion path before anything is written, so
+  # a bad request leaves no partial output behind.
+  companions <- .companion_paths(sim, file, file_type, qtn_file, split_markers,
+                                 markers_files)
+  if (!is.null(companions)) {
+    reps <- .resolve_reps(sim, rep)
+    if (split_markers && (is.null(sim$n_markers) || sim$n_markers < 1L)) {
+      stop("write_phenotypes(): `split_markers = TRUE` needs genotypes, but ",
+           "this phenotype was built from expression alone (no `geno`), so ",
+           "there are no markers to split. Only the QTN table can be written ",
+           "(`qtn_file`).", call. = FALSE)
     }
-    # 17 significant digits round-trip every double exactly; a missing value
-    # is JSON null
-    jsonlite::write_json(tab, path = file, dataframe = "rows",
-                         digits = I(17), na = "null", auto_unbox = TRUE)
+  }
+  if (file_type == "json") {
+    .write_json_rows(tab, file)
+  } else {
+    data.table::fwrite(tab, file = file, sep = sep)
+  }
+  if (is.null(companions)) {
+    return(invisible(file))
+  }
+  written <- c(phenotypes = file)
+  if (!is.null(companions$qtn_table)) {
+    write_qtn_table(sim, companions$qtn_table, rep = reps,
+                    file_type = file_type, sep = sep)
+    written <- c(written, qtn_table = companions$qtn_table)
+  }
+  if (split_markers) {
+    .write_split_markers(sim, reps, companions$causal, companions$noncausal,
+                         file_type, sep)
+    written <- c(written, causal = companions$causal,
+                 noncausal = companions$noncausal)
+  }
+  invisible(written)
+}
+
+#' Write the QTN table of a simulation to disk
+#'
+#' Writes every column of [qtn_table()] -- the v2 equivalent of the v1
+#' `Additive_QTNs.txt` / `QTN_effects_summary.txt` files -- as a delimited text
+#' file or as JSON. One replication is written by default; several (or
+#' `rep = "all"`) are stacked with a leading `rep` column, which is how the
+#' per-replication architectures of a `vary_qtn = TRUE` simulation are kept
+#' apart. Gene rows of `transcriptome()` layers are included (their `snp` is
+#' the gene identifier; see [qtn_table()]).
+#'
+#' Text files are written with `data.table::fwrite()` (up to 15 significant
+#' digits, so effects read back to about 1e-14 relative; missing values are
+#' empty fields). JSON follows the conventions of [write_phenotypes()]: an
+#' array with one object per row, UTF-8, 17 significant digits (every value
+#' reads back exactly), `null` for a missing value; it needs the \pkg{jsonlite}
+#' package. Read it back with `read.delim(file)` or
+#' `jsonlite::read_json(file, simplifyVector = TRUE)`.
+#'
+#' @param sim a `phenotype_sim`.
+#' @param file output path.
+#' @param rep replication(s) whose QTN architecture to write: a vector of
+#'   replication numbers, or `"all"`. Default `1L`. With more than one, the
+#'   rows are stacked and a leading `rep` column says which replication each
+#'   row belongs to.
+#' @param file_type `"text"` (default, a delimited file) or `"json"`.
+#' @param sep field separator (default tab); text files only.
+#' @return `file`, invisibly.
+#' @seealso [qtn_table()] for the columns, [write_phenotypes()] which can call
+#'   this and also split the marker data into causal and non-causal files.
+#' @export
+#' @examples
+#' data("SNP55K_maize282_maf04")
+#' ph <- simulate_phenotype(SNP55K_maize282_maf04, h2 = 0.5, seed = 1) |>
+#'   additive(prop = 0.3, n_qtn = 3) |>
+#'   epistasis(prop = 0.2, n_pairs = 2)
+#'
+#' # Written to a temporary directory here; use your own path in practice.
+#' out <- file.path(tempdir(), "qtn_table.txt")
+#' write_qtn_table(ph, file = out)
+#' read.delim(out)
+#'
+#' # Every replication of a vary_qtn simulation, stacked with a `rep` column.
+#' ph3 <- simulate_phenotype(SNP55K_maize282_maf04, h2 = 0.5, n_reps = 3,
+#'                           vary_qtn = TRUE, seed = 1) |>
+#'   additive(n_qtn = 2)
+#' out3 <- file.path(tempdir(), "qtn_table_all_reps.csv")
+#' write_qtn_table(ph3, file = out3, rep = "all", sep = ",")
+#' read.csv(out3)
+#'
+#' # JSON (needs the jsonlite package).
+#' if (requireNamespace("jsonlite", quietly = TRUE)) {
+#'   out_json <- file.path(tempdir(), "qtn_table.json")
+#'   write_qtn_table(ph, file = out_json, file_type = "json")
+#'   jsonlite::read_json(out_json, simplifyVector = TRUE)
+#'   unlink(out_json)
+#' }
+#'
+#' unlink(c(out, out3))
+write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
+                            sep = "\t") {
+  .check_sim(sim)
+  .check_h2_complete(sim)
+  file_type <- match.arg(file_type)
+  .check_path_arg(file, "file")
+  reps <- .resolve_reps(sim, rep)
+  tab <- .qtn_table_reps(sim, reps)
+  if (file_type == "json") {
+    .require_jsonlite("write_qtn_table")
+    .write_json_rows(tab, file)
   } else {
     data.table::fwrite(tab, file = file, sep = sep)
   }
   invisible(file)
+}
+
+# ---------------------------------------------------------------------------
+# export helpers: replication sets, JSON rows, companion paths
+# ---------------------------------------------------------------------------
+
+#' Stop unless jsonlite is installed (it is in Suggests)
+#' @keywords internal
+#' @noRd
+.require_jsonlite <- function(fn) {
+  if (!requireNamespace("jsonlite", quietly = TRUE)) {
+    stop(fn, "(): `file_type = \"json\"` needs the jsonlite ",
+         "package; install it with install.packages(\"jsonlite\").",
+         call. = FALSE)
+  }
+}
+
+#' A single, non-empty output path
+#' @keywords internal
+#' @noRd
+.check_path_arg <- function(x, arg) {
+  if (!is.character(x) || length(x) != 1L || is.na(x) || !nzchar(x)) {
+    stop("`", arg, "` must be one non-empty file path.", call. = FALSE)
+  }
+}
+
+#' Resolve a `rep` export argument to a vector of replication indices
+#'
+#' Accepts `"all"` or a vector of whole numbers in `1..n_reps`; duplicates are
+#' dropped, the order given is kept (it is the stacking order of the table).
+#' @keywords internal
+#' @noRd
+.resolve_reps <- function(sim, rep) {
+  if (is.character(rep) && length(rep) == 1L && identical(rep, "all")) {
+    return(seq_len(sim$n_reps))
+  }
+  if (!is.numeric(rep) || length(rep) == 0L || any(!is.finite(rep)) ||
+      any(rep != floor(rep)) || any(rep < 1L)) {
+    stop("`rep` must be \"all\" or a vector of positive whole numbers; got ",
+         paste(utils::head(rep, 5), collapse = ", "), ".", call. = FALSE)
+  }
+  if (any(rep > sim$n_reps)) {
+    stop("`rep` must be between 1 and n_reps (", sim$n_reps, "); got ",
+         paste(rep[rep > sim$n_reps], collapse = ", "), ".", call. = FALSE)
+  }
+  unique(as.integer(rep))
+}
+
+#' The QTN table for one or several replications
+#'
+#' One replication returns exactly `qtn_table(sim, rep)`. Several are stacked
+#' in the order given with a leading integer `rep` column (also when every
+#' replication happens to share the same loci, so the layout only depends on
+#' how many replications were asked for).
+#' @keywords internal
+#' @noRd
+.qtn_table_reps <- function(sim, reps) {
+  if (length(reps) == 1L) {
+    return(qtn_table(sim, reps))
+  }
+  parts <- lapply(reps, function(r) {
+    tab <- qtn_table(sim, r)
+    cbind(rep = rep_len(as.integer(r), nrow(tab)), tab,
+          stringsAsFactors = FALSE)
+  })
+  out <- do.call(rbind, parts)
+  rownames(out) <- NULL
+  out
+}
+
+#' Write a data frame as a JSON array of row objects
+#'
+#' The one JSON row convention of the package: UTF-8, 17 significant digits
+#' (every double reads back exactly), `null` for a missing value of any type,
+#' scalars unboxed.
+#' @keywords internal
+#' @noRd
+.write_json_rows <- function(tab, file) {
+  jsonlite::write_json(tab, path = file, dataframe = "rows",
+                       digits = I(17), na = "null", auto_unbox = TRUE)
+}
+
+#' `<stem>_<suffix>.<ext>` next to `file`
+#'
+#' `stem` is `file` without its extension; a `file` without one gets `.txt` or
+#' `.json` according to `file_type`.
+#' @keywords internal
+#' @noRd
+.sibling_path <- function(file, suffix, file_type) {
+  base <- basename(file)
+  has_ext <- grepl("^.+\\.[^.]+$", base)
+  ext <- if (has_ext) sub("^.*\\.([^.]+)$", "\\1", base) else
+    if (file_type == "json") "json" else "txt"
+  stem <- if (has_ext) sub("\\.[^.]+$", "", file) else file
+  paste0(stem, "_", suffix, ".", ext)
+}
+
+#' Resolve the companion paths of write_phenotypes(), or NULL when none
+#'
+#' Returns a list with `qtn_table`, `causal` and `noncausal` entries (the latter
+#' two only with `split_markers`), after checking that every path, `file`
+#' included, is distinct so no output overwrites another.
+#' @keywords internal
+#' @noRd
+.companion_paths <- function(sim, file, file_type, qtn_file, split_markers,
+                             markers_files) {
+  if (!is.null(qtn_file)) .check_path_arg(qtn_file, "qtn_file")
+  if (!split_markers && !is.null(markers_files)) {
+    stop("`markers_files` is only used with `split_markers = TRUE`.",
+         call. = FALSE)
+  }
+  if (is.null(qtn_file) && !split_markers) {
+    return(NULL)
+  }
+  out <- list()
+  out$qtn_table <- if (!is.null(qtn_file)) qtn_file else
+    .sibling_path(file, "qtn_table", file_type)
+  if (split_markers) {
+    if (is.null(markers_files)) {
+      out$causal    <- .sibling_path(file, "qtn_markers", file_type)
+      out$noncausal <- .sibling_path(file, "noncausal_markers", file_type)
+    } else {
+      if (!is.character(markers_files) || length(markers_files) != 2L ||
+          is.null(names(markers_files)) ||
+          !setequal(names(markers_files), c("causal", "noncausal")) ||
+          anyNA(markers_files) || any(!nzchar(markers_files))) {
+        stop("`markers_files` must be a named character vector ",
+             "c(causal = path, noncausal = path).", call. = FALSE)
+      }
+      out$causal    <- unname(markers_files[["causal"]])
+      out$noncausal <- unname(markers_files[["noncausal"]])
+    }
+  }
+  paths <- c(file, unlist(out, use.names = FALSE))
+  norm <- normalizePath(paths, mustWork = FALSE)
+  if (anyDuplicated(norm)) {
+    stop("write_phenotypes(): output paths must be distinct, but ",
+         paste(sQuote(unique(paths[duplicated(norm) |
+                                     duplicated(norm, fromLast = TRUE)])),
+               collapse = ", "),
+         " would be written more than once.", call. = FALSE)
+  }
+  out
+}
+
+# ---------------------------------------------------------------------------
+# export helpers: marker metadata, causal set, marker files
+# ---------------------------------------------------------------------------
+
+#' Marker metadata of a simulation in numeric-format column order
+#'
+#' `snp`, `allele`, `chr`, `pos`, `cm` (and `counted` when the genotype object
+#' carries it) for every marker, in map order. The foundation's `map` keeps only
+#' `snp`/`chr`/`pos`; `allele` and `cm` come from the genotype object itself: a
+#' numeric-format data frame has them as columns, a Population keeps them on its
+#' map, and a plain matrix has neither (written as `NA`).
+#' @keywords internal
+#' @noRd
+.marker_meta <- function(sim) {
+  n <- sim$n_markers
+  meta <- data.frame(
+    snp = sim$map$snp, allele = rep(NA_character_, n), chr = sim$map$chr,
+    pos = sim$map$pos, cm = rep(NA_real_, n), stringsAsFactors = FALSE
+  )
+  g <- sim$geno
+  if (identical(sim$kind, "data.frame")) {
+    meta$allele <- as.character(g$allele)
+    meta$cm     <- as.numeric(g$cm)
+  } else if (identical(sim$kind, "population")) {
+    if (!is.null(g$map$allele)) meta$allele <- as.character(g$map$allele)
+    meta$cm <- as.numeric(g$map$cm)
+    if (!is.null(g$map$counted)) meta$counted <- as.character(g$map$counted)
+  }
+  meta
+}
+
+#' The causal markers of a simulation over a set of replications
+#'
+#' The union of the `snp` values of `qtn_table()` over `reps`, excluding the
+#' gene rows of transcriptome layers (genes are not markers), mapped back to
+#' marker indices and sorted into map order. Also returns the stacked table and,
+#' per causal marker, the `{trait, layer, set[, rep]}` rows that use it.
+#' @keywords internal
+#' @noRd
+.causal_markers <- function(sim, reps) {
+  tab <- .qtn_table_reps(sim, reps)
+  marker_rows <- tab[tab$layer != "transcriptome", , drop = FALSE]
+  idx <- sort(unique(match(marker_rows$snp, sim$map$snp)))
+  if (anyNA(idx)) {
+    stop("Internal error: a QTN of the table is not in the marker map.",
+         call. = FALSE)   # nocov
+  }
+  keep <- intersect(c("rep", "trait", "layer", "set"), names(marker_rows))
+  causal_for <- split(marker_rows[, keep, drop = FALSE], marker_rows$snp)
+  list(table = tab, idx = idx, causal_for = causal_for)
+}
+
+#' Write the causal and non-causal marker files of write_phenotypes()
+#' @keywords internal
+#' @noRd
+.write_split_markers <- function(sim, reps, causal_file, noncausal_file,
+                                 file_type, sep) {
+  cm <- .causal_markers(sim, reps)
+  noncausal <- setdiff(seq_len(sim$n_markers), cm$idx)
+  .write_marker_file(sim, cm$idx, causal_file, file_type, sep,
+                     qtn_table = cm$table, causal_for = cm$causal_for)
+  .write_marker_file(sim, noncausal, noncausal_file, file_type, sep)
+  invisible(c(causal = causal_file, noncausal = noncausal_file))
+}
+
+#' Write a set of markers (by map index) as a numeric-format text file or JSON
+#'
+#' Markers are fetched through `.geno_cols()` in chunks, so peak memory is one
+#' chunk of individuals-by-markers dosages plus its text, never the whole
+#' matrix. `qtn_table` and `causal_for` (JSON only) add the top-level
+#' `qtn_table` array and the per-marker `causal_for` arrays of the causal file.
+#' @keywords internal
+#' @noRd
+.write_marker_file <- function(sim, idx, file, file_type, sep,
+                               qtn_table = NULL, causal_for = NULL,
+                               chunk = 2000L) {
+  idx <- as.integer(idx)
+  meta <- .marker_meta(sim)
+  chunks <- if (length(idx)) split(idx, ceiling(seq_along(idx) / chunk)) else
+    list()
+  if (file_type == "json") {
+    con <- file(file, open = "w", encoding = "UTF-8")
+    on.exit(close(con), add = TRUE)
+    cat('{"individuals":', .json_vec(sim$ids), ',', file = con, sep = "")
+    if (!is.null(qtn_table)) {
+      cat('"qtn_table":',
+          as.character(jsonlite::toJSON(qtn_table, dataframe = "rows",
+                                        digits = I(17), na = "null",
+                                        auto_unbox = TRUE)),
+          ',', file = con, sep = "")
+    }
+    cat('"markers":[', file = con, sep = "")
+    first <- TRUE
+    for (ch in chunks) {
+      objs <- .marker_json_objects(sim, meta, ch, causal_for)
+      cat(if (first) "" else ",", paste(objs, collapse = ","),
+          file = con, sep = "")
+      first <- FALSE
+    }
+    cat(']}\n', file = con, sep = "")
+  } else {
+    if (!length(chunks)) {
+      # no marker in this set: header only, so the file is still well formed
+      empty <- cbind(meta[0, , drop = FALSE],
+                     as.data.frame(matrix(integer(0), 0, sim$n_ind,
+                                          dimnames = list(NULL, sim$ids)),
+                                   check.names = FALSE))
+      data.table::fwrite(empty, file = file, sep = sep, na = "NA")
+      return(invisible(file))
+    }
+    first <- TRUE
+    for (ch in chunks) {
+      G <- t(.geno_cols(sim, ch))                      # markers x individuals
+      G <- .whole_to_integer(G)
+      block <- cbind(meta[ch, , drop = FALSE],
+                     as.data.frame(G, check.names = FALSE,
+                                   stringsAsFactors = FALSE))
+      rownames(block) <- NULL
+      data.table::fwrite(block, file = file, sep = sep, na = "NA",
+                         append = !first)
+      first <- FALSE
+    }
+  }
+  invisible(file)
+}
+
+#' Store whole-number doubles as integers (dosages are -1/0/1); leave the rest
+#' @keywords internal
+#' @noRd
+.whole_to_integer <- function(x) {
+  v <- x[is.finite(x)]
+  if (all(v == floor(v)) && all(abs(v) < .Machine$integer.max)) {
+    storage.mode(x) <- "integer"
+  }
+  x
+}
+
+#' JSON objects for a chunk of markers, one string per marker
+#'
+#' Vectorised over the chunk: every field is encoded column-wise and the pieces
+#' are pasted, which is far faster than one `toJSON()` call per marker on a
+#' 50k-marker panel. The dosage arrays follow the `individuals` order.
+#' @keywords internal
+#' @noRd
+.marker_json_objects <- function(sim, meta, ch, causal_for = NULL) {
+  m <- meta[ch, , drop = FALSE]
+  fields <- vapply(names(m), function(col) {
+    paste0('"', col, '":', .json_vec_elements(m[[col]]))
+  }, character(length(ch)))
+  if (length(ch) == 1L) fields <- matrix(fields, nrow = 1L)
+  fields <- cbind(fields, paste0('"maf":', .json_vec_elements(sim$maf[ch])))
+  G <- .geno_cols(sim, ch)                               # individuals x markers
+  G <- .whole_to_integer(G)
+  Gc <- matrix(.json_vec_elements(as.vector(G)), nrow = nrow(G))
+  geno <- if (nrow(Gc) == 1L) Gc[1L, ] else
+    do.call(paste, c(lapply(seq_len(nrow(Gc)), function(i) Gc[i, ]),
+                     sep = ","))
+  fields <- cbind(fields, paste0('"genotypes":[', geno, ']'))
+  if (!is.null(causal_for)) {
+    cf <- vapply(m$snp, function(s) {
+      rows <- causal_for[[s]]
+      if (is.null(rows)) return("[]")
+      as.character(jsonlite::toJSON(rows, dataframe = "rows", digits = I(17),
+                                    na = "null", auto_unbox = TRUE))
+    }, character(1))
+    fields <- cbind(fields, paste0('"causal_for":', cf))
+  }
+  paste0("{", do.call(paste, c(lapply(seq_len(ncol(fields)),
+                                       function(j) fields[, j]), sep = ",")),
+         "}")
+}
+
+#' Element-wise JSON encoding of a vector (strings escaped, numbers at 17
+#' significant digits, NA/NaN/Inf as null)
+#' @keywords internal
+#' @noRd
+.json_vec_elements <- function(x) {
+  if (is.factor(x)) x <- as.character(x)
+  if (is.character(x)) {
+    out <- .json_escape(x)
+    out[is.na(x)] <- "null"
+    return(out)
+  }
+  if (is.logical(x)) {
+    out <- ifelse(x, "true", "false")
+    out[is.na(x)] <- "null"
+    return(out)
+  }
+  out <- if (is.integer(x)) as.character(x) else sprintf("%.17g", x)
+  out[!is.finite(x)] <- "null"
+  out
+}
+
+#' A whole vector as one JSON array
+#' @keywords internal
+#' @noRd
+.json_vec <- function(x) {
+  paste0("[", paste(.json_vec_elements(x), collapse = ","), "]")
+}
+
+#' Quote and escape strings for JSON (RFC 8259: backslash, quote, control
+#' characters)
+#' @keywords internal
+#' @noRd
+.json_escape <- function(x) {
+  x <- enc2utf8(x)
+  x <- gsub("\\", "\\\\", x, fixed = TRUE)
+  x <- gsub("\"", "\\\"", x, fixed = TRUE)
+  x <- gsub("\n", "\\n", x, fixed = TRUE)
+  x <- gsub("\r", "\\r", x, fixed = TRUE)
+  x <- gsub("\t", "\\t", x, fixed = TRUE)
+  x <- gsub("\b", "\\b", x, fixed = TRUE)
+  x <- gsub("\f", "\\f", x, fixed = TRUE)
+  ctrl <- grepl("[\x01-\x1f]", x, perl = TRUE, useBytes = TRUE)
+  if (any(ctrl)) {
+    x[ctrl] <- vapply(x[ctrl], function(s) {
+      chars <- strsplit(s, "", fixed = TRUE)[[1L]]
+      code <- utf8ToInt(s)
+      bad <- code < 32L
+      chars[bad] <- sprintf("\\u%04x", code[bad])
+      paste(chars, collapse = "")
+    }, character(1), USE.NAMES = FALSE)
+  }
+  paste0('"', x, '"')
 }
 
 #' Genetic values behind the simulated phenotypes
