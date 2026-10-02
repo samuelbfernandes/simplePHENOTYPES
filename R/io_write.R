@@ -105,11 +105,14 @@ phenotypes_wide <- function(sim) {
 #' **Text layout of the marker files** (`file_type = "text"`): the package's
 #' numeric format -- columns `snp`, `allele`, `chr`, `pos`, `cm` (then `counted`
 #' when the input carried it), then one column per simulated individual with
-#' the -1/0/1 dosage -- so each file is a valid input for [as_numeric()],
-#' [as_population()] and [simulate_phenotype()]. Missing metadata (e.g. no
-#' allele label for a matrix input) is written as `NA`. Markers keep their map
-#' order. The causal text file has no embedded QTN table; the QTN table text
-#' file is its companion.
+#' the -1/0/1 dosage -- so [as_numeric()] and [simulate_phenotype()] read each
+#' file back. [as_population()] reads a file too, provided it is not empty and
+#' its map is complete (`chr`, `pos` and `cm` without missing values): a
+#' matrix-origin simulation has no such map, and a file with no markers (no
+#' causal marker, or every marker causal) cannot found a population. Missing
+#' metadata (e.g. no allele label for a matrix input) is written as `NA`.
+#' Markers keep their map order. The causal text file has no embedded QTN
+#' table; the QTN table text file is its companion.
 #'
 #' **JSON layout of the marker files** (`file_type = "json"`): one object
 #' `{"individuals": [...], "markers": [...]}`. `individuals` lists the
@@ -129,8 +132,20 @@ phenotypes_wide <- function(sim) {
 #' `json.load()` then `pandas.DataFrame(obj["markers"])`.
 #'
 #' Marker data can be large (tens of thousands of markers by hundreds of
-#' individuals); both layouts are written in chunks of markers, so the whole
-#' genotype matrix is never materialised at once.
+#' individuals); both layouts are written in chunks of markers. For a
+#' data-frame or matrix input the chunks stream from the user's object, so no
+#' second copy of the genotypes is made. A `Population` stores haplotypes, not
+#' dosages, so its one markers-by-individuals dosage matrix is built once and
+#' held in memory for the duration of the export.
+#'
+#' **Safety.** Every path is checked before anything is written (the directory
+#' must exist and be writable, the path must not be a directory, and no two
+#' paths may resolve to the same file -- relative and absolute spellings, and
+#' symlinked directories, are resolved; on macOS and Windows the comparison
+#' ignores case). With companions, all files are first written to temporary
+#' siblings and moved into place only after every one succeeded, so a failure
+#' never replaces an existing phenotype file with a partial set. JSON numbers
+#' use a period as decimal mark whatever the session's `LC_NUMERIC`.
 #'
 #' @param sim a `phenotype_sim`.
 #' @param file output path.
@@ -209,36 +224,48 @@ write_phenotypes <- function(sim, file, format = c("long", "wide"),
   # a bad request leaves no partial output behind.
   companions <- .companion_paths(sim, file, file_type, qtn_file, split_markers,
                                  markers_files)
-  if (!is.null(companions)) {
-    reps <- .resolve_reps(sim, rep)
-    if (split_markers && (is.null(sim$n_markers) || sim$n_markers < 1L)) {
-      stop("write_phenotypes(): `split_markers = TRUE` needs genotypes, but ",
-           "this phenotype was built from expression alone (no `geno`), so ",
-           "there are no markers to split. Only the QTN table can be written ",
-           "(`qtn_file`).", call. = FALSE)
+  write_pheno <- function(path) {
+    if (file_type == "json") {
+      .write_json_rows(tab, path)
+    } else {
+      data.table::fwrite(tab, file = path, sep = sep)
     }
   }
-  if (file_type == "json") {
-    .write_json_rows(tab, file)
-  } else {
-    data.table::fwrite(tab, file = file, sep = sep)
-  }
   if (is.null(companions)) {
+    # the one-file call of earlier versions: written in place, as before
+    write_pheno(file)
     return(invisible(file))
   }
-  written <- c(phenotypes = file)
-  if (!is.null(companions$qtn_table)) {
-    write_qtn_table(sim, companions$qtn_table, rep = reps,
-                    file_type = file_type, sep = sep)
-    written <- c(written, qtn_table = companions$qtn_table)
+  reps <- .resolve_reps(sim, rep)
+  if (split_markers && (is.null(sim$n_markers) || sim$n_markers < 1L)) {
+    stop("write_phenotypes(): `split_markers = TRUE` needs genotypes, but ",
+         "this phenotype was built from expression alone (no `geno`), so ",
+         "there are no markers to split. Only the QTN table can be written ",
+         "(`qtn_file`).", call. = FALSE)
   }
+  paths <- c(phenotypes = file, qtn_table = companions$qtn_table)
   if (split_markers) {
-    .write_split_markers(sim, reps, companions$causal, companions$noncausal,
-                         file_type, sep)
-    written <- c(written, causal = companions$causal,
-                 noncausal = companions$noncausal)
+    paths <- c(paths, causal = companions$causal,
+               noncausal = companions$noncausal)
   }
-  invisible(written)
+  # The QTN table is assembled once and shared by the table file and the
+  # causal marker file; a Population's dosage matrix is built once for the
+  # whole export (see .export_sim()).
+  if (split_markers) sim <- .export_sim(sim)
+  tab_q <- .qtn_table_reps(sim, reps)
+  # Every file is written to a temporary sibling and moved into place only
+  # after all of them succeeded, so a failing companion (unwritable path, disk
+  # full, ...) never replaces an existing phenotype file with a partial set.
+  .staged_write(paths, "write_phenotypes", function(tmp) {
+    write_pheno(tmp[["phenotypes"]])
+    .write_qtn_table_to(sim, reps, tmp[["qtn_table"]], file_type, sep,
+                        tab = tab_q)
+    if (split_markers) {
+      .write_split_markers(sim, .causal_markers(sim, reps, tab = tab_q),
+                           tmp[["causal"]], tmp[["noncausal"]], file_type, sep)
+    }
+  })
+  invisible(paths)
 }
 
 #' Write the QTN table of a simulation to disk
@@ -306,14 +333,24 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
   file_type <- match.arg(file_type)
   .check_path_arg(file, "file")
   reps <- .resolve_reps(sim, rep)
-  tab <- .qtn_table_reps(sim, reps)
-  if (file_type == "json") {
-    .require_jsonlite("write_qtn_table")
-    .write_json_rows(tab, file)
-  } else {
-    data.table::fwrite(tab, file = file, sep = sep)
-  }
+  if (file_type == "json") .require_jsonlite("write_qtn_table")
+  .staged_write(c(qtn_table = file), "write_qtn_table", function(tmp) {
+    .write_qtn_table_to(sim, reps, tmp[["qtn_table"]], file_type, sep)
+  })
   invisible(file)
+}
+
+#' Write the stacked QTN table of `reps` to `path` (text or JSON)
+#' @keywords internal
+#' @noRd
+.write_qtn_table_to <- function(sim, reps, path, file_type, sep,
+                                tab = .qtn_table_reps(sim, reps)) {
+  if (file_type == "json") {
+    .write_json_rows(tab, path)
+  } else {
+    data.table::fwrite(tab, file = path, sep = sep)
+  }
+  invisible(path)
 }
 
 # ---------------------------------------------------------------------------
@@ -388,12 +425,36 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
 #'
 #' The one JSON row convention of the package: UTF-8, 17 significant digits
 #' (every double reads back exactly), `null` for a missing value of any type,
-#' scalars unboxed.
+#' scalars unboxed. Numbers are formatted in the C numeric locale.
 #' @keywords internal
 #' @noRd
 .write_json_rows <- function(tab, file) {
-  jsonlite::write_json(tab, path = file, dataframe = "rows",
-                       digits = I(17), na = "null", auto_unbox = TRUE)
+  .with_c_numeric(
+    jsonlite::write_json(tab, path = file, dataframe = "rows",
+                         digits = I(17), na = "null", auto_unbox = TRUE))
+}
+
+#' Evaluate `expr` with `LC_NUMERIC = "C"`
+#'
+#' JSON needs a period as the decimal mark whatever the session locale; both
+#' `sprintf()` and jsonlite's number formatting follow `LC_NUMERIC`, so every
+#' JSON writer runs inside this. A failing `Sys.setlocale()` is tolerated (the
+#' expression then runs in the current locale, which is "C" in practice since R
+#' itself warns against changing LC_NUMERIC). The previous value is restored on
+#' exit.
+#' @keywords internal
+#' @noRd
+.with_c_numeric <- function(expr) {
+  current <- tryCatch(Sys.getlocale("LC_NUMERIC"), error = function(e) "")
+  if (nzchar(current) && !identical(current, "C")) {
+    set <- tryCatch(suppressWarnings(Sys.setlocale("LC_NUMERIC", "C")),
+                    error = function(e) "")
+    if (nzchar(set)) {
+      on.exit(tryCatch(suppressWarnings(Sys.setlocale("LC_NUMERIC", current)),
+                       error = function(e) NULL), add = TRUE)
+    }
+  }
+  expr
 }
 
 #' `<stem>_<suffix>.<ext>` next to `file`
@@ -448,15 +509,97 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
     }
   }
   paths <- c(file, unlist(out, use.names = FALSE))
-  norm <- normalizePath(paths, mustWork = FALSE)
-  if (anyDuplicated(norm)) {
+  key <- vapply(paths, .canonical_path, character(1), USE.NAMES = FALSE)
+  if (anyDuplicated(key)) {
+    dup <- duplicated(key) | duplicated(key, fromLast = TRUE)
     stop("write_phenotypes(): output paths must be distinct, but ",
-         paste(sQuote(unique(paths[duplicated(norm) |
-                                     duplicated(norm, fromLast = TRUE)])),
-               collapse = ", "),
-         " would be written more than once.", call. = FALSE)
+         paste(sQuote(unique(paths[dup])), collapse = ", "),
+         " resolve to the same file and would be written more than once.",
+         call. = FALSE)
   }
   out
+}
+
+#' A comparison key for an output path that may not exist yet
+#'
+#' `normalizePath()` leaves a non-existent leaf alone, so a relative and an
+#' absolute spelling, or a path below a directory and the same path below a
+#' symlink to it, compare unequal although they name one file. Here the longest
+#' existing ancestor is normalised (symlinks resolved, made absolute) and the
+#' missing tail appended; on the case-insensitive file systems of macOS and
+#' Windows the key is also case-folded. Used for comparison only, never for
+#' writing.
+#' @keywords internal
+#' @noRd
+.canonical_path <- function(p) {
+  p <- path.expand(p)
+  dir <- dirname(p)
+  tail <- basename(p)
+  while (!dir.exists(dir) && !identical(dir, dirname(dir))) {
+    tail <- file.path(basename(dir), tail)
+    dir <- dirname(dir)
+  }
+  key <- file.path(normalizePath(dir, winslash = "/", mustWork = FALSE), tail)
+  if (.Platform$OS.type == "windows" || identical(Sys.info()[["sysname"]], "Darwin")) {
+    key <- tolower(key)
+  }
+  key
+}
+
+#' Check that every destination can be written before anything is written
+#'
+#' The parent directory must exist and be writable, the destination must not be
+#' a directory, and an existing destination must be writable. Errors name the
+#' path and the calling function.
+#' @keywords internal
+#' @noRd
+.preflight_paths <- function(paths, fn) {
+  for (p in paths) {
+    parent <- dirname(p)
+    if (!dir.exists(parent)) {
+      stop(fn, "(): the directory of ", sQuote(p), " does not exist; create ",
+           "it first.", call. = FALSE)
+    }
+    if (dir.exists(p)) {
+      stop(fn, "(): ", sQuote(p), " is a directory, not a file path.",
+           call. = FALSE)
+    }
+    if (file.access(parent, mode = 2L) != 0L ||
+        (file.exists(p) && file.access(p, mode = 2L) != 0L)) {
+      stop(fn, "(): ", sQuote(p), " is not writable.", call. = FALSE)
+    }
+  }
+  invisible(paths)
+}
+
+#' Write a set of files atomically as a group
+#'
+#' `paths` is a named character vector of destinations. After the preflight,
+#' `writer(tmp)` receives a same-named vector of temporary siblings (in each
+#' destination's directory, so the final `file.rename()` never crosses a file
+#' system) and writes every file there; only when all of them succeeded are
+#' they moved into place. On any error the temporaries are removed and every
+#' destination is left as it was.
+#' @keywords internal
+#' @noRd
+.staged_write <- function(paths, fn, writer) {
+  .preflight_paths(paths, fn)
+  tmp <- vapply(paths, function(p) {
+    tempfile(pattern = paste0(".", basename(p), "."), tmpdir = dirname(p),
+             fileext = ".part")
+  }, character(1))
+  names(tmp) <- names(paths)
+  done <- FALSE
+  on.exit(if (!done) unlink(tmp), add = TRUE)
+  writer(tmp)
+  for (nm in names(paths)) {
+    if (!file.rename(tmp[[nm]], paths[[nm]])) {
+      stop(fn, "(): could not move the finished file into place at ",
+           sQuote(paths[[nm]]), ".", call. = FALSE)
+    }
+  }
+  done <- TRUE
+  invisible(paths)
 }
 
 # ---------------------------------------------------------------------------
@@ -498,8 +641,7 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
 #' per causal marker, the `{trait, layer, set[, rep]}` rows that use it.
 #' @keywords internal
 #' @noRd
-.causal_markers <- function(sim, reps) {
-  tab <- .qtn_table_reps(sim, reps)
+.causal_markers <- function(sim, reps, tab = .qtn_table_reps(sim, reps)) {
   marker_rows <- tab[tab$layer != "transcriptome", , drop = FALSE]
   idx <- sort(unique(match(marker_rows$snp, sim$map$snp)))
   if (anyNA(idx)) {
@@ -514,9 +656,8 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
 #' Write the causal and non-causal marker files of write_phenotypes()
 #' @keywords internal
 #' @noRd
-.write_split_markers <- function(sim, reps, causal_file, noncausal_file,
+.write_split_markers <- function(sim, cm, causal_file, noncausal_file,
                                  file_type, sep) {
-  cm <- .causal_markers(sim, reps)
   noncausal <- setdiff(seq_len(sim$n_markers), cm$idx)
   .write_marker_file(sim, cm$idx, causal_file, file_type, sep,
                      qtn_table = cm$table, causal_for = cm$causal_for)
@@ -524,12 +665,50 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
   invisible(c(causal = causal_file, noncausal = noncausal_file))
 }
 
+#' A simulation prepared for a whole-panel export
+#'
+#' A data-frame or matrix backing streams through `.geno_cols()`, which reads
+#' the requested columns from the user's object without copying the rest. A
+#' Population stores haplotypes, and its `dosages()` rebuilds the whole
+#' markers-by-individuals matrix on every call, so a chunked export through
+#' `.geno_cols()` would build it once per chunk (and once more per QTN-table
+#' call). For that backing the matrix is built once here, restricted to the
+#' simulated individuals, and attached to this local copy of `sim` as
+#' `export_dosages`; `.dosage_block()` then serves every dosage request of the
+#' export (chunks and `.qtn_var()`) from it. The copy never leaves the export.
+#' @keywords internal
+#' @noRd
+.export_sim <- function(sim) {
+  if (identical(sim$kind, "population")) {
+    D <- dosages(sim$geno)                       # markers x individuals
+    storage.mode(D) <- "double"
+    if (!is.null(sim$ind_idx)) D <- D[, sim$ind_idx, drop = FALSE]
+    sim$export_dosages <- D
+  }
+  sim
+}
+
+#' Individuals-by-markers dosage block, from the export matrix when present
+#' @keywords internal
+#' @noRd
+.dosage_block <- function(sim, idx) {
+  if (is.null(sim$export_dosages)) {
+    return(.geno_cols(sim, idx))
+  }
+  idx <- as.integer(idx)
+  out <- t(sim$export_dosages[idx, , drop = FALSE])
+  dimnames(out) <- list(sim$ids, sim$map$snp[idx])
+  out
+}
+
 #' Write a set of markers (by map index) as a numeric-format text file or JSON
 #'
-#' Markers are fetched through `.geno_cols()` in chunks, so peak memory is one
-#' chunk of individuals-by-markers dosages plus its text, never the whole
-#' matrix. `qtn_table` and `causal_for` (JSON only) add the top-level
-#' `qtn_table` array and the per-marker `causal_for` arrays of the causal file.
+#' Markers are fetched through `.dosage_block()` in chunks, so peak memory is
+#' one chunk of individuals-by-markers dosages plus its text (plus, for a
+#' Population, its one dosage matrix; see `.export_sim()`). `qtn_table` and
+#' `causal_for` (JSON only) add the top-level `qtn_table` array and the
+#' per-marker `causal_for` arrays of the causal file. JSON numbers are
+#' formatted in the C numeric locale.
 #' @keywords internal
 #' @noRd
 .write_marker_file <- function(sim, idx, file, file_type, sep,
@@ -542,23 +721,25 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
   if (file_type == "json") {
     con <- file(file, open = "w", encoding = "UTF-8")
     on.exit(close(con), add = TRUE)
-    cat('{"individuals":', .json_vec(sim$ids), ',', file = con, sep = "")
-    if (!is.null(qtn_table)) {
-      cat('"qtn_table":',
-          as.character(jsonlite::toJSON(qtn_table, dataframe = "rows",
-                                        digits = I(17), na = "null",
-                                        auto_unbox = TRUE)),
-          ',', file = con, sep = "")
-    }
-    cat('"markers":[', file = con, sep = "")
-    first <- TRUE
-    for (ch in chunks) {
-      objs <- .marker_json_objects(sim, meta, ch, causal_for)
-      cat(if (first) "" else ",", paste(objs, collapse = ","),
-          file = con, sep = "")
-      first <- FALSE
-    }
-    cat(']}\n', file = con, sep = "")
+    .with_c_numeric({
+      cat('{"individuals":', .json_vec(sim$ids), ',', file = con, sep = "")
+      if (!is.null(qtn_table)) {
+        cat('"qtn_table":',
+            as.character(jsonlite::toJSON(qtn_table, dataframe = "rows",
+                                          digits = I(17), na = "null",
+                                          auto_unbox = TRUE)),
+            ',', file = con, sep = "")
+      }
+      cat('"markers":[', file = con, sep = "")
+      first <- TRUE
+      for (ch in chunks) {
+        objs <- .marker_json_objects(sim, meta, ch, causal_for)
+        cat(if (first) "" else ",", paste(objs, collapse = ","),
+            file = con, sep = "")
+        first <- FALSE
+      }
+      cat(']}\n', file = con, sep = "")
+    })
   } else {
     if (!length(chunks)) {
       # no marker in this set: header only, so the file is still well formed
@@ -571,7 +752,7 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
     }
     first <- TRUE
     for (ch in chunks) {
-      G <- t(.geno_cols(sim, ch))                      # markers x individuals
+      G <- t(.dosage_block(sim, ch))                   # markers x individuals
       G <- .whole_to_integer(G)
       block <- cbind(meta[ch, , drop = FALSE],
                      as.data.frame(G, check.names = FALSE,
@@ -610,7 +791,7 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
   }, character(length(ch)))
   if (length(ch) == 1L) fields <- matrix(fields, nrow = 1L)
   fields <- cbind(fields, paste0('"maf":', .json_vec_elements(sim$maf[ch])))
-  G <- .geno_cols(sim, ch)                               # individuals x markers
+  G <- .dosage_block(sim, ch)                            # individuals x markers
   G <- .whole_to_integer(G)
   Gc <- matrix(.json_vec_elements(as.vector(G)), nrow = nrow(G))
   geno <- if (nrow(Gc) == 1L) Gc[1L, ] else
@@ -633,10 +814,20 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
 
 #' Element-wise JSON encoding of a vector (strings escaped, numbers at 17
 #' significant digits, NA/NaN/Inf as null)
+#'
+#' Plain atomic vectors are formatted here. A classed vector other than a
+#' factor (`bit64::integer64`, `Date`, `POSIXct`, ...) is handed to jsonlite
+#' element by element, so it is encoded exactly as `jsonlite::toJSON()` would
+#' encode it through the class's own method: an `integer64` is stored as a
+#' double bit pattern, and `sprintf()` on it would print a meaningless tiny
+#' number instead of the integer.
 #' @keywords internal
 #' @noRd
 .json_vec_elements <- function(x) {
   if (is.factor(x)) x <- as.character(x)
+  if (is.object(x)) {
+    return(.json_classed_elements(x))
+  }
   if (is.character(x)) {
     out <- .json_escape(x)
     out[is.na(x)] <- "null"
@@ -650,6 +841,30 @@ write_qtn_table <- function(sim, file, rep = 1L, file_type = c("text", "json"),
   out <- if (is.integer(x)) as.character(x) else sprintf("%.17g", x)
   out[!is.finite(x)] <- "null"
   out
+}
+
+#' jsonlite's encoding of each element of a classed vector
+#'
+#' One `toJSON()` call encodes the whole vector as an array; when that array
+#' holds no string (numbers, nulls, booleans) it is split on the commas, which
+#' is exact and fast. Otherwise (string-valued classes such as `Date`) each
+#' element is encoded on its own, so a comma inside a string cannot mislead.
+#' @keywords internal
+#' @noRd
+.json_classed_elements <- function(x) {
+  enc <- function(v) {
+    as.character(jsonlite::toJSON(v, na = "null", digits = I(17)))
+  }
+  if (length(x) == 0L) return(character(0))
+  whole <- enc(x)
+  if (!grepl('"', whole, fixed = TRUE)) {
+    out <- strsplit(substr(whole, 2L, nchar(whole) - 1L), ",", fixed = TRUE)[[1L]]
+    if (length(out) == length(x)) return(out)
+  }
+  vapply(seq_along(x), function(i) {
+    s <- enc(x[i])
+    substr(s, 2L, nchar(s) - 1L)
+  }, character(1))
 }
 
 #' A whole vector as one JSON array
@@ -789,7 +1004,7 @@ mediation_split <- function(sim) {
   if (!ly$type %in% c("additive", "dominance")) {
     return(rep(NA_real_, length(idx)))
   }
-  G <- .geno_cols(sim, idx)                          # -1/0/1 dosage
+  G <- .dosage_block(sim, idx)                       # -1/0/1 dosage
   if (isTRUE(ly$orthogonal)) {
     # Orthogonal layer: each locus contributes a * dosage + d * het, so its
     # marginal variance must include the dominance deviation, not just a.

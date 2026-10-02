@@ -1836,6 +1836,17 @@ input data frame and simulation account for roughly 170 MB. (6) Default companio
 argument is invalid. No RNG is drawn; `qtn_table()` and the genotype accessors are the only inputs,
 so this is I/O only (no theory review needed beyond the causal-set definition).
 
+**Round 8 (Codex review) amendments:** text marker files are in the numeric format, so `as_numeric()` and
+`simulate_phenotype()` read them back; `as_population()` additionally needs a non-empty file with a complete crossing
+map (`chr`, `pos`, `cm` without missing values), which a matrix-origin export or an empty partition does not provide.
+Data-frame and matrix input stream in chunks of 2,000 markers; a Population's dosage matrix is built once per export
+(`dosages()` called once) and chunks are subset from it. Every destination is preflighted (directory exists and is
+writable, not a directory); paths are compared after resolving the longest existing ancestor (relative / absolute
+spellings and symlinked directories alias; case-folded on macOS and Windows); with companions all files are written to
+temporary siblings and renamed into place only after every write succeeded, so a failure never replaces an existing
+phenotype file (the one-file call is unchanged and byte-identical to 17aec62). JSON numbers are written with
+`LC_NUMERIC = "C"`; classed metadata (e.g. `bit64::integer64`) is encoded as jsonlite encodes it.
+
 **Date:** 2026-10-02
 
 ---

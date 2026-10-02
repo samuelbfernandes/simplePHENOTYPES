@@ -100,11 +100,14 @@ phenotype file always holds every replication, as before.
 \strong{Text layout of the marker files} (\code{file_type = "text"}): the package's
 numeric format -- columns \code{snp}, \code{allele}, \code{chr}, \code{pos}, \code{cm} (then \code{counted}
 when the input carried it), then one column per simulated individual with
-the -1/0/1 dosage -- so each file is a valid input for \code{\link[=as_numeric]{as_numeric()}},
-\code{\link[=as_population]{as_population()}} and \code{\link[=simulate_phenotype]{simulate_phenotype()}}. Missing metadata (e.g. no
-allele label for a matrix input) is written as \code{NA}. Markers keep their map
-order. The causal text file has no embedded QTN table; the QTN table text
-file is its companion.
+the -1/0/1 dosage -- so \code{\link[=as_numeric]{as_numeric()}} and \code{\link[=simulate_phenotype]{simulate_phenotype()}} read each
+file back. \code{\link[=as_population]{as_population()}} reads a file too, provided it is not empty and
+its map is complete (\code{chr}, \code{pos} and \code{cm} without missing values): a
+matrix-origin simulation has no such map, and a file with no markers (no
+causal marker, or every marker causal) cannot found a population. Missing
+metadata (e.g. no allele label for a matrix input) is written as \code{NA}.
+Markers keep their map order. The causal text file has no embedded QTN
+table; the QTN table text file is its companion.
 
 \strong{JSON layout of the marker files} (\code{file_type = "json"}): one object
 \verb{\{"individuals": [...], "markers": [...]\}}. \code{individuals} lists the
@@ -124,8 +127,20 @@ list of vectors, and (causal file) the \code{qtn_table} data frame; in Python,
 \code{json.load()} then \code{pandas.DataFrame(obj["markers"])}.
 
 Marker data can be large (tens of thousands of markers by hundreds of
-individuals); both layouts are written in chunks of markers, so the whole
-genotype matrix is never materialised at once.
+individuals); both layouts are written in chunks of markers. For a
+data-frame or matrix input the chunks stream from the user's object, so no
+second copy of the genotypes is made. A \code{Population} stores haplotypes, not
+dosages, so its one markers-by-individuals dosage matrix is built once and
+held in memory for the duration of the export.
+
+\strong{Safety.} Every path is checked before anything is written (the directory
+must exist and be writable, the path must not be a directory, and no two
+paths may resolve to the same file -- relative and absolute spellings, and
+symlinked directories, are resolved; on macOS and Windows the comparison
+ignores case). With companions, all files are first written to temporary
+siblings and moved into place only after every one succeeded, so a failure
+never replaces an existing phenotype file with a partial set. JSON numbers
+use a period as decimal mark whatever the session's \code{LC_NUMERIC}.
 }
 
 \examples{

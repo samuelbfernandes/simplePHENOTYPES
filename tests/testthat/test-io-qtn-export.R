@@ -681,3 +681,322 @@ test_that("a simulation with no causal marker still writes a well-formed empty c
   expect_length(cj$markers, 0L)
   expect_identical(cj$qtn_table$snp, qtn_table(ph)$snp)
 })
+
+# ---------------------------------------------------------------------------
+# Review round 2: path aliasing, atomic writes, classed metadata, Population
+# dosages, LC_NUMERIC, byte identity of the one-file call
+# ---------------------------------------------------------------------------
+
+# the bytes of a file
+file_bytes <- function(f) readBin(f, "raw", n = file.size(f))
+
+# no staging temporaries may survive a call, successful or not
+expect_no_part_files <- function(d) {
+  expect_length(list.files(d, pattern = "\\.part$", all.files = TRUE,
+                           recursive = TRUE), 0L)
+}
+
+test_that("aliased paths are detected: relative vs absolute spelling", {
+  d <- new_dir()
+  old <- setwd(d)
+  on.exit(setwd(old), add = TRUE)
+  abs <- file.path(normalizePath(d), "pheno.txt")
+  expect_error(write_phenotypes(ph_layers, "pheno.txt", qtn_file = abs),
+               "resolve to the same file")
+  expect_error(write_phenotypes(ph_layers, "./pheno.txt", split_markers = TRUE,
+                                markers_files = c(causal = abs,
+                                                  noncausal = "rest.txt")),
+               "resolve to the same file")
+  # a path through a non-existent sub-directory resolves too
+  expect_error(write_phenotypes(ph_layers, file.path("sub", "p.txt"),
+                                qtn_file = file.path(normalizePath(d), "sub", "p.txt")),
+               "resolve to the same file")
+  expect_length(list.files(d, all.files = TRUE, no.. = TRUE), 0L)
+})
+
+test_that("aliased paths are detected: a symlinked parent directory", {
+  skip_on_os("windows")
+  d <- new_dir()
+  link <- file.path(d, "link")
+  real <- file.path(d, "real")
+  dir.create(real)
+  skip_if_not(isTRUE(file.symlink(real, link)), "symlinks not available")
+  # the leaf does not exist yet, so plain normalizePath() would not catch this
+  expect_error(write_phenotypes(ph_layers, file.path(real, "pheno.txt"),
+                                qtn_file = file.path(link, "pheno.txt")),
+               "resolve to the same file")
+  expect_length(list.files(real), 0L)
+  # distinct leaves through the link are fine and both land in `real`
+  out <- write_phenotypes(ph_layers, file.path(real, "pheno.txt"),
+                          qtn_file = file.path(link, "qtn.txt"))
+  expect_setequal(list.files(real), c("pheno.txt", "qtn.txt"))
+  expect_true(startsWith(readLines(out[["phenotypes"]], 1L), "id\t"))
+})
+
+test_that("aliased paths are detected: case-only differences on case-insensitive systems", {
+  skip_if_not(.Platform$OS.type == "windows" ||
+                identical(Sys.info()[["sysname"]], "Darwin"),
+              "case-sensitive file system")
+  d <- new_dir()
+  expect_error(write_phenotypes(ph_layers, file.path(d, "Pheno.txt"),
+                                qtn_file = file.path(d, "pheno.TXT")),
+               "resolve to the same file")
+  expect_length(list.files(d), 0L)
+})
+
+test_that("a failing companion never replaces an existing phenotype file", {
+  d <- new_dir()
+  f <- file.path(d, "pheno.txt")
+  writeLines("SENTINEL-ORIGINAL", f)
+  # missing parent directory of qtn_file
+  expect_error(write_phenotypes(ph_layers, f,
+                                qtn_file = file.path(d, "missing-parent", "qtn.txt")),
+               "does not exist")
+  expect_identical(readLines(f), "SENTINEL-ORIGINAL")
+  # a directory given as qtn_file
+  dir.create(file.path(d, "a_dir"))
+  expect_error(write_phenotypes(ph_layers, f, qtn_file = file.path(d, "a_dir")),
+               "is a directory")
+  expect_identical(readLines(f), "SENTINEL-ORIGINAL")
+  # the phenotype path itself a directory
+  expect_error(write_phenotypes(ph_layers, file.path(d, "a_dir"),
+                                qtn_file = file.path(d, "q.txt")),
+               "is a directory")
+  expect_false(file.exists(file.path(d, "q.txt")))
+  # a marker file in a missing directory
+  expect_error(write_phenotypes(ph_layers, f, split_markers = TRUE,
+                                markers_files = c(causal = file.path(d, "c.txt"),
+                                                  noncausal = file.path(d, "nope", "n.txt"))),
+               "does not exist")
+  expect_identical(readLines(f), "SENTINEL-ORIGINAL")
+  expect_false(file.exists(file.path(d, "c.txt")))
+  expect_false(file.exists(file.path(d, "pheno_qtn_table.txt")))
+  # an unwritable destination directory (not meaningful when running as root)
+  skip_on_os("windows")
+  ro <- file.path(d, "ro")
+  dir.create(ro)
+  Sys.chmod(ro, "0555")
+  on.exit(Sys.chmod(ro, "0755"), add = TRUE)
+  skip_if(file.access(ro, 2L) == 0L, "directory permissions are not enforced")
+  expect_error(write_phenotypes(ph_layers, f, qtn_file = file.path(ro, "q.txt")),
+               "not writable")
+  expect_identical(readLines(f), "SENTINEL-ORIGINAL")
+  expect_no_part_files(d)
+  expect_setequal(list.files(d), c("pheno.txt", "a_dir", "ro"))
+})
+
+test_that("staged writes: a failure in the middle leaves every destination untouched", {
+  d <- new_dir()
+  f <- file.path(d, "pheno.txt")
+  q <- file.path(d, "qtn.txt")
+  writeLines("SENTINEL-ORIGINAL", f)
+  writeLines("SENTINEL-QTN", q)
+  # a writer that produces the first file and then fails
+  expect_error(
+    .staged_write(c(phenotypes = f, qtn_table = q), "fn", function(tmp) {
+      writeLines("new phenotypes", tmp[["phenotypes"]])
+      stop("disk full")
+    }),
+    "disk full")
+  expect_identical(readLines(f), "SENTINEL-ORIGINAL")
+  expect_identical(readLines(q), "SENTINEL-QTN")
+  expect_no_part_files(d)
+  # the temporaries live next to their destinations, named after them
+  seen <- character(0)
+  .staged_write(c(phenotypes = f, qtn_table = q), "fn", function(tmp) {
+    seen <<- unname(tmp)
+    writeLines("new phenotypes", tmp[["phenotypes"]])
+    writeLines("new qtn", tmp[["qtn_table"]])
+  })
+  expect_identical(dirname(seen), c(d, d))
+  expect_true(all(grepl("^\\.(pheno|qtn)\\.txt\\..*\\.part$", basename(seen))))
+  expect_identical(readLines(f), "new phenotypes")
+  expect_identical(readLines(q), "new qtn")
+  expect_no_part_files(d)
+  # a real call leaves no temporaries either, and overwrites a stale table
+  writeLines("stale", file.path(d, "pheno_qtn_table.txt"))
+  out <- write_phenotypes(ph_layers, f, split_markers = TRUE)
+  expect_no_part_files(d)
+  expect_true(startsWith(readLines(out[["qtn_table"]], 1L), "trait\t"))
+  expect_identical(data.table::fread(out[["qtn_table"]], data.table = FALSE)$snp,
+                   qtn_table(ph_layers)$snp)
+  # write_qtn_table() alone is staged too
+  g2 <- file.path(d, "alone.txt")
+  writeLines("SENTINEL-ALONE", g2)
+  expect_error(write_qtn_table(ph_layers, file.path(d, "zzz", "alone.txt")),
+               "does not exist")
+  expect_identical(readLines(g2), "SENTINEL-ALONE")
+  write_qtn_table(ph_layers, g2)
+  expect_true(startsWith(readLines(g2, 1L), "trait\t"))
+  expect_no_part_files(d)
+})
+
+test_that("integer64 metadata is encoded as jsonlite encodes it, not as a raw double", {
+  skip_if_not_installed("jsonlite")
+  skip_if_not_installed("bit64")
+  d <- new_dir()
+  g <- G[1:120, ]
+  g$pos <- bit64::as.integer64(as.character(g$pos))
+  ph <- simulate_phenotype(g, h2 = 0.5, seed = 9) |> additive(n_qtn = 3)
+  expect_s3_class(ph$map$pos, "integer64")
+  out <- write_phenotypes(ph, file.path(d, "pheno.json"), file_type = "json",
+                          split_markers = TRUE)
+  for (part in c("causal", "noncausal")) {
+    expect_true(jsonlite::validate(paste(readLines(out[[part]]), collapse = "")))
+    x <- jsonlite::read_json(out[[part]], simplifyVector = TRUE)
+    idx <- match(x$markers$snp, g$snp)
+    expect_identical(as.numeric(x$markers$pos),
+                     as.numeric(as.character(g$pos[idx])))
+    expect_true(all(x$markers$pos > 1e5))              # no 1e-318 bit patterns
+  }
+  # the element encoder agrees with jsonlite exactly
+  v <- bit64::as.integer64(c("379844", "9007199254740993", NA))
+  ref <- as.character(jsonlite::toJSON(v, na = "null", digits = I(17)))
+  expect_identical(paste0("[", paste(.json_vec_elements(v), collapse = ","), "]"),
+                   ref)
+  # the embedded table (jsonlite) and the marker objects agree on positions
+  cj <- jsonlite::read_json(out[["causal"]], simplifyVector = TRUE)
+  expect_setequal(as.numeric(cj$qtn_table$pos), as.numeric(cj$markers$pos))
+  # text export is unaffected (fwrite knows integer64)
+  outt <- write_phenotypes(ph, file.path(d, "pheno.txt"), split_markers = TRUE)
+  tg <- text_geno(outt[["noncausal"]])
+  expect_identical(as.numeric(tg$meta$pos),
+                   as.numeric(as.character(g$pos[match(tg$meta$snp, g$snp)])))
+})
+
+test_that("classed vectors (Date, factor, logical) match jsonlite element by element", {
+  skip_if_not_installed("jsonlite")
+  via <- function(x) {
+    paste0("[", paste(.json_vec_elements(x), collapse = ","), "]")
+  }
+  ref <- function(x) as.character(jsonlite::toJSON(x, na = "null", digits = I(17)))
+  dd <- as.Date(c("2020-01-02", NA, "1999-12-31"))
+  expect_identical(via(dd), ref(dd))
+  ff <- factor(c("a,b", NA, "c"))
+  expect_identical(via(ff), ref(ff))
+  ll <- c(TRUE, NA, FALSE)
+  expect_identical(via(ll), ref(ll))
+  ii <- c(1L, NA, -3L)
+  expect_identical(via(ii), ref(ii))
+  ss <- c("x\"y", NA, "a,b")
+  expect_identical(via(ss), ref(ss))
+  # a factor chr column in the panel goes through the same path end to end
+  d <- new_dir()
+  g <- G[1:80, ]
+  g$chr <- factor(g$chr)
+  ph <- simulate_phenotype(g, h2 = 0.5, seed = 9) |> additive(n_qtn = 2)
+  out <- write_phenotypes(ph, file.path(d, "pheno.json"), file_type = "json",
+                          split_markers = TRUE)
+  x <- jsonlite::read_json(out[["noncausal"]], simplifyVector = TRUE)
+  expect_identical(x$markers$chr, as.character(g$chr[match(x$markers$snp, g$snp)]))
+})
+
+test_that("a Population export builds the dosage matrix exactly once", {
+  d <- new_dir()
+  pop <- as_population(G_all[1:4001, ], individuals = 1:8)
+  ph <- simulate_phenotype(pop, h2 = 0.5, seed = 5) |> additive(n_qtn = 3)
+  ns <- asNamespace("simplePHENOTYPES")
+  count_dosages <- function(expr) {
+    calls <- 0L
+    suppressMessages(trace("dosages", tracer = function() calls <<- calls + 1L,
+                           where = ns, print = FALSE))
+    on.exit(suppressMessages(untrace("dosages", where = ns)), add = TRUE)
+    force(expr)
+    calls
+  }
+  # several chunks (2000 markers each) and the QTN table: one dosages() call
+  n_text <- count_dosages(
+    write_phenotypes(ph, file.path(d, "pheno.txt"), split_markers = TRUE))
+  expect_identical(n_text, 1L)
+  # and the values are the Population's
+  tg <- text_geno(file.path(d, "pheno_noncausal_markers.txt"))
+  expect_equal(unname(tg$geno), unname(dosages(pop)[rownames(tg$geno), ]))
+  skip_if_not_installed("jsonlite")
+  n_json <- count_dosages(
+    write_phenotypes(ph, file.path(d, "pheno.json"), file_type = "json",
+                     split_markers = TRUE))
+  expect_identical(n_json, 1L)
+  jg <- json_geno(file.path(d, "pheno_qtn_markers.json"))
+  expect_identical(unname(jg$geno), unname(dosages(pop)[rownames(jg$geno), ]) + 0)
+  # the QTN-table-only call does not build the whole matrix
+  expect_lte(count_dosages(write_qtn_table(ph, file.path(d, "q.txt"))), 1L)
+})
+
+test_that("JSON output does not depend on LC_NUMERIC", {
+  skip_if_not_installed("jsonlite")
+  current <- Sys.getlocale("LC_NUMERIC")
+  comma <- ""
+  for (loc in c("fr_FR.UTF-8", "de_DE.UTF-8", "fr_FR", "de_DE",
+                "French_France.1252", "German_Germany.1252")) {
+    comma <- suppressWarnings(tryCatch(Sys.setlocale("LC_NUMERIC", loc),
+                                       error = function(e) ""))
+    if (nzchar(comma)) break
+  }
+  on.exit(suppressWarnings(Sys.setlocale("LC_NUMERIC", current)), add = TRUE)
+  skip_if(!nzchar(comma), "no comma-decimal locale available")
+  skip_if(identical(sprintf("%.1f", 1.5), "1.5"),
+          "the locale does not use a comma decimal mark")
+  d <- new_dir()
+  # one-file phenotypes, QTN table, and split marker files, all JSON, written
+  # while the session uses a comma decimal mark
+  out <- write_phenotypes(ph_layers, file.path(d, "pheno.json"),
+                          file_type = "json", split_markers = TRUE)
+  f1 <- file.path(d, "one.json")
+  write_phenotypes(ph_layers, f1, file_type = "json")
+  write_qtn_table(ph_layers, file.path(d, "q.json"), file_type = "json")
+  # the session locale is restored after every call
+  expect_identical(Sys.getlocale("LC_NUMERIC"), comma)
+  expect_identical(sprintf("%.1f", 1.5), "1,5")
+  for (f in c(out, f1, file.path(d, "q.json"))) {
+    expect_true(jsonlite::validate(paste(readLines(f), collapse = "")), info = f)
+  }
+  # Byte-identical to the files written in the C locale (jsonlite's parser is
+  # itself locale-dependent, so the comparison is on bytes, after restoring).
+  suppressWarnings(Sys.setlocale("LC_NUMERIC", current))
+  dc <- new_dir()
+  outc <- write_phenotypes(ph_layers, file.path(dc, "pheno.json"),
+                           file_type = "json", split_markers = TRUE)
+  write_phenotypes(ph_layers, file.path(dc, "one.json"), file_type = "json")
+  write_qtn_table(ph_layers, file.path(dc, "q.json"), file_type = "json")
+  for (nm in names(out)) {
+    expect_identical(file_bytes(out[[nm]]), file_bytes(outc[[nm]]), info = nm)
+  }
+  expect_identical(file_bytes(f1), file_bytes(file.path(dc, "one.json")))
+  expect_identical(file_bytes(file.path(d, "q.json")),
+                   file_bytes(file.path(dc, "q.json")))
+  back <- jsonlite::read_json(f1, simplifyVector = TRUE)
+  expect_identical(back$value, phenotypes_long(ph_layers)$value)
+  cj <- json_geno(out[["causal"]])
+  idx <- match(rownames(cj$geno), G$snp)
+  expect_identical(cj$obj$markers$cm, G$cm[idx])
+  expect_identical(cj$obj$markers$maf, ph_layers$maf[idx])
+})
+
+test_that("the one-file call writes the same bytes as before (no staging, no change)", {
+  d <- new_dir()
+  ph2 <- simulate_phenotype(G[1:300, ], n_traits = 2, h2 = 0.5, n_reps = 2,
+                            seed = 1) |> additive(n_qtn = 3)
+  same_bytes <- function(mine, theirs) {
+    expect_identical(file_bytes(mine), file_bytes(theirs))
+  }
+  # long TSV
+  a <- file.path(d, "a.txt"); b <- file.path(d, "b.txt")
+  write_phenotypes(ph2, a)
+  data.table::fwrite(phenotypes_long(ph2), file = b, sep = "\t")
+  same_bytes(a, b)
+  # wide CSV
+  write_phenotypes(ph2, a, format = "wide", sep = ",")
+  data.table::fwrite(phenotypes_wide(ph2), file = b, sep = ",")
+  same_bytes(a, b)
+  expect_no_part_files(d)
+  skip_if_not_installed("jsonlite")
+  # long / wide JSON
+  write_phenotypes(ph2, a, file_type = "json")
+  jsonlite::write_json(phenotypes_long(ph2), path = b, dataframe = "rows",
+                       digits = I(17), na = "null", auto_unbox = TRUE)
+  same_bytes(a, b)
+  write_phenotypes(ph2, a, format = "wide", file_type = "json")
+  jsonlite::write_json(phenotypes_wide(ph2), path = b, dataframe = "rows",
+                       digits = I(17), na = "null", auto_unbox = TRUE)
+  same_bytes(a, b)
+})

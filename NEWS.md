@@ -40,10 +40,16 @@
   `{"individuals": [...], "markers": [{snp, allele, chr, pos, cm, maf, genotypes: [...]}, ...]}`;
   the causal file adds a top-level `qtn_table` array and a per-marker `causal_for` array of
   `{trait, layer, set}` (plus `rep` when several replications). Both layouts are written in chunks
-  of 2,000 markers, so the whole genotype matrix is never materialised. Output paths must be
+  of 2,000 markers, so the whole genotype matrix is not materialised for data-frame or matrix input. Output paths must be
   distinct (error otherwise); `split_markers` on a genotype-free (expression-only) phenotype is an
   informative error. Default behaviour of `write_phenotypes()` is unchanged when the new arguments
   are off (return value, file content, byte-identical).
+* Export safety: `write_phenotypes()` with companions and `write_qtn_table()` write every file to a temporary sibling
+  and move the set into place only when all succeeded, after checking that every destination directory exists and is
+  writable and that no two outputs resolve to the same file (relative and absolute spellings and symlinked directories
+  are resolved; case is ignored on macOS and Windows). JSON output is independent of the session's `LC_NUMERIC`;
+  classed metadata columns (e.g. `bit64::integer64` positions) are encoded as `jsonlite` encodes them. A Population's
+  dosage matrix is built once per export; data-frame and matrix input stream in chunks.
 
 ## Follow-ups and gaps after the audit (2026-10)
 
