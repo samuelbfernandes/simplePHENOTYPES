@@ -1114,7 +1114,7 @@ test_that("a .gz destination is gzip-compressed, as the direct writer would", {
   out2 <- write_phenotypes(ph_layers, file.path(d, "split.txt.gz"), split_markers = TRUE)
   expect_true(all(grepl("\\.gz$", out2)))
   for (p in out2) { expect_true(gz_magic(p), info = p); expect_true(gzip_ok(p), info = p) }
-  tg <- data.table::fread(out2[["causal"]], data.table = FALSE)
+  tg <- utils::read.delim(gzfile(out2[["causal"]]), stringsAsFactors = FALSE)
   expect_identical(tg$snp, causal_truth(ph_layers))
   expect_no_part_files(d)
   # JSON: jsonlite::write_json() does not compress by extension, so neither
