@@ -42,7 +42,7 @@ test_that("realized h2 tracks the sum of genetic proportions", {
   ph2 <- additive(ph2, prop = 0.4, n_qtn = 4)
   # some of these near-inbred loci have no heterozygotes: the partial-hetless
   # warning is part of the contract (a warning-clean run needs het-bearing loci)
-  ph2 <- expect_warning(dominance(ph2, prop = 0.1, same_as_add = TRUE),
+  expect_warning(ph2 <- dominance(ph2, prop = 0.1, same_as_add = TRUE),
                         "some \\(but not all\\)")
   expect_equal(sum(vapply(ph2$layers, function(l) l$prop, 0)), 0.5)
   expect_equal(stats::var(gen_mat(ph2)[, 1]) / stats::var(ph2$pheno$value),
@@ -170,7 +170,7 @@ test_that("independent architecture draws distinct QTNs per trait", {
 test_that("same_as_add reuses the additive QTNs", {
   ph <- simulate_phenotype(G, seed = 3)
   ph <- additive(ph, prop = 0.4, n_qtn = 5)
-  ph <- expect_warning(dominance(ph, prop = 0.1, same_as_add = TRUE),
+  expect_warning(ph <- dominance(ph, prop = 0.1, same_as_add = TRUE),
                        "some \\(but not all\\)")
   expect_identical(ph$layers[[1]]$qtn, ph$layers[[2]]$qtn)
 })

@@ -28,6 +28,24 @@ dev/dual.sh loop "add rrBLUP GEBV as an `on` criterion, per docs/THEORY_REVIEW.m
 dev/dual.sh check
 ```
 
+## Installed-package gate (`dev/test-installed.sh`)
+
+Run before opening a PR. `devtools::test()` loads the sources, so it cannot see problems
+that only appear in an installed package (R CMD check / CI): tests that read `R/`, `docs/`
+or `benchmarks/`, undeclared optional packages, files written next to the sources.
+
+    bash dev/test-installed.sh                 # build, install, run every test file
+    FILTER='grammar|cross' bash dev/test-installed.sh   # only matching test files
+    KEEP=1 bash dev/test-installed.sh          # keep the temporary directory
+
+It builds the working tree with `R CMD build` (no vignettes), installs it with
+`R CMD INSTALL --no-docs` into a temporary library (compiles the Rust core: several
+minutes), copies `tests/` from the built tarball to a temporary directory, and runs
+`testthat::test_dir(package = "simplePHENOTYPES", load_package = "installed")` with
+`NOT_CRAN=true`. Everything lives under `mktemp -d` in `${TMPDIR:-/tmp}`. Exit status is
+non-zero on any failed test or error (skips are fine; the source-reading tests and
+`test-vignettes.R` skip there by design, so also run `devtools::test()`).
+
 ## Skeptical debate to consensus (`dev/debate.sh`)
 
 Stronger than a one-shot review: a **SKEPTIC** must be *convinced* and a **DEFENDER** must

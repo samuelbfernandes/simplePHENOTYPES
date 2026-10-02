@@ -70,7 +70,7 @@ test_that("vqtl(same_as_add = TRUE) without a prior additive errors", {
 # ---------------------------------------------------------------------------
 test_that("dominance(same_as_add = FALSE) draws fresh dominance loci", {
   ph <- additive(simulate_phenotype(G, seed = 3), prop = 0.4, n_qtn = 4)
-  ph <- expect_warning(dominance(ph, prop = 0.1, same_as_add = FALSE, n_qtn = 6),
+  expect_warning(ph <- dominance(ph, prop = 0.1, same_as_add = FALSE, n_qtn = 6),
                        "some \\(but not all\\)")
   expect_length(ph$layers[[2]]$qtn[[1]], 6)
   expect_false(identical(ph$layers[[1]]$qtn, ph$layers[[2]]$qtn))
