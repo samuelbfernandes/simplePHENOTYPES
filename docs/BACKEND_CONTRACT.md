@@ -119,10 +119,15 @@ parental SCA/GCA estimate, and not the transmissible breeding value
   attribute of its result (absent under `model = "Dom"`; `NA` where unknown);
   `as_population()` keeps it as `map$counted`. `cross()`, `c.Population()` and the
   selection schemes stop when both populations carry it and count different alleles
-  at any marker. Without the record on both sides (numeric files read back from
-  text, row-subsetted data frames, other software) the numeric `allele` label is
-  compared (warning on opposite order, error on disjoint alleles). The record is
-  R-object-only: it is not written to numeric text files. Crossing separately
+  at any marker. `as_numeric(counted_column = TRUE)` also writes the record as a character
+  column `counted` immediately after `cm` (in the data frame and the numeric text file;
+  default off, output unchanged). `as_population()` reads it (when present it is the record
+  used; the `"counted_allele"` attribute, an R-object convenience that `[` does not realign,
+  is then ignored), so files and row-subsetted panels keep the strong per-marker check.
+  Without the record on both sides (numeric files written without the column, other
+  software) the numeric `allele` label is compared (warning on opposite order, error on
+  disjoint alleles). A supplied `counted` column is validated like `map$counted`; a numeric
+  sixth column named `counted` is an individual. Crossing separately
   converted panels is still unsafe unless they are converted jointly or with the
   same `ref_allele` (`as_numeric(method = "reference", ref_allele = )`). A supplied
   `map$counted` is validated (character; one non-empty allele symbol per marker, `NA` =
@@ -151,6 +156,9 @@ parental SCA/GCA estimate, and not the transmissible breeding value
   argument; `list(nu =, p =)` (1 <= nu <= 1e6, p in [0, 1]) is the two-pathway gamma model
   (`?cross`, DECISION-041), drawn in R, consuming its own stream. The kernel is unchanged:
   it receives sorted chiasma positions in [0, L] under the same `counts`/`flips` contract.
+  When `interference` is `NULL`, the option `simplePHENOTYPES.interference` (a `list(nu =, p =)`) is
+  used if set (explicit argument, then option, then Poisson); unset leaves the Poisson/isqg stream
+  bit-identical. `NULL` cannot switch a set option off for one call.
 - **Batched meiosis.** The internal `mate_many_core()` (integer strands in and out, a
   mating table, one shared event stream consumed in mating order; DECISION-040) is what the
   crossing functions use; a batch equals running its matings sequentially, bit for bit.

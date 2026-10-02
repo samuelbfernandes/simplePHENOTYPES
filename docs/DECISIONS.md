@@ -1535,8 +1535,9 @@ reader gets it. It is not a new column and does not change the `allele` label or
 `as_population()` keeps it as `map$counted`; the cross-pool orientation guard errors when both
 populations carry it and disagree at a marker, and falls back to the label-only check (warning on
 opposite order, error on disjoint alleles) when either side lacks it. Legacy numeric input without
-the record behaves as before. Persistence through numeric text files is out of scope (a text file
-cannot carry the attribute; row-subsetting a data frame drops it). Documented in `?as_numeric`,
+the record behaves as before. Persistence through numeric text files was out of scope in round 2 (a
+text file cannot carry the attribute; row-subsetting a data frame drops it); it is now available as an
+opt-in column (round 9 addendum below). Documented in `?as_numeric`,
 `?as_population` and `docs/BACKEND_CONTRACT.md`.
 
 **Addendum (round 6, Codex G5):** the default output file name of `as_numeric()` for an inline object
@@ -1544,6 +1545,26 @@ cannot carry the attribute; row-subsetting a data frame drops it). Documented in
 trimmed (a symbol `hmp` gives `hmp_numeric.txt`; an inline data frame
 `inline_data.frame_1077_x_670_numeric.txt`), so the label's `<`/`>` no longer reach the file system. The
 written content is unchanged. The `counted_allele` validation of the haplotype constructor is in DECISION-039.
+
+**Addendum (round 9, gap A):** the record is now persistable. `as_numeric(counted_column = TRUE)` (new last
+argument of `format_conversion()`, default `FALSE` = output unchanged to the byte) adds a character column
+`counted` immediately after `cm`, holding the counted allele per marker (`NA` = unknown), to the returned data
+frame and to the numeric text file. Every reader of numeric-format data (`as_numeric()` on a table or file,
+`as_population()`, `filter_geno()`, `detect_format()`) accepts it. The column is recognised when the sixth column
+is named `counted` (case-insensitive) and is not numeric (a numeric column of that name remains an individual); a
+logical all-`NA` column from a text round trip is read as unknown. It is validated by `.check_counted()`
+(character, one non-empty symbol per marker, consistent with the `allele` label; otherwise an error). When
+present it is authoritative: it feeds `map$counted` and the orientation guard, and the attribute is not
+consulted (even if both exist and disagree), so panels read back from files or row-subsetted are still compared
+marker by marker. `counted_column = TRUE` is an error under `model = "Dom"` and for numeric input with neither
+column nor attribute. The attribute remains an R-object convenience: `[` keeps it at its original length and
+order, so it does not follow row subsetting or reordering; the column is the durable form. `filter_geno()` now
+subsets the attribute with the kept rows. Callers that hard-code five metadata columns (the frozen v1
+`genotypes()` / `create_phenotypes()`) do not accept the column: pass the table without it.
+
+**Addendum (round 9, gap B):** the existing-default-file warning of `as_numeric()` is raised by the single writer
+immediately before the file is written (same message), so a conversion that fails never warns; the per-format
+handlers no longer write.
 
 **Date:** 2026-09-30
 
@@ -1691,7 +1712,58 @@ do not run meiosis (`select_ind()`, `select_ocs()`, `optimum_contribution()`, `s
 take it. Rationale: a scheme with a single `interference` value must not silently mix models. The Rust
 boundary is unchanged (R draws every event). The legacy `create_phenotypes()` is untouched (DECISION-008).
 
+**Addendum (round 9, scheme-level default):** `interference = NULL` no longer always means Poisson: it means "not
+given", resolved to the option `simplePHENOTYPES.interference` (a `list(nu =, p =)`) if set, else Poisson.
+Precedence: explicit non-`NULL` argument, then the option, then Poisson. Resolution is centralised in
+`.check_interference()` (the one validator every crossing function calls), so no wrapper duplicates it; the
+option is validated by the same rules and an invalid value is an error naming the option. The option unset
+leaves every draw and every RNG state bit-identical to the Poisson/isqg path (DECISION-012). With the option
+set, draws are the gamma-model stream exactly as if the list were passed to each call; the option does not
+change the stream otherwise, and no RNG is added. A single call cannot override the option back to Poisson with
+`NULL` (`NULL` = unset); use `options()` / `withr::local_options()`. `combining_ability(method = "expected")`
+still errors only on an explicitly supplied `interference`, not on the option. Pedigree key hashing
+(`.stable_key()`) was vectorised in the same round (identical keys; Rust and RNG untouched). Review owed: the
+independent (Codex) theory review of the option resolution.
+
 **Date:** 2026-09-30
+
+---
+
+## DECISION-042: bounded retry of the direct-LD marker search in the frozen v1 engine
+
+**Context:** `create_phenotypes(architecture = "LD", type_of_ld = "direct")` met its LD contract (distinct
+markers on one chromosome, absolute LD inside `[ld_min, ld_max]`) for only about 5% of seeds with dominance
+(`model = "D"`, `"AD"`; 3 of 60 seeds on the maize282 panel) because the frozen dominance walks keep stale
+neighbour pointers after re-drawing the anchor marker (and the same-QTN branch re-seeds identically and
+reports the original anchor); the additive walk is correct (60 of 60).
+
+**Decision:** the first attempt of every replicate is the unchanged frozen walk (same seeds, same RNG
+consumption). Only if the LD contract check fails (or the walk stops with "None of the selected SNPs met ..." or
+runs off the marker set) is the replicate searched again: at most 50 attempts, from the derived seed
+`seed - sign(seed) * (a - 1) * 1000003` (`seed + (a - 1) * 1000003` for `seed <= 0`; it moves towards zero, so
+the integer-range bound of `.v1_validate_seed_arith()` is unchanged), with the neighbour pointers reset after a
+re-draw (which the frozen dominance walks omit; in the same-QTN branch the re-seed also adds the anchor index
+and the reported anchor is the re-drawn marker; these repairs apply to attempts >= 2 only). The window
+`[ld_min, ld_max]` is never relaxed: every accepted pair is verified (distinct, same chromosome, |LD| in the
+inclusive window, reported LD equal to the recomputed LD). Outputs that met the contract on the first attempt
+are bit-identical to 1.3.x (D1); the RDS parity references are untouched. Indirect LD is **not** retried (its
+failures have another cause and are pinned by an existing test). A dominance-only model can still stop at the
+separate "All individuals are homozygote for the selected dominance QTNs" guard (about 20% of seeds on that
+panel); the retry criterion was not extended to it. Accepted pairs come from rejection sampling over seeds
+(the marginal distribution is that of the frozen walk conditional on the contract, not a uniform draw over valid
+pairs). Documented in `?create_phenotypes` ("Direct-LD search retries"). Review owed (Codex): the retry rule and
+the walk repair.
+
+**Date:** 2026-10-01
+
+---
+
+## Note: testthat edition 3 (2026-10)
+
+The package declares `Config/testthat/edition: 3` (DESCRIPTION). Expectations that relied on edition 2's
+absolute numeric tolerance were rewritten as explicit absolute bands with the same numeric values (no genetics
+expectation was loosened); `expect_warning()` returns the condition in edition 3, and each of several warnings is
+asserted with nested `expect_warning()`. `test-v130-parity.R` and the RDS references are unchanged.
 
 ---
 
@@ -1733,9 +1805,10 @@ boundary is unchanged (R draws every event). The legacy `create_phenotypes()` is
 | 033 | Layer sub-seed = position-sensitive rolling hash of the draw label, mixed with `(seed, occurrence of the layer type)`; replaces the permutation-invariant character-code sum (replications 12/21 and traits 12/21 were byte-identical); collision-resistant over ordinary ranges (31-bit, not injective; see the seed-123 collision in the body); adding/removing/reordering a layer never changes other-type layers, inserting a same-type layer shifts later same-type layers by design; every seeded grammar value changed (no v1 parity owed, DECISION-009) | locked (2026-09-29) |
 | 034 | Additive + dominance on shared loci (variance-partition coding): the realized genetic variance is `prop_A + prop_D + 2Cov(c_A,c_D)` for one additive and one dominance layer (general: `Var(c_A) + Var(c_D) + 2Cov(c_A,c_D)`), a structural, allele-coding-dependent bias; report it (`$ad_report`: requested, realized, Var(A), Var(D), 2Cov(A,D), component `Var(c_A)`, `Var(c_D)`, `2Cov(c_A,c_D)` (exact closure for any number of layers), per trait, fractions of V_P) and note `additive(orthogonal = TRUE, ...)` in `print()`, help and SPEC §2; the "finite-sample / usually tracks closely" wording is removed | locked (2026-09-29) |
 | 035 | Transcriptome `genes$h2_realized` = realized `Var(G)/Var(P)` (includes `2Cov(G,R)`, not bounded by 1); `h2_var_ratio` = identical alias; bounded allocation `Var(G)/(Var(G)+Var(R))` renamed `h2_allocated` (not a heritability); mimic GREML guard on the intercept-projected spectrum of K | locked (2026-09-30) |
-| 036 | `as_numeric()` records the `+1`-counted allele per marker as the `counted_allele` attribute (no dosage, column or label change); `as_population()` keeps `map$counted`; cross-pool guard errors on disagreement, else label-only fallback; not persisted through text files | locked (2026-09-30) |
+| 036 | `as_numeric()` records the `+1`-counted allele per marker as the `counted_allele` attribute (no dosage, column or label change); `as_population()` keeps `map$counted`; cross-pool guard errors on disagreement, else label-only fallback; persisted through text files only by the opt-in `counted_column = TRUE` (a `counted` column after `cm`, authoritative when present; round 9) | locked (2026-09-30) |
 | 037 | v1 `create_phenotypes()`: duplicated `chr_pos` accepted in pleiotropic / partially pleiotropic, rejected ("LD contract") in `"LD"`; the grammar also accepts duplicated `chr`/`pos` | locked (2026-09-30) |
 | 038 | Entry-mean replication in the grammar: `reps` divides the residual (incl. vqtl) by `sqrt(reps)` after the unchanged draw (target residual variance `V_E/reps`; realized: residual value = `reps = 1` realized residual / `sqrt(reps)`, so its variance is the `reps = 1` realized variance / `reps`; vqtl `[V0+Vv+2Cov]/reps`); `h2`/props stay single-record targets; realized H2 = `Var(G)/Var(y)` (includes `2Cov(G,e)/sqrt(reps)`) on the entry-mean scale with the single-record value alongside; replication is conditional on a fixed transcriptome covariate; `reps = 1` bit-identical; constant-time `.geno_label()` replaces `deparse(substitute(geno))` | locked (2026-09-30) |
 | 039 | `population_from_haplotypes()` / `haplotypes()`: known-phase 0/1 constructor (1 = counted allele, dosage = cis + trans - 1, markers x individuals), `map$counted` only if supplied (validated: character, non-empty symbol, `NA` = unknown), same map validation as `as_population()`, no RNG, no Rust | locked (2026-09-30) |
 | 040 | Batched integer-I/O crossing core `mate_many_core()`; `mate()` runs every plan row in one call; R draws in plan order so the batch equals the sequential run bit for bit; ~6x cheaper per call at 14,000 markers | locked (2026-09-30) |
-| 041 | Crossover interference `interference = NULL \| list(nu, p)` (`1 <= nu <= 1e6`) on `cross`/`selfcross`/`double_haploid`/`mate`/`crossbreed` and, by propagation, `single_seed_descent`/`bulk`/`pedigree`/`recurrent_selection`/`cross_usefulness`/`combining_ability` (simulated only)/`progeny_test`: two-pathway gamma model on the bivalent, 1/2 thinning to the gamete, expected crossovers per Morgan unchanged, drawn in R, default NULL = Poisson/isqg stream bit-identical | locked (2026-09-30) |
+| 041 | Crossover interference `interference = NULL \| list(nu, p)` (`1 <= nu <= 1e6`) on `cross`/`selfcross`/`double_haploid`/`mate`/`crossbreed` and, by propagation, `single_seed_descent`/`bulk`/`pedigree`/`recurrent_selection`/`cross_usefulness`/`combining_ability` (simulated only)/`progeny_test`: two-pathway gamma model on the bivalent, 1/2 thinning to the gamete, expected crossovers per Morgan unchanged, drawn in R, default NULL = Poisson/isqg stream bit-identical; `NULL` also resolves to the option `simplePHENOTYPES.interference` when set (round 9) | locked (2026-09-30) |
+| 042 | Frozen v1 direct-LD search: first attempt unchanged (bit-identical), then up to 50 retries per replicate from derived seeds `seed -/+ (a-1)*1000003` with the dominance-walk neighbour reset; window never relaxed, every pair verified; indirect LD not retried | locked (2026-10-01) |

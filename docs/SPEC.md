@@ -424,6 +424,12 @@ every `nu`, `p`. Then `r(d) = (1 - P0(d))/2`, `P0(d) = exp(-2 p d) [1 - F_e(2 nu
 expected number of crossovers per Morgan unchanged. The draws are made in R (their own stream) and the
 sorted chiasma positions go to the unchanged Rust core.
 
+**Session-wide default.** When `interference` is `NULL`, the option `simplePHENOTYPES.interference`
+(a `list(nu = , p = )`, validated by the same rules) is used if set, so one model can apply to a whole session or
+scheme: explicit argument, then option, then Poisson. With the option unset every draw and RNG state is
+bit-identical to before. `NULL` means "not given", so one call cannot switch a set option off (use `options()` or
+`withr::local_options()`).
+
 **Per-call cost and batching (DECISION-040).** Every crossing function runs through one batched
 integer-strand call into the Rust core (`mate_many_core()`); `mate()` executes all rows of a plan in one
 call, drawing row by row in plan order, so a plan equals the same sequence of `cross()` /

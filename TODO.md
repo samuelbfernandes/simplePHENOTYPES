@@ -389,7 +389,9 @@ Source: BD `docs/BREEDING_METHODS_CATALOG.md` ("Engine:" notes).
 
 ## Block 3C — Post-audit follow-ups (independent dual-model audit, 2026-09/10)
 
-Status 2026-10-01: audit and review rounds 1-4 and the SPEC-0020 engine requests (items 1, 2,
+Status 2026-10-01 (round 9, branch `chore/followups-and-gaps`, uncommitted): the follow-ups and
+gaps below marked [x] are implemented and documented in `NEWS.md` ("Follow-ups and gaps after the audit"),
+DECISION-036/041 addenda and DECISION-042. Status before round 9: audit and review rounds 1-4 and the SPEC-0020 engine requests (items 1, 2,
 3, 5, 6, 7, 8 above, the interference propagation and their review fixes; DECISION-033 to 041)
 are all on `master` (PR #13 merged, CI green including vignettes and the installed-package
 tests). Local suite: 63 files, 5761 expectations, 0 failures; local `R CMD check` 0 errors /
@@ -430,34 +432,87 @@ tests). Local suite: 63 files, 5761 expectations, 0 failures; local `R CMD check
 - [ ] Add the interference rubric item (M4) to `docs/THEORY_REVIEW.md` after the review (no
   exact text was proposed yet); verify the cited McPeek & Speed (1995) and Housworth & Stahl
   (2003) references in `?cross` (author/year/journal only, unverified).
+- [ ] Codex reviews owed for round 9 (genetics / contract changes; the implementer is not the
+  reviewer): (a) the `simplePHENOTYPES.interference` option resolution in `.check_interference()`
+  (`R/cross_mating.R`) and the `combining_ability(method = "expected")` interplay (DECISION-041
+  addendum); (b) the V1 direct-LD retry rule and the dominance-walk repair (`qtn_linkage()`,
+  `.ld_direct_violation()`, `.ld_attempt_seed()`, `.ld_run_attempt()`, `.v1_validate_seed_arith()`,
+  DECISION-042), including whether rejection sampling over seeds is acceptable; (c) the
+  `counted_column` override semantics (`as_population()` ignores the attribute when the column
+  exists, even if they disagree; `.has_counted_col()` and the all-`NA`-logical-as-unknown rule;
+  DECISION-036 addendum); (d) the vQTL equation `scale(base) + k * sigma_i * z`,
+  `k = sqrt((1/h2 - 1) / median(sigma)^2)` against Murphy et al. (2022) (citation not re-verified;
+  `test-adopt-v1-pleio.R` hard-codes it, so confirm it before the Python port uses it as an oracle);
+  (e) `.stable_key()` byte-identity (not genetics).
 - [ ] Pre-PR gate: CI found two failures the local suite could not (2026-10-01): the `v1-to-v2`
   vignette (a seed that picked homozygous loci) and 8 tests that assume a source checkout or
   undeclared packages. Before opening a PR run (a) a full `R CMD check` **with vignettes**
   (needs pandoc), and (b) the tests against an INSTALLED copy (tests must skip when `R/`,
   `docs/`, `benchmarks/` are absent: use `skip_if_no_source()`; declare or avoid optional
   packages); consider a test that evaluates every vignette's code.
+  Round 9 added the tools (`tests/testthat/test-vignettes.R`, `dev/test-installed.sh`); the gate
+  itself is still to run once the tree settles: the last full installed-mode run (66 files, 909
+  tests, 0 errors, 18 skips by design) predates the final edits, so re-run
+  `bash dev/test-installed.sh`, `devtools::test()` (edition 3, one serial pass) and a full
+  `R CMD check` with vignettes.
 
 **Open follow-ups from the new features**
-- [ ] `.stable_key()` in `R/cross_pedigree.R` could be vectorised (~2 ms of ~23 ms per call).
-- [ ] `cross_usefulness()` `"dh"` / `"selfcross"`: the interference dispersion is not tested
-  (forwarding only, via a call counter).
-- [ ] Optional: a scheme-level interference default (an option or an `as_population()` argument)
-  instead of passing `interference =` to every function.
-- [ ] The default-name overwrite warning of `as_numeric()` fires before conversion, so a failed
-  conversion still warns.
+- [x] `.stable_key()` in `R/cross_pedigree.R` vectorised (identical keys, ~3x faster; 31% -> 13% of a
+  `double_haploid(n = 100)` call at 14,000 markers).
+- [x] `cross_usefulness()` `"dh"` / `"selfcross"`: interference dispersion tested
+  (`test-gap-usefulness-interference.R`: index of dispersion ~0.93-0.97 default, ~0.56-0.59 at nu = 20).
+- [x] Scheme-level interference default: option `simplePHENOTYPES.interference` (DECISION-041 addendum).
+  Open: `NULL` cannot switch the option off for one call (an `interference = FALSE` spelling was not
+  implemented); optional `@param interference` wording of `select_schemes.R` / `select_combining.R` /
+  `select_progeny.R` / `select_usefulness.R` ("`NULL` uses the option, see `cross()`").
+- [x] The default-name overwrite warning of `as_numeric()` now fires when the file is written, so a
+  failed conversion no longer warns.
 - [ ] `reps` with a derived transcriptome layer is conditional on a fixed transcriptome
   covariate (DECISION-038); revisit if a per-record transcriptome environment is wanted.
 
 **Known gaps left open on purpose**
-- [ ] `counted_allele` lives on the R object only: it is not written to numeric text files or
-  kept through row-subsetting, so those cases fall back to the `allele` label check
-  (DECISION-036). Needs an output-contract change to persist it.
-- [ ] testthat edition 3 is deferred (9 tests fail under it).
-- [ ] V1 direct LD with dominance meets the LD contract for only a minority of seeds (3 of 29
-  for `model = "D"`); the contract error is intentional, a better search is not implemented.
-- [ ] Two fixed-table PLINK tests not written: `.plink_calc_lnlike`, `.plink_blocks_classify`.
-- [ ] Not all 328 proposed tests of the audit were adopted (see
-  `.tmp/audit-2026-09-29/reconciliation/*` section 6).
+- [x] `counted_allele` persistence: opt-in `as_numeric(counted_column = TRUE)` writes/reads a
+  `counted` column after `cm` (DECISION-036 addendum; default output byte-identical). Open:
+  - [ ] the attribute is still not realigned by `[` on a data frame (same-length reorders stay
+    silently stale; the column route is immune). Suggested: name the attribute by marker id and align
+    by name in `as_population()` (three existing tests pin the current shape with `expect_identical`),
+    or keep it documented only.
+  - [ ] the frozen v1 readers (`genotypes()`, `create_phenotypes()`, `-(1:5)`) reject a table with the
+    `counted` column ("numeric marker data must contain numbers only"); users pass `num[-6]`.
+    Left as is (frozen legacy).
+- [x] testthat edition 3 (`Config/testthat/edition: 3`; 9 failures fixed in 8 files, no expectation
+  loosened). Open: one serial full-suite pass after the DESCRIPTION line (the per-file pass was
+  clean).
+- [x] V1 direct LD search: first attempt unchanged, then up to 50 retries (DECISION-042); the
+  dominance models went from ~5% to essentially all seeds. Open:
+  - [ ] indirect LD is not retried (about 30-45% of seeds stop with the LD-contract message;
+    `V1C-F4` pins it).
+  - [ ] `model = "D"` still stops for about 20% of seeds at the separate "All individuals are
+    homozygote for the selected dominance QTNs" guard; extending the retry criterion to "at least one
+    heterozygote per trait and replicate" changes which seeds are accepted, so it needs a decision.
+  - [ ] the additive and dominance branches leak a GDS handle on every error exit (as before).
+  - [ ] a doomed direct-LD search costs up to 50 attempts (~1.5 s each on the maize panel, ~45 s for
+    a window that scans every marker).
+- [x] The two fixed-table PLINK tests (`.plink_calc_lnlike`, `.plink_blocks_classify`) are written
+  (`test-adopt-v2-io.R`, with `.plink_hap_rsq` hand tables and the kept/removed partition). Still not
+  done: seeded random panels against a PLINK binary (needs the binary and new committed fixtures).
+- [x] Adoption of the audit's proposed tests (`.tmp/audit-2026-09-29/reconciliation/*` section 6):
+  141 new test blocks (about 1,700 expectations) for the v2 engine in 8 files
+  (`test-adopt-v2-grammar|effects|selection|ocs|prediction|transcriptome|crossing|io.R`) and 51 blocks
+  (about 770 expectations) for the frozen v1 engine and the build scripts in 3 files
+  (`test-adopt-v1-core.R`, `test-adopt-v1-pleio.R`, `test-adopt-aux.R`). Proposals already covered by
+  existing tests were listed, not duplicated. Remaining: tests that are `skip("known defect")` until
+  their fix lands (EFFECTS-D1, IO-N1, SEL-C12, SEL-C6, OCS-ADOPT-1, V1-A1, AUX-N1, AUX-N2: remove the
+  skip with the fix); proposals NOT adopted: new frozen RDS references (they would be blessed from the
+  code under test), seeded PLINK panels (needs a PLINK binary), the PRED/USE citation-page items, the
+  dev/setup.sh and shellcheck tests, `benchmarks/benchmark_as_numeric.R` end to end, weak blocks in other
+  owners' older test files (`test-shim.R`, `test-crossbreed.R` top-level `set.seed`,
+  `test-nonadditive-cor.R` seed-search skips).
+- [ ] Observations from the adoption work, not defects: `as_numeric(<character matrix without HapMap
+  columns>, from = "hapmap")` fails with the base-R "subscript out of bounds" instead of a package
+  diagnostic (LOW); `CITATION.cff` version (2.0.0.9001) trails DESCRIPTION (2.0.0.9002); a stray
+  untracked `tests/testthat/Rplots.pdf` appeared during the round from a test that plots without
+  `pdf(NULL)` (delete it; find the test).
 - [ ] Unverifiable citation pages (e.g. PRED-F3 Ceron-Rojas, AUX-F20 CRAN baseline version,
   Meuwissen 1997 / Baik et al. 2005 equation pages): confirm against the sources before the
   Python port quotes them.

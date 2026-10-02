@@ -1,5 +1,72 @@
 # simplePHENOTYPES (development version)
 
+## Follow-ups and gaps after the audit (2026-10)
+
+Feature and test work that closes the open follow-ups listed after the independent audit and the
+SPEC-0020 engine requests. Default behaviour and random streams are unchanged unless a bullet says
+otherwise.
+
+* `cross()`, `selfcross()`, `double_haploid()`, `mate()`, `crossbreed()` and the wrappers that forward
+  `interference` (`single_seed_descent()`, `bulk()`, `pedigree()`, `recurrent_selection()`,
+  `cross_usefulness()`, `combining_ability()`, `progeny_test()`) now read the package option
+  `simplePHENOTYPES.interference` (a `list(nu =, p =)`) when `interference` is `NULL`, so one
+  crossover-interference model can be set for a whole session or scheme. Precedence: explicit argument,
+  then option, then Poisson. Unset (the default) is bit-identical to before; an invalid option value is
+  an error naming the option. `interference = NULL` means "not given", so a single call cannot switch the
+  option off (use `options()` or `withr::local_options()`).
+* Pedigree key hashing (`.stable_key()`) is vectorised: identical keys, about 3x faster; roughly 30% of the
+  time of a `double_haploid(n = 100)` call on a 14,000-marker, 20-chromosome map before, about 13% after.
+* `as_numeric()` gains `counted_column = FALSE`. With `TRUE`, the result and the numeric text file carry a
+  `counted` column (the allele coded +1 at each marker) right after `cm`; `as_population()`,
+  `filter_geno()` and `as_numeric()` accept it, and the cross-pool orientation guard then works on panels
+  read from files or subsetted by rows. Default output is unchanged (byte-identical).
+* `filter_geno()` now subsets the `"counted_allele"` attribute together with the kept markers (it
+  previously stayed full length).
+* `as_numeric()`: the "default output file already exists" warning is issued when the file is written, not
+  before conversion, so a failed conversion no longer warns.
+* `create_phenotypes(architecture = "LD", type_of_ld = "direct")`: the marker search is repeated, up to 50
+  attempts per replicate with derived seeds, when its first attempt does not meet the LD contract (distinct
+  markers on one chromosome with an absolute LD inside `[ld_min, ld_max]`). Calls that succeeded before
+  return bit-identical output; the dominance models (`"D"`, `"AD"`), which met the contract for only about
+  5% of seeds, now meet it for essentially all seeds. A dominance-only model can still stop with the "All
+  individuals are homozygote for the selected dominance QTNs" message. Indirect LD is not retried. See the
+  new section "Direct-LD search retries" in `?create_phenotypes`.
+* Direct LD with `model = "A"`, `vary_QTN = TRUE` and `rep > 1` no longer fails with "The file ... has been
+  created or opened".
+* A direct-LD search that uses up every candidate marker without finding a pair inside the window now stops
+  with an informative error instead of "invalid first argument".
+* Tests: the package now uses testthat edition 3 (`Config/testthat/edition: 3`); expectations that relied on
+  edition 2's absolute numeric tolerance were rewritten as explicit absolute bands (same numeric bands).
+  `cross_usefulness()` `"dh"` and `"selfcross"` families now have crossover-dispersion tests under
+  interference; a test evaluates the code of every vignette (`test-vignettes.R`); the new script
+  `dev/test-installed.sh` builds, installs and tests the package as CI does (see `dev/README.md`).
+* Tests: the proposals of the independent audit that were not yet covered are adopted: 141 new test blocks
+  (about 1,700 expectations) for the v2 engine in 8 files (`test-adopt-v2-grammar.R`, `-effects.R`,
+  `-selection.R`, `-ocs.R`, `-prediction.R`, `-transcriptome.R`, `-crossing.R`, `-io.R`; this includes two
+  fixed-table tests of the PLINK-style LD pruning helpers, `.plink_calc_lnlike()` and
+  `.plink_blocks_classify()`, and the hand-table checks of `.plink_hap_rsq()`), and 51 test blocks
+  (about 770 expectations) for the frozen v1 engine and the build scripts in 3 files
+  (`test-adopt-v1-core.R`, `test-adopt-v1-pleio.R`, `test-adopt-aux.R`): exact partial-pleiotropy parity
+  against the v1.3.0 reference, the vQTL equation and draw order, the evals/CI/hook scripts run against
+  scratch repositories, `tools/msrv.R`, metadata drift guards. New frozen RDS references were not added.
+
+* **Defects found while adopting the audit tests (fixed).**
+  `additive()`/`dominance()` architectures that take only `pi_target` or only
+  `pi_secondary` no longer fail with "Use either pi or ..." (exact argument matching);
+  `filter_geno()` computes the minor allele frequency from allele counts, so a marker at
+  exactly the `maf_above` cutoff is kept whichever allele is coded as minor;
+  the family methods of `select_ind()` stop with an error and a suggested fix when a family label is empty (`""`) (previously `method = "combined"` failed with "subscript out of bounds");
+  the Smith-Hazel index weights are invariant to a common scaling of the covariance
+  matrices (a case that cannot be represented gives a clear overflow error);
+  `cross_usefulness(trait = )` is validated; `simulate_phenotype()` accepts and ignores
+  the `counted` column of `as_numeric(counted_column = TRUE)`; a transcriptome layer
+  prints as `(N genes)`. `create_phenotypes()` with a vQTL model and a constant additive
+  baseline (`add_effect = 0`) stops with an error naming `add_effect` instead of returning
+  `NaN` phenotypes. `.Rbuildignore` no longer lists `^data-raw$` twice and the README logo
+  uses the GitHub URL so the CRAN page renders it.
+* **testthat edition 3** is enabled (`Config/testthat/edition: 3`); expectations that
+  relied on edition 2 semantics were corrected, parity fixtures are unchanged.
+
 ## Engine requests from breedingDesigner SPEC-0020 (2026-09)
 
 Items 1, 2, 3, 5, 6, 7 and 8 of the breedingDesigner engine-request list. All new
