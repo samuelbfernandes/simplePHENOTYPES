@@ -275,6 +275,14 @@ vqtl(sim,      prop, same_as_add = TRUE, n_qtn = NULL, qtn = NULL, dist = "geome
   a geometric base or an explicit series (v1 `sim_method = "custom"`), or a
   length-`n_traits` list of these (one per trait) in `additive()`, `dominance()`
   and `epistasis()`; rejected under multi-trait `"pleiotropy"` (DECISION-023).
+- `qtn`: user-chosen loci (marker names or indices) replace the random choice in every
+  architecture and each architecture keeps its construction (DECISION-043). Independent:
+  the loci carry the effect series. Pleiotropy: every locus affects every trait (a vector,
+  or the same loci for each trait; loci for only some traits are partial pleiotropy,
+  `complex_phenotypes()`); `effect`/`dist` set the effects unless a correlation is controlled
+  (`cor`, `pi`, ...), when the correlated draw does and `pi < 1` is refused. LD:
+  `list(trait1_loci, trait2_loci)` = disjoint linked pairs with reported r2; `epistasis()`
+  is not available under LD.
 - `additive(orthogonal = TRUE, a =, d =)`: the orthogonal genotypic model
   (Modeling convention, §2; DECISION-020). `a`/`d` are per-locus additive effects
   and dominance deviations (scalar or length-`n_qtn`); `effect` is rejected in this
