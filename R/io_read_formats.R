@@ -2,7 +2,9 @@
 #
 # Every handler returns the same 5-column schema:
 #   data.frame(snp, allele, chr, pos, cm, <sample columns>)
-# with genotype values coded per code_as / model / impute.
+# with genotype values coded per code_as / model / impute. The handlers only
+# convert: format_conversion() adds the optional `counted` column and writes the
+# file (.write_numeric()).
 #
 # The shared coding step is delegated to the Rust numericalize_core() kernel
 # via .apply_coding().
@@ -87,6 +89,85 @@
   a1[!is.na(a1) & !nzchar(a1)] <- NA_character_
   a2[!is.na(a2) & !nzchar(a2)] <- NA_character_
   toupper(ifelse(flip, a2, a1))
+}
+
+#' Is the sixth column of a numeric-format table the persisted `counted` record?
+#'
+#' `as_numeric(counted_column = TRUE)` writes the allele counted as `+1` (see
+#' `.counted_allele()`) as a character column named `counted` placed immediately
+#' after `cm`. A table has it when the sixth column is named `counted`
+#' (case-insensitively, like the five fixed metadata names) and is not numeric:
+#' a numeric column of that name is an individual called "counted" (genotype
+#' columns are always numeric), so tables without the record read as before.
+#' A logical column is accepted because a text round trip turns an all-`NA`
+#' character column into a logical one.
+#' @param df a data frame in numeric format.
+#' @return `TRUE` or `FALSE`.
+#' @noRd
+.has_counted_col <- function(df) {
+  is.data.frame(df) && ncol(df) >= 6L &&
+    identical(tolower(names(df)[6L]), "counted") &&
+    (is.character(df[[6L]]) || is.factor(df[[6L]]) || is.logical(df[[6L]]))
+}
+
+#' Number of leading metadata columns of a numeric-format table (5, or 6 with
+#' the optional `counted` column).
+#' @noRd
+.n_meta <- function(df) if (.has_counted_col(df)) 6L else 5L
+
+#' The persisted counted-allele column as a plain vector for validation
+#'
+#' An all-`NA` logical column (what a text round trip makes of an all-unknown
+#' character column) is read as unknown; every other type is returned unchanged
+#' so that `.check_counted()` can reject it.
+#' @noRd
+.counted_col_values <- function(x) {
+  if (is.logical(x) && all(is.na(x))) rep(NA_character_, length(x)) else x
+}
+
+#' Insert the `counted` column (after `cm`) from the `"counted_allele"` record
+#' @param G numeric-format data frame.
+#' @return `G` with a character `counted` column as column 6 (unchanged when it
+#'   already has one); the `"counted_allele"` attribute is kept.
+#' @noRd
+.add_counted_column <- function(G) {
+  if (.has_counted_col(G)) return(G)
+  cnt <- attr(G, "counted_allele", exact = TRUE)
+  if (is.null(cnt)) {
+    stop("`counted_column = TRUE` needs a record of the counted allele, and ",
+         "this result has none (it is absent under model = \"Dom\", and for ",
+         "numeric input that carries neither a `counted` column nor the ",
+         "\"counted_allele\" attribute).", call. = FALSE)
+  }
+  cnt <- as.character(cnt)
+  if (length(cnt) != nrow(G)) {
+    stop("`counted_column = TRUE`: the \"counted_allele\" attribute has ",
+         length(cnt), " entries for ", nrow(G), " markers.", call. = FALSE)
+  }
+  cols <- c(as.list(G)[1:5], list(counted = cnt), as.list(G)[-(1:5)])
+  out <- data.frame(cols, check.names = FALSE, stringsAsFactors = FALSE)
+  attr(out, "counted_allele") <- cnt
+  out
+}
+
+#' Write a numeric-format table to a text file
+#'
+#' The single place a converted table is written. When the file name was
+#' generated (not supplied), an existing file of that name is reported with a
+#' warning just before it is overwritten, so a conversion that fails earlier
+#' never warns.
+#' @noRd
+.write_numeric <- function(G, file_name, default_name, verbose) {
+  if (default_name && file.exists(file_name)) {
+    warning("default output file ", file_name, " already exists and is ",
+            "overwritten; pass `file_name` (or the explicit argument) to ",
+            "choose another name", call. = FALSE)
+  }
+  suppressMessages(data.table::fwrite(
+    G, file_name, row.names = FALSE, sep = "\t",
+    quote = FALSE, na = NA, showProgress = FALSE, verbose = FALSE))
+  if (verbose) message("Numeric file saved as '", file_name, "'.")
+  invisible(file_name)
 }
 
 #' Allele label "A1/A2" from an n x 2 letter matrix; a marker whose second
@@ -201,11 +282,6 @@ handle_hapmap <- function(file,
       )
     }
 
-    if (to_file) {
-      data.table::fwrite(G_out, file_name, row.names = FALSE, sep = "\t",
-                         quote = FALSE, na = NA, showProgress = FALSE)
-      if (verbose) message("Numeric file saved as '", file_name, "'.")
-    }
   }
   if (to_r) return(G_out)
 }
@@ -220,7 +296,14 @@ handle_hapmap <- function(file,
   for (j in c(1L, 2L, 3L)) df[[j]] <- as.character(df[[j]])
   df[[4L]] <- .as_pos(df[[4L]])
   df[[5L]] <- as.numeric(df[[5L]])
-  for (j in seq_along(df)[-(1:5)]) {
+  # the optional `counted` record is character (an all-NA one reads back from
+  # text as logical); it is validated by handle_numeric(), never coerced to
+  # a dosage type
+  k <- .n_meta(df)
+  if (k == 6L && is.logical(df[[6L]]) && all(is.na(df[[6L]]))) {
+    df[[6L]] <- rep(NA_character_, nrow(df))
+  }
+  for (j in seq_along(df)[-seq_len(k)]) {
     v <- df[[j]]
     if (is.logical(v)) {
       df[[j]] <- as.integer(v)
@@ -263,17 +346,26 @@ handle_numeric <- function(file, file_name, to_file, to_r, code_as, model,
          "to another genetic model; convert from the original allele-coded ",
          "data instead.", call. = FALSE)
   }
-  .check_unique_ids(file[[1L]], names(file)[-(1:5)])
-  values <- as.matrix(file[, -(1:5), drop = FALSE])
+  k <- .n_meta(file)
+  if (ncol(file) <= k) {
+    stop("Numeric-format input needs at least one individual column after ",
+         "the metadata columns.", call. = FALSE)
+  }
+  if (k == 6L) {
+    # the persisted counted-allele record (as_numeric(counted_column = TRUE)):
+    # validated like map$counted, and mirrored into the attribute every
+    # consumer reads; the column is authoritative (a stale attribute is
+    # replaced, never merged)
+    cc <- .check_counted(file[[6L]], file[[2L]], nrow(file),
+                         "the `counted` column")
+    attr(file, "counted_allele") <- cc
+  }
+  .check_unique_ids(file[[1L]], names(file)[-seq_len(k)])
+  values <- as.matrix(file[, -seq_len(k), drop = FALSE])
   allowed <- if (code_as == "-101") c(-1, 0, 1) else c(0, 1, 2)
   if (!is.numeric(values) || any(!is.na(values) & !values %in% allowed)) {
     stop("The genotype values do not match code_as = \"", code_as, "\".",
          call. = FALSE)
-  }
-  if (to_file) {
-    data.table::fwrite(file, file_name, row.names = FALSE, sep = "\t",
-                       quote = FALSE, na = NA, showProgress = FALSE)
-    if (verbose) message("Numeric file saved as '", file_name, "'.")
   }
   if (to_r) file else invisible(NULL)
 }
@@ -381,12 +473,6 @@ handle_table <- function(file,
       impute     = impute
     )
 
-    if (to_file) {
-      suppressMessages(data.table::fwrite(
-        G_out, file_name, row.names = FALSE, sep = "\t",
-        quote = FALSE, na = NA, showProgress = FALSE, verbose = FALSE))
-      if (verbose) message("Numeric file saved as '", file_name, "'.")
-    }
   }
   if (to_r) return(G_out)
 }
@@ -603,11 +689,6 @@ handle_vcf <- function(file,
         model      = model,
         impute     = impute
       )
-      if (to_file) {
-        data.table::fwrite(G_out, file_name, row.names = FALSE, sep = "\t",
-                           quote = FALSE, na = NA, showProgress = FALSE)
-        if (verbose) message("Numeric file saved as '", file_name, "'.")
-      }
     }
     SNPRelate::snpgdsClose(genofile)
     if (to_r) return(G_out)
@@ -686,12 +767,6 @@ handle_vcf <- function(file,
       model      = model,
       impute     = impute
     )
-    if (to_file) {
-      suppressMessages(data.table::fwrite(
-        G_out, file_name, row.names = FALSE, sep = "\t",
-        quote = FALSE, na = NA, showProgress = FALSE, verbose = FALSE))
-      if (verbose) message("Numeric file saved as '", file_name, "'.")
-    }
   }
   if (to_r) return(G_out)
 }
@@ -727,11 +802,6 @@ handle_gds <- function(file, file_name, to_file, to_r, to,
       model      = model,
       impute     = impute
     )
-    if (to_file) {
-      data.table::fwrite(G_out, file_name, row.names = FALSE, sep = "\t",
-                         quote = FALSE, na = NA, showProgress = FALSE)
-      if (verbose) message("Numeric file saved as '", file_name, "'.")
-    }
   }
   if (to_r) return(G_out)
 }
@@ -797,11 +867,6 @@ handle_bed <- function(file, file_name, to_file, to_r, to,
       model      = model,
       impute     = impute
     )
-    if (to_file) {
-      data.table::fwrite(G_out, file_name, row.names = FALSE, sep = "\t",
-                         quote = FALSE, na = NA, showProgress = FALSE)
-      if (verbose) message("Numeric file saved as '", file_name, "'.")
-    }
   }
   if (to_r) return(G_out)
 }
@@ -838,11 +903,6 @@ handle_ped <- function(file, file_name, to_file, to_r, to,
       model      = model,
       impute     = impute
     )
-    if (to_file) {
-      data.table::fwrite(G_out, file_name, row.names = FALSE, sep = "\t",
-                         quote = FALSE, na = NA, showProgress = FALSE)
-      if (verbose) message("Numeric file saved as '", file_name, "'.")
-    }
   }
   if (to_r) return(G_out)
 }
@@ -953,10 +1013,5 @@ handle_finalreport <- function(file, file_name, to_file, to_r, to,
     impute     = impute
   )
 
-  if (to_file) {
-    data.table::fwrite(G_out, file_name, row.names = FALSE, sep = "\t",
-                       quote = FALSE, na = NA, showProgress = FALSE)
-    if (verbose) message("Numeric file saved as '", file_name, "'.")
-  }
   if (to_r) return(G_out)
 }

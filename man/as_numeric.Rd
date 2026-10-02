@@ -26,11 +26,15 @@ in-memory input, \code{FALSE} for file input).}
 \item{\code{model}}{\code{"Add"} (default), \code{"Dom"}, \code{"Left"} or \code{"Right"}.}
 \item{\code{from}}{input format, when automatic detection is not wanted.}
 \item{\code{verbose}}{print progress messages.}
+\item{\code{counted_column}}{\code{FALSE} (default) or \code{TRUE}: add the
+\code{counted} column (the allele coded +1 at each marker) after \code{cm}; see
+"Which allele is counted".}
 }}
 }
 \value{
 The genotypes in numeric format: five metadata columns
-(\code{snp}, \code{allele}, \code{chr}, \code{pos}, \code{cm}) followed by one column per
+(\code{snp}, \code{allele}, \code{chr}, \code{pos}, \code{cm}), plus the optional \code{counted} column
+when \code{counted_column = TRUE}, followed by one column per
 individual. Returned as a data frame when \code{to_r = TRUE}, otherwise written
 to file.
 }
@@ -99,12 +103,25 @@ counts no allele). No dosage value depends on it: it only lets
 separately converted panels count the same allele. Two panels that both
 carry it and count different alleles at a marker are refused when crossed or
 pooled (e.g. an all-\code{AA} panel and an all-\code{GG} panel would otherwise both
-encode \code{+1} and cross to an F1 of \code{+1} instead of the heterozygote \code{0}). The
-attribute lives in the R object only: it is not written to a numeric text file,
-and it is dropped by row-subsetting the data frame, so numeric data read back
-from a file (or created by other software) carries no record and the older
-label-only check is used instead; convert panels that will be crossed
-\strong{jointly}, or with the same \code{ref_allele}, to be safe.
+encode \code{+1} and cross to an F1 of \code{+1} instead of the heterozygote \code{0}).
+The attribute is a convenience of the R object: a numeric text file cannot
+carry it, and \code{[} keeps it unchanged when it subsets or reorders the rows of
+the data frame (so it no longer lines up with them). The durable form is the
+optional \code{counted} column: with \code{counted_column = TRUE} the result, and the
+file written, gain a character column \code{counted} immediately after \code{cm}
+(before the individuals), holding the same allele per marker (\code{NA} where it
+is not known). It travels with its marker through files and row
+subsetting, \code{\link[=as_population]{as_population()}}, \code{\link[=filter_geno]{filter_geno()}} and \code{as_numeric()} itself
+accept it, and when present it is the record used, so two panels read back
+from files, or subsetted, are still checked against each other. The default
+(\code{counted_column = FALSE}) writes exactly the five metadata columns and
+changes no value. \code{counted_column = TRUE} is an error under \code{model = "Dom"}
+(no allele is counted) and for numeric input that carries neither the
+column nor the attribute; numeric input that already has the column keeps
+it. A numeric data frame without the column (or with a numeric sixth column,
+which is an individual) has no record and gets the older label-only check:
+convert panels that will be crossed \strong{jointly}, or with the same
+\code{ref_allele}, to be safe.
 
 Calls are matched case-insensitively. A marker with more than two alleles is
 set to missing with a warning that counts the affected markers; missing
@@ -129,7 +146,8 @@ rather than centering on the heterozygote.
 \section{The output, and the \code{cm} column}{
 
 The result has five metadata columns — \code{snp}, \code{allele}, \code{chr}, \code{pos}, \code{cm} —
-followed by one column per individual. The types are the same for every input
+followed by one column per individual (with \code{counted_column = TRUE}, a sixth
+metadata column \code{counted} follows \code{cm}; see "Which allele is counted"). The types are the same for every input
 format: \code{snp}, \code{allele} and \code{chr} are character, \code{pos} is integer (double only
 if a position is not a whole number below 2^31, and integer \code{NA} when the
 input carries no positions), \code{cm} is double, and the genotype columns are
