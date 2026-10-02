@@ -126,7 +126,9 @@ test_that("T6: ridge > 0 returns no marker effects; a fixed base_freq (with a cu
   eb <- predict_ebv(pop, y, h2 = 0.5, base_freq = base)
   u <- attr(eb, "marker_effects")
   expect_length(u, m)
-  expect_false(identical(unname(u[1]), 0))      # the retained marker carries an effect
+  # the monomorphic marker is kept (one effect per marker); its constant design
+  # column is collinear with the intercept, so the effect is zero up to rounding
+  expect_lt(abs(unname(u[1])), 1e-10)
   M <- t(dosages(pop)) + 1                       # individuals x markers, gene content
   Z <- sweep(M, 2, 2 * base, "-")
   expect_equal(unname(as.numeric(Z %*% u)), unname(as.numeric(eb)), tolerance = 1e-8)
