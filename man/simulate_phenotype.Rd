@@ -20,6 +20,7 @@ simulate_phenotype(
   transcriptome = NULL,
   reps = 1,
   resid_cor = NULL,
+  refit = NULL,
   ...
 )
 }
@@ -93,7 +94,11 @@ separate expression-mediated variance category and is \strong{not} part of this
 budget, so a model may deliberately fill only part of \code{h2} with markers and
 leave the rest to expression; the marker-completeness check is then skipped
 and only the realized h2 (which includes any genome-mediated expression
-variance) is reported.}
+variance) is reported.
+The genetic layers and the residual are fitted to \code{h2} in the population
+the simulation is built on. On a population whose heritability is already
+set (it carries a trait) \code{h2} is ignored with a warning unless
+\code{refit = TRUE}; see \code{refit}.}
 
 \item{mean}{optional per-trait intercept added to the phenotype (scalar or
 length \code{n_traits}). Genetic values stay centered; only the phenotype is
@@ -186,6 +191,31 @@ with the genetic values (as without it) and, with \code{resid_cor}, the traits'
 residuals are correlated, so the phenotypic correlation is
 a mix of the genetic (\code{cor}) and residual (\code{resid_cor}) correlations,
 weighted by the variance shares.}
+
+\item{refit}{whether to fit the genetic layers and the residual to \code{h2} in
+this population. \code{NULL} (default): \code{FALSE} when \code{geno} is a \code{Population}
+whose heritability is already set (it carries a trait, see
+\code{\link[=population_trait]{population_trait()}}), else \code{TRUE}.
+\itemize{
+\item \code{TRUE} -- the usual behaviour, and the only one for marker data or a
+population without a trait: the layers you add are drawn and scaled, and
+the residual is fitted to the target \code{h2}, in the population given. This
+is the rule for a single population (e.g. simulating phenotypes for GWAS).
+On a population that carries a trait it defines a new one, which
+\code{\link[=select_ind]{select_ind()}} then stores on the selected individuals.
+\item \code{FALSE} -- reuse the population's trait: its causal loci and effects on its
+base population's genetic scale (layers centered and scaled as in the base
+population) and its residual variance, held fixed. The genetic variance of
+this population can differ from the base one, so the heritability is no
+longer the base \code{h2}: it falls as selection and inbreeding exhaust genetic
+variance, as in AlphaSimR's \code{setPheno(varE = )}. \code{h2}, \code{n_qtn}, \code{n_traits},
+\code{architecture}, \code{model}, \code{mean}, \code{resid_cor} and \code{...} are taken from the
+trait; an \code{h2} that differs from the population's warns that the
+population's heritability is used (the same \code{h2} is silent). Layer verbs
+piped onto the result (\code{\link[=additive]{additive()}}, \code{\link[=dominance]{dominance()}}, ...) are ignored: a
+layer type the trait already has silently, any other with a warning. \code{seed}, \code{n_reps}, \code{reps} and \code{individuals} apply as usual;
+with \code{reps} the fixed residual variance is divided by \code{reps}.
+}}
 
 \item{...}{architecture-specific arguments (validated -- an unknown name is
 an error, and an argument for a different architecture warns). For

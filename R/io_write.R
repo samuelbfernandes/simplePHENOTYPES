@@ -1300,7 +1300,7 @@ mediation_split <- function(sim) {
     cols   <- sweep(design, 2L, eff, "*")
   }
   raw <- rowSums(cols)
-  s_raw <- stats::sd(raw)
+  s_raw <- .layer_sd(ly, raw, t)
   prop_t <- .expand_prop(ly$prop, sim$n_traits)[t]
   if (!is.finite(s_raw) || s_raw <= 0 || prop_t <= 0 ||
       !is.finite(var_p) || var_p <= 0) {

@@ -39,10 +39,12 @@ additive trait, so with dominance the \code{h2} given is not the \code{h2} in it
 order from one stream); the caller's random-number stream is left as it was
 found.}
 
-\item{interference}{\code{NULL} (default: Poisson crossovers, no interference, the
-isqg stream, bit-identical to earlier versions) or \code{list(nu = , p = )}, the
-two-pathway gamma model of crossover interference of \code{\link[=cross]{cross()}} (see its
-section "Crossover interference"), for the meioses that make the progeny.}
+\item{interference}{crossover interference model of \code{\link[=cross]{cross()}} (see its
+section "Crossover interference"): \code{NULL} (default: the option
+\code{simplePHENOTYPES.interference} if set, else the gamma model with
+\code{nu = 2.6}, \code{p = 0}), \code{"poisson"} (Poisson crossovers, the isqg stream, the
+default before 2.0.0.9003) or \code{list(nu = , p = )}. Used for the meioses that make
+the progeny.}
 }
 \value{
 A data frame with \code{id} (parent), \code{progeny_mean} and \code{n}, with

@@ -277,9 +277,11 @@ test_that(".draw_meiosis draws Poisson(last position), not the span", {
 })
 
 test_that("an L = 0 chromosome consumes exactly one Bernoulli per gamete (T2)", {
+  # a property of the isqg (Poisson) stream, which is no longer the default
   pop <- as_population(.geno(n_mk = 4, cm = rep(0, 4)))
   set.seed(5)
-  invisible(suppressMessages(cross(pop[1], pop[2], n = 3)))
+  invisible(suppressMessages(cross(pop[1], pop[2], n = 3,
+                                   interference = "poisson")))
   after <- .Random.seed
   set.seed(5); stats::rbinom(6, 1, 0.5)
   expect_identical(after, .Random.seed)

@@ -43,7 +43,7 @@ test_that("C1: the renewal loop errors on a non-advancing gap", {
 })
 
 test_that("C1: the stable rate is bit-identical to the old formula", {
-  expect_identical(.check_interference(NULL), NULL)
+  expect_identical(.check_interference("poisson"), "poisson")
   for (nu in c(1, 2.6, 7.3, 1e6)) for (p in c(0, 0.1, 0.37, 0.9)) {
     expect_identical(2 * nu * (1 - p), nu * (2 * (1 - p)))
   }

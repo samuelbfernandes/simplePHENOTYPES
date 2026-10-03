@@ -1925,6 +1925,85 @@ Not compared with the paper's numerical results (no reference data); the tests p
 
 ---
 
+## DECISION-047: gamma crossover interference is the default meiosis model (breedingDesigner request)
+
+**Decision:** every function that runs meiosis (`cross()`, `selfcross()`, `double_haploid()`, `mate()`,
+`crossbreed()` and the forwarding functions `single_seed_descent()`, `bulk()`, `pedigree()`,
+`recurrent_selection()`, `cross_usefulness()`, `combining_ability(method = "simulated")`, `progeny_test()`)
+now draws crossovers from the two-pathway gamma model of DECISION-041 with `nu = 2.6`, `p = 0` when neither
+the `interference` argument nor the option `simplePHENOTYPES.interference` is given. These are AlphaSimR's
+`SimParam` defaults (`v = 2.6`, `p = 0`; `v` checked by breedingDesigner's read-only probe of AlphaSimR 2.1.0,
+SPEC-0020 "Facts verified"), the meiosis of the Bancic et al. scripts. Poisson crossovers stay available as
+`interference = "poisson"` (argument or option), with the isqg random stream draw for draw (DECISION-012 parity
+is asserted on that path).
+
+**Why:** breedingDesigner's paired Bancic validation (`docs/validation/bancic-2026-10-02.md` in that repository)
+measured a gamma-versus-Poisson effect inside AlphaSimR of +0.31 sigma_A0 on DH-program gain at cycle 20
+(CI 0.115 to 0.505), so the Poisson default made simplePHENOTYPES programs systematically differ from the
+reference engine.
+
+**Interface:** `NULL` = "not given" (option, else the default list); `"poisson"`; `list(nu, p)`. The validator
+returns `"poisson"` or the list, both fixed points, so a value resolved by a scheme and forwarded to `cross()`
+resolves to itself (a forwarded Poisson choice is not turned back into the default). This also lets one call
+override a session option, which `NULL` could not (DECISION-041 addendum).
+
+**Consequence:** every seeded result of a function that runs meiosis changes (new stream); the expected number
+of crossovers per Morgan is unchanged. NEWS states it and names `options(simplePHENOTYPES.interference =
+"poisson")` to reproduce earlier results. The isqg parity tests pass `"poisson"` explicitly.
+
+**Amends:** DECISION-041 (default). **Reaffirms:** DECISION-012 (Poisson path), DECISION-006.
+
+**Date:** 2026-10-03
+
+---
+
+## DECISION-048: a Population carries its trait; `simulate_phenotype(refit =)`
+
+**Decision:** a trait is defined once, in a base population, and travels with its descendants (AlphaSimR's
+`SimParam` trait). `select_ind()` stores on the `Population` it returns the trait of the `phenotype_sim` it
+ranked (`.freeze_trait()`): per additive / dominance layer the rep-1 causal loci (as marker names, re-indexed
+on use), the effects, and per trait the base population's mean and sd of the layer's raw component; per
+trait the genetic share `h2` (sum of the marker layers' `prop`) and the single-record residual variance
+`var_e = 1 - h2` on the base phenotypic scale; the trait means and `resid_cor`. `[`, `c()` (only if every
+input carries the same trait; else none, with a warning), `cross()` / `selfcross()` / `double_haploid()`
+(`.mate()`), `mate()` (all parents share it) and `filter_geno()` keep it. `population_trait()` reports it.
+
+`simulate_phenotype(refit = NULL)`: `NULL` = `FALSE` when `geno` is a `Population` with a trait, else
+`TRUE`. `refit = FALSE` builds the simulation from the trait (`.simulate_from_trait()`): the stored layers,
+each centered on its base mean and scaled by its base sd (`.component_raw()` / `.layer_sd()`), so the
+genetic value is the base template's genotypic value up to a constant, and the residual drawn with the stored
+`var_e` (exact sample variance, as every grammar residual; divided by `reps`). Its genetic variance is that
+of the new population, so `h2` changes. An `h2` that differs from the trait's warns that the population's heritability is
+used and names `refit = TRUE` (the same `h2`, as in a scheme callback written for the founders, is silent;
+maintainer decision); layer verbs on such a simulation are ignored (silently for a layer type the trait has, as in a scheme callback; with a warning for any other type). `refit = TRUE` is the previous behaviour and defines a new trait.
+`refit = FALSE` on marker data or a population without a trait is an error. The variance budget of a frozen
+simulation reports realized shares (the `prop`s describe the base population).
+
+**Scope:** additive (including orthogonal), dominance and epistasis layers. The raw additive / dominance
+component `dosage %*% a (+ d at heterozygotes)` does not depend on the population. An epistatic term is a
+product of per-locus design columns each centered on its population mean; the trait stores those per-locus
+means of the base population (`frozen_locus_center`, an `n_sets x interaction` matrix per trait) and
+`.epi_unit_column(centers =)` subtracts them, so the term is a fixed function of the genotype too
+(maintainer decision, 2026-10-03). Applied to the base population the stored trait reproduces its genetic
+values exactly. vqtl (a genotype-dependent residual whose loading and heterogeneous component are
+re-standardized per population), transcriptome layers with `prop > 0` and `architecture = "complex"` store no
+trait: the selected population carries none and is re-fitted.
+
+**Why:** breedingDesigner request: multi-generation runs set `var_e` once from the base population and hold
+it so h2 changes as V_G changes (AlphaSimR `setPheno(varE =)`, the Bancic scripts); single-population use
+keeps re-fitting to the target h2. Maintainer decision (2026-10-03): the trait is inherited through selection
+and crossing; the whole trait (loci, effects, scale, residual) is frozen, since freezing only `var_e` while
+re-standardizing the genetic layers would keep h2 at its target; the interim scheme argument
+`residual = c("fixed", "refit")` of `pedigree()` / `recurrent_selection()` was removed in favour of this one
+mechanism.
+
+**Consequence:** schemes with a `simulate_phenotype()` callback hold the residual variance from the second
+generation on (seeded results change); `refit = TRUE` in the callback is the previous rule.
+
+**Date:** 2026-10-03
+
+---
+
 ## Note: testthat edition 3 (2026-10)
 
 The package declares `Config/testthat/edition: 3` (DESCRIPTION). Expectations that relied on edition 2's

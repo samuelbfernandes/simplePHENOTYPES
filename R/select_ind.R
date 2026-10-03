@@ -980,7 +980,12 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
 .selection_result <- function(sim, sel_idx, ids) {
   if (inherits(sim$geno, "Population")) {
     pop_idx <- match(ids[sel_idx], sim$geno$ids)
-    return(sim$geno[pop_idx])
+    out <- sim$geno[pop_idx]
+    # The selected individuals carry the trait they were ranked on, so their
+    # progeny reuse it (DECISION-048). A phenotype without a per-locus form
+    # (epistasis, vqtl, transcriptome) defines no storable trait.
+    out$trait <- .freeze_trait(sim)
+    return(out)
   }
   message("select_ind(): the phenotype was not built on a Population, so the ",
           "selected ids are returned rather than a crossable Population. Build ",

@@ -24,9 +24,9 @@ used).}
 
 \item{phenotype}{a function mapping a \code{Population} to a realized
 \code{phenotype_sim} (e.g. \code{function(p) simulate_phenotype(p, ...) |> additive(...)}). Called once per generation to score the current
-population, which it must build its simulation from. Fix the causal loci with
-\code{additive(qtn = ...)} if the same QTNs should act every generation (see the
-fixed-scale caveat above).}
+population, which it must build its simulation from. From the second
+generation on it reuses the trait the population inherited (see the section
+"Heritability across generations").}
 
 \item{cycles}{number of selection cycles.}
 
@@ -55,10 +55,11 @@ ambient RNG stream is used) or one non-negative whole number. When given, the
 caller's RNG state is restored on exit, so a seeded scheme does not disturb
 the surrounding random stream.}
 
-\item{interference}{\code{NULL} (default: Poisson crossovers, no interference, the
-isqg stream, bit-identical to earlier versions) or \code{list(nu = , p = )}, the
-two-pathway gamma model of crossover interference of \code{\link[=cross]{cross()}} (see its
-section "Crossover interference"). It is applied to every meiosis the scheme
+\item{interference}{crossover interference model of \code{\link[=cross]{cross()}} (see its
+section "Crossover interference"): \code{NULL} (default: the option
+\code{simplePHENOTYPES.interference} if set, else the gamma model with
+\code{nu = 2.6}, \code{p = 0}), \code{"poisson"} (Poisson crossovers, the isqg stream, the
+default before 2.0.0.9003) or \code{list(nu = , p = )}. It is applied to every meiosis the scheme
 runs, in every generation, so a whole scheme can use one meiosis model.}
 }
 \value{
@@ -68,7 +69,10 @@ a \code{Population} (the final cycle), carrying attribute \code{history}.
 Cycles of select-then-intermate for population improvement (Bernardo 2020;
 Falconer & Mackay 1996): each cycle the population is phenotyped, the best parents
 are selected, and they are intercrossed to form the next cycle's population.
-The scale caveat of \code{\link[=pedigree]{pedigree()}} applies to \code{history} here too.
+As in \code{\link[=pedigree]{pedigree()}}, the founders' phenotype defines the trait and later
+cycles reuse it, so heritability changes as selection changes the genetic
+variance (see the section "Heritability across generations" of
+\code{\link[=pedigree]{pedigree()}}).
 }
 \examples{
 data("SNP55K_maize282_maf04")

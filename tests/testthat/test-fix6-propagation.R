@@ -10,6 +10,10 @@
 # phase-known heterozygote (cis = 1, trans = 0), so each strand of a progeny of
 # ONE meiosis is a gamete whose haplotype switches are its crossovers; plus a
 # short chromosome of random homozygous markers that carries the QTN.
+# These expectations are for Poisson crossovers (Haldane / the isqg stream),
+# the default before DECISION-047; pin it for this file.
+withr::local_options(simplePHENOTYPES.interference = "poisson")
+
 het_founders <- function(n = 8L, seed = 11) {
   nm1 <- 101L
   nm2 <- 6L
@@ -82,7 +86,8 @@ test_that("default (interference = NULL) reproduces the pre-option results exact
   data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
   pop <- as_population(SNP55K_maize282_maf04, individuals = 1:12)
   f1 <- cross(pop[1], pop[2], n = 6, seed = 1)
-  pheno <- function(p) simulate_phenotype(p, h2 = 0.5, seed = 7) |>
+  # refit = TRUE: the checksums predate inherited traits (DECISION-048)
+  pheno <- function(p) simulate_phenotype(p, h2 = 0.5, seed = 7, refit = TRUE) |>
     additive(n_qtn = 30)
   q <- c("ss196442916", "ss196439337", "ss196480535")
 
@@ -263,7 +268,7 @@ test_that("invalid interference is rejected up front with the caller's name", {
                  info = nm)
     expect_error(calls[[nm]](list(nu = 2, p = 2)), paste0("^", nm, "\\(\\)"),
                  info = nm)
-    expect_error(calls[[nm]](2.6), "must be NULL or a list", info = nm)
+    expect_error(calls[[nm]](2.6), "must be NULL .*\"poisson\", or a list", info = nm)
     expect_error(calls[[nm]](list(p = 0.5)), "`nu` \\(required\\)", info = nm)
   }
   # a mistake is caught before any work (a failing callback is never reached)

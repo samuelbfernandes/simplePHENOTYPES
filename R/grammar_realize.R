@@ -57,6 +57,9 @@
                                    function(l) .expand_prop(l$prop, nt)[t], 0))
       resid_var_t[t] <- max(0, 1 - total_prop - vqtl_prop_t[t])
     }
+    # A stored trait (refit = FALSE) keeps its base population's residual
+    # variance, whatever the genetic variance of this population is.
+    if (isTRUE(sim$frozen)) resid_var_t <- sim$trait$var_e
 
     # Cross-trait residual correlation (resid_cor); NULL leaves every draw below
     # exactly as it was (same sub-seeds, same number of draws, bit-identical).
@@ -136,7 +139,7 @@
     for (ly in mean_layers) {
       prop_t <- .expand_prop(ly$prop, nt)[t]
       comp <- .component_raw(ly, sim, t, rep)
-      s <- stats::sd(comp)
+      s <- .layer_sd(ly, comp, t)
       if (is.finite(s) && s > 0 && prop_t > 0) {
         comp <- comp / s * sqrt(prop_t)
       } else if (prop_t > 0) {
@@ -352,7 +355,7 @@
     if (is.null(idx) || length(idx) == 0L || is.null(eff)) {
       next
     }
-    s <- stats::sd(.component_raw(ly, sim, t, rep))
+    s <- .layer_sd(ly, .component_raw(ly, sim, t, rep), t)
     if (!is.finite(s) || s <= 0) {
       next
     }
@@ -476,7 +479,7 @@
 #' `n_ind x n_qtn` rather than the whole genotype matrix.
 #' @keywords internal
 #' @noRd
-.component_raw <- function(ly, sim, t, rep = 1L) {
+.component_raw <- function(ly, sim, t, rep = 1L, center = TRUE) {
   if (rep >= 1L && !is.null(ly$qtn_reps)) {
     idx <- ly$qtn_reps[[rep]][[t]]
     eff <- ly$effect_reps[[rep]][[t]]
@@ -516,7 +519,9 @@
       if (is.null(itype)) itype <- rep("a", ncol(idx))
       out <- rep(0, n)
       for (p in seq_len(nrow(idx))) {
-        out <- out + .epi_unit_column(sim, idx[p, ], itype) * eff[p]
+        ctr <- if (is.null(ly$frozen_locus_center)) NULL else
+          ly$frozen_locus_center[[t]][p, ]
+        out <- out + .epi_unit_column(sim, idx[p, ], itype, ctr) * eff[p]
       }
       out
     },
@@ -526,7 +531,33 @@
     transcriptome = return(.tx_raw(ly, sim, t, rep, "total")),
     rep(0, n)
   )
-  g - mean(g)
+  if (!center) return(g)
+  # A layer of a stored trait (refit = FALSE) is centered on its base
+  # population's mean, so a change of the population mean is kept.
+  g - (if (!is.null(ly$frozen_center)) ly$frozen_center[[t]] else mean(g))
+}
+
+#' Standard deviation that scales a layer's raw component
+#'
+#' The component's own sample sd, or, for a layer of a stored trait
+#' (`refit = FALSE`), the sd it had in the base population, so the genetic scale
+#' is fixed across populations.
+#' @keywords internal
+#' @noRd
+.layer_sd <- function(ly, comp, t) {
+  if (!is.null(ly$frozen_sd)) return(ly$frozen_sd[[t]])
+  stats::sd(comp)
+}
+
+#' One mean layer's realized (centered, scaled) component, or zeros
+#' @keywords internal
+#' @noRd
+.scaled_component <- function(ly, sim, t, rep = 1L) {
+  prop_t <- .expand_prop(ly$prop, sim$n_traits)[t]
+  comp <- .component_raw(ly, sim, t, rep)
+  s <- .layer_sd(ly, comp, t)
+  if (is.finite(s) && s > 0 && prop_t > 0) comp / s * sqrt(prop_t) else
+    rep(0, sim$n_ind)
 }
 
 #' Design column of one epistatic interacting set
@@ -539,14 +570,18 @@
 #' exactly.
 #' @param loci marker indices of the set (length = interaction).
 #' @param itype length-`interaction` "a"/"d" vector.
+#' @param centers optional per-position centers (a stored trait's base-population
+#'   means); `NULL` centers on this population's means.
 #' @keywords internal
 #' @noRd
-.epi_unit_column <- function(sim, loci, itype) {
+.epi_unit_column <- function(sim, loci, itype, centers = NULL) {
   block <- .geno_cols(sim, loci)
   n <- nrow(block)
   design <- vapply(seq_len(ncol(block)), function(k) {
     col <- if (itype[k] == "d") (block[, k] == 0) * 1 else block[, k]
-    col - mean(col)                      # center each locus
+    # center each locus: on this population's mean, or on the base
+    # population's (a stored trait, `centers`), so the column is fixed
+    col - (if (is.null(centers)) mean(col) else centers[[k]])
   }, numeric(n))
   apply(design, 1, prod)
 }
@@ -625,6 +660,7 @@
 #' @keywords internal
 #' @noRd
 .variance_budget <- function(sim) {
+  if (isTRUE(sim$frozen)) return(.variance_budget_frozen(sim))
   nt <- sim$n_traits
   rows <- list()
   for (ly in sim$layers) {
@@ -834,7 +870,7 @@
   scaled <- function(ly) {
     prop_t <- .expand_prop(ly$prop, nt)[t]
     comp <- .component_raw(ly, sim, t, r)
-    s <- stats::sd(comp)
+    s <- .layer_sd(ly, comp, t)
     if (is.finite(s) && s > 0 && prop_t > 0) comp / s * sqrt(prop_t) else
       rep(0, sim$n_ind)
   }

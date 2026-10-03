@@ -26,11 +26,10 @@
 #' 100 to give Morgans for meiosis). A map whose largest position is at most
 #' 5 across 20 or more markers looks like Morgans (or a proportion) and draws a
 #' warning: crossovers would be 100 times too rare. `cm` may start anywhere on a
-#' chromosome: with `interference = NULL` (the default; see the
-#' `interference` option of [cross()]) the number of crossovers on a chromosome
-#' is Poisson with mean equal to its **last** map position in Morgans (the isqg
-#' convention, see [cross()]), which is not its span `max(cm) - min(cm)` when the first marker is
-#' not at 0. Chromosomes are processed, and their random draws are consumed, in
+#' chromosome: the expected number of crossovers on a chromosome (Poisson with
+#' `interference = "poisson"`, gamma-spaced by default; see [cross()]) equals its
+#' **last** map position in Morgans (the isqg convention), which is not its span
+#' `max(cm) - min(cm)` when the first marker is not at 0. Chromosomes are processed, and their random draws are consumed, in
 #' a fixed **canonical order that does not depend on the storage type of `chr`
 #' or on the locale**: labels that are numbers first, in numeric order
 #' (`1, 2, 10`), then other labels by their non-numeric prefix in byte order
@@ -294,12 +293,14 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
 #' @keywords internal
 #' @noRd
 .new_population <- function(map, cis, trans, ids, origin, keys = NULL,
-                            pedigree = NULL) {
+                            pedigree = NULL, trait = NULL) {
   out <- list(map = map, cis = cis, trans = trans, ids = ids, origin = origin)
   if (!is.null(keys)) {
     out$keys <- keys
     out$pedigree <- pedigree
   }
+  # the trait defined in a base population (see population_trait())
+  if (!is.null(trait)) out$trait <- trait
   structure(out, class = "Population")
 }
 
@@ -561,11 +562,13 @@ n_individuals <- function(x) {
     colnames(cis) <- colnames(trans) <- make.unique(colnames(cis), sep = "_")
   }
   if (is.null(x$keys)) {
-    return(.new_population(x$map, cis, trans, colnames(cis), x$origin))
+    return(.new_population(x$map, cis, trans, colnames(cis), x$origin,
+                           trait = x$trait))
   }
   keys <- x$keys[pos]
   .new_population(x$map, cis, trans, colnames(cis), x$origin, keys = keys,
-                  pedigree = .pedigree_ancestors(x$pedigree, keys))
+                  pedigree = .pedigree_ancestors(x$pedigree, keys),
+                  trait = x$trait)
 }
 
 #' Dosage matrix of a Population
@@ -806,7 +809,8 @@ genotypic_value <- function(x, qtn, a, d) {
 #' \itemize{
 #'   \item `var_e` -- the residual variance directly. This is the robust choice for
 #'     multi-generation use: compute it once at the base generation and pass the
-#'     same value every cycle so it is truly frozen.
+#'     same value every cycle so it is truly frozen. [pedigree()] and
+#'     [recurrent_selection()] do this by default (`residual = "fixed"`).
 #'   \item `h2` -- a target heritability, converted to a residual variance
 #'     `var_e = Var(g_ref) (1 - h2) / h2` from a reference population's genetic
 #'     variance. `ref` names that reference (default: `x` itself). For

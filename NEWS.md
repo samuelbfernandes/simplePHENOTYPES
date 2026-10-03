@@ -1,5 +1,33 @@
 # simplePHENOTYPES (development version)
 
+## Behaviour changes (2.0.0.9003): results of seeded crossing and selection runs change
+
+* **Crossover interference is now on by default.** Every function that runs meiosis (`cross()`,
+  `selfcross()`, `double_haploid()`, `mate()`, `crossbreed()`, and through them `single_seed_descent()`,
+  `bulk()`, `pedigree()`, `recurrent_selection()`, `cross_usefulness()`,
+  `combining_ability(method = "simulated")`, `progeny_test()`) uses the gamma interference model with
+  `nu = 2.6`, `p = 0` (AlphaSimR's default) instead of Poisson crossovers. The expected number of
+  crossovers per Morgan is unchanged, but **seeded progeny differ from earlier versions**. Poisson
+  crossovers, with the isqg random stream draw for draw, are `interference = "poisson"`; to reproduce
+  results of earlier versions for a whole session use `options(simplePHENOTYPES.interference = "poisson")`.
+  `"poisson"` also lets one call override a session option, which `interference = NULL` could not.
+  Reason: breedingDesigner's Bancic validation measured a gamma-versus-Poisson effect of +0.31 sigma_A0
+  on DH-program gain at cycle 20 inside AlphaSimR (DECISION-047).
+* **A population's heritability now travels with it.** `select_ind()` stores the trait its phenotype
+  defines (causal loci, effects on the base population's genetic scale, residual variance) on the selected
+  `Population`, and `cross()`, `selfcross()`, `double_haploid()`, `mate()` and `c()` pass it to the progeny
+  when every parent carries the same one (`population_trait()` shows it). `simulate_phenotype()` gains
+  `refit`: on a population that carries a trait the default is `refit = FALSE`, which reuses that trait and
+  holds its residual variance fixed, so heritability falls as selection and inbreeding exhaust genetic
+  variance (AlphaSimR `setPheno(varE =)`); an `h2` that differs from the population's then warns that the
+  population's heritability is used (the same `h2` is silent), and piped layer verbs are ignored (a layer type the trait lacks warns). `refit = TRUE` fits the layers and
+  residual to `h2` in the population given, as before, and is the default for marker data and populations
+  without a trait (single-population use such as GWAS is unchanged). Consequence: `pedigree()` and
+  `recurrent_selection()` with a `simulate_phenotype()` callback now hold the residual variance from the
+  second generation on; write `refit = TRUE` in the callback for the previous per-generation re-fit. Traits
+  with a `vqtl()` or transcriptome layer are not stored and are always re-fitted; epistatic loci keep the
+  centering of the base population, so epistasis traits are stored too (DECISION-048).
+
 * Theory-review fixes (Codex, 2026-10-02): the `h2` completeness check now also applies with a `transcriptome()` layer (marker layers fill `h2`, or marker layers plus the transcriptome `prop` do); `select_ind(on = "gv")` now equals `genetic_values()` for derived transcriptome models; a transmissible breeding value (`on = "bv"`, quadratic index) is refused for a genome-mediated transcriptome layer instead of silently omitting it; record-scale realized H2 matches phenotypes to genetic values by id (it used to depend on row order); the breeding-value documentation now states it is twice the expected progeny deviation.
 
 * Tests: `mate_many_core()` and the exported crossing functions are pinned directly to the isqg fixtures (no behavior change).
