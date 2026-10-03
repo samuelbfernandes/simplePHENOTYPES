@@ -90,6 +90,15 @@
     var_e        = pmax(0, 1 - h2),
     mean         = sim$mean,
     resid_cor    = sim$resid_cor,
+    threshold    = sim$threshold,
+    # liability_threshold(): the base population's absolute cut points
+    threshold_cut = if (is.null(sim$threshold)) NULL else
+      lapply(seq_len(nt), function(t) {
+        if (is.null(sim$threshold[[t]])) return(NULL)
+        l <- sim$liability
+        .threshold_cuts(l$value[l$trait == paste0("Trait_", t) & l$rep == 1L],
+                        sim$threshold[[t]])
+      }),
     source       = sim$geno_name
   ), class = "simplePHENOTYPES_trait")
 }
@@ -220,7 +229,8 @@ population_trait <- function(x) {
       pheno        = NULL,
       var_budget   = NULL,
       frozen       = TRUE,
-      trait        = trait
+      trait        = trait,
+      threshold    = trait$threshold
     ),
     class = "phenotype_sim"
   )

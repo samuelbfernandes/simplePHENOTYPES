@@ -1,5 +1,18 @@
 # simplePHENOTYPES (development version)
 
+## New features (2.0.0.9003)
+
+* `liability_threshold(sim, prop, trait)`: ordered categorical phenotypes under the liability-threshold model
+  (Wright 1934; Falconer 1965). The continuous phenotype is the liability, cut at `qnorm(cumsum(prop))` on its
+  standardized scale; the liability is kept in `sim$liability`, and the variance budget, realized H2 and
+  genetic values stay on the liability scale. A stored trait (`population_trait()`) keeps the base
+  population's thresholds, so category frequencies move under selection.
+* `coheritability(sim)`: the realized co-heritability matrix `Cov(G_i, G_j) / sqrt(Vp_i Vp_j)`
+  (`= rG h_i h_j`), realized H2 on the diagonal.
+* `cor_ar1(n_traits, rho)`: AR(1) correlation matrix for repeated (high-throughput) measurements, for the
+  pleiotropy engine's `cor` and for `resid_cor`.
+* `?additive` gains an example of a major QTN with a set variance share (stacked additive layers).
+
 ## Behaviour changes (2.0.0.9003): results of seeded crossing and selection runs change
 
 * **Crossover interference is now on by default.** Every function that runs meiosis (`cross()`,

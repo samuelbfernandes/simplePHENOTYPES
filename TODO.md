@@ -1,12 +1,39 @@
+## PRIORITY — breedingDesigner requests (2026-10-03)
+
+- [x] **Gamma interference as the default** for every function that runs meiosis (`cross`, `selfcross`,
+      `double_haploid`, `mate`, `crossbreed` and the schemes that call them), `nu = 2.6`, `p = 0`
+      (AlphaSimR's default); Poisson stays available as `interference = "poisson"` with the isqg stream;
+      NEWS note that seeded results change. Reason: BD measured +0.31 sigma_A0 (DH gain at cycle 20).
+      *Done 2026-10-03 (DECISION-047). Awaiting Codex theory review.*
+- [x] **Residual variance rule.** Multi-generation runs set `var_e` once from the base population and
+      hold it (h2 changes as V_G changes; AlphaSimR `setPheno(varE =)`); single-population (GWAS) use keeps
+      re-fitting to the target h2; explicit interface with a documented default per context.
+      *Done 2026-10-03 (DECISION-048): a `Population` carries its trait (set by `select_ind()`, passed on
+      by crossing); `simulate_phenotype(refit = NULL)` reuses it (`FALSE`) for such a population, warns when
+      a different `h2` is given, and refits (`TRUE`) for marker data or a population without one. Awaiting Codex theory
+      review.*
+- [x] Codex theory review of DECISION-047/048: scope B (2026-10-03) found the frozen variance budget not
+      closing to 1 (fixed: covariance row); epistasis traits are now storable too (base per-locus centers).
+      Follow-up review G (2026-10-03): the earlier fixes verified; three findings on the new features fixed
+      (variance reports read the liability, thresholding no longer re-realizes, broad- vs narrow-sense
+      co-heritability wording); G-04 was Codex-sandbox only.
+- [x] DECISION-048 h2 warning: only when the given `h2` differs from the population's (maintainer, 2026-10-03).
+
 ## PRIORITY — open follow-ups from the 2026-10-02 session
 
-- [ ] **Codex review, O1–O3 (`ld` fixed QTNs).** Findings were produced against branch `feat/qtn-passthrough-and-export` (worktree `.claude/worktrees/kind-shamir-c7d1df`, commit 557d7cc + 66af52d/ca8969d/2cc9728), not this branch. Fix there (or after merge): fixed linked pairs must have r2 > 0 and honor the window; normalize `ld_type` abbreviations once (`"i"` currently behaves as direct for fixed QTNs; `.check_arch_args()` validates but does not store the normalized value, L563-564); reserve a prior layer's `ld$cause` so a later layer never draws it as a QTN. Not reproducible on `feat/graph-followups`.
-- [ ] Re-run the Codex theory review from the main tree (`dev/dual.sh review R/arch_ld.R R/grammar_realize.R R/select_bqp.R R/grammar_complex.R`) so `ld_phase`, `resid_cor` and `method = "bqp"` are covered (the first run hit the wrong worktree and could not see `select_bqp.R`). Needs network outside the Claude sandbox: run from your own terminal.
-- [ ] Verify BQP `min_gain` scale (standardized-SD reading of RHS_j = n*sigma_j*d_j/100 is an interpretation, flagged in DECISION-043) and the 2025 vs 2026 citation year against the paper.
-- [ ] Re-diff `NEWS.md` and `docs/DECISIONS.md` before pushing (both were briefly truncated in the working tree by concurrent agents; restored from HEAD).
-- [ ] `devtools::document()` rewrites `man/*.Rd` with case-variant file names and deletes four legacy `.Rd`; fix the roxygen/collation cause or ignore the variants.
-- [ ] Repo cleanup: review and run the proposed `cleanup.sh` (rendered diagram HTML, `_problems`, `.quarto`, `.tmp/`, vignette purl output, `benchmarks/scratch_create_phenotypes_args.R`, stale worktree `dominance-argument-effect-44d5c8`, merged branches). Not executed.
-- [ ] Decide what to do with the `kind-shamir-c7d1df` worktree and commit the moved `.agents/` + `skills-lock.json` in the `breeding_designer` repo (untracked there).
+- [x] **Codex review, O1–O3 (`ld` fixed QTNs).** Findings were produced against branch `feat/qtn-passthrough-and-export` (worktree `.claude/worktrees/kind-shamir-c7d1df`, commit 557d7cc + 66af52d/ca8969d/2cc9728), not this branch. Fix there (or after merge): fixed linked pairs must have r2 > 0 and honor the window; normalize `ld_type` abbreviations once (`"i"` currently behaves as direct for fixed QTNs; `.check_arch_args()` validates but does not store the normalized value, L563-564); reserve a prior layer's `ld$cause` so a later layer never draws it as a QTN. Not reproducible on `feat/graph-followups`.
+      *Done 2026-10-03: O1 out-of-window / r2 = 0 pairs are an error; O2 ld_type normalized once in simulate_phenotype(); O3 .ld_prior_loci() reserves prior indirect causes. Tests in test-qtn-passthrough.R.*
+- [x] Re-run the Codex theory review from the main tree (`dev/dual.sh review R/arch_ld.R R/grammar_realize.R R/select_bqp.R R/grammar_complex.R`) so `ld_phase`, `resid_cor` and `method = "bqp"` are covered (the first run hit the wrong worktree and could not see `select_bqp.R`). Needs network outside the Claude sandbox: run from your own terminal.
+      *Done 2026-10-03 (scopes A-F in a throwaway worktree): A/B/C/F findings fixed (BQP G = WW'/p, min_gain range, heuristic message, ld_phase wording, frozen budget covariance row, expected combining ability ignores the option, mimic esc*(G+R), DECISION-042 wording); E agreed. Follow-up review G pending.*
+- [x] Verify BQP `min_gain` scale: matches Eq. 4 `l_j = R_j s / 100` exactly (equation images, PMC12849579; DECISION-046 updated). Year: online 29 Dec 2025, volume 22 = 2026; kept 2025 (PubMed date).
+- [x] Re-diff `NEWS.md` and `docs/DECISIONS.md` before pushing (both were briefly truncated in the working tree by concurrent agents; restored from HEAD).
+      *Done 2026-10-03: NEWS complete; DECISIONS had lost DECISION-022 (full text), the DECISION-005 superseded status and the 022 summary row in merge 230e004; restored from 18ca078.*
+- [x] `devtools::document()` rewrites `man/*.Rd` with case-variant file names and deletes four legacy `.Rd`; fix the roxygen/collation cause or ignore the variants.
+      *Done 2026-10-03: the four legacy Rd files were tracked with capitalized names while roxygen writes lower-case ones (same file on a case-insensitive FS, then deleted as stale); renamed with git mv, document() is now idempotent.*
+- [x] Repo cleanup: review and run the proposed `cleanup.sh` (rendered diagram HTML, `_problems`, `.quarto`, `.tmp/`, vignette purl output, `benchmarks/scratch_create_phenotypes_args.R`, stale worktree `dominance-argument-effect-44d5c8`, merged branches). Not executed.
+      *Done 2026-10-03: cleanup.sh never existed; wrote dev/cleanup.sh (dry run by default, only ignored render/test artifacts; .tmp evidence untouched); the committed tests/testthat/Rplots.pdf is removed and ignored, and its source (test-adopt-v2-grammar.R, plot() before an error) fixed. The dominance worktree and merged branches were already gone.*
+- [x] Decide what to do with the `kind-shamir-c7d1df` worktree and commit the moved `.agents/` + `skills-lock.json` in the `breeding_designer` repo (untracked there).
+      *Done 2026-10-03: the worktree was already removed and its evidence copied to the main checkout .tmp/evidence-kind-shamir-c7d1df; breeding_designer .agents/ + skills-lock.json committed (58ec85c) on branch chore/agent-skills-lock (not merged).*
 - [ ] Full `devtools::test()` before push: last run had 1 failure, `test-as-numeric.R:233` (local-only SNP55K HapMap file with duplicated marker IDs; skips in a clean checkout).
 - [ ] Push `feat/graph-followups` and open the PR (only with explicit OK).
 
@@ -441,9 +468,9 @@ tests). Local suite: 63 files, 5761 expectations, 0 failures; local `R CMD check
 - [ ] Codex review of round-3 items never sent to Codex: 11-column HapMap guard (R3-6),
   integer genotype schema (R3-7), heterosis retention text (R3-12), `h2_*` documentation
   (R3-14), case-insensitive orientation labels (R3-5).
-- [ ] Add the interference rubric item (M4) to `docs/THEORY_REVIEW.md` after the review (no
-  exact text was proposed yet); verify the cited McPeek & Speed (1995) and Housworth & Stahl
-  (2003) references in `?cross` (author/year/journal only, unverified).
+- [x] Interference rubric item M4 added to `docs/THEORY_REVIEW.md` (2026-10-03); McPeek & Speed (1995,
+  Genetics 139:1031-1044) and Housworth & Stahl (2003, AJHG 73:188-197) verified on PubMed and cited in full
+  in `?cross`.
 - [ ] Codex reviews owed for round 9 (genetics / contract changes; the implementer is not the
   reviewer): (a) the `simplePHENOTYPES.interference` option resolution in `.check_interference()`
   (`R/cross_mating.R`) and the `combining_ability(method = "expected")` interplay (DECISION-041
@@ -586,19 +613,19 @@ These are queued for after the R → Rust port is complete. Do not implement in 
 
 #### Core simulation
 
-- `[ ]` Simulate null trait directly (no QTN effect)
-- `[ ]` Provide QTN list for only one effect type (add/dom/epi/var) and randomize the other
-- `[ ]` Proportion of variance explained by a subset of QTNs
+- `[x]` Simulate null trait directly (no QTN effect) — `simulate_phenotype(geno)` with no layers (2026-10-03)
+- `[x]` Provide QTN list for only one effect type (add/dom/epi/var) and randomize the other — `qtn =` on each layer (2026-10-03)
+- `[x]` Proportion of variance explained by a subset of QTNs — stacked layers, see `?additive` example (2026-10-03)
 - `[x]` Simulate alleles in repulsion (repulsion phase LD) — `simulate_phenotype(architecture = "ld", ld_phase = "repulsion")` (2026-10-02)
 - `[ ]` Different means per sub-population (PCA-based)
-- `[ ]` Simulate independent traits with QTNs from different chromosomes
-- `[ ]` Fix h2 and vary number of QTNs (discuss with Kaio)
+- `[x]` Simulate independent traits with QTNs from different chromosomes — `distinct_chr = TRUE` (2026-10-03)
+- `[x]` Fix h2 and vary number of QTNs (discuss with Kaio) — `h2` + `n_qtn` / `vary_qtn` (2026-10-03)
 - `[ ]` Implement GxE via envirotyping
 - `[ ]` Implement GxB — add extra random variable to total genetic value (without changing `pheno()`)
-- `[ ]` Simulate HTP: allelic effects must be correlated across environments
-- `[ ]` Categorical phenotypes via threshold model: y=1 if l<γ1, y=2 if γ1<l<γ2, …, y=C if l>γ(C-1)
+- `[x]` Simulate HTP: allelic effects must be correlated across environments — `cor_ar1()` for `cor` / `resid_cor` (2026-10-03)
+- `[x]` Categorical phenotypes via threshold model: y=1 if l<γ1, y=2 if γ1<l<γ2, …, y=C if l>γ(C-1) — `liability_threshold()` (2026-10-03)
 - `[x]` Create `create_complex_phenotype()` — combine multiple architecture types — `complex_phenotypes()`
-- `[ ]` Co-heritability in the package (rGh1h2)
+- `[x]` Co-heritability in the package (rGh1h2) — `coheritability()` (2026-10-03)
 - `[x]` Simulate eQTL — `simulate_transcriptome()` / `transcriptome()` (DECISION-022)
 - `[ ]` Haplotype-based simulation
 - `[x]` Genetic map integration (Kaio) — `synthetic_map()`, map-aware `Population`; vignette `genetic-maps`
@@ -606,19 +633,19 @@ These are queued for after the R → Rust port is complete. Do not implement in 
 
 #### Input / output
 
-- `[ ]` Read `.gz` compressed genotype files
-- `[ ]` GDS to VCF conversion (package `SeqArray`)
-- `[ ]` Filter non-polymorphic SNPs
-- `[ ]` Subset individuals
-- `[ ]` Relative path support for `home_dir`
+- `[x]` Read `.gz` compressed genotype files — `as_numeric()` reads `.gz`/`.bz2` (2026-10-03)
+- `[-]` GDS to VCF conversion (package `SeqArray`) — rejected for this package (ROADMAP §5; use SeqArray)
+- `[x]` Filter non-polymorphic SNPs — `filter_geno(remove_monomorphic = TRUE)` (2026-10-03)
+- `[x]` Subset individuals — `simulate_phenotype(individuals =)` (2026-10-03)
+- `[x]` Relative path support for `home_dir` — legacy `create_phenotypes(home_dir =)` (2026-10-03)
 
 #### Diagnostics & tooling
 
 - `[ ]` Diagnostic plots (QQ, Manhattan, trait distributions)
 - `[x]` Unit tests (testthat)
-- `[ ]` Power calculation
-- `[ ]` Wrapper for GWAS tools: GAPIT, GEMMA
+- `[-]` Power calculation — vignette only, not a function (ROADMAP §4/§5)
+- `[-]` Wrapper for GWAS tools: GAPIT, GEMMA — companion package recommended (ROADMAP §5)
 
 #### Interfaces
 
-- `[ ]` Shiny app
+- `[-]` Shiny app — outside the CRAN tarball; reframed as the breedingDesigner canvas (ROADMAP §5, §8a)

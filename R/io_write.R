@@ -1398,8 +1398,8 @@ qtn_table <- function(sim, rep = 1L) {
   # Realized phenotypic variance per trait for this replication; var_explained
   # is reported as a fraction of it (SPEC realized variance-ratio convention).
   var_p <- vapply(seq_len(sim$n_traits), function(t) {
-    y <- sim$pheno$value[sim$pheno$trait == paste0("Trait_", t) &
-                         sim$pheno$rep == rep]
+    lt <- .liability_table(sim)          # liability scale for threshold traits
+    y <- lt$value[lt$trait == paste0("Trait_", t) & lt$rep == rep]
     stats::var(y)
   }, numeric(1))
   empty <- data.frame(

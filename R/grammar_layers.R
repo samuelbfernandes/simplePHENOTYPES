@@ -156,6 +156,15 @@
 #'
 #' head(phenotypes_long(ph))
 #'
+#' # A major QTN with a set share of the variance: stack two additive layers,
+#' # one locus explaining 20% of V_P and 50 equal-effect loci another 30%
+#' g <- SNP55K_maize282_maf04
+#' major <- simulate_phenotype(g, seed = 1) |>
+#'   additive(prop = 0.2, qtn = g$snp[100]) |>
+#'   additive(prop = 0.3, n_qtn = 50, effect = rep(1, 50))
+#' tb <- qtn_table(major)
+#' head(tb[order(-tb$var_explained), c("snp", "var_explained")], 3)
+#'
 #' # Effect sizes follow a geometric series by default. `effect` sets its base,
 #' # so QTN effects here are 0.5, 0.25, 0.125, ...
 #' simulate_phenotype(SNP55K_maize282_maf04, seed = 1) |>

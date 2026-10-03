@@ -106,6 +106,7 @@
   }
 
   sim$pheno <- do.call(rbind, long)
+  sim <- .apply_threshold(sim)              # no-op unless liability_threshold()
   sim$var_budget <- .variance_budget(sim)
   sim$mediation <- .mediation_budget(sim)   # NULL unless a derived transcriptome
   sim$ad_report <- .ad_report(sim)          # NULL unless additive + dominance share loci
@@ -730,8 +731,8 @@
       Txg <- .transcriptome_matrix(sim, r, "genetic")[, t]
       Tx  <- .transcriptome_matrix(sim, r, "total")[, t]
       Txe <- Tx - Txg
-      ph <- sim$pheno[sim$pheno$trait == paste0("Trait_", t) &
-                      sim$pheno$rep == r, ]
+      lt <- .liability_table(sim)
+      ph <- lt[lt$trait == paste0("Trait_", t) & lt$rep == r, ]
       y <- ph$value[match(sim$ids, ph$id)]     # match by id: gen is in sim$ids order
       vp <- stats::var(y)
       if (!is.finite(vp) || vp <= 0) return(c(NA_real_, NA_real_, NA_real_))
@@ -876,8 +877,8 @@
   }
   requested <- sum(vapply(c(add_layers, dom_layers),
                           function(l) .expand_prop(l$prop, nt)[t], 0))
-  y <- sim$pheno$value[sim$pheno$trait == paste0("Trait_", t) &
-                       sim$pheno$rep == r]
+  lt <- .liability_table(sim)
+  y <- lt$value[lt$trait == paste0("Trait_", t) & lt$rep == r]
   vp <- stats::var(y)
   if (requested <= 0 || !is.finite(vp) || vp <= 0) {
     return(NULL)
@@ -1072,8 +1073,9 @@
   for (t in seq_len(nt)) {
     ratios <- vapply(seq_len(sim$n_reps), function(r) {
       gen <- .genetic_value_matrix(sim, r)
-      ph <- sim$pheno[sim$pheno$trait == paste0("Trait_", t) &
-                      sim$pheno$rep == r, ]
+      # a liability_threshold() trait: heritability on the liability scale
+      src <- .liability_table(sim)
+      ph <- src[src$trait == paste0("Trait_", t) & src$rep == r, ]
       y <- ph$value[match(sim$ids, ph$id)]     # match by id: gen is in sim$ids order
       if (scale == "record" && reps[t] != 1L) {
         e <- y - .genetic_matrix(sim, r)[, t] -

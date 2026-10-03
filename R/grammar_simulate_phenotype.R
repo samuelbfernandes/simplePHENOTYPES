@@ -1164,6 +1164,7 @@ print.phenotype_sim <- function(x, ...) {
     }
   }
   .print_ad_report(x)
+  .print_threshold_note(x)
   if (!is.null(x$mediation)) {
     md <- x$mediation
     cat(sprintf(
@@ -1177,6 +1178,21 @@ print.phenotype_sim <- function(x, ...) {
         sep = "")
   }
   invisible(x)
+}
+
+#' Name the liability-threshold traits (variance shares and H2 are on the
+#' liability scale; the phenotype is categorical)
+#' @keywords internal
+#' @noRd
+.print_threshold_note <- function(x) {
+  th <- x$threshold
+  if (is.null(th) || all(vapply(th, is.null, logical(1)))) return(invisible())
+  k <- which(!vapply(th, is.null, logical(1)))
+  cat(sprintf("  Liability-threshold: %s; phenotypes are categories 1..C, the\n",
+              paste(sprintf("Trait_%d (%d categories)", k,
+                            vapply(th[k], length, integer(1))), collapse = ", ")),
+      "   shares and realized H\u00b2 above are on the liability scale\n", sep = "")
+  invisible()
 }
 
 #' State the heritability scale when entry means of `reps > 1` records are shown
