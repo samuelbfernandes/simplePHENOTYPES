@@ -425,20 +425,6 @@ PR #16 tree: 1199 tests, 0 failures, 0 warnings (with `NOT_CRAN=true`; 42 skips 
   THEORY: PASS for both groups; the export implementation kept finding POSIX filesystem corner cases.
   Known limits, documented: hard links are not detected as the same file; the staged commit is
   best-effort POSIX and was not exercised on Windows.
-**Open from PR #16 (passed QTNs, export)**
-- [ ] `epistasis()` is still not available under `architecture = "ld"` (no linked-pair construction for
-  sets, DECISION-023/043); decide whether a user-passed construction is wanted.
-- [ ] V1 `create_phenotypes(QTN_list = )` is still rejected with `architecture = "LD"` (frozen legacy,
-  DECISION-037 / D1); pick and pass work in pleiotropic and partially pleiotropic.
-- [ ] Under `"ld"`, ownership of a causal locus holds across layers and within each replication, not
-  across the replications of one `vary_qtn` layer (enforcing it would change the historical first-layer
-  draws; DECISION-043). Revisit only if a use case needs it.
-- [ ] Default pleiotropy draw (no `qtn`, no `effect`) is unchanged: effects come from the implicit
-  `cor = 0` draw, and `pi < 1` still creates trait-specific loci; the maintainer said single-trait QTNs
-  belong to `complex_phenotypes()`: decide whether to remove them from the default draw.
-- [ ] `write_phenotypes()` returns a named vector of paths (not `file`) when companion files are written:
-  confirm this is the wanted contract.
-
 - [ ] Codex re-review of the round-4 changes (script to write, adapt
   `.tmp/codex-review-round3.sh`): R4-1 (`.tune_lambda()` purely relative above-optimum band,
   `R/select_ocs.R`) and R4-5 (`.tx_mimic_scale()` always rescales to the requested per-gene
@@ -475,6 +461,20 @@ PR #16 tree: 1199 tests, 0 failures, 0 warnings (with `NOT_CRAN=true`; 42 skips 
   tests, 0 errors, 18 skips by design) predates the final edits, so re-run
   `bash dev/test-installed.sh`, `devtools::test()` (edition 3, one serial pass) and a full
   `R CMD check` with vignettes.
+
+**Open from PR #16 (passed QTNs, export)**
+- [ ] `epistasis()` is still not available under `architecture = "ld"` (no linked-pair construction for
+  sets, DECISION-023/043); decide whether a user-passed construction is wanted.
+- [ ] V1 `create_phenotypes(QTN_list = )` is still rejected with `architecture = "LD"` (frozen legacy,
+  DECISION-037 / D1); pick and pass work in pleiotropic and partially pleiotropic.
+- [ ] Under `"ld"`, ownership of a causal locus holds across layers and within each replication, not
+  across the replications of one `vary_qtn` layer (enforcing it would change the historical first-layer
+  draws; DECISION-043). Revisit only if a use case needs it.
+- [ ] Default pleiotropy draw (no `qtn`, no `effect`) is unchanged: effects come from the implicit
+  `cor = 0` draw, and `pi < 1` still creates trait-specific loci; the maintainer said single-trait QTNs
+  belong to `complex_phenotypes()`: decide whether to remove them from the default draw.
+- [ ] `write_phenotypes()` returns a named vector of paths (not `file`) when companion files are written:
+  confirm this is the wanted contract.
 
 **Open follow-ups from the new features**
 - [x] `.stable_key()` in `R/cross_pedigree.R` vectorised (identical keys, ~3x faster; 31% -> 13% of a
