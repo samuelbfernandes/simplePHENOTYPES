@@ -72,7 +72,15 @@
 #'   coupling-phase alleles); for effectively unlinked QTNs it merely relabels
 #'   which allele is "increasing" and leaves the cross-locus covariance
 #'   unchanged. `phase` is architecture-independent -- it acts on whichever QTNs
-#'   the additive layer draws.
+#'   the additive layer draws. For a **genuine haplotype-derived phase** between
+#'   two linked traits use `architecture = "ld"` with its `ld_phase` argument
+#'   (see [simulate_phenotype()]): it reads the sign of the dosage correlation
+#'   of each linked pair and sets trait 2's effect sign so that every pair's
+#'   linkage-induced covariance is positive (`"coupling"`) or negative
+#'   (`"repulsion"`). The two may be combined: `phase` is applied first, then
+#'   `ld_phase` re-signs trait 2's effects pair by pair, so under `"ld"` with a
+#'   non-default `ld_phase` the positional alternation is only guaranteed to
+#'   survive on trait 1.
 #' @param dist within-layer effect distribution (default "geometric").
 #' @return the updated `phenotype_sim`.
 #' @details
@@ -294,7 +302,14 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
                   function(t) .effect_series(nq, dist, eff_for(t),
                                              arg = eff_name))
     }
-    list(qtn = q, effect = .apply_phase(e, phase))
+    e <- .apply_phase(e, phase)
+    # The haplotype-derived phase of the "ld" pairs is imposed last so it holds
+    # on the final effects whatever the positional alternation did; it only
+    # re-signs trait 2 (see .apply_ld_phase()).
+    if (sim$architecture == "ld") {
+      e <- .apply_ld_phase(e, q, sim$arch_args[["ld_phase"]])
+    }
+    list(qtn = q, effect = e)
   }
 
   drawn <- .draw_layer(sim, "additive", occ, build, fixed = !is.null(user_qtn))
@@ -1443,7 +1458,9 @@ vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
 #' draw order (`+, -, +, -, ...`). This is a positional sign pattern, not a phase
 #' derived from the haplotypes; it produces repulsion-style cancellation only
 #' when the alternately-signed loci are actually in positive LD (see the `phase`
-#' argument of additive()). Coupling returns the effects unchanged.
+#' argument of additive()). Coupling returns the effects unchanged. The
+#' haplotype-derived phase of the `"ld"` architecture is `.apply_ld_phase()`,
+#' applied after this one.
 #' @keywords internal
 #' @noRd
 .apply_phase <- function(eff_list, phase) {

@@ -42,14 +42,17 @@
 #'   \item{`"gv"`}{the true *total* genetic value (broad-sense: additive plus any
 #'     dominance/epistasis). Idealized selection on genetic merit -- an upper bound
 #'     on selectable genetic value, but not on breeding-value response, since the
-#'     non-additive part is not, in general, transmitted to progeny.}
+#'     non-additive part is not, in general, transmitted to progeny. For a
+#'     derived `transcriptome()` layer this includes its genetic-mediated part, so
+#'     `"gv"` equals [genetic_values()].}
 #'   \item{`"bv"`}{the true *breeding* value -- the classical transmissible merit,
 #'     \eqn{A_i = \sum_j \alpha_j (x_{ij} - 2p_j)}, summing each causal locus's
 #'     average effect of substitution \eqn{\alpha_j = a_j + d_j(q_j - p_j)}
 #'     (`.breeding_value_matrix()`). The per-locus effects are reconstructed from
 #'     the simulation's own additive/dominance QTN effects (it is a simulation, so
 #'     they are known exactly), making this the genetic value transmitted to
-#'     random-mated progeny -- robust to both linkage disequilibrium (exact for an
+#'     random-mated progeny (twice the expected progeny deviation from the
+#'     population mean, \eqn{A_i = 2 \times} the progeny mean deviation) -- robust to both linkage disequilibrium (exact for an
 #'     F2) and departures from HWE (after inbreeding/selection). It captures the
 #'     additive average effects dominance loci induce away from \eqn{p = 0.5} and
 #'     reduces to the additive value for a purely additive model. This is the merit
@@ -58,8 +61,10 @@
 #'     epistatic term has no per-locus \eqn{a}/\eqn{d}, so its induced additive
 #'     average effects cannot be reconstructed and the breeding value would be
 #'     incomplete (see `.breeding_value_matrix()`); both cases error rather than
-#'     return a partial value. Supply your own predicted values via a
-#'     numeric/function criterion there.}
+#'     return a partial value. A derived (genome-mediated) `transcriptome()` layer
+#'     of `prop > 0` is likewise refused (its genetic value has no per-locus
+#'     decomposition); use `"gv"` or a custom criterion. Supply your own predicted
+#'     values via a numeric/function criterion there.}
 #'   \item{a numeric vector}{one score per individual (named by id or in
 #'     population order) -- the hook for **genomic selection, phenomic selection**
 #'     and any predicted/estimated value you compute externally.}
@@ -122,6 +127,24 @@
 #' `differential` and `intensity` attributes are the *realized* values on the
 #' `on` criterion of the individuals drawn (expected 0, either sign), not those of
 #' the random draw score, and `on` is validated.
+#' `"bqp"` is the relatedness-penalized binary quadratic programming selection of
+#' Montesinos-Lopez et al. (2025): it chooses **exactly** `N` individuals
+#' maximizing \eqn{\sum_i\sum_j w_j s_{ij} x_i - \lambda\sum_i\sum_k G_{ik}
+#' x_i x_k}, with \eqn{x_i \in \{0,1\}}, \eqn{s_{ij}} the standardized criterion
+#' of trait `j`, `weights` the economic weights \eqn{w_j} (omitted: the single
+#' criterion `on`/`trait`, weight 1) and \eqn{G} the VanRaden genomic
+#' relationship matrix of the individuals ([g_matrix()]). `lambda` is the paper's
+#' penalty weight `k` (`lambda = 0` reduces to truncation on the merit).
+#' `min_gain` adds the paper's per-trait constraints
+#' \eqn{\sum_i s_{ij} x_i \ge N d_j/100}, with \eqn{d_j} in percent of a standard
+#' deviation (the standardized scale is this package's reading of the paper's
+#' \eqn{n\sigma_j d_j/100}); an unattainable constraint is an error. The paper
+#' solves the problem with CVXR; here it is solved without dependencies and
+#' deterministically: exact enumeration when `choose(n, N) <= 2e5`, otherwise a
+#' greedy construction followed by best-improvement 1-swap local search (a
+#' heuristic with no optimality guarantee; the greedy start ignores `min_gain`,
+#' which the swap phase enforces by penalty). The attribute `"bqp"` of the result
+#' reports the objective, the solver used and the arguments (DECISION-046).
 #' `"culling"` is independent culling levels: `culling` gives one proportion per
 #' trait (traits in `trait`, default the first `length(culling)`), and an individual
 #' is kept iff it is in the top `culling[t]` fraction of every trait (simultaneous;
@@ -190,6 +213,11 @@
 #' @param sequential for `method = "culling"`: `FALSE` (default) culls every trait
 #'   on the whole population at once; `TRUE` culls the traits in order, each among
 #'   the survivors of the previous ones.
+#' @param lambda relatedness penalty weight for `method = "bqp"` (default 1;
+#'   >= 0).
+#' @param min_gain for `method = "bqp"`: NULL (default, no trait constraints), or
+#'   the paper's minimum desired gain `d_j` in percent of a standard deviation of
+#'   the standardized trait (one value, or one per trait when `weights` is given).
 #' @param n_per_family for `method = "within_family"` only: the number of
 #'   individuals to keep **in each family**, in place of the proportional
 #'   allocation of a total `n`. One whole number >= 1 keeps that many from every
@@ -244,6 +272,11 @@
 #'   Falconer DS, Mackay TFC (1996) Introduction to Quantitative Genetics, 4th
 #'   ed. Longman; Lynch M, Walsh B (1998) Genetics and Analysis of
 #'   Quantitative Traits. Sinauer.
+#' Relatedness-penalized selection by binary quadratic programming
+#'   (`"bqp"`): Montesinos-Lopez OA, Montesinos-Lopez A, Hernandez-Suarez CM,
+#'   Alemu A (2025) A selection index with minimal genetic relatedness for
+#'   multi-trait data via binary quadratic programming. \emph{Plant Methods}
+#'   22:7. \doi{10.1186/s13007-025-01484-4}
 #' Breeding schemes: Bernardo R (2020) Breeding for Quantitative Traits in Plants,
 #'   3rd ed. Stemma Press.
 #' @seealso [single_seed_descent()], [bulk()], [pedigree()],
@@ -263,10 +296,11 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
                        direction = c("high", "low"),
                        method = c("mass", "within_family", "among_family",
                                   "combined", "index", "quadratic_index",
-                                  "random", "culling"),
+                                  "random", "culling", "bqp"),
                        family = NULL, weights = NULL, quad_weights = NULL,
                        h2 = NULL, family_relationship = 0.25, rep = 1L,
-                       culling = NULL, sequential = FALSE, n_per_family = NULL) {
+                       culling = NULL, sequential = FALSE, n_per_family = NULL,
+                       lambda = 1, min_gain = NULL) {
   .check_sim(sim)
   # Selecting on a phenotype whose requested h2 was never fully allocated would
   # silently select at the wrong heritability; enforce the same completeness
@@ -290,6 +324,9 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
       stop("`n_per_family` replaces `n`, `prop` and `intensity`; give only ",
            "`n_per_family`.", call. = FALSE)
     }
+  }
+  if (method != "bqp" && (!missing(lambda) || !is.null(min_gain))) {
+    stop("`lambda` and `min_gain` apply to method = \"bqp\" only.", call. = FALSE)
   }
   if (method == "culling") {
     return(.select_culling(sim, n, prop, intensity, on, trait,
@@ -365,12 +402,21 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
          "with method = \"mass\".", call. = FALSE)
   }
 
+  bq <- NULL
+  if (method == "bqp") {
+    .bqp_check_args(lambda, min_gain,
+                    if (is.null(weights)) 1L else sim$n_traits)
+    .cite_bqp()
+    bq <- .bqp_inputs(sim, on, trait, weights, rep)
+  }
   crit_real <- NULL     # criterion the statistics are reported on, when the
                         # ranking score is not it (method = "random")
   score <- if (method == "index") {
     .index_score(sim, weights, rep)
   } else if (method == "quadratic_index") {
     .quadratic_index_score(sim, weights, quad_weights, rep)
+  } else if (method == "bqp") {
+    bq$score
   } else if (method == "random") {
     # `on` is validated (and evaluated) so S and i can be reported honestly on the
     # phenotype/criterion of the individuals actually drawn; the draw itself uses
@@ -394,6 +440,10 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
   sel_idx <- switch(method,
     within_family = .sel_within_family(score, fam, keep_n, alloc = fam_alloc),
     among_family  = .sel_among_family(score, fam, keep_n),
+    bqp           = {
+      bqp_sol <- .sel_bqp(bq, direction, keep_n, lambda, min_gain)
+      bqp_sol$sel
+    },
     .sel_top(score, keep_n))               # mass, combined, index, random
 
   # Realized selection differential (S) and standardized intensity (i) are computed
@@ -431,6 +481,11 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
     if (is.numeric(on)) "custom" else on
   attr(out, "method") <- method
   if (!is.null(fam_alloc)) attr(out, "n_per_family") <- fam_alloc
+  if (method == "bqp") {
+    attr(out, "bqp") <- list(objective = bqp_sol$objective,
+                             solver = bqp_sol$method, lambda = lambda,
+                             min_gain = min_gain)
+  }
   out
 }
 
@@ -595,7 +650,7 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
     v <- .breeding_value_matrix(sim, rep)[, trait]
   } else if (identical(on, "gv")) {
     .check_trait_index(trait, sim$n_traits)
-    v <- .genetic_matrix(sim, rep)[, trait]
+    v <- .genetic_value_matrix(sim, rep)[, trait]   # total G, as genetic_values()
   } else if (identical(on, "pheno")) {
     .check_trait_index(trait, sim$n_traits)
     ph <- sim$pheno

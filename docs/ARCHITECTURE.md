@@ -24,14 +24,15 @@ v1.3.0 behavior exactly under matching architectures.
 | 002 | Port isqg's algorithms to Rust (matching the published version) |
 | 003 | `create_phenotypes()` preserved (frozen legacy — refined by 008) |
 | 004 | Multi-generation stays in simplePHENOTYPES |
-| 005 | Expression-based simulation deferred to v3 |
+| 005 | Expression-based simulation deferred to v3 — **superseded by 022** (brought into v2 as a genome-downstream process) |
 | 006 | **Rust is surgical, not a rewrite** — only C++-origin code and profiled bottlenecks move to Rust; the stochastic simulation core stays in R |
 | 007 | PleioArch adopted for `"pleiotropy"` — rhoG control (target `cor`) via bivariate-normal draws |
 | 008 | `create_phenotypes()` = frozen legacy (bugfix-only, superseded), NOT a delegation shim |
 | 009 | New grammar has NO bit-for-bit v1 parity; RDS references guard the legacy fn + statistical checks for the grammar |
 | 010 | v1 `cor` dropped; genetic correlation reimplemented as `rho_g` via PleioArch |
-| 011 | Single rextendr package; Cargo-workspace plan (TODO_newfeatures item 7) dropped |
+| 011 | Single rextendr package; Cargo-workspace plan (`TODO.md` appendix, legacy item 7) dropped |
 | 012 | Meiosis randomness drawn in R; Rust core pure; **exact** isqg bit-parity is the gate |
+| 022 | Transcriptome simulation: hybrid latent-factor eQTL generator (`simulate_transcriptome()`) + the `transcriptome()` phenotype layer (genome → transcriptome → phenotype), fixed reference calibration, RNA-seq counts; supersedes 005 |
 
 > Full rationale for every decision lives in `DECISIONS.md` (canonical log).
 
@@ -185,9 +186,14 @@ Column meanings:
   - `PLINK`: on the `filter_geno()` LD path (`test-filter-geno-plink-parity.R`).
   - `isqg`: pinned to isqg 1.4 by `test-isqg-parity.R`. This covers R's draw order
     (`.draw_meiosis`) and the Rust cores fed the recorded draws: `meiosis_core`,
-    `gamete_masks_core`, and `mate_haplotypes_core`, which `cross()`, `selfcross()` and
-    `double_haploid()` run. `mate_haplotypes_core` is checked on phased haplotypes, so a
-    cis/trans swap cannot pass.
+    `gamete_masks_core`, `mate_haplotypes_core` and `mate_many_core`, the batched
+    integer-strand core that `cross()`, `selfcross()`, `double_haploid()` and `mate()`
+    run through `.mate_many()` ("mate_many_core() reproduces isqg's phased progeny
+    exactly", including the `order` permutation on a scrambled marker layout). The
+    exported functions themselves are pinned end to end under the fixture seed
+    ("cross()/selfcross()/double_haploid() reproduce isqg under the fixture seed":
+    `dosages()`, `haplotypes()` and the RNG state left behind). The haplotype cores are
+    checked on phased haplotypes, so a cis/trans swap cannot pass.
   - `—`: no bit-parity obligation. The v2 grammar owes v1 none (DECISION-009).
 
 Summary:
@@ -205,8 +211,10 @@ helpers `.check_pool()` and `.make_map()` factored out of `as_population()`, and
 `.meiosis_layout()`, `.check_interference()` and `.draw_meiosis_interference()` (`cross_mating.R`,
 DECISION-040/041), `.geno_label()` / `.small_expr()` / `.validate_reps()` (`grammar_simulate_phenotype.R`,
 DECISION-038) and `.resolve_n_per_family()` (`select_ind.R`, DECISION-015) are internal and not listed
-individually. `mate_many_core()` is not isqg-parity-critical: the isqg draw order is pinned through
-`.draw_meiosis()` and the string cores, and the batched path is tested against the sequential one (`test-feat-crossing.R`).
+individually. `mate_many_core()` is isqg-parity-critical: it is the core every exported crossing
+function runs, and `test-isqg-parity.R` pins it directly to the isqg 1.4 fixtures (fed the recorded
+draws, and end to end through `cross()`/`selfcross()`/`double_haploid()` under the fixture seed), in
+addition to the batched-equals-sequential equivalence tests of `test-feat-crossing.R`.
 
 Notes:
 
@@ -369,7 +377,7 @@ Notes:
 | `mating_design` | cross_mate.R | yes | direct | cross | no — RNG | — |
 | `.cite_isqg` | cross_mating.R | no | indirect | cross | no — glue | — |
 | `.draw_meiosis` | cross_mating.R | no | direct | cross | no — RNG | isqg |
-| `.mate` | cross_mating.R | no | indirect | cross | done (`mate_haplotypes_core`) | — |
+| `.mate` | cross_mating.R | no | indirect | cross | done (`mate_many_core` via `.mate_many()`) | isqg |
 | `cross` | cross_mating.R | yes | direct | cross | no — RNG | — |
 | `selfcross` | cross_mating.R | yes | direct | cross | no — RNG | — |
 | `double_haploid` | cross_mating.R | yes | direct | cross | no — RNG | — |
@@ -497,7 +505,7 @@ Notes:
 | `numericalize_core` | extendr-wrappers.R | no | direct | rust (generated) | is Rust | v1.3.0 |
 | `meiosis_core` | extendr-wrappers.R | no | direct | rust (generated) | is Rust | isqg |
 | `mate_haplotypes_core` | extendr-wrappers.R | no | direct | rust (generated) | is Rust | isqg |
-| `mate_many_core` | extendr-wrappers.R | no | direct | rust (generated) | is Rust | — |
+| `mate_many_core` | extendr-wrappers.R | no | direct | rust (generated) | is Rust | isqg |
 | `gamete_masks_core` | extendr-wrappers.R | no | direct | rust (generated) | is Rust | isqg |
 | `stable_hash_core` | extendr-wrappers.R | no | direct | rust (generated) | is Rust | — |
 | `.onAttach` | zzz.R | no | no | package | no — glue | — |

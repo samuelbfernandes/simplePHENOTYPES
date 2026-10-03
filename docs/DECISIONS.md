@@ -1874,6 +1874,57 @@ directly and is byte-identical to earlier releases.
 
 ---
 
+## DECISION-045: residual correlation between traits (`resid_cor`)
+
+**Decision:** `simulate_phenotype(resid_cor = NULL)` and `complex_phenotypes(resid_cor = NULL)`: the target
+correlation of the traits' **residuals** (`cor` stays the genetic correlation, DECISION-010). `NULL` leaves
+the draw path untouched (same sub-seeds, same draws, bit-identical output). A scalar (common pairwise value,
+>= `-1/(n_traits - 1)`) or an `n_traits x n_traits` matrix, validated symmetric, unit diagonal, entries in
+[-1, 1], positive semi-definite (the same style as `cor`); needs `n_traits >= 2`.
+
+**Construction:** per trait the unit-variance residual is drawn under the unchanged `residual_t<t>` sub-seed
+(`complex_resid_t<t>` for `complex_phenotypes()`), the n x n_traits matrix is multiplied by the upper Cholesky
+factor of the target (eigen square root if singular), and each column is re-standardized (mean 0, exact unit
+sample variance) and scaled by `sqrt(1 - sum(prop))`. Each trait therefore keeps exactly its `h2`-implied
+residual variance; realized h2 and `var_budget` are unchanged and only the cross-trait correlation is
+induced. RNG stays in R (DECISION-006).
+
+**Scope / limits:** the realized sample correlation equals the target up to sampling error of order
+`1/sqrt(n)` (it is not forced exact, unlike the variance). A `vqtl()` heterogeneity component is drawn
+independently per trait after the mixing and dilutes the correlation; `reps` rescales each trait by its own
+`1/sqrt(reps)` afterwards, which keeps the correlation. The phenotypic correlation mixes the genetic and
+residual correlations by their variance shares. This is the grammar counterpart of v1 `cor_res` (frozen
+legacy function unchanged, DECISION-008); no v1 bit-parity is owed (DECISION-009).
+
+**Date:** 2026-10-02
+
+---
+
+## DECISION-046: BQP relatedness-penalized selection, `select_ind(method = "bqp")`
+
+**Decision:** `select_ind(method = "bqp", lambda = 1, min_gain = NULL, weights = NULL)` selects exactly `N`
+individuals maximizing `sum_j sum_i w_j s_ij x_i - lambda sum_i sum_k G_ik x_i x_k`, `x_i in {0, 1}`,
+`sum_i x_i = N` (Montesinos-Lopez, Montesinos-Lopez, Hernandez-Suarez & Alemu 2025, *Plant Methods* 22:7,
+doi:10.1186/s13007-025-01484-4, Eq. 1-2; `lambda` is the paper's penalty weight `k`, default 1). `s_ij` is the
+standardized criterion of trait `j` (`on`; with `weights = NULL` the single `on`/`trait` criterion, weight 1);
+`G` is the VanRaden matrix of the individuals (`g_matrix()`), diagonal included as in the paper's double sum.
+`min_gain` is the paper's per-trait constraint `sum_i s_ij x_i >= RHS_j` (Eq. 3-4) with `d_j` in percent of a
+standard deviation on the standardized scale (our reading of `RHS_j = n sigma_j d_j / 100`); infeasible = error.
+
+**Solver:** the paper uses CVXR; here a dependency-free deterministic solver (no RNG): exact enumeration when
+`choose(n, N) <= 2e5` (first lexicographic optimum on ties), otherwise greedy construction + best-improvement
+1-swap local search (a heuristic, no optimality guarantee; the greedy start ignores `min_gain`, the swap phase
+enforces it by a large penalty). `lambda = 0` is truncation on the merit. The result carries the `"bqp"`
+attribute (objective, solver, `lambda`, `min_gain`). A once-per-session citation notice is emitted.
+Registered in `selection_methods()` as `bqp`. Overlaps `optimum_contribution()` (discrete vs continuous).
+Not compared with the paper's numerical results (no reference data); the tests pin the solver to brute force.
+
+**Reaffirms:** DECISION-006 (no RNG in the solver), DECISION-016.
+
+**Date:** 2026-10-02
+
+---
+
 ## Note: testthat edition 3 (2026-10)
 
 The package declares `Config/testthat/edition: 3` (DESCRIPTION). Expectations that relied on edition 2's
@@ -1930,3 +1981,5 @@ asserted with nested `expect_warning()`. `test-v130-parity.R` and the RDS refere
 | 042 | Frozen v1 direct-LD search: first attempt unchanged (bit-identical), then up to 50 retries per replicate from derived seeds `seed -/+ (a-1)*1000003` with the dominance-walk neighbour reset; window never relaxed, every pair verified; indirect LD not retried | locked (2026-10-01) |
 | 043 | `qtn =` accepted in every architecture, each keeping its construction: pleiotropy = every locus affects every trait (partial pleiotropy -> `complex_phenotypes()`, error), an explicit `effect` sets effects when no correlation is controlled (no `cor`/`pi`), else (and by default) the correlated draw with implicit `cor = 0`; `pi < 1` refused with fixed loci; ld = `list(trait1, trait2)` disjoint linked pairs on one chromosome with reported r2 (`ld_type = "indirect"` refused; epistasis still unsupported; ownership enforced in any layer order); constant passed markers warned (errors where the construction becomes undefined) | locked (2026-10-02) |
 | 044 | `write_qtn_table()` (all `qtn_table()` columns, text/JSON, several reps stacked with `rep`) + `write_phenotypes(qtn_file, split_markers, markers_files, rep)`: causal markers = union of `qtn_table()` marker-layer `snp` over the selected reps (genes excluded), non-causal = the rest; numeric-format text / self-describing JSON, chunked writing | locked (2026-10-02) |
+| 045 | Residual correlation between traits: `resid_cor = NULL \| scalar \| matrix` on `simulate_phenotype()` / `complex_phenotypes()` (genetic stays `cor`); unit draws under the unchanged sub-seeds mixed through `chol(R)` and re-standardized per trait, so each trait's residual variance, realized h2 and `var_budget` are unchanged; `NULL` bit-identical; sample correlation = target up to `1/sqrt(n)`; vqtl dilutes it | locked (2026-10-02) |
+| 046 | `select_ind(method = "bqp", lambda, min_gain)`: Montesinos-Lopez et al. 2025 relatedness-penalized BQP selection of exactly N (weighted standardized merit minus `lambda` x'Gx on the VanRaden G; per-trait `min_gain` constraints); dependency-free deterministic solver (exact enumeration if `choose(n,N) <= 2e5`, else greedy + 1-swap local search), no RNG | locked (2026-10-02) |

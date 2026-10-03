@@ -151,3 +151,16 @@ tests/testthat/file*.gds
 # those ARE tracked. Re-include them explicitly.
 !dev/lib/
 !dev/lib/*
+
+# ============================================
+# Generated / tool artifacts (never commit)
+# ============================================
+# graphify knowledge graph (rebuild with /graphify .)
+graphify-out/
+# testthat 3.3 failure snapshots
+tests/testthat/_problems/
+tests/testthat/testthat-problems.rds
+# quarto render cache and the rendered copy of docs/ARCHITECTURE_DIAGRAM.md
+.quarto/
+docs/ARCHITECTURE_DIAGRAM.html
+docs/ARCHITECTURE_DIAGRAM_files/

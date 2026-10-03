@@ -80,7 +80,15 @@ consecutively drawn QTNs happen to be in positive LD (same chromosome,
 coupling-phase alleles); for effectively unlinked QTNs it merely relabels
 which allele is "increasing" and leaves the cross-locus covariance
 unchanged. \code{phase} is architecture-independent -- it acts on whichever QTNs
-the additive layer draws.}
+the additive layer draws. For a \strong{genuine haplotype-derived phase} between
+two linked traits use \code{architecture = "ld"} with its \code{ld_phase} argument
+(see \code{\link[=simulate_phenotype]{simulate_phenotype()}}): it reads the sign of the dosage correlation
+of each linked pair and sets trait 2's effect sign so that every pair's
+linkage-induced covariance is positive (\code{"coupling"}) or negative
+(\code{"repulsion"}). The two may be combined: \code{phase} is applied first, then
+\code{ld_phase} re-signs trait 2's effects pair by pair, so under \code{"ld"} with a
+non-default \code{ld_phase} the positional alternation is only guaranteed to
+survive on trait 1.}
 
 \item{dist}{within-layer effect distribution (default "geometric").}
 

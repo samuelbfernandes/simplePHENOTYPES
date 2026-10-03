@@ -90,7 +90,7 @@ test_that("qtn_table() reports a transcriptome layer as gene rows", {
   gid <- rownames(tx$expression)[c(3, 7, 11)]
   ph <- simulate_phenotype(G, h2 = 0.5, seed = 5, transcriptome = tx) |>
     transcriptome(prop = 0.4, genes = gid, slopes = c(1, -2, 0.5)) |>
-    additive(prop = 0.2, n_qtn = 4)
+    additive(prop = 0.1, n_qtn = 4)
   qt <- qtn_table(ph)
   tr <- subset(qt, layer == "transcriptome")
   expect_identical(nrow(tr), 3L)

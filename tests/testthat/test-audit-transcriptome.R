@@ -204,7 +204,7 @@ test_that("TX-F6/O9: no stale 'planned/deferred' status statements remain", {
   files <- c(file.path(root, "R", "transcriptome_layer.R"),
              file.path(root, "R", "transcriptome_simulate.R"),
              file.path(root, "docs", "SPEC-transcriptome.md"),
-             file.path(root, "docs", "DECISION-022-transcriptome-DRAFT.md"))
+             file.path(root, "docs", "DECISIONS.md"))
   files <- files[file.exists(files)]
   skip_if(length(files) == 0L, "source tree not available (installed package)")
   for (f in files) {

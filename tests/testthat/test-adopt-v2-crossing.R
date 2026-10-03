@@ -346,7 +346,7 @@ test_that("RUST-C10: contract functions keep their formal names and order (new f
     haplotypes = "x", dosages = "x", n_individuals = "x",
     simulate_phenotype = c("geno", "architecture", "n_traits", "n_qtn", "n_reps", "vary_qtn",
                            "seed", "h2", "mean", "individuals", "model", "expression",
-                           "transcriptome", "reps", "..."),
+                           "transcriptome", "reps", "resid_cor", "..."),
     additive = c("sim", "prop", "n_qtn", "qtn", "effect", "phase", "dist", "orthogonal", "a", "d"),
     dominance = c("sim", "prop", "same_as_add", "n_qtn", "qtn", "dist"),
     epistasis = c("sim", "prop", "n_pairs", "interaction", "interaction_type", "qtn",

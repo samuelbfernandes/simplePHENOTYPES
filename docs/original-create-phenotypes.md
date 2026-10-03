@@ -368,7 +368,10 @@ create_phenotypes(
 **V2 equivalent.** Build partial pleiotropy as above (a `"pleiotropy"`
 model plus an `"independent"` model, joined with
 `complex_phenotypes()`), adding an `epistasis()` layer for the “E” of
-ADE. `QTN_variance = TRUE` becomes `qtn_table()`, which always reports a
+ADE. The residual correlation `cor_res = residual` becomes
+`complex_phenotypes(..., resid_cor = residual)` (or `resid_cor =` on
+`simulate_phenotype()`); it is a target for the sample correlation, with each
+trait's residual variance kept at its `h2` value. `QTN_variance = TRUE` becomes `qtn_table()`, which always reports a
 `var_explained` column; `vary_QTN` becomes `vary_qtn`; and constraining
 QTNs by MAF or heterozygosity is now done up front with `filter_geno()`
 (e.g. `filter_geno(geno, maf_above = 0.3, maf_below = 0.44, hets = "include")`).

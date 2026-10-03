@@ -95,13 +95,17 @@
 # Dev-only top-level files (kept in git, not shipped to CRAN)
 ^LICENSE\.md$
 ^TODO\.md$
-^TODO_newfeatures\.md$
 ^_config\.yml$
 ^man/figures/SP_logo\.png$
-^man/figures/legacy_SP_logo\.png$
 
 # Purled vignette scripts and rendered HTML: build artifacts that would
 # otherwise ship stale copies of the vignette code.
 ^vignettes/.*\.R$
 ^vignettes/.*\.html$
 ^Rplots\.pdf$
+
+# Generated / tool artifacts (gitignored too; guarded here in case any linger)
+^graphify-out$
+^tests/testthat/_problems$
+^tests/testthat/testthat-problems\.rds$
+^\.quarto$

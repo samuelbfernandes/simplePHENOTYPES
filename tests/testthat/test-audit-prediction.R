@@ -423,11 +423,11 @@ test_that("T16-T18: records, vector d, var_e, n_progeny = 1, family means", {
 test_that("selection_methods(): ids, functions and sources are pinned", {
   m <- selection_methods()
   expect_equal(m$id, c("mass", "within_family", "among_family", "combined",
-                       "index", "quadratic_index", "culling", "tandem", "random",
+                       "index", "quadratic_index", "bqp", "culling", "tandem", "random",
                        "ocs", "usefulness", "mabc", "mas", "combining_ability",
                        "progeny_test", "blup", "mt_blup"))
   allowed <- c("Falconer & Mackay 1996", "Lush 1947", "Smith 1936; Hazel 1943",
-               "Ceron-Rojas et al. 2026", "Hazel & Lush 1942", "package",
+               "Ceron-Rojas et al. 2026", "Montesinos-Lopez et al. 2025", "Hazel & Lush 1942", "package",
                "Meuwissen 1997", "Zhong & Jannink 2007; Lehermeier et al. 2017",
                "Frisch & Melchinger 2001, 2005", "Lande & Thompson 1990",
                "Sprague & Tatum 1942; Griffing 1956", "package derivation",
