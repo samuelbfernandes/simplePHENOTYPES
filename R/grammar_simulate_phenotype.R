@@ -270,7 +270,11 @@
 #'   raising trait 1 travels with the allele raising trait 2; positive
 #'   linkage-induced genetic correlation); `"repulsion"` makes every pair's sign
 #'   negative (the allele raising trait 1 travels with the allele lowering trait
-#'   2). Only trait 2's additive effects change: the loci, trait 1's effects,
+#'   2). The sign is controlled pair by pair (each matched pair's contribution);
+#'   the total genetic correlation also includes the cross-pair terms between
+#'   loci of different pairs in LD, so with pairs close together on one
+#'   chromosome it can differ in sign from the pairs' common sign.
+#'   Only trait 2's additive effects change: the loci, trait 1's effects,
 #'   r and r2 are those of `"coded"`. It acts on the [additive()] layer's
 #'   effects (also per replication with `vary_qtn = TRUE`); a [dominance()]
 #'   layer reusing the linked loci (`same_as_add = TRUE`) keeps its own
@@ -399,6 +403,12 @@ simulate_phenotype <- function(geno = NULL,
   }
   arch_args <- list(...)
   .check_arch_args(arch_args, architecture)
+  # store the full ld_type once, so an abbreviation ("i") means the same thing
+  # in every later check (they compare with identical())
+  if (architecture == "ld" && !is.null(arch_args[["ld_type"]])) {
+    arch_args[["ld_type"]] <- match.arg(arch_args[["ld_type"]],
+                                        c("direct", "indirect"))
+  }
 
   if (architecture == "pleiotropy" && n_traits == 1) {
     stop("architecture = \"pleiotropy\" requires n_traits > 1; use ",

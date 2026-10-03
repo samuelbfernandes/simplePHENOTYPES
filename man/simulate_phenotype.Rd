@@ -243,7 +243,11 @@ arbitrary marker coding and the effect series. \code{"coupling"} flips trait
 raising trait 1 travels with the allele raising trait 2; positive
 linkage-induced genetic correlation); \code{"repulsion"} makes every pair's sign
 negative (the allele raising trait 1 travels with the allele lowering trait
-2). Only trait 2's additive effects change: the loci, trait 1's effects,
+2). The sign is controlled pair by pair (each matched pair's contribution);
+the total genetic correlation also includes the cross-pair terms between
+loci of different pairs in LD, so with pairs close together on one
+chromosome it can differ in sign from the pairs' common sign.
+Only trait 2's additive effects change: the loci, trait 1's effects,
 r and r2 are those of \code{"coded"}. It acts on the \code{\link[=additive]{additive()}} layer's
 effects (also per replication with \code{vary_qtn = TRUE}); a \code{\link[=dominance]{dominance()}}
 layer reusing the linked loci (\code{same_as_add = TRUE}) keeps its own

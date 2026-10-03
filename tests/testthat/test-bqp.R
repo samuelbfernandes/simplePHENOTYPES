@@ -63,7 +63,7 @@ test_that("select_ind(method = 'bqp'): lambda = 0 is top-N; relatedness drops wi
                                     lambda = 0))
   expect_setequal(attr(b0, "selected"), attr(top, "selected"))
   expect_equal(n_individuals(b0), 5L)
-  G <- g_matrix(ph)
+  G <- simplePHENOTYPES:::.bqp_g(ph)     # the paper's G = WW'/p
   rel <- function(o) { s <- attr(o, "selected"); mean(G[s, s]) }
   b5 <- suppressMessages(select_ind(ph, n = 5, on = "pheno", method = "bqp",
                                     lambda = 50))
@@ -95,9 +95,33 @@ test_that("bqp argument validation", {
   expect_error(f(lambda = NA_real_), "lambda")
   expect_error(f(min_gain = "a"), "min_gain")
   expect_error(f(min_gain = c(1, 2, 3)), "min_gain")
-  expect_error(f(min_gain = 1e6), "no set")
+  expect_error(f(min_gain = 1e6), "\\[0, 100\\]")   # outside the paper's range
   expect_error(select_ind(ph, n = 4, method = "mass", lambda = 2), "bqp")
   expect_error(select_ind(ph, n = 4, method = "mass", min_gain = 1), "bqp")
   expect_error(f(weights = c(1, 2)), "weights")
   expect_error(f(on = function(s) rnorm(30), weights = 1), "named criterion")
+})
+
+test_that("bqp uses the paper's G = WW'/p from column-standardized markers (Codex C3-G)", {
+  ph <- .bqp_sim()
+  G <- simplePHENOTYPES:::.bqp_g(ph)
+  W <- simplePHENOTYPES:::.geno_cols(ph, seq_len(ph$n_markers))
+  W <- W[, apply(W, 2, stats::sd) > 0, drop = FALSE]
+  Z <- scale(W)
+  expect_equal(unname(G), unname(tcrossprod(Z) / ncol(Z)), tolerance = 1e-12)
+  expect_equal(mean(diag(G)), 1, tolerance = 0.2)   # standardized markers
+  # the solver's objective is computed on that G
+  b <- suppressMessages(select_ind(ph, n = 4, method = "bqp", lambda = 1))
+  s <- attr(b, "selected")
+  crit <- simplePHENOTYPES:::.criterion_values(ph, "pheno", 1L, 1L)
+  z <- (crit - mean(crit)) / stats::sd(crit)
+  expect_equal(attr(b, "bqp")$objective, sum(z[s]) - sum(G[s, s]),
+               tolerance = 1e-10)
+})
+
+test_that("min_gain follows the paper's range [0, 100] (Codex C3-R)", {
+  ph <- .bqp_sim()
+  expect_error(select_ind(ph, n = 4, method = "bqp", min_gain = -25), "\\[0, 100\\]")
+  expect_error(select_ind(ph, n = 4, method = "bqp", min_gain = 150), "\\[0, 100\\]")
+  expect_no_error(suppressMessages(select_ind(ph, n = 4, method = "bqp", min_gain = 0)))
 })

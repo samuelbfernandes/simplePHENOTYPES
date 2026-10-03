@@ -13,6 +13,18 @@ test_that("R4-5: near-cancelling G/R still hits the requested mimic variance", {
   expect_true(rs$ill)
 })
 
+test_that("R4-5: the expression is scaled as esc * (G + R), not esc * G + esc * R (Codex 2026-10-03)", {
+  # Codex: standardized G = (1, 0, -1), R = -G + O(1e-16), scl = 3. Scaling the
+  # two parts separately gave Var = 11.8 instead of 9; the production path now
+  # forms the centered sum first and scales it (rs$u).
+  Gg <- c(1, 0, -1); Gg <- Gg / stats::sd(Gg)
+  Rg <- -Gg + c(1e-16, -2e-16, 1e-16)
+  rs <- simplePHENOTYPES:::.tx_mimic_scale(Gg, Rg, 3)
+  skip_if(!is.finite(rs$esc) || identical(rs$esc, 3), "exact cancellation on this platform")
+  expect_true(rs$ill)
+  expect_equal(stats::var(rs$esc * rs$u), 9, tolerance = 1e-8)
+})
+
 test_that("R4-5: ordinary vu is unchanged and exact-zero vu keeps the fallback", {
   set.seed(1)
   Gg <- stats::rnorm(50); Rg <- stats::rnorm(50)

@@ -135,7 +135,11 @@ combining_ability <- function(candidates, testers = NULL, qtn, a, d = 0,
   design <- match.arg(design)
   method <- match.arg(method)
   interference_given <- !is.null(interference)
-  interference <- .check_interference(interference, "combining_ability")
+  # "expected" runs no meiosis: an explicit argument is validated (and refused
+  # below), but the session option is not consulted (Codex F-02)
+  if (identical(method, "simulated") || interference_given) {
+    interference <- .check_interference(interference, "combining_ability")
+  }
   .check_population(candidates)
   .check_distinct(candidates, "candidates")
   if (design == "diallel") {

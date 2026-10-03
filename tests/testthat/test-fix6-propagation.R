@@ -353,3 +353,13 @@ test_that("cross_usefulness simulates its families with the interference model",
   expect_lt(abs(disp(base) - 1), 4 * disp_se(base))
   expect_lt(disp(ifx), 1 - 4 * disp_se(ifx))
 })
+
+test_that("an invalid interference option does not affect method = 'expected' (Codex F-02)", {
+  fx <- het_founders()
+  q <- paste0("b", 1:3)
+  withr::local_options(simplePHENOTYPES.interference = "bad")
+  expect_no_error(combining_ability(fx[1:3], fx[4:5], qtn = q, a = c(1, 0.5, 0.25)))
+  expect_error(combining_ability(fx[1:3], fx[4:5], qtn = q, a = c(1, 0.5, 0.25),
+                                 method = "simulated", n_progeny = 2),
+               "simplePHENOTYPES.interference")
+})

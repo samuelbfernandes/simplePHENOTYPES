@@ -597,15 +597,20 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       # mu_g. Gg is exactly mean-zero (standardized cis/trans), so predict()'s
       # unit reconstruction times the stored scale reproduces this genetic.
       esc <- 1
+      Eg <- NULL
       if (!is.null(mim)) {
         rs <- .tx_mimic_scale(Gg, Rg, scl[g])
         esc <- rs$esc
         if (rs$ill) n_ill <- n_ill + 1L         # amplifies rounding noise: counted
+        # the expression is the scaled SUM, formed before scaling: with a
+        # near-cancelling G/R pair esc is huge and esc * G + esc * R would not
+        # reproduce esc * (G + R), missing the requested variance (Codex R4-5)
+        Eg <- loc[g] + esc * rs$u
         Gg <- esc * (Gg - mean(Gg))
         Rg <- esc * (Rg - mean(Rg))
       }
       scl_used[g] <- esc
-      Eg <- loc[g] + Gg + Rg
+      if (is.null(Eg)) Eg <- loc[g] + Gg + Rg
       expression[g, ] <- Eg
       genetic[g, ] <- Gg
       vE <- stats::var(Eg)
@@ -970,7 +975,8 @@ predict.transcriptome_sim <- function(object, geno, seed = NULL,
     class = "transcriptome_sim")
 }
 
-# Per-gene mimic rescale factor; returns list(esc, ill).
+# Per-gene mimic rescale factor; returns list(esc, ill, u) with u the centered
+# unit expression G + R (scale it as esc * u: see the caller).
 .tx_mimic_scale <- function(Gg, Rg, scl) {
   # per-gene rescale factor hitting the requested variance scl^2 exactly.
   # scale-free: vu is the dimensionless unit-scale variance of G + R, so any
@@ -980,9 +986,10 @@ predict.transcriptome_sim <- function(object, geno, seed = NULL,
   u  <- (Gg - mean(Gg)) + (Rg - mean(Rg))
   vu <- stats::var(u)
   if (is.finite(vu) && vu > 0) {
-    list(esc = scl / sqrt(vu), ill = 1 / sqrt(vu) > 1e6)   # 1e6: rounding-noise amplification
+    list(esc = scl / sqrt(vu), ill = 1 / sqrt(vu) > 1e6,   # 1e6: rounding-noise amplification
+         u = u)
   } else {
-    list(esc = scl, ill = FALSE)
+    list(esc = scl, ill = FALSE, u = u)
   }
 }
 

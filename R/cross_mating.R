@@ -554,9 +554,8 @@
 #' Poisson in distribution (Haldane), although it then uses its own random
 #' stream, not isqg's. `p` is in `[0, 1]`; `nu` must be in `[1, 1e6]` (negative
 #' interference is not modelled). The gamma model of interference is that of
-#' McPeek and Speed (1995, *Genetics*) and the two-pathway extension that of
-#' Housworth and Stahl (2003, *American Journal of Human Genetics*) (author,
-#' year and journal only; the formulas above were derived and are checked
+#' McPeek and Speed (1995) and the two-pathway extension that of Housworth and
+#' Stahl (2003) (see References; the formulas above were derived and are checked
 #' numerically in this package's tests, not copied from either paper or from
 #' AlphaSimR). The draws are made in R; the Rust core only applies the drawn
 #' crossovers and is unchanged.
@@ -601,6 +600,14 @@
 #' Toledo, F.H., Perez-Rodriguez, P., Crossa, J. and Burgueno, J. (2019). isqg:
 #' A Binary Framework for in Silico Quantitative Genetics. \emph{G3
 #' Genes|Genomes|Genetics} 9(8), 2425--2428. \doi{10.1534/g3.119.400373}
+#'
+#' McPeek, M.S. and Speed, T.P. (1995). Modeling interference in genetic
+#' recombination. \emph{Genetics} 139(2), 1031--1044.
+#' \doi{10.1093/genetics/139.2.1031}
+#'
+#' Housworth, E.A. and Stahl, F.W. (2003). Crossover interference in humans.
+#' \emph{American Journal of Human Genetics} 73(1), 188--197.
+#' \doi{10.1086/376610}
 #' @export
 #' @examples
 #' data("SNP55K_maize282_maf04")

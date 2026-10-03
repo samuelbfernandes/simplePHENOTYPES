@@ -31,6 +31,7 @@
 
 # Repo-level config
 ^CITATION\.cff$
+^\.git$
 ^\.gitignore$
 ^\.gitattributes$
 ^\.github$
