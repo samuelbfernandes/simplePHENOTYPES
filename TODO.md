@@ -401,36 +401,44 @@ Source: BD `docs/BREEDING_METHODS_CATALOG.md` ("Engine:" notes).
 
 ## Block 3C — Post-audit follow-ups (independent dual-model audit, 2026-09/10)
 
-Status 2026-10-01 (round 9, branch `chore/followups-and-gaps`, uncommitted): the follow-ups and
-gaps below marked [x] are implemented and documented in `NEWS.md` ("Follow-ups and gaps after the audit"),
-DECISION-036/041 addenda and DECISION-042. Status before round 9: audit and review rounds 1-4 and the SPEC-0020 engine requests (items 1, 2,
-3, 5, 6, 7, 8 above, the interference propagation and their review fixes; DECISION-033 to 041)
-are all on `master` (PR #13 merged, CI green including vignettes and the installed-package
-tests). Local suite: 63 files, 5761 expectations, 0 failures; local `R CMD check` 0 errors /
-0 warnings.
+Status 2026-10-02: everything below marked [x] is on `master` (PR #13 engine requests, PR #15 follow-ups
+and gaps, PR #16 passed QTNs in every architecture plus the QTN-table / marker export, PR #17 graph
+follow-ups). `master` is the only branch (local and origin); the audit worktree is gone. Full suite on the
+PR #16 tree: 1199 tests, 0 failures, 0 warnings (with `NOT_CRAN=true`; 42 skips without it). Documented in
+`NEWS.md` and DECISION-033 to 044.
 
-**Housekeeping (do first)**
-- [ ] Update the main checkout: it is still on the old master with an uncommitted `TODO.md`
-  that is already contained here. Run `git checkout TODO.md && git pull` there (the untracked
-  `docs/ARCHITECTURE_DIAGRAM*`, `man/figures/legacy_SP_logo.png` and `tests/testthat/_problems/`
-  are not part of any commit: commit or delete them).
-- [ ] Unmerged work of another session: worktree `.claude/worktrees/dominance-argument-effect-44d5c8`
-  (branch `mac/dominance-argument-effect-44d5c8`, based on the old master) has UNCOMMITTED edits to
-  `NEWS.md`, `R/grammar_layers.R`, `R/qc_filter_geno.R`, `docs/SPEC.md`, `man/dominance.Rd`. It will
-  conflict with the merged work (grammar and NEWS/SPEC changed): rebase on `master`, run the suite
-  and the installed-package tests, then open its own PR.
+**Housekeeping**
+- [x] Main checkout updated, merged branches and the agent / audit worktrees deleted (2026-10-02).
+- [x] The dominance `effect=` work (PR #14) is merged.
 - [ ] Items **4** (G x E trait layer) and **9** (coalescent founders) in the PRIORITY list are
   NOT implemented: waiting for the maintainer's instructions.
-- [ ] Evidence is gitignored and lives only in the audit worktree
-  (`.claude/worktrees/kind-shamir-c7d1df/.tmp/`): copy `.tmp/audit-2026-09-29/` (reports,
-  equation-to-code PDF) and `.tmp/codex-review*/` to a permanent folder before the worktree is
-  deleted.
-- [ ] Delete merged branches and leftover worktrees: local `mac/project-audit-theory-mapping-c597aa`,
-  `mac/ultrareview-mode-benefits-2da369`, `feat/spec0020-engine-requests` (also on `origin`), the
-  agent worktree/branch `worktree-agent-abf14fefa4d4acf18` (its changes are already merged) and, after
-  the evidence is copied, the worktree `kind-shamir-c7d1df`.
+- [x] Evidence archived (gitignored, text/logs only, 205 MB) in the main checkout:
+  `.tmp/evidence-kind-shamir-c7d1df/` (audit-2026-09-29 reports, `codex-review*` reports and
+  scripts for rounds 2-12, `TODO_block3C.md`). The large binaries (RDS, source-tree archives) were not
+  kept; the equation-to-code PDF is in `docs/`.
 
 **Reviews still owed (the other model must review genetics changes, AGENTS.md)**
+- [ ] Codex re-review of the last three export fixes of PR #16 (owner-only 0700 stage directory,
+  stage-directory name avoiding requested outputs, leaf-length check on the one-file call of
+  `write_phenotypes()`): covered by tests, but they were merged after the last Codex round (12).
+  Rounds 8-12 of the PR #16 review (`.tmp/evidence-kind-shamir-c7d1df/codex-review8..12`) ended with
+  THEORY: PASS for both groups; the export implementation kept finding POSIX filesystem corner cases.
+  Known limits, documented: hard links are not detected as the same file; the staged commit is
+  best-effort POSIX and was not exercised on Windows.
+**Open from PR #16 (passed QTNs, export)**
+- [ ] `epistasis()` is still not available under `architecture = "ld"` (no linked-pair construction for
+  sets, DECISION-023/043); decide whether a user-passed construction is wanted.
+- [ ] V1 `create_phenotypes(QTN_list = )` is still rejected with `architecture = "LD"` (frozen legacy,
+  DECISION-037 / D1); pick and pass work in pleiotropic and partially pleiotropic.
+- [ ] Under `"ld"`, ownership of a causal locus holds across layers and within each replication, not
+  across the replications of one `vary_qtn` layer (enforcing it would change the historical first-layer
+  draws; DECISION-043). Revisit only if a use case needs it.
+- [ ] Default pleiotropy draw (no `qtn`, no `effect`) is unchanged: effects come from the implicit
+  `cor = 0` draw, and `pi < 1` still creates trait-specific loci; the maintainer said single-trait QTNs
+  belong to `complex_phenotypes()`: decide whether to remove them from the default draw.
+- [ ] `write_phenotypes()` returns a named vector of paths (not `file`) when companion files are written:
+  confirm this is the wanted contract.
+
 - [ ] Codex re-review of the round-4 changes (script to write, adapt
   `.tmp/codex-review-round3.sh`): R4-1 (`.tune_lambda()` purely relative above-optimum band,
   `R/select_ocs.R`) and R4-5 (`.tx_mimic_scale()` always rescales to the requested per-gene
