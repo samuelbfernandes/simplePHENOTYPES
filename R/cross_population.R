@@ -67,6 +67,9 @@
 #'   column `counted` right after `cm` (see `as_numeric(counted_column = )`) is
 #'   read as the counted-allele record, not as an individual; it must name one
 #'   allele per marker (`NA` = unknown), consistent with the `allele` label.
+#'   When the `"counted_allele"` attribute is also present (same length), it
+#'   fills the column's unknown entries, and a disagreement between the two
+#'   records is an error.
 #' @param individuals optional character or numeric vector selecting which
 #'   individuals to keep, in the order given. Defaults to all of them.
 #' @param pool optional label for the founder pool these individuals come from
@@ -101,16 +104,21 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
   # it (older files, subsetted or rebuilt data frames) keeps the label-only check.
   # The durable form is the optional `counted` column right after `cm`
   # (as_numeric(counted_column = TRUE)): it survives text files and row
-  # subsetting, so when present it is authoritative and the attribute (an
-  # R-object-only convenience that a text file cannot carry) is not consulted.
+  # subsetting, so when present it is authoritative. The attribute (an
+  # R-object-only convenience that a text file cannot carry) only fills the
+  # column's unknown (NA) entries, and an attribute that contradicts a known
+  # column entry is an error rather than a silent orientation choice; an
+  # attribute of the wrong length (stale after row subsetting) is ignored.
   k <- .n_meta(geno)
   if (ncol(geno) <= k) {
     stop("`geno` needs at least one individual column after the metadata ",
          "columns.", call. = FALSE)
   }
   counted <- if (k == 6L) {
-    .check_counted(.counted_col_values(geno[[6L]]), geno$allele, nrow(geno),
-                   "geno$counted")
+    .merge_counted(.check_counted(.counted_col_values(geno[[6L]]), geno$allele,
+                                  nrow(geno), "geno$counted"),
+                   attr(geno, "counted_allele", exact = TRUE), geno$allele,
+                   nrow(geno))
   } else {
     .check_counted(attr(geno, "counted_allele", exact = TRUE),
                    geno$allele, nrow(geno),
@@ -224,6 +232,36 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
     if (!all(is.na(counted))) map$counted <- counted
   }
   map
+}
+
+#' Combine the `counted` column with the `"counted_allele"` attribute
+#'
+#' The column wins; the attribute fills its `NA` entries. A known column entry
+#' that disagrees with a known attribute entry is an error (two records of the
+#' counted allele that contradict each other cannot be resolved safely). An
+#' attribute of another length (stale after row subsetting) is ignored.
+#' @param col validated column values (`NULL` when all unknown).
+#' @param att the raw attribute (or `NULL`).
+#' @keywords internal
+#' @noRd
+.merge_counted <- function(col, att, allele, n) {
+  if (is.null(att) || !is.null(dim(att)) || length(att) != n) return(col)
+  att <- .check_counted(att, allele, n, "attr(geno, \"counted_allele\")")
+  if (is.null(att)) return(col)
+  if (is.null(col)) return(att)
+  both <- !is.na(col) & !is.na(att)
+  clash <- both & toupper(col) != toupper(att)
+  if (any(clash)) {
+    i <- which(clash)[1L]
+    stop("The `counted` column and the \"counted_allele\" attribute disagree ",
+         "for ", sum(clash), " marker(s) (first: row ", i, ", column \"",
+         col[i], "\" vs attribute \"", att[i], "\"). Remove the stale record ",
+         "(`attr(geno, \"counted_allele\") <- NULL`) or repair the column.",
+         call. = FALSE)
+  }
+  fill <- is.na(col)
+  col[fill] <- att[fill]
+  col
 }
 
 #' Validate the `counted` (+1) allele column of a map

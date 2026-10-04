@@ -215,6 +215,8 @@ handle_hapmap <- function(file,
   } else {
     G <- file
   }
+  # A matrix is read by column below (`G[[j]]`), so hold it as a data frame.
+  if (is.matrix(G)) G <- as.data.frame(G, stringsAsFactors = FALSE)
 
   if (is.data.frame(G) && ncol(G) < 12L) {
     stop("A HapMap table needs the 11 metadata columns followed by at least ",

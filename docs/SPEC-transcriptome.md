@@ -286,7 +286,8 @@ the mediated/direct split + covariance.
 
 ## 5. Mimic mode (calibrate to user expression)
 `mimic = E_user` (genes × individuals). Estimate, on `E_user`:
-- per-gene mean `mu_g` and total variance `V_g` (reproduced exactly);
+- per-gene mean `mu_g` and total variance `V_g` (reproduced up to floating-point rounding;
+  see acceptance item 8 for a mean far above the standard deviation);
 - the co-expression **factor count** `Q` (Marchenko-Pastur edge on the standardized
   matrix) and the residual module fraction `kappa`: the leading `Q` correlation
   eigenvalues are inverted through the spiked-covariance relation to a mean
@@ -347,7 +348,9 @@ Seed-threading extends the grammar's `(seed, layer_index, layer_type)` rule to t
 6. Transcriptome-basis phenotype: realized `prop` ≈ target; effect table correct;
    equals the genome path's rigor.
 7. Mediated phenotype: `y` decomposition `Z(delta+Bs) + Rs + eta` holds numerically.
-8. Mimic mode reproduces the per-gene moments exactly (except for a gene whose
+8. Mimic mode reproduces the per-gene moments up to floating-point rounding (a mean
+   many orders of magnitude above the standard deviation limits the variance to the
+   spacing of doubles near that mean; except for a gene whose
    realized unit-scale variance is exactly zero or non-finite, where the rescale is
    skipped; a warning flags ill-conditioned rescales, unit variance below `1e-12`)
    and the **strength** of the

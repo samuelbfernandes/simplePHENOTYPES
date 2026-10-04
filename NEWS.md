@@ -1,6 +1,32 @@
 # simplePHENOTYPES (development version)
 
-## New features (2.0.0.9003)
+## Fixes from the independent theory reviews (October 2026, latest)
+
+* `as_numeric()` accepts a HapMap table given as a character matrix (it failed with "subscript out of
+  bounds"), and a matrix with fewer than 12 columns gets the package's HapMap diagnostic.
+* `as_population()`: when a numeric table has both the `counted` column and the `"counted_allele"`
+  attribute, the attribute now fills the column's unknown entries and a disagreement between them is an
+  error; before, the attribute was ignored, so a stale column could silently reverse the allele
+  orientation. An attribute of another length (stale after row subsetting) is still ignored.
+* `optimum_contribution()`: a feasible `max_coancestry` / `target_coancestry` is met whatever the scale of
+  `G` (the penalty search and the final solve now run on `G` divided by its mean diagonal when that is
+  outside 1e-6..1e6; ordinary problems are unchanged).
+* `simulate_transcriptome(mimic = )`: the per-gene rescale is formed from the expression normalized by its
+  largest absolute value, so subnormal or huge realized variances still give the requested variance; the
+  documentation and the ill-conditioning warning now say the variance is met up to rounding (and, for a
+  mean many orders of magnitude above the standard deviation, to the spacing of doubles near it).
+* `create_phenotypes(architecture = "LD", type_of_ld = "direct")` no longer accepts a QTN pair whose two
+  markers share a chromosome position (rows with duplicated `chr`/`pos`); the search retries instead, as
+  documented. Seeded results change only where the old search returned such a pair.
+* `create_phenotypes(vQTL = TRUE)`: the documentation now states that `h2` is met at the median vQTL
+  standard deviation, not as the population variance ratio, which is lower, equal or higher as
+  `mean(sigma^2)` is greater than, equal to or less than `median(sigma)^2` (unchanged equation, kept for
+  v1 compatibility); the printed label says so.
+* Pedigree keys no longer depend on the session locale: an unmarked string that is valid UTF-8 is read
+  as UTF-8, and any other unmarked non-ASCII string is hashed by its raw bytes (both were reinterpreted
+  through the locale, e.g. under `LC_ALL=C`). ASCII and marked strings keep their keys.
+
+## New features (October 2026, latest)
 
 * `liability_threshold(sim, prop, trait)`: ordered categorical phenotypes under the liability-threshold model
   (Wright 1934; Falconer 1965). The continuous phenotype is the liability, cut at `qnorm(cumsum(prop))` on its
@@ -13,7 +39,7 @@
   pleiotropy engine's `cor` and for `resid_cor`.
 * `?additive` gains an example of a major QTN with a set variance share (stacked additive layers).
 
-## Behaviour changes (2.0.0.9003): results of seeded crossing and selection runs change
+## Behaviour changes (October 2026, latest): results of seeded crossing and selection runs change
 
 * **Crossover interference is now on by default.** Every function that runs meiosis (`cross()`,
   `selfcross()`, `double_haploid()`, `mate()`, `crossbreed()`, and through them `single_seed_descent()`,
@@ -56,7 +82,7 @@
   abbreviations are normalized once, so `ld_type = "i"` is `"indirect"` in every check (it behaved as
   `"direct"` with passed loci).
 
-## Passing QTNs in every architecture (2026-10)
+## Passing QTNs in every architecture (October 2026)
 
 * `additive()`, `dominance()` and `epistasis()` accept `qtn =` under `architecture = "pleiotropy"` and
   `"ld"`, not only `"independent"` (it was an error there). Each architecture keeps its construction and only
@@ -76,7 +102,7 @@
 * A passed marker that is monomorphic (or heterozygous in every individual) now warns in every architecture:
   it carries no variance (random draws never pick such a marker).
 
-## Writing the QTN table and splitting the markers (2026-10)
+## Writing the QTN table and splitting the markers (October 2026)
 
 * New `write_qtn_table(sim, file, rep = 1L, file_type = c("text", "json"), sep = "\t")` writes every
   column of `qtn_table()` as a delimited text file (`data.table::fwrite()`) or as JSON (one object per
@@ -118,7 +144,7 @@
   classed metadata (e.g. `bit64::integer64`) is encoded as `jsonlite` encodes it. The one-file
   `write_phenotypes()` call is unchanged (byte-identical output).
 
-## Follow-ups and gaps after the audit (2026-10)
+## Follow-ups and gaps after the audit (October 2026)
 
 Feature and test work that closes the open follow-ups listed after the independent audit and the
 SPEC-0020 engine requests. Default behaviour and random streams are unchanged unless a bullet says
@@ -185,7 +211,7 @@ otherwise.
 * **testthat edition 3** is enabled (`Config/testthat/edition: 3`); expectations that
   relied on edition 2 semantics were corrected, parity fixtures are unchanged.
 
-## Engine requests from breedingDesigner SPEC-0020 (2026-09)
+## Engine requests from breedingDesigner SPEC-0020 (September 2026)
 
 Items 1, 2, 3, 5, 6, 7 and 8 of the breedingDesigner engine-request list. All new
 arguments are appended with defaults that keep today's output and random stream.
@@ -322,7 +348,7 @@ G x E traits (item 4) and native coalescent founders (item 9) are not implemente
   converges to it only as QTNs and individuals grow, for causal loci in
   approximate linkage equilibrium and without major QTNs.
 
-## Audit fixes (independent dual-model audit, 2026-09)
+## Audit fixes (independent dual-model audit, September 2026)
 
 Fixes for the defects confirmed by a two-model theory and implementation audit
 (reports in the maintainers' `.tmp/audit-2026-09-29/`). Items that change seeded
@@ -562,8 +588,8 @@ reject previously accepted input are marked **(behaviour)**.
   unconstrained optimum is now purely relative (16 machine epsilons times the larger
   of the target and the optimum coancestry), with no absolute floor, so tiny-scale
   `G` matrices are judged on their own scale.
-* `simulate_transcriptome(mimic = )`: the per-gene rescale always hits the requested
-  per-gene variance whenever the realized unit-scale variance is finite and
+* `simulate_transcriptome(mimic = )`: the per-gene rescale hits the requested
+  per-gene variance (up to rounding) whenever the realized unit-scale variance is finite and
   positive (no absolute cutoff); a warning is issued when that realized variance is
   tiny (< 1e-12) and the rescale is ill-conditioned (it amplifies rounding noise).
   Only an exactly zero or non-finite realized variance keeps the unscaled fallback.

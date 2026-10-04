@@ -34,7 +34,9 @@
       *Done 2026-10-03: cleanup.sh never existed; wrote dev/cleanup.sh (dry run by default, only ignored render/test artifacts; .tmp evidence untouched); the committed tests/testthat/Rplots.pdf is removed and ignored, and its source (test-adopt-v2-grammar.R, plot() before an error) fixed. The dominance worktree and merged branches were already gone.*
 - [x] Decide what to do with the `kind-shamir-c7d1df` worktree and commit the moved `.agents/` + `skills-lock.json` in the `breeding_designer` repo (untracked there).
       *Done 2026-10-03: the worktree was already removed and its evidence copied to the main checkout .tmp/evidence-kind-shamir-c7d1df; breeding_designer .agents/ + skills-lock.json committed (58ec85c) on branch chore/agent-skills-lock (not merged).*
-- [ ] Full `devtools::test()` before push: last run had 1 failure, `test-as-numeric.R:233` (local-only SNP55K HapMap file with duplicated marker IDs; skips in a clean checkout).
+- [x] Full `devtools::test()` before push: last run had 1 failure, `test-as-numeric.R:233` (local-only SNP55K HapMap file with duplicated marker IDs; skips in a clean checkout).
+      *Done 2026-10-04: the test now expects the duplicated-ID error on the raw file and compares the
+      markers with a unique ID against the NUM reference (passes with the files present).*
 - [ ] Push `feat/graph-followups` and open the PR (only with explicit OK).
 
 ## PRIORITY — requests from breedingDesigner SPEC-0020 (2026-09-30)
@@ -437,41 +439,45 @@ tests). Local suite: 63 files, 5761 expectations, 0 failures; local `R CMD check
 0 warnings.
 
 **Housekeeping (do first)**
-- [ ] Update the main checkout: it is still on the old master with an uncommitted `TODO.md`
-  that is already contained here. Run `git checkout TODO.md && git pull` there (the untracked
-  `docs/ARCHITECTURE_DIAGRAM*`, `man/figures/legacy_SP_logo.png` and `tests/testthat/_problems/`
-  are not part of any commit: commit or delete them).
-- [ ] Unmerged work of another session: worktree `.claude/worktrees/dominance-argument-effect-44d5c8`
+- [ ] Update the main checkout (maintainer: it holds uncommitted work, not touched by an agent).
+  As of 2026-10-04 it is on `docs/todo-status-2026-10-02` with an uncommitted `TODO.md`, a mode change
+  on `R/grammar_realize.R` and four deleted `man/` pages (`Base_line_*`, `Genotypes`, `Phenotypes`).
+  Decide what to keep, then `git switch master && git pull`.
+- [x] Unmerged work of another session: worktree `.claude/worktrees/dominance-argument-effect-44d5c8`
   (branch `mac/dominance-argument-effect-44d5c8`, based on the old master) has UNCOMMITTED edits to
   `NEWS.md`, `R/grammar_layers.R`, `R/qc_filter_geno.R`, `docs/SPEC.md`, `man/dominance.Rd`. It will
   conflict with the merged work (grammar and NEWS/SPEC changed): rebase on `master`, run the suite
   and the installed-package tests, then open its own PR.
+  *Done: merged as PR #14; the worktree and branch are gone.*
 - [ ] Items **4** (G x E trait layer) and **9** (coalescent founders) in the PRIORITY list are
   NOT implemented: waiting for the maintainer's instructions.
-- [ ] Evidence is gitignored and lives only in the audit worktree
+- [x] Evidence is gitignored and lives only in the audit worktree
   (`.claude/worktrees/kind-shamir-c7d1df/.tmp/`): copy `.tmp/audit-2026-09-29/` (reports,
   equation-to-code PDF) and `.tmp/codex-review*/` to a permanent folder before the worktree is
   deleted.
-- [ ] Delete merged branches and leftover worktrees: local `mac/project-audit-theory-mapping-c597aa`,
+  *Done: copied to `.tmp/evidence-kind-shamir-c7d1df/` in the main checkout (still gitignored, so
+  back it up outside the repository too).*
+- [x] Delete merged branches and leftover worktrees: local `mac/project-audit-theory-mapping-c597aa`,
   `mac/ultrareview-mode-benefits-2da369`, `feat/spec0020-engine-requests` (also on `origin`), the
   agent worktree/branch `worktree-agent-abf14fefa4d4acf18` (its changes are already merged) and, after
   the evidence is copied, the worktree `kind-shamir-c7d1df`.
+  *Done: none of them is left (checked 2026-10-04).*
 
 **Reviews still owed (the other model must review genetics changes, AGENTS.md)**
-- [ ] Codex re-review of the round-4 changes (script to write, adapt
+- [x] Codex re-review of the round-4 changes (script to write, adapt
   `.tmp/codex-review-round3.sh`): R4-1 (`.tune_lambda()` purely relative above-optimum band,
   `R/select_ocs.R`) and R4-5 (`.tx_mimic_scale()` always rescales to the requested per-gene
   variance, counted warning when ill-conditioned, `R/transcriptome_simulate.R`).
-- [ ] Codex review of the last fixes of PR #13 (validation and wording only, 24 tests): the
+- [x] Codex review of the last fixes of PR #13 (validation and wording only, 24 tests): the
   overwrite warning for default-named `as_numeric()` output files, `.check_counted()` rejecting
   matrices, the DECISION-038 index row.
-- [ ] Codex review of round-3 items never sent to Codex: 11-column HapMap guard (R3-6),
+- [x] Codex review of round-3 items never sent to Codex: 11-column HapMap guard (R3-6),
   integer genotype schema (R3-7), heterosis retention text (R3-12), `h2_*` documentation
   (R3-14), case-insensitive orientation labels (R3-5).
 - [x] Interference rubric item M4 added to `docs/THEORY_REVIEW.md` (2026-10-03); McPeek & Speed (1995,
   Genetics 139:1031-1044) and Housworth & Stahl (2003, AJHG 73:188-197) verified on PubMed and cited in full
   in `?cross`.
-- [ ] Codex reviews owed for round 9 (genetics / contract changes; the implementer is not the
+- [x] Codex reviews owed for round 9 (genetics / contract changes; the implementer is not the
   reviewer): (a) the `simplePHENOTYPES.interference` option resolution in `.check_interference()`
   (`R/cross_mating.R`) and the `combining_ability(method = "expected")` interplay (DECISION-041
   addendum); (b) the V1 direct-LD retry rule and the dominance-walk repair (`qtn_linkage()`,
@@ -483,7 +489,15 @@ tests). Local suite: 63 files, 5761 expectations, 0 failures; local `R CMD check
   `k = sqrt((1/h2 - 1) / median(sigma)^2)` against Murphy et al. (2022) (citation not re-verified;
   `test-adopt-v1-pleio.R` hard-codes it, so confirm it before the Python port uses it as an oracle);
   (e) `.stable_key()` byte-identity (not genetics).
-- [ ] Pre-PR gate: CI found two failures the local suite could not (2026-10-01): the `v1-to-v2`
+  *Done 2026-10-04 (the four review items above): `.tmp/codex-review-owed.sh`, reports in
+  `.tmp/codex-review-owed/`. PASS: R3-5/7/12/14, DECISION-038 row, `.check_counted()`, the overwrite
+  warning, interference option resolution (a), LD retry determinism and v1 parity (b). Fixed after the
+  review (NEWS "Fixes from the independent theory reviews"): HapMap character matrices; counted column vs
+  attribute disagreement (DECISION-036 revised); OCS penalty search on extreme `G` scales; mimic rescale
+  on extreme variances; direct-LD pairs sharing a position; `.stable_key()` locale dependence. vQTL `h2`
+  (d) is a median-sigma calibration, not population heritability: kept for v1 parity and documented
+  (changing it is a maintainer decision). Codex re-review of these fixes: see the next item.*
+- [x] Pre-PR gate: CI found two failures the local suite could not (2026-10-01): the `v1-to-v2`
   vignette (a seed that picked homozygous loci) and 8 tests that assume a source checkout or
   undeclared packages. Before opening a PR run (a) a full `R CMD check` **with vignettes**
   (needs pandoc), and (b) the tests against an INSTALLED copy (tests must skip when `R/`,
@@ -494,6 +508,24 @@ tests). Local suite: 63 files, 5761 expectations, 0 failures; local `R CMD check
   tests, 0 errors, 18 skips by design) predates the final edits, so re-run
   `bash dev/test-installed.sh`, `devtools::test()` (edition 3, one serial pass) and a full
   `R CMD check` with vignettes.
+  *Done 2026-10-04: installed-package run 88 files / 9674 expectations / 0 failures (57 skips by
+  design); `devtools::test()` 0 failures; `R CMD check` with vignettes 0 errors / 0 warnings (the
+  remaining NOTE is an OpenMP /tmp warning from the sandbox; the NEWS.md NOTE was fixed by removing
+  version-like dates from subheadings). Final tree: `devtools::test()` 10172 passed / 0 failed;
+  `R CMD check` 1 NOTE (the sandbox one).*
+
+- [x] Codex re-review of the 2026-10-04 fixes (isolated worktree run; result to record here).
+  *Done 2026-10-04, two rounds in a throwaway worktree (its reports were removed with it; the summary
+  is here). Round 1 confirmed the HapMap-matrix, counted-merge and LD-position fixes and found: OCS overflow at
+  a subnormal `G` scale, an "exact" variance claim with a 1e16 mean, `.stable_key()` still
+  locale-dependent for non-UTF-8 bytes, the vQTL equality case, and assistant names added to tracked files.
+  All fixed; round 2: THEORY PASS, two small items (an infinite reported `lambda` at equal extreme scales,
+  one remaining "exactly" in SPEC-transcriptome) fixed afterwards with tests.*
+  Lesson: run reviews in a separate worktree; the first run (in this worktree) deleted the regenerated
+  equation map, taking it for a test artifact.
+- [ ] Maintainer decision: keep the v1 vQTL equation (`k^2 = (1/h2 - 1)/median(sigma)^2`, documented
+  as a median calibration) or switch to `mean(sigma^2)` so `h2` is the population ratio (breaks the
+  hard-coded `test-adopt-v1-pleio.R` value and seeded v1 vQTL output).
 
 **Open follow-ups from the new features**
 - [x] `.stable_key()` in `R/cross_pedigree.R` vectorised (identical keys, ~3x faster; 31% -> 13% of a
@@ -547,19 +579,32 @@ tests). Local suite: 63 files, 5761 expectations, 0 failures; local `R CMD check
   dev/setup.sh and shellcheck tests, `benchmarks/benchmark_as_numeric.R` end to end, weak blocks in other
   owners' older test files (`test-shim.R`, `test-crossbreed.R` top-level `set.seed`,
   `test-nonadditive-cor.R` seed-search skips).
-- [ ] Observations from the adoption work, not defects: `as_numeric(<character matrix without HapMap
+- [x] Observations from the adoption work, not defects: `as_numeric(<character matrix without HapMap
   columns>, from = "hapmap")` fails with the base-R "subscript out of bounds" instead of a package
   diagnostic (LOW); `CITATION.cff` version (2.0.0.9001) trails DESCRIPTION (2.0.0.9002); a stray
   untracked `tests/testthat/Rplots.pdf` appeared during the round from a test that plots without
   `pdf(NULL)` (delete it; find the test).
-- [ ] Unverifiable citation pages (e.g. PRED-F3 Ceron-Rojas, AUX-F20 CRAN baseline version,
+  *Done 2026-10-04: the 11-column guard in `handle_hapmap()` now also covers matrices (test in
+  `test-fix3-iocross.R`); `CITATION.cff` already matched DESCRIPTION and every plotting test already
+  opens a null device, so `Rplots.pdf` no longer appears.*
+- [x] Unverifiable citation pages (e.g. PRED-F3 Ceron-Rojas, AUX-F20 CRAN baseline version,
   Meuwissen 1997 / Baik et al. 2005 equation pages): confirm against the sources before the
   Python port quotes them.
+  *Done 2026-10-04 as far as the sources are reachable: Crossref confirms the metadata of
+  Ceron-Rojas et al. 2026 (Nat Commun 17:1991), Meuwissen 1997 (J Anim Sci 75(4):934) and Baik,
+  Ben Arous & Peche 2005 (Ann Probab 33(5)); the Ceron-Rojas article describes the QGSI as additive,
+  squared and cross-product GEBV terms, which matches `.quadratic_index_score()`; CRAN still serves
+  1.3.0 (published 2021-01-20), so `cran-comments.md` is right (AUX-F20). Equation and page numbers
+  inside Meuwissen 1997 and BBP 2005 (paywalled) remain unverified: the Python port should cite the
+  DOI only, not an equation number.*
 
 **Before the Python re-creation**
-- [ ] Use `.tmp/audit-2026-09-29/simplePHENOTYPES_equation_code_map.pdf` (equation to code map)
+- [x] Use `.tmp/audit-2026-09-29/simplePHENOTYPES_equation_code_map.pdf` (equation to code map)
   and `V1_AUDIT_REPORT.md` / `V2_AUDIT_REPORT.md` as the porting checklist; regenerate the PDF
   line numbers after the fixes (they refer to the pre-fix tree).
+  *Done 2026-10-04: `docs/simplePHENOTYPES_equation_code_map.md` (+ PDF) has every reference
+  moved from `c511c6f` to `e666a2c` by git line mapping; Appendix C lists the 51 references whose
+  lines were edited since the audit (re-check those equations before porting them).*
 
 ---
 

@@ -15,6 +15,14 @@
 #' `remove_add_effect = TRUE`). The scale of the mean-QTN effects therefore
 #' does not matter: only their shape does.
 #'
+#' `h2` is therefore a calibration at the median vQTL standard deviation: an
+#' individual with \eqn{\sigma_i = \mathrm{median}(\sigma)} has
+#' \eqn{1 / (1 + k^2\sigma_i^2) = h^2}, but the population variance ratio is
+#' \eqn{1 / (1 + k^2\,\mathrm{mean}(\sigma^2))}: lower than, equal to or
+#' higher than `h2` as \eqn{\mathrm{mean}(\sigma^2)} is greater than, equal
+#' to or less than \eqn{\mathrm{median}(\sigma)^2}. The
+#' equation is kept for v1 compatibility; [vqtl()] is the grammar alternative.
+#'
 #' Requirements checked here: `h2` in (0, 1] (a zero heritability has no
 #' finite vQTL scale), a single trait, one effect per vQTN and
 #' \eqn{\sigma_i \ge 0} for every individual, with a positive median (a
@@ -240,7 +248,7 @@ vQTL <- function(QTN,
       )
     }
   }
-  cat("\nPopulation Heritability:\n")
+  cat("\nHeritability target (calibrated at the median vQTL standard deviation):\n")
   print(h2)
   if(!remove_add_effect){cat("\nSample Heritability (Average of",
       rep,

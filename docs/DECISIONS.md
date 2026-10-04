@@ -578,8 +578,9 @@ given the CRAN dependency constraints?
   supersedes the `16*eps*max(1,|target|,|c0|)` band in the round-2 note above), makes
   the v1 seed-overflow message state the accepted interval `[lo, hi]` (or "no seed
   accepted") when no interval centred at 0 is accepted (`abs(seed) <= N` only in the
-  ordinary case), makes the transcriptome mimic rescale always hit the requested
-  per-gene variance when the realized unit variance is finite and positive (warning
+  ordinary case), makes the transcriptome mimic rescale hit the requested
+  per-gene variance (up to rounding, and to the spacing of doubles near a very large mean; wording
+  narrowed 2026-10-04) when the realized unit variance is finite and positive (warning
   when it is < 1e-12), and mirrors the `select_ind()` response assumption
   (`E[A | P]` linear; `Cov(A, P - A) = 0` for the `i*h2*sigma_P` reduction) in
   DECISIONS/THEORY_REVIEW/ROADMAP. See NEWS.md (Review round 4).
@@ -1653,9 +1654,12 @@ frame and to the numeric text file. Every reader of numeric-format data (`as_num
 is named `counted` (case-insensitive) and is not numeric (a numeric column of that name remains an individual); a
 logical all-`NA` column from a text round trip is read as unknown. It is validated by `.check_counted()`
 (character, one non-empty symbol per marker, consistent with the `allele` label; otherwise an error). When
-present it is authoritative: it feeds `map$counted` and the orientation guard, and the attribute is not
-consulted (even if both exist and disagree), so panels read back from files or row-subsetted are still compared
-marker by marker. `counted_column = TRUE` is an error under `model = "Dom"` and for numeric input with neither
+present it is authoritative: it feeds `map$counted` and the orientation guard, so panels read back from files or
+row-subsetted are still compared marker by marker. *(Revised 2026-10-04 after the round-9 independent review, which
+showed that a contradicting attribute was silently overruled and could reverse the orientation:)* an attribute of
+the same length now fills the column's unknown (`NA`) entries, a known column entry that disagrees with a known
+attribute entry is an error naming the first clash, and an attribute of another length (stale after row
+subsetting) is still ignored. `counted_column = TRUE` is an error under `model = "Dom"` and for numeric input with neither
 column nor attribute. The attribute remains an R-object convenience: `[` keeps it at its original length and
 order, so it does not follow row subsetting or reordering; the column is the durable form. `filter_geno()` now
 subsets the attribute with the kept rows. Callers that hard-code five metadata columns (the frozen v1

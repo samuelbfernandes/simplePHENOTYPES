@@ -12,7 +12,10 @@ as_population(geno, individuals = NULL, pool = NA_character_)
 with the remaining columns individuals coded -1/0/1. An optional character
 column \code{counted} right after \code{cm} (see \code{as_numeric(counted_column = )}) is
 read as the counted-allele record, not as an individual; it must name one
-allele per marker (\code{NA} = unknown), consistent with the \code{allele} label.}
+allele per marker (\code{NA} = unknown), consistent with the \code{allele} label.
+When the \code{"counted_allele"} attribute is also present (same length), it
+fills the column's unknown entries, and a disagreement between the two
+records is an error.}
 
 \item{individuals}{optional character or numeric vector selecting which
 individuals to keep, in the order given. Defaults to all of them.}

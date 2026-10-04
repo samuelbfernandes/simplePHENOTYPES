@@ -112,7 +112,12 @@ all traits are expected to have \code{h2 = 0}. Values must lie in \verb{[0, 1]}.
 the first trait's heritability of a row enters the residual seed, and
 positive values of at most 0.05 (exactly 0.05 included, since
 \code{round(10 * 0.05)} is 0 in R) are rejected when \code{rep > 1}: use \code{h2 > 0.05}
-(see \code{seed}).}
+(see \code{seed}). With \code{vQTL = TRUE}, \code{h2} is met for an individual at the
+median vQTL standard deviation, not as the population variance ratio, which
+is \eqn{1/(1 + k^2 \mathrm{mean}(\sigma^2))} with
+\eqn{k^2 = (1/h^2 - 1)/\mathrm{median}(\sigma)^2}: lower than, equal to or
+higher than \code{h2} as \eqn{\mathrm{mean}(\sigma^2)} is greater than, equal to
+or less than \eqn{\mathrm{median}(\sigma)^2}.}
 
 \item{mean}{A vector with the mean (intercept) value for each of the simulated traits. If omitted, the simulated traits will be centered to zero.}
 
