@@ -42,8 +42,10 @@ founders_coalescent(n_ind, n_chr = 1, seg_sites = NULL, inbred = FALSE,
   current position (history parameter `h`) so a detached lineage can join branches that are
   absent from the current marginal tree. `h = 0` gives SMC'. Default: MaCS's own default,
   to be read from its source or paper before coding (not assumed here).
-- **Mutation:** infinite sites, Poisson with mean `theta/2 x branch length` per segment; each site
-  biallelic. `seg_sites` subsampling as above.
+- **Mutation:** infinite sites, biallelic. With time in 4 N0 units a pair coalesces at rate
+  2 / lambda and, for a tree of total length L, mutations and recombination points arrive along
+  the [0, 1) sequence at rates theta L and rho L (theta = 4 N0 mu, rho = 4 N0 r per chromosome),
+  so E[S] = theta sum_{i<n} 1/i. `seg_sites` keeps a uniform subset (reservoir sampling).
 - Time in units of `4 N_e` generations, as ms/MaCS.
 
 ## 4. Decisions to take
@@ -75,7 +77,22 @@ founders_coalescent(n_ind, n_chr = 1, seg_sites = NULL, inbred = FALSE,
 Every equation above gets a verified page before it is coded (`docs/THEORY_REVIEW.md`); the
 references below are not yet page-verified.
 
-## 6. Size and plan
+## 6. Status
+
+- **Phase (a) done 2026-10-04; Codex theory items all PASS (equation pages of Watterson 1975 / Fu 1995 not inspected: abstracts only):**
+  `src/rust/src/coalescent.rs` (xoshiro256++ / SplitMix64, Kingman tree under `-eN` history,
+  SMC' prune-and-regraft with a Fenwick tree over branch lengths, reservoir `seg_sites`) and the
+  internal R wrapper `.coalescent_chromosome()` (`R/founders_coalescent.R`). Gates passed: E[T_MRCA]
+  = 1 - 1/n; E[L] = sum 1/i; pair T_MRCA under a size change (with and without recombination);
+  the tree at a fixed position stays Kingman under SMC' (after a fixed number of *events* it is
+  length-biased, E[L^2]/E[L], which is expected); E[S] = theta a1 for rho = 0 and 20; SFS
+  E[xi_i] = theta / i; seeded reproducibility. Rust: `cargo test` 64/64, clippy clean; R:
+  `test-feat-coalescent.R` 34/34 (incl. Codex fixes: `history` bounded to times in (0, 1e12] and relative sizes in [1e-9, 1e9], plus runtime guards, so extreme sizes can neither overflow into an index panic nor collapse waiting times to 0; full 32-bit replayable `seed`; factor `history` refused; classed numbers such as `integer64` passed by value; non-finite `theta + rho` refused and a 2e9-event budget, checked upfront and in the loop, so huge rates error instead of hanging; references with PMIDs).
+- Timing (debug build, GENERIC history, theta 1000, rho 400, 1400 kept sites): 200 / 2000 / 20000
+  haplotypes = 0.1 / 0.9 / 9.9 s per chromosome. The O(n) scan for the lineages at the
+  re-coalescence time is the hotspot to remove in phase (b).
+
+## 7. Size and plan
 
 XL. Phases: (a) Rust SMC' core + PRNG + gates 1 and 3; (b) recombination gate 2 and the MaCS
 window; (c) demography presets, split, `seg_sites`, `inbred`, Population output; (d) R API, docs,
