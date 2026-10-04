@@ -116,7 +116,8 @@ Rust never calls an RNG on the parity-critical path (DECISION-012).
 
 ## Public API (NAMESPACE exports)
 `create_phenotypes()` (frozen) · `simulate_phenotype()` + `additive()`/`dominance()`/
-`epistasis()`/`vqtl()` · `complex_phenotypes()` · crossing (`as_population`, `cross`,
+`epistasis()`/`vqtl()` + `liability_threshold()` · `coheritability()` · `cor_ar1()` ·
+`population_trait()` · `complex_phenotypes()` · crossing (`as_population`, `cross`,
 `selfcross`, `double_haploid`, `synthetic_map`) · selection (`select_ind`,
 `single_seed_descent`, `bulk`, `pedigree`, `recurrent_selection`, `c.Population`,
 `g_matrix`, `optimum_contribution`, `sample_parents`, `cross_usefulness`) · `as_numeric()` ·

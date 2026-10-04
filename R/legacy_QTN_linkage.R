@@ -2022,9 +2022,10 @@ qtn_linkage <-
 
 #' Seed used by search attempt `attempt` (1 = the original seed, unchanged)
 #'
-#' Attempt `a` >= 2 moves the seed by `(a - 1) * .ld_retry_stride` towards
-#' zero (away from zero for `seed <= 0`), so `abs()` of the result never
-#' exceeds `max(abs(seed), (.ld_max_attempts() - 1) * .ld_retry_stride)` and the
+#' Attempt `a` >= 2 subtracts `(a - 1) * .ld_retry_stride` from a positive
+#' seed (adds it to a seed `<= 0`): the step points towards zero and may cross it
+#' (seed 1, attempt 2 gives -1000002), but `abs()` of the result never exceeds
+#' `max(abs(seed), (.ld_max_attempts() - 1) * .ld_retry_stride)`, so the
 #' integer-range bound of `.v1_validate_seed_arith()` still holds.
 #' @keywords internal
 #' @noRd

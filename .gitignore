@@ -164,3 +164,6 @@ tests/testthat/testthat-problems.rds
 .quarto/
 docs/ARCHITECTURE_DIAGRAM.html
 docs/ARCHITECTURE_DIAGRAM_files/
+
+# stray default graphics device output from tests
+Rplots.pdf

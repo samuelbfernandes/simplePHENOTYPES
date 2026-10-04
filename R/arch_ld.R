@@ -269,9 +269,9 @@
 #' pair is computed and attached as the `"ld"` attribute (`cause = NA`). The two
 #' loci of a pair must be on one chromosome (as in the random construction), and
 #' `ld_type = "indirect"` is refused: its defining hidden cause-of-LD marker is
-#' chosen by the search and cannot be established from passed loci. A pair
-#' outside `[r2_min, r2_max]` (defaults 0.2 and 0.8) is allowed but warned
-#' about, since the random search would not have returned it.
+#' chosen by the search and cannot be established from passed loci. Every pair
+#' must be linked (r2 > 0) and inside `[r2_min, r2_max]` (defaults 0.2 and 0.8),
+#' as the random search guarantees for a drawn pair; otherwise it is an error.
 #' @param user_qtn per-trait list from `.resolve_qtn_arg()`.
 #' @return `user_qtn` with the `"ld"` attribute.
 #' @keywords internal
@@ -338,15 +338,17 @@
          "traits' causal loci cannot be told apart; choose a partner with ",
          "r2 < 1.", call. = FALSE)
   }
+  # A passed pair obeys the same contract as a drawn one: it is linked
+  # (r2 > 0, otherwise it carries no covariance) and inside [r2_min, r2_max].
   r2_max <- if (is.null(a[["r2_max"]])) 0.8 else a[["r2_max"]]
   r2_min <- if (is.null(a[["r2_min"]])) 0.2 else a[["r2_min"]]
-  out <- which(r2 < r2_min | r2 > r2_max)
+  out <- which(!(r2 > 0) | r2 < r2_min | r2 > r2_max)
   if (length(out)) {
-    warning(type, "(qtn=): pair(s) ", paste(out, collapse = ", "),
-            " have r2 = ", paste(signif(r2[out], 3), collapse = ", "),
-            ", outside the architecture's window [", r2_min, ", ", r2_max,
-            "]. They are used as given; r2 = 0 leaves the traits uncorrelated ",
-            "through that pair.", call. = FALSE)
+    stop(type, "(qtn=): pair(s) ", paste(out, collapse = ", "),
+         " have r2 = ", paste(signif(r2[out], 3), collapse = ", "),
+         ", outside the architecture's window [", r2_min, ", ", r2_max,
+         "] (a linked pair needs r2 > 0). Choose linked partners in the window, ",
+         "or widen it with r2_min / r2_max.", call. = FALSE)
   }
   ld <- data.frame(qtn_t1 = t1, qtn_t2 = t2, r2 = r2,
                    cause = rep(NA_integer_, length(t1)))
@@ -364,6 +366,13 @@
 #' @noRd
 .ld_check_cross_layer <- function(sim, user_qtn, type) {
   prior <- .ld_prior_loci(sim)
+  hidden <- intersect(c(user_qtn[[1L]], user_qtn[[2L]]), prior$cause)
+  if (length(hidden)) {
+    stop(type, "(qtn=): marker(s) ", paste(utils::head(sim$map$snp[hidden], 5),
+                                           collapse = ", "),
+         " are the hidden, non-causal cause-of-LD markers of an earlier ",
+         "ld_type = \"indirect\" layer; they cannot be causal.", call. = FALSE)
+  }
   clash <- c(intersect(user_qtn[[1L]], prior$t2),
              intersect(user_qtn[[2L]], prior$t1))
   if (length(clash)) {
@@ -379,8 +388,10 @@
 #' Loci already causal for each trait in earlier layers, over every replication
 #'
 #' The union of each earlier marker layer's `qtn` and, for `vary_qtn`, every
-#' replication's `qtn_reps`, per trait; `all` is their union. Ownership under
-#' `"ld"` is a property of every replication, not just the canonical one.
+#' replication's `qtn_reps`, per trait; `cause` the hidden cause-of-LD markers
+#' of earlier `ld_type = "indirect"` layers (every replication), which must stay
+#' non-causal; `all` is the union of the three. Ownership under `"ld"` is a
+#' property of every replication, not just the canonical one.
 #' @keywords internal
 #' @noRd
 .ld_prior_loci <- function(sim) {
@@ -393,5 +404,10 @@
   }
   t1 <- as.integer(per_trait(1L))
   t2 <- as.integer(per_trait(2L))
-  list(t1 = t1, t2 = t2, all = unique(c(t1, t2)))
+  cause <- unlist(lapply(sim$layers, function(ly) {
+    c(ly$ld$cause, unlist(lapply(ly$qtn_reps, function(q) attr(q, "ld")$cause),
+                          use.names = FALSE))
+  }), use.names = FALSE)
+  cause <- unique(as.integer(cause[!is.na(cause)]))
+  list(t1 = t1, t2 = t2, cause = cause, all = unique(c(t1, t2, cause)))
 }

@@ -24,10 +24,11 @@ several must be named, and the names are the pools the plan refers to.}
 ... in plan order. Default: the pool name(s) involved, joined by \code{x}
 (e.g. \code{"A"} or \code{"AxB"}), or \code{"prog"} for a single unnamed population.}
 
-\item{interference}{\code{NULL} (default: the option \code{simplePHENOTYPES.interference}
-if set, else Poisson crossovers, the isqg stream) or
-\code{list(nu = , p = )}, the two-pathway gamma model of crossover interference
-applied to every row; see \code{\link[=cross]{cross()}}.}
+\item{interference}{crossover interference model of \code{\link[=cross]{cross()}} (see its
+section "Crossover interference"): \code{NULL} (default: the option
+\code{simplePHENOTYPES.interference} if set, else the gamma model with
+\code{nu = 2.6}, \code{p = 0}), \code{"poisson"} (Poisson crossovers, the isqg stream, the
+default before 2.0.0.9003) or \code{list(nu = , p = )}. Applied to every row.}
 }
 \value{
 A \code{Population} of all progeny, in plan order, with attribute \code{plan}
@@ -72,9 +73,9 @@ main cost that remains (on a 14,000-marker, 20-chromosome map, 100 families of
 100 doubled haploids take about 2 s, against about 14 s before the batched
 path).
 
-With the \code{interference} option each row's meioses follow the two-pathway
-gamma model of crossover interference (see the section "Crossover
-interference" of \code{\link[=cross]{cross()}}); the same option applies to every row.
+Every row's meioses follow the same crossover interference model (the
+\code{interference} argument; by default the gamma model, see the section
+"Crossover interference" of \code{\link[=cross]{cross()}}).
 }
 \examples{
 data("SNP55K_maize282_maf04")

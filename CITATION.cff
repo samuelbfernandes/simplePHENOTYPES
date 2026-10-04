@@ -3,7 +3,7 @@ message: "If you use this software, please cite it as below."
 type: software
 title: "simplePHENOTYPES: Simulation of Pleiotropic, Linked and Epistatic Phenotypes"
 # version / date-released mirror DESCRIPTION (Version, Date); update them together at release.
-version: 2.0.0.9001
+version: 2.0.0.9003
 date-released: 2026-09-29
 url: "https://github.com/samuelbfernandes/simplePHENOTYPES"
 repository-code: "https://github.com/samuelbfernandes/simplePHENOTYPES"

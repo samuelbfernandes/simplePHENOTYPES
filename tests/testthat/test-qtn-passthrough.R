@@ -203,14 +203,19 @@ test_that("ld: invalid passed loci are rejected with a fix", {
   expect_error(s |> additive(prop = 0.4,
                              qtn = list(nm[pr[, 1]], nm[c(pr[1, 1], pr[2, 2])])),
                "cannot be causal for both")
-  # an unlinked same-chromosome pair is used with a warning, not silently
+  # an unlinked or out-of-window same-chromosome pair is refused (Codex O1)
   chr <- .qp_g$chr
   m <- as.matrix(.qp_g[, -(1:5)])
   i <- which(chr == chr[1])[1]
   r2all <- suppressWarnings(stats::cor(m[i, ], t(m[chr == chr[i], ]))^2)
   jfar <- which(chr == chr[i])[which(r2all < 0.05)[1]]
-  expect_warning(s |> additive(prop = 0.4, qtn = list(nm[i], nm[jfar])),
-                 "outside the architecture's window")
+  expect_error(s |> additive(prop = 0.4, qtn = list(nm[i], nm[jfar])),
+               "outside the architecture's window")
+  # an in-window pair is refused once the window excludes it
+  s_narrow <- .qp_sim("ld", r2_min = 0.99, r2_max = 0.995)
+  expect_error(s_narrow |> additive(prop = 0.4,
+                                    qtn = list(nm[pr[1, 1]], nm[pr[1, 2]])),
+               "outside the architecture's window")
   # a pair on different chromosomes is not linked: refused
   j2 <- which(chr != chr[1])[1]
   expect_error(s |> additive(prop = 0.4, qtn = list(nm[1], nm[j2])),
@@ -414,4 +419,34 @@ test_that("round-11 review: under ld, every replication of a varying layer has d
   for (q in sr$layers[[1]]$qtn_reps) {
     expect_length(intersect(q[[1]], q[[2]]), 0L)
   }
+})
+
+test_that("ld_type abbreviations are normalized once (Codex O2)", {
+  pr <- .qp_ld_pairs(1)
+  skip_if(nrow(pr) < 1L, "no in-window marker pairs in this subset")
+  nm <- .qp_g$snp
+  si <- .qp_sim("ld", ld_type = "i")
+  expect_identical(si$arch_args$ld_type, "indirect")
+  # "i" is indirect everywhere: passed loci are refused as for "indirect"
+  expect_error(si |> additive(prop = 0.4, qtn = list(nm[pr[1, 1]], nm[pr[1, 2]])),
+               "ld_type = \"indirect\"")
+  expect_identical(.qp_sim("ld", ld_type = "d")$arch_args$ld_type, "direct")
+})
+
+test_that("a prior layer's hidden cause-of-LD marker is never a QTN (Codex O3)", {
+  s <- tryCatch(.qp_sim("ld", ld_type = "indirect") |> additive(prop = 0.4, n_qtn = 2),
+                error = function(e) NULL)
+  skip_if(is.null(s), "no indirect LD triplets in this subset")
+  cause <- s$layers[[1L]]$ld$cause
+  expect_false(anyNA(cause))
+  prior <- simplePHENOTYPES:::.ld_prior_loci(s)
+  expect_setequal(prior$cause, cause)
+  expect_true(all(cause %in% prior$all))
+  # a later layer cannot make it causal
+  nm <- s$map$snp
+  other <- setdiff(seq_along(nm), c(prior$all))[1]
+  expect_error(suppressWarnings(
+    s |> vqtl(prop = 0.1, same_as_add = FALSE,
+              qtn = list(nm[cause[1]], nm[other]))),
+    "cause-of-LD")
 })

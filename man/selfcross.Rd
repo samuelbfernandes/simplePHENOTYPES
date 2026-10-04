@@ -16,13 +16,15 @@ before the call works equally well. With a \code{seed} the caller's RNG state is
 restored on exit (a seeded call does not disturb the ambient stream); with
 \code{seed = NULL} the draws consume the ambient stream.}
 
-\item{interference}{\code{NULL} (default: the option \code{simplePHENOTYPES.interference}
-if set, else Poisson crossovers, no interference, the isqg random stream) or
-\code{list(nu = , p = )} for the two-pathway gamma model
-of crossover interference (see the section "Crossover interference").
-\verb{1 <= nu <= 1e6} is the interference strength (1 = none), \code{p} in \verb{[0, 1]} (default
-0 when omitted) the share of chiasmata that do not interfere. The expected
-number of crossovers per Morgan is unchanged.}
+\item{interference}{crossover interference model (see the section
+"Crossover interference"). \code{NULL} (default): the option
+\code{simplePHENOTYPES.interference} if set, else the gamma model with
+\code{nu = 2.6}, \code{p = 0} (AlphaSimR's default). \code{"poisson"}: Poisson crossovers,
+no interference, the isqg random stream (the default before 2.0.0.9003).
+\code{list(nu = , p = )}: the two-pathway gamma model with these values;
+\verb{1 <= nu <= 1e6} is the interference strength (1 = none), \code{p} in \verb{[0, 1]}
+(default 0 when omitted) the share of chiasmata that do not interfere. The
+expected number of crossovers per Morgan is the same under every model.}
 }
 \value{
 A \code{Population} of \code{n} progeny.

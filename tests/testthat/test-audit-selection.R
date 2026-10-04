@@ -204,14 +204,21 @@ test_that("simulate_phenotype callbacks re-standardise; phenotype_value() does n
   poly <- which(apply(d, 1, stats::sd) > 0)
   q <- poly[round(seq(5, length(poly) - 5, length.out = 5))]
   eff <- c(0.5, -0.3, 0.4, 0.2, -0.6)
+  # refit = TRUE: re-fit in every population (the selected one carries a trait)
   mk <- function(p) suppressMessages(
-    simulate_phenotype(p, h2 = 0.5, seed = 3) |> additive(qtn = q, effect = eff))
+    simulate_phenotype(p, h2 = 0.5, seed = 3, refit = TRUE) |>
+      additive(qtn = q, effect = eff))
   base <- mk(f2)
   top <- select_ind(base, prop = 0.25, on = "gv")
   sub <- mk(top)
   # the sim's own genetic layer is re-scaled to `prop` on every population ...
   expect_equal(stats::var(genetic_values(sub)[, 1]),
                stats::var(genetic_values(base)[, 1]), tolerance = 1e-6)
+  # ... unless the population's trait is reused (the default, DECISION-048):
+  # then the genetic variance is on the base scale and falls under selection
+  kept <- suppressMessages(simulate_phenotype(top, seed = 3))
+  expect_lt(stats::var(genetic_values(kept)[, 1]),
+            0.9 * stats::var(genetic_values(base)[, 1]))
   # ... whereas on the fixed scale the additive variance really falls
   expect_lt(stats::var(additive_value(top, q, eff)),
             0.9 * stats::var(additive_value(f2, q, eff)))

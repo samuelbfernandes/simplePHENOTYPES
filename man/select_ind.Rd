@@ -107,8 +107,9 @@ mass selection only and do not forward it.}
 \item{lambda}{relatedness penalty weight for \code{method = "bqp"} (default 1;= 0).}
 
 \item{min_gain}{for \code{method = "bqp"}: NULL (default, no trait constraints), or
-the paper's minimum desired gain \code{d_j} in percent of a standard deviation of
-the standardized trait (one value, or one per trait when \code{weights} is given).}
+the paper's minimum desired gain \code{R_j} in percent, in \verb{[0, 100]} (one value,
+or one per trait when \code{weights} is given); the constraint is that the
+selected set's summed standardized criterion is at least \verb{R_j N / 100}.}
 }
 \value{
 the selected individuals as a \code{Population} (when \code{sim} is
@@ -250,13 +251,16 @@ Montesinos-Lopez et al. (2025): it chooses \strong{exactly} \code{N} individuals
 maximizing \eqn{\sum_i\sum_j w_j s_{ij} x_i - \lambda\sum_i\sum_k G_{ik}
 x_i x_k}, with \eqn{x_i \in \{0,1\}}, \eqn{s_{ij}} the standardized criterion
 of trait \code{j}, \code{weights} the economic weights \eqn{w_j} (omitted: the single
-criterion \code{on}/\code{trait}, weight 1) and \eqn{G} the VanRaden genomic
-relationship matrix of the individuals (\code{\link[=g_matrix]{g_matrix()}}). \code{lambda} is the paper's
-penalty weight \code{k} (\code{lambda = 0} reduces to truncation on the merit).
-\code{min_gain} adds the paper's per-trait constraints
-\eqn{\sum_i s_{ij} x_i \ge N d_j/100}, with \eqn{d_j} in percent of a standard
-deviation (the standardized scale is this package's reading of the paper's
-\eqn{n\sigma_j d_j/100}); an unattainable constraint is an error. The paper
+criterion \code{on}/\code{trait}, weight 1; the paper's objective is the unweighted sum)
+and \eqn{G = WW'/p} the paper's genomic relationship matrix of the
+individuals, from the column-standardized marker matrix \eqn{W} over the
+\eqn{p} polymorphic markers (not \code{\link[=g_matrix]{g_matrix()}}'s VanRaden method 1). \code{lambda}
+is the paper's penalty weight \code{k} (\code{lambda = 0} reduces to truncation on the
+merit). \code{min_gain} adds the paper's per-trait constraints
+\eqn{\sum_i s_{ij} x_i \ge l_j = R_j N / 100} (Eq. 3-4), with \eqn{R_j} the
+minimum desired gain in percent, in \eqn{[0, 100]}; an unattainable
+constraint is an error (with the heuristic solver, "no set found" does not
+prove that none exists). The paper
 solves the problem with CVXR; here it is solved without dependencies and
 deterministically: exact enumeration when \code{choose(n, N) <= 2e5}, otherwise a
 greedy construction followed by best-improvement 1-swap local search (a

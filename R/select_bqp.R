@@ -1,8 +1,10 @@
 # Relatedness-penalized selection of exactly N individuals by binary quadratic
 # programming (BQP), after Montesinos-Lopez et al. (2025), Plant Methods 22:7.
-# The paper maximizes
+# The paper maximizes (Eq. 1; unweighted there, `weights` is an extension)
 #     Z = sum_j sum_i w_j s_ij x_i - k sum_i sum_k G_ik x_i x_k,   x_i in {0, 1},
-# subject to sum_i x_i = n and, per trait, sum_i s_ij x_i >= RHS_j. The paper
+# subject to sum_i x_i = s (Eq. 2) and, per trait, sum_i s_ij x_i >= l_j with
+# l_j = R_j * s / 100 (Eq. 3-4, R_j in percent; verified against the published
+# equations, PMC12849579). The paper
 # solves it with CVXR; this implementation is dependency-free and deterministic:
 # exact enumeration when choose(n, N) is small, otherwise greedy construction
 # followed by best-improvement 1-swap local search (a heuristic, not a proof of
@@ -65,14 +67,35 @@
          "be standardized.", call. = FALSE)
   }
   S <- sweep(sweep(S, 2L, colMeans(S), "-"), 2L, sds, "/")
-  G <- g_matrix(sim)
-  ix <- match(sim$ids, rownames(G))
-  if (anyNA(ix)) {
-    stop("method = \"bqp\": could not match the relationship matrix to the ",
-         "individuals.", call. = FALSE)
-  }
-  G <- G[ix, ix, drop = FALSE]
+  G <- .bqp_g(sim)
   list(S = S, w = w, G = G, score = stats::setNames(as.numeric(S %*% w), sim$ids))
+}
+
+#' Genomic relationship matrix of the BQP paper: G = W W' / p
+#'
+#' Montesinos-Lopez et al. (2025) compute G from the scaled marker matrix `W`
+#' (individuals x markers, each marker column centered and divided by its
+#' standard deviation) as `W W' / p`, `p` the number of markers (VanRaden 2008,
+#' standardized form). This is not [g_matrix()]'s VanRaden method 1, and the two
+#' can rank sets differently (unequal allele frequencies weigh markers
+#' differently), so the paper's form is used here. Monomorphic markers have no
+#' scale and are dropped (they carry no relationship information).
+#' @keywords internal
+#' @noRd
+.bqp_g <- function(sim) {
+  W <- .geno_cols(sim, seq_len(sim$n_markers))     # individuals x markers
+  storage.mode(W) <- "double"
+  sdv <- apply(W, 2L, stats::sd)
+  keep <- which(is.finite(sdv) & sdv > 0)
+  if (!length(keep)) {
+    stop("method = \"bqp\": every marker is monomorphic among these ",
+         "individuals, so the relationship matrix is undefined.", call. = FALSE)
+  }
+  W <- W[, keep, drop = FALSE]
+  W <- sweep(sweep(W, 2L, colMeans(W), "-"), 2L, sdv[keep], "/")
+  G <- tcrossprod(W) / ncol(W)
+  dimnames(G) <- list(sim$ids, sim$ids)
+  G
 }
 
 #' Validate `lambda` and `min_gain` for method = "bqp"
@@ -86,10 +109,11 @@
   }
   if (!is.null(min_gain)) {
     if (!is.numeric(min_gain) || any(!is.finite(min_gain)) ||
-        !(length(min_gain) %in% c(1L, n_traits_used))) {
-      stop("`min_gain` must be NULL, or finite numeric: one value or one per ",
-           "trait (", n_traits_used, "), the minimum desired gain in percent of ",
-           "a standard deviation of the standardized trait.", call. = FALSE)
+        !(length(min_gain) %in% c(1L, n_traits_used)) ||
+        any(min_gain < 0) || any(min_gain > 100)) {
+      stop("`min_gain` must be NULL, or numbers in [0, 100]: one value or one ",
+           "per trait (", n_traits_used, "), the minimum desired gain R_j in ",
+           "percent (Montesinos-Lopez et al. 2025, Eq. 4).", call. = FALSE)
     }
   }
   invisible(TRUE)
@@ -203,8 +227,16 @@
   }
   sol <- .bqp_solve(cvec, bq$G, keep_n, lambda, S = S, rhs = rhs)
   if (!isTRUE(sol$feasible)) {
-    stop("method = \"bqp\": no set of ", keep_n, " individuals meets the ",
-         "`min_gain` constraints; lower `min_gain` or raise `n`.", call. = FALSE)
+    if (identical(sol$method, "exact")) {
+      stop("method = \"bqp\": no set of ", keep_n, " individuals meets the ",
+           "`min_gain` constraints; lower `min_gain` or raise `n`.", call. = FALSE)
+    }
+    # the 1-swap search can miss a feasible set that needs several swaps
+    stop("method = \"bqp\": the greedy + 1-swap search found no set of ", keep_n,
+         " individuals meeting the `min_gain` constraints. This is a heuristic ",
+         "(the problem is too large to enumerate): a feasible set may still ",
+         "exist. Lower `min_gain`, or select among fewer candidates.",
+         call. = FALSE)
   }
   sol
 }

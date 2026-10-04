@@ -140,9 +140,11 @@ test_that("the option is unset by default and unset changes nothing", {
   skip_if_not_installed("withr")
   expect_null(getOption("simplePHENOTYPES.interference"))
   pop <- .gm_pop()
-  expect_null(simplePHENOTYPES:::.check_interference(NULL, "cross"))
+  # unset resolves to the default gamma model (DECISION-047)
+  expect_identical(simplePHENOTYPES:::.check_interference(NULL, "cross"),
+                   list(nu = 2.6, p = 0))
   # unset == option explicitly NULL == argument explicitly NULL: same outputs, same
-  # RNG state afterwards (all of them the isqg Poisson stream)
+  # RNG state afterwards (all of them the default gamma model)
   f <- function() cross(pop[1], pop[2], n = 6)
   a <- .gm_run(f)
   d <- .gm_run(function() cross(pop[1], pop[2], n = 6, interference = NULL))

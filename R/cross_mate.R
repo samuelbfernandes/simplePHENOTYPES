@@ -39,9 +39,9 @@
 #' 100 doubled haploids take about 2 s, against about 14 s before the batched
 #' path).
 #'
-#' With the `interference` option each row's meioses follow the two-pathway
-#' gamma model of crossover interference (see the section "Crossover
-#' interference" of [cross()]); the same option applies to every row.
+#' Every row's meioses follow the same crossover interference model (the
+#' `interference` argument; by default the gamma model, see the section
+#' "Crossover interference" of [cross()]).
 #'
 #' @param plan a data frame with columns `mother`, `father` (individual ids) and
 #'   `n` (progeny per row, a positive whole number), as produced by
@@ -56,10 +56,11 @@
 #' @param prefix progeny id prefix; progeny are named `<prefix>_1`, `<prefix>_2`,
 #'   ... in plan order. Default: the pool name(s) involved, joined by `x`
 #'   (e.g. `"A"` or `"AxB"`), or `"prog"` for a single unnamed population.
-#' @param interference `NULL` (default: the option `simplePHENOTYPES.interference`
-#'   if set, else Poisson crossovers, the isqg stream) or
-#'   `list(nu = , p = )`, the two-pathway gamma model of crossover interference
-#'   applied to every row; see [cross()].
+#' @param interference crossover interference model of [cross()] (see its
+#'   section "Crossover interference"): `NULL` (default: the option
+#'   `simplePHENOTYPES.interference` if set, else the gamma model with
+#'   `nu = 2.6`, `p = 0`), `"poisson"` (Poisson crossovers, the isqg stream, the
+#'   default before 2.0.0.9003) or `list(nu = , p = )`. Applied to every row.
 #' @return A `Population` of all progeny, in plan order, with attribute `plan`
 #'   (the plan with the progeny ids of each row in a list column `progeny`).
 #' @seealso [mating_design()], [cross()], [parentage()], [families()]
@@ -239,7 +240,8 @@ mate <- function(plan, ..., seed = NULL, prefix = NULL, interference = NULL) {
   ped <- .pedigree_relabel(do.call(.pedigree_union, peds), keys, ids)
   out <- .new_population(ref_map, cis, trans, ids,
                          paste0("mate(", n_rows, " row", if (n_rows > 1L) "s", ")"),
-                         keys = keys, pedigree = ped)
+                         keys = keys, pedigree = ped,
+                         trait = .shared_trait(parents))
   plan$design <- resolved
   plan$progeny <- lapply(seq_len(n_rows), function(k) {
     ids[seq.int(starts[k], ends[k])]

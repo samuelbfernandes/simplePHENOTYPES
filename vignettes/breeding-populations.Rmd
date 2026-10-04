@@ -26,11 +26,12 @@ pedigree from real founder genotypes: cross two lines, self the offspring,
 produce doubled haploids, and then simulate phenotypes on the result.
 
 These functions implement the algorithms from the `isqg` package, reimplemented
-in Rust. Recombination follows the Karlin & Liberman count-location model: the
-number of crossovers on a chromosome is, with `interference = NULL` (the default), Poisson
-with mean equal to its length in
-Morgans, crossover positions are uniform along it, and chromosomes assort
-independently.
+in Rust. A gamete carries on average one crossover per Morgan, and chromosomes
+assort independently. By default crossovers are spaced by the gamma model of
+crossover interference (`nu = 2.6`, `p = 0`, AlphaSimR's default; see `?cross`).
+With `interference = "poisson"` recombination follows isqg's Karlin & Liberman
+count-location model: the number of crossovers on a chromosome is Poisson with
+mean equal to its length in Morgans and their positions are uniform along it.
 
 There are four functions to learn:
 

@@ -45,8 +45,8 @@ Items from the list that the v2 work has closed.
       given.
 - [x] **`mean` / intercept per trait, and dropping the manual
       `pheno$Trait_1 <- pheno$Trait_1 + gv$gv_mu[1]` lines.** Done in the
-      legacy engine (`mean = c(1, 1)`). **Still open for the grammar** — see
-      §3.
+      legacy engine (`mean = c(1, 1)`), and in the grammar as
+      `simulate_phenotype(mean =)` (§3).
 
 ---
 
@@ -153,11 +153,11 @@ Each is a project. All are defensible; none should hold up this release.
       diploidy. The Rust `Bits` representation generalizes cleanly to more than
       two strands, which is the good news; the quantitative genetics does not
       generalize as cleanly, and that is the real work. Treat as v3.
-- [ ] **Categorical / threshold traits.** `y = 1 if l < γ₁`, etc. Conceptually
-      straightforward — simulate the liability, then cut it — and a genuinely
-      common need (disease status, ordinal scores). The work is in the API:
-      thresholds by prevalence or by cut points, and what h² means on the
-      observed versus liability scale. Good first "long" task.
+- [x] **Categorical / threshold traits.** Done (2026-10-03):
+      `liability_threshold(prop =)` cuts the standardized liability at
+      `qnorm(cumsum(prop))` (thresholds by expected category proportions); the
+      liability is kept and every variance quantity and h² stays on the
+      liability scale; a stored trait keeps the base thresholds.
 - [x] **eQTL simulation.** Done — DECISION-022 (supersedes 005): `simulate_transcriptome()`
       (cis/trans eQTL, co-expression modules, mimic calibration), the `transcriptome()`
       phenotype layer and `observe_counts()`; see `SPEC-transcriptome.md`.
@@ -169,13 +169,12 @@ Each is a project. All are defensible; none should hold up this release.
       touching the phenotype function. Fits the grammar as another layer.
 - [ ] **Different means per subpopulation (PCA).** Requires a population-
       structure concept the package does not have. Pairs naturally with GxE.
-- [ ] **Correlated allelic effects for high-throughput phenotyping.** This is
-      the pleiotropy engine applied to many traits with a structured
-      correlation matrix — which now works for any `n_traits`. Mostly a
-      question of specifying the correlation structure (AR1 over time points,
-      say) rather than new machinery.
-- [ ] **Co-heritability (rG·h1·h2).** Small computation, but needs a decision
-      on where it is reported.
+- [x] **Correlated allelic effects for high-throughput phenotyping.** Done
+      (2026-10-03): `cor_ar1(n_traits, rho)` gives the AR(1) structure for the
+      pleiotropy engine's `cor` and for `resid_cor`; any other structured matrix
+      can be passed the same way.
+- [x] **Co-heritability (rG·h1·h2).** Done (2026-10-03): `coheritability(sim)`
+      returns the realized matrix (liability scale for threshold traits).
 - [ ] **Power calculation.** Scope creep risk: this is a study-design tool, not
       a simulator. Worth doing only as a vignette showing how to use the
       simulator for power, not as a function.

@@ -352,10 +352,14 @@ test_that("cross()/selfcross()/double_haploid() reproduce isqg under the fixture
     expect_identical(length(ref$draws), events_per * ref$n_prog,
                      info = scenario)
 
+    # isqg's meiosis is Poisson; the package default is the gamma model
     run <- switch(d[1],
-      cross     = function() cross(pop[d[2]], pop[d[3]], n = ref$n_prog),
-      selfcross = function() selfcross(pop[d[2]], n = ref$n_prog),
-      dh        = function() double_haploid(pop[d[2]], n = ref$n_prog))
+      cross     = function() cross(pop[d[2]], pop[d[3]], n = ref$n_prog,
+                                   interference = "poisson"),
+      selfcross = function() selfcross(pop[d[2]], n = ref$n_prog,
+                                       interference = "poisson"),
+      dh        = function() double_haploid(pop[d[2]], n = ref$n_prog,
+                                            interference = "poisson"))
     prog <- suppressMessages(withr::with_seed(ref$seed, run()))
 
     geno <- dosages(prog)

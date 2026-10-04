@@ -43,14 +43,15 @@
 #' desynchronise every later draw. Returns the flat (event, chromosome)-ordered
 #' vectors the Rust core expects.
 #'
-#' With `interference = NULL` (the default) this is exactly the isqg stream
-#' above, draw for draw. A non-NULL `interference` (a validated
-#' `list(nu, p)`, see `.check_interference()`) switches to the two-pathway gamma
-#' model of `.draw_meiosis_interference()`, which has its own stream.
+#' With `interference` `NULL` or `"poisson"` this is exactly the isqg stream
+#' above, draw for draw. A `list(nu, p)` (as validated by
+#' `.check_interference()`, whose default is the gamma model) switches to the
+#' two-pathway gamma model of `.draw_meiosis_interference()`, which has its own
+#' stream. Callers resolve the public default before calling this.
 #' @keywords internal
 #' @noRd
 .draw_meiosis <- function(morgans_by_chr, n_events, interference = NULL) {
-  if (!is.null(interference)) {
+  if (is.list(interference)) {
     return(.draw_meiosis_interference(morgans_by_chr, n_events,
                                       interference$nu, interference$p))
   }
@@ -106,18 +107,28 @@
 #' @noRd
 .NU_MAX <- 1e6
 
+#' Default crossover interference model (DECISION-047)
+#'
+#' AlphaSimR's default (`SimParam` `v = 2.6`, `p = 0`), which approximates
+#' Kosambi's map function. Used when neither the `interference` argument nor the
+#' option `simplePHENOTYPES.interference` is given.
+#' @keywords internal
+#' @noRd
+.INTERFERENCE_DEFAULT <- list(nu = 2.6, p = 0)
+
 #' Validate and normalise the `interference` argument of the crossing functions
 #'
-#' `NULL` (no interference option: Poisson chiasmata, the isqg stream) or a
-#' list / named numeric vector with `nu` (a single number in `[1, 1e6]`) and optionally
-#' `p` (a single number in `[0, 1]`, default 0). Returns `NULL` or
-#' `list(nu =, p =)`.
+#' Accepted values: `"poisson"` (Poisson chiasmata, no interference, the isqg
+#' stream) or a list / named numeric vector with `nu` (a single number in
+#' `[1, 1e6]`) and optionally `p` (a single number in `[0, 1]`, default 0).
+#' Returns `"poisson"` or `list(nu =, p =)`; both are fixed points, so a value
+#' resolved by a scheme and forwarded to [cross()] etc. resolves to itself again.
 #'
 #' Resolution order: an explicit non-NULL argument, else the package option
 #' `simplePHENOTYPES.interference` (read here, once per call, so every function
 #' that validates its `interference` argument through this one picks it up),
-#' else `NULL`. An invalid option value errors naming the option. With the
-#' option unset this is exactly the previous behaviour (no extra draw, no state).
+#' else the default gamma model `.INTERFERENCE_DEFAULT` (`nu = 2.6`, `p = 0`).
+#' An invalid option value errors naming the option.
 #' @param x the argument as given.
 #' @param fn name of the calling function, for the message.
 #' @keywords internal
@@ -126,7 +137,7 @@
   opt <- is.null(x)
   if (opt) {
     x <- getOption("simplePHENOTYPES.interference")
-    if (is.null(x)) return(NULL)
+    if (is.null(x)) return(.INTERFERENCE_DEFAULT)
   }
   # how the value is named in a message: the argument, or the option it came from
   lab <- if (opt) "option `simplePHENOTYPES.interference`" else "`interference`"
@@ -134,10 +145,18 @@
     if (opt) paste0("`simplePHENOTYPES.interference$", nm, "`")
     else paste0("`interference$", nm, "`")
   }
+  if (is.character(x)) {
+    if (length(x) == 1L && !is.na(x) && identical(tolower(x), "poisson")) {
+      return("poisson")
+    }
+    stop(fn, "(): ", lab, " must be \"poisson\" or a list(nu =, p =); got ",
+         paste(dQuote(x, FALSE), collapse = ", "), ".", call. = FALSE)
+  }
   if (!(is.list(x) || (is.numeric(x) && !is.null(names(x)))) ||
       is.data.frame(x)) {
-    stop(fn, "(): ", lab, " must be NULL or a list(nu =, p =) (a named ",
-         "numeric vector also works).", call. = FALSE)
+    stop(fn, "(): ", lab, " must be NULL (the default gamma model, nu = 2.6, ",
+         "p = 0), \"poisson\", or a list(nu =, p =) (a named numeric vector ",
+         "also works).", call. = FALSE)
   }
   nm <- names(x)
   if (is.null(nm) || anyNA(nm) || any(!nzchar(nm)) || anyDuplicated(nm) ||
@@ -460,7 +479,7 @@
                               rng_after = res$rng_after[[1L]],
                               draws = res$draws[[1L]]), ids)
   .new_population(map, cis, trans, ids, origin, keys = mp$keys,
-                  pedigree = mp$pedigree)
+                  pedigree = mp$pedigree, trait = .shared_trait(list(p1, p2)))
 }
 
 #' Cross two individuals
@@ -469,8 +488,11 @@
 #' recombinant gamete from each parent, so the two parents contribute one
 #' homologue apiece.
 #'
-#' By default (`interference = NULL`) recombination follows the count-location
-#' model: the number of crossovers on
+#' Each gamete carries on average one crossover per Morgan of a chromosome's
+#' length. By default their spacing follows the gamma model of crossover
+#' interference (`nu = 2.6`, `p = 0`, AlphaSimR's default; see the section
+#' "Crossover interference"). With `interference = "poisson"` recombination
+#' follows the count-location model of isqg: the number of crossovers on
 #' a chromosome is Poisson with mean equal to its length in Morgans, and their
 #' positions are uniform along it. That length is the chromosome's **last** map
 #' position (`cm / 100`), not its span `max(cm) - min(cm)`: positions are used as
@@ -499,11 +521,13 @@
 #'
 #' @section Crossover interference:
 #' By default (`interference = NULL`, with the option below unset) crossovers
-#' are Poisson, i.e. there is no interference, and the random draws are exactly
-#' isqg's. Give
-#' `interference = list(nu = , p = )` for a two-pathway gamma model of
-#' interference (`nu` plays the role of AlphaSimR's `v`, whose default `2.6`
-#' approximates Kosambi's map function):
+#' follow a two-pathway gamma model of interference with `nu = 2.6` and
+#' `p = 0`: AlphaSimR's default (its `SimParam` fields `v` and `p`), which
+#' approximates Kosambi's map function. Give `interference = list(nu = , p = )`
+#' for other values, or `interference = "poisson"` for Poisson crossovers (no
+#' interference), whose random draws are exactly isqg's. Before version
+#' 2.0.0.9003 Poisson was the default; seeded results of every function that runs
+#' meiosis changed with the new default (see `NEWS.md`). The gamma model:
 #'
 #' * The four-strand bivalent carries chiasmata at an average of 2 per Morgan.
 #'   A gamete takes part in each chiasma independently with probability 1/2
@@ -530,29 +554,26 @@
 #' Poisson in distribution (Haldane), although it then uses its own random
 #' stream, not isqg's. `p` is in `[0, 1]`; `nu` must be in `[1, 1e6]` (negative
 #' interference is not modelled). The gamma model of interference is that of
-#' McPeek and Speed (1995, *Genetics*) and the two-pathway extension that of
-#' Housworth and Stahl (2003, *American Journal of Human Genetics*) (author,
-#' year and journal only; the formulas above were derived and are checked
+#' McPeek and Speed (1995) and the two-pathway extension that of Housworth and
+#' Stahl (2003) (see References; the formulas above were derived and are checked
 #' numerically in this package's tests, not copied from either paper or from
 #' AlphaSimR). The draws are made in R; the Rust core only applies the drawn
 #' crossovers and is unchanged.
 #'
 #' To use one interference model for a whole session or scheme without passing
 #' `interference =` to every call, set the option `simplePHENOTYPES.interference`
-#' to a `list(nu = , p = )` (`NULL`, the default, is Poisson crossovers). An
-#' `interference` argument that is `NULL` is then replaced by the option, in
+#' to `"poisson"` (the old default, e.g. to reproduce results of earlier
+#' versions) or to a `list(nu = , p = )` (`NULL`, the default, is the gamma
+#' model above). An `interference` argument that is `NULL` is then replaced by the option, in
 #' [cross()], [selfcross()], [double_haploid()], [mate()], [crossbreed()] and in
 #' every function that forwards it ([single_seed_descent()], [bulk()],
 #' [pedigree()], [recurrent_selection()], [cross_usefulness()],
 #' [combining_ability()], [progeny_test()]), so the precedence is: an explicit
-#' non-`NULL` argument, then the option, then Poisson. The option is validated by
-#' the same rules as the argument, and an invalid value is an error that names the
-#' option. Because `NULL` means "not given", an individual call cannot switch
-#' the option off with `interference = NULL`; use
-#' `withr::local_options(simplePHENOTYPES.interference = NULL)` (or
-#' `options()`) for that. With the option set, the draws are those of the gamma
-#' model (not isqg's stream), exactly as when the same list is passed to every
-#' call; with it unset nothing changes, draw for draw.
+#' non-`NULL` argument, then the option, then the default gamma model. The option
+#' is validated by the same rules as the argument, and an invalid value is an error
+#' that names the option. A call overrides the option with an explicit value
+#' (`interference = "poisson"` or a list). With the option set, the draws are
+#' exactly those made when the same value is passed to every call.
 #'
 #' @param mother,father single-individual `Population`s (use `[` to select one).
 #'   Their roles are symmetric apart from which homologue a progeny inherits
@@ -564,19 +585,29 @@
 #'   before the call works equally well. With a `seed` the caller's RNG state is
 #'   restored on exit (a seeded call does not disturb the ambient stream); with
 #'   `seed = NULL` the draws consume the ambient stream.
-#' @param interference `NULL` (default: the option `simplePHENOTYPES.interference`
-#'   if set, else Poisson crossovers, no interference, the isqg random stream) or
-#'   `list(nu = , p = )` for the two-pathway gamma model
-#'   of crossover interference (see the section "Crossover interference").
-#'   `1 <= nu <= 1e6` is the interference strength (1 = none), `p` in `[0, 1]` (default
-#'   0 when omitted) the share of chiasmata that do not interfere. The expected
-#'   number of crossovers per Morgan is unchanged.
+#' @param interference crossover interference model (see the section
+#'   "Crossover interference"). `NULL` (default): the option
+#'   `simplePHENOTYPES.interference` if set, else the gamma model with
+#'   `nu = 2.6`, `p = 0` (AlphaSimR's default). `"poisson"`: Poisson crossovers,
+#'   no interference, the isqg random stream (the default before 2.0.0.9003).
+#'   `list(nu = , p = )`: the two-pathway gamma model with these values;
+#'   `1 <= nu <= 1e6` is the interference strength (1 = none), `p` in `[0, 1]`
+#'   (default 0 when omitted) the share of chiasmata that do not interfere. The
+#'   expected number of crossovers per Morgan is the same under every model.
 #' @return A `Population` of `n` progeny.
 #' @seealso [selfcross()], [double_haploid()], [as_population()]
 #' @references
 #' Toledo, F.H., Perez-Rodriguez, P., Crossa, J. and Burgueno, J. (2019). isqg:
 #' A Binary Framework for in Silico Quantitative Genetics. \emph{G3
 #' Genes|Genomes|Genetics} 9(8), 2425--2428. \doi{10.1534/g3.119.400373}
+#'
+#' McPeek, M.S. and Speed, T.P. (1995). Modeling interference in genetic
+#' recombination. \emph{Genetics} 139(2), 1031--1044.
+#' \doi{10.1093/genetics/139.2.1031}
+#'
+#' Housworth, E.A. and Stahl, F.W. (2003). Crossover interference in humans.
+#' \emph{American Journal of Human Genetics} 73(1), 188--197.
+#' \doi{10.1086/376610}
 #' @export
 #' @examples
 #' data("SNP55K_maize282_maf04")

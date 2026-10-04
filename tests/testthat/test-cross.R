@@ -8,6 +8,10 @@
 # shows as classical genetics: F2 segregating 1:2:1, doubled haploids fully
 # homozygous, and recombination between linked markers following Haldane.
 
+# These expectations are for Poisson crossovers (Haldane / the isqg stream),
+# the default before DECISION-047; pin it for this file.
+withr::local_options(simplePHENOTYPES.interference = "poisson")
+
 data("SNP55K_maize282_maf04")
 G <- SNP55K_maize282_maf04
 

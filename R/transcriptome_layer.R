@@ -176,6 +176,7 @@
 transcriptome <- function(sim, prop = NULL, n_genes = NULL, genes = NULL,
                           slopes = NULL) {
   .check_sim(sim)
+  if (isTRUE(sim$frozen)) return(.frozen_layer_ignored(sim, "transcriptome"))
   if (is.null(sim$expression)) {
     stop("transcriptome(): no expression source. Give simulate_phenotype() an ",
          "`expression=` matrix or `transcriptome=` (a transcriptome_sim, or TRUE ",

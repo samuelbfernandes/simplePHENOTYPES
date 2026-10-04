@@ -420,23 +420,24 @@ only if the supplied map carries it (never inferred from `allele`). `haplotypes(
 
 **`cross()` / `selfcross()` / `double_haploid()`** take single-individual `Population`s
 (`mother`, `father`, or `parent`; subset a larger one with `x[i]`) and return `n` progeny
-as a new `Population`. Recombination follows the Karlin & Liberman count-location
-process — with `interference = NULL` (the default) the crossover count is Poisson with mean equal to
-chromosome length in Morgans, positions uniform along it, chromosomes independent — matching isqg exactly
-(DECISION-012). `double_haploid()` progeny are fully homozygous by construction (a single
+as a new `Population`. With `interference = "poisson"`, recombination follows the Karlin & Liberman
+count-location process — the crossover count is Poisson with mean equal to chromosome length in Morgans,
+positions uniform along it, chromosomes independent — matching isqg exactly (DECISION-012). The default
+is the gamma interference model below (DECISION-047). `double_haploid()` progeny are fully homozygous by construction (a single
 gamete, duplicated); `selfcross()` halves heterozygosity per generation; `cross()`
 combines one gamete from each parent. All three draw every random quantity in R, in
 isqg's exact order, before calling the Rust core, which is a pure function of those draws
 and never calls an RNG (DECISION-012) — `seed` (or an ambient `set.seed()`) fully
 determines the outcome.
 
-**Crossover interference (optional, DECISION-041).** `cross()`, `selfcross()`, `double_haploid()`,
-`mate()` and `crossbreed()` take a trailing `interference = NULL`, as do (by propagation) every other
-function that runs meiosis: `single_seed_descent()`, `bulk()`, `pedigree()`, `recurrent_selection()`,
-`cross_usefulness()`, `combining_ability(method = "simulated")` (an error with `method = "expected"`) and
-`progeny_test()`; `NULL` is the Poisson model and the
-isqg stream above, bit-identical to versions without the argument. `interference = list(nu = , p = )`
-(`1 <= nu <= 1e6`, `p` in [0, 1], `p` default 0) selects the two-pathway gamma model. Model: bivalent chiasmata
+**Crossover interference (DECISION-041, default since DECISION-047).** `cross()`, `selfcross()`,
+`double_haploid()`, `mate()` and `crossbreed()` take a trailing `interference = NULL`, as do (by
+propagation) every other function that runs meiosis: `single_seed_descent()`, `bulk()`, `pedigree()`,
+`recurrent_selection()`, `cross_usefulness()`, `combining_ability(method = "simulated")` (an error with
+`method = "expected"`) and `progeny_test()`. `NULL` (not given) is the two-pathway gamma model with
+`nu = 2.6`, `p = 0` (AlphaSimR's default); `"poisson"` is the Poisson model and the isqg stream above,
+bit-identical to versions before 2.0.0.9003 (whose default it was); `interference = list(nu = , p = )`
+(`1 <= nu <= 1e6`, `p` in [0, 1], `p` default 0) selects other gamma parameters. Model: bivalent chiasmata
 of intensity 2 per Morgan = a non-interfering Poisson pathway (share `p`) + a stationary renewal pathway
 with Gamma(shape `nu`, rate `2 nu (1-p)`) gaps (share `1-p`); a gamete keeps each chiasma with
 probability 1/2 (no chromatid interference), so the expected number of crossovers per Morgan stays 1 for
@@ -448,10 +449,11 @@ expected number of crossovers per Morgan unchanged. The draws are made in R (the
 sorted chiasma positions go to the unchanged Rust core.
 
 **Session-wide default.** When `interference` is `NULL`, the option `simplePHENOTYPES.interference`
-(a `list(nu = , p = )`, validated by the same rules) is used if set, so one model can apply to a whole session or
-scheme: explicit argument, then option, then Poisson. With the option unset every draw and RNG state is
-bit-identical to before. `NULL` means "not given", so one call cannot switch a set option off (use `options()` or
-`withr::local_options()`).
+(`"poisson"` or a `list(nu = , p = )`, validated by the same rules) is used if set, so one model can apply to a
+whole session or scheme: explicit argument, then option, then the gamma default.
+`options(simplePHENOTYPES.interference = "poisson")` reproduces earlier versions draw for draw. The validator
+returns `"poisson"` or the list, both fixed points, so a value a scheme resolved is forwarded unchanged; one
+call overrides a set option with an explicit `"poisson"` or list.
 
 **Per-call cost and batching (DECISION-040).** Every crossing function runs through one batched
 integer-strand call into the Rust core (`mate_many_core()`); `mate()` executes all rows of a plan in one

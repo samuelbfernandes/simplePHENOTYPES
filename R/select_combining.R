@@ -91,11 +91,13 @@
 #'   `h2` / `var_e` (none: no residual); `ref` (the reference population for `h2`)
 #'   is an error without `h2`.
 #' @param seed optional RNG seed for `"simulated"`.
-#' @param interference `NULL` (default: Poisson crossovers, no interference, the
-#'   isqg stream, bit-identical to earlier versions) or `list(nu = , p = )`, the
-#'   two-pathway gamma model of crossover interference of [cross()] (see its
-#'   section "Crossover interference"), for the meioses of `method =
-#'   "simulated"`; an error with `"expected"`, which runs no meiosis.
+#' @param interference crossover interference model of [cross()] (see its
+#'   section "Crossover interference"): `NULL` (default: the option
+#'   `simplePHENOTYPES.interference` if set, else the gamma model with
+#'   `nu = 2.6`, `p = 0`), `"poisson"` (Poisson crossovers, the isqg stream, the
+#'   default before 2.0.0.9003) or `list(nu = , p = )`. Used for the meioses of
+#'   `method = "simulated"`; giving it with `"expected"`, which runs no meiosis,
+#'   is an error.
 #' @return A `combining_ability` object: a list with `gca` (named, over
 #'   candidates), `gca_testers` (factorial only), `sca` (matrix: candidates x
 #'   testers, or the symmetric candidate x candidate matrix for a diallel, `NA` on
@@ -133,7 +135,11 @@ combining_ability <- function(candidates, testers = NULL, qtn, a, d = 0,
   design <- match.arg(design)
   method <- match.arg(method)
   interference_given <- !is.null(interference)
-  interference <- .check_interference(interference, "combining_ability")
+  # "expected" runs no meiosis: an explicit argument is validated (and refused
+  # below), but the session option is not consulted (Codex F-02)
+  if (identical(method, "simulated") || interference_given) {
+    interference <- .check_interference(interference, "combining_ability")
+  }
   .check_population(candidates)
   .check_distinct(candidates, "candidates")
   if (design == "diallel") {

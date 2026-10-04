@@ -403,7 +403,8 @@ filter_geno <- function(geno,
                          pop$cis[keep, , drop = FALSE],
                          pop$trans[keep, , drop = FALSE],
                          pop$ids, pop$origin,
-                         keys = pop$keys, pedigree = pop$pedigree)
+                         keys = pop$keys, pedigree = pop$pedigree,
+                         trait = pop$trait)
   # Anything else recorded on the object (e.g. the `plan` of a mate() result)
   # describes its individuals, not its markers, so it is kept.
   extra <- setdiff(names(attributes(pop)), c("names", "class"))
