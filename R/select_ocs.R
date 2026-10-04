@@ -278,6 +278,7 @@ optimum_contribution <- function(x, merit = "bv", trait = 1L,
 
   sc <- 1                                       # merit rescaling (tuned path only)
   lam_n <- NULL                                 # penalty on the solved (g / sc) scale
+  gsc <- 1                                      # G is solved as G / gsc
   lam <- if (!is.null(lambda)) {
     if (lambda < 0) stop("`lambda` must be >= 0.", call. = FALSE)
     lambda / hf
@@ -286,6 +287,7 @@ optimum_contribution <- function(x, merit = "bv", trait = 1L,
     tuned <- .tune_lambda(g, G, target, max_iter, tol,
                           enforce_below = !is.null(max_coancestry))
     sc <- tuned$scale
+    gsc <- tuned$gscale
     lam_n <- tuned$lambda_n
     tuned$lambda
   }
@@ -296,7 +298,9 @@ optimum_contribution <- function(x, merit = "bv", trait = 1L,
   # the unit-spread scale it was tuned on; sc = 1 leaves the problem untouched.
   # (the tuned penalty is used on its own scale: multiplying by sc and dividing
   # back would overflow for merits near .Machine$double.xmax)
-  c_opt <- .frank_wolfe(g / sc, G, lam_n, max_iter, tol)
+  # (likewise a tuned penalty is used on the G / gsc scale it was tuned on: mapping
+  # it back to G would overflow for a subnormal-scale G)
+  c_opt <- .frank_wolfe(g / sc, if (gsc == 1) G else G / gsc, lam_n, max_iter, tol)
   # The away-step optimizer converges to `tol` on well-posed problems, so a
   # failure to converge within max_iter is a genuine signal that the returned
   # contributions are sub-optimal (rather than the spurious near-optimum that a
@@ -635,9 +639,14 @@ sample_parents <- function(ocs, pop, n, seed = NULL,
 #' and the penalty is returned in the original units together with the scale used
 #' (`sc = 1` otherwise, leaving ordinary problems bit-identical). The doubling
 #' bracket is therefore always relative to the problem's own scale instead of a
-#' fixed absolute cap.
-#' @return list(lambda, scale, lambda_n): `lambda_n` is the penalty on the
-#'   unit-spread scale the search ran on (`lambda = lambda_n * scale`).
+#' fixed absolute cap. Likewise, when the relationship scale (mean diagonal of
+#' `G`) is extreme the search runs on `G` and the target divided by that scale,
+#' and the penalty is mapped back (a penalty on `G / s` is `lambda / s` on `G`).
+#' @return list(lambda, scale, gscale, lambda_n): `lambda_n` is the penalty on
+#'   the scale the search ran on (merit `g / scale`, relationships
+#'   `G / gscale`); `lambda = lambda_n * scale / gscale` in original units (it
+#'   may overflow when the two scales differ by more than double range; the
+#'   solve uses `lambda_n`).
 #' @keywords internal
 #' @noRd
 .tune_lambda <- function(g, G, target, max_iter, tol, enforce_below) {
@@ -648,11 +657,17 @@ sample_parents <- function(ocs, pop, n, seed = NULL,
     1
   }
   gn <- g / sc
+  sg <- mean(diag(G))
+  sg <- if (is.finite(sg) && sg > 0 && (sg > 1e6 || sg < 1e-6)) sg else 1
+  Gn <- G / sg
+  target <- target / sg
   coan_at <- function(lam) {
-    cc <- .frank_wolfe(gn, G, lam, max_iter, tol)
-    as.numeric(0.5 * crossprod(cc, G %*% cc))
+    cc <- .frank_wolfe(gn, Gn, lam, max_iter, tol)
+    as.numeric(0.5 * crossprod(cc, Gn %*% cc))
   }
-  done <- function(lam_n) list(lambda = lam_n * sc, scale = sc, lambda_n = lam_n)
+  done <- function(lam_n) {
+    list(lambda = lam_n * (sc / sg), scale = sc, gscale = sg, lambda_n = lam_n)
+  }
   c0 <- coan_at(0)                          # unconstrained (merit only)
   if (enforce_below && c0 <= target) return(done(0))   # constraint slack
   # Floating-point-correct comparison: c0 and the target are O(1) coancestries, so
@@ -671,9 +686,9 @@ sample_parents <- function(ocs, pop, n, seed = NULL,
     # A non-negative penalty can only lower coancestry, so a target above the
     # unconstrained optimum's coancestry cannot be met; say so instead of quietly
     # returning the (near-)unconstrained solution.
-    warning("optimum_contribution(): requested coancestry ", signif(target, 8),
+    warning("optimum_contribution(): requested coancestry ", signif(target * sg, 8),
             " is above the coancestry of the unconstrained (merit-only) optimum (",
-            signif(c0, 8), "), which a non-negative penalty cannot raise; using ",
+            signif(c0 * sg, 8), "), which a non-negative penalty cannot raise; using ",
             "lambda = 0 (the unconstrained optimum). Use `max_coancestry` for a ",
             "ceiling that is only enforced when it binds.", call. = FALSE)
     return(done(0))
@@ -686,10 +701,10 @@ sample_parents <- function(ocs, pop, n, seed = NULL,
   }
   cmin <- coan_at(hi)
   if (cmin > target) {
-    warning("optimum_contribution(): requested coancestry ", signif(target, 3),
+    warning("optimum_contribution(): requested coancestry ", signif(target * sg, 3),
             " is below the minimum attainable, or needs a larger penalty than the ",
             "search range (lambda up to 2^60 on a unit merit scale): coancestry ",
-            signif(cmin, 3), " was reached at the largest penalty tried. Using the ",
+            signif(cmin * sg, 3), " was reached at the largest penalty tried. Using the ",
             "minimum-coancestry contributions.", call. = FALSE)
     return(done(hi))
   }

@@ -23,6 +23,9 @@
 #' @keywords internal
 #' @noRd
 .stable_key <- function(...) {
+  # Parts carry no type tag (integer 1L and character "1" encode alike): each
+  # caller passes a fixed type at each position, which is the domain the keys
+  # are unique on.
   # Length-prefixed, so no value can imitate a separator: each part is
   # "<count>[<bytes>:<value>...]" (e.g. pool "A|B" + id "X" never equals pool
   # "A" + id "B|X"), and a missing value is "~", which no "<bytes>:" prefix
@@ -46,13 +49,29 @@
       return(paste0(n, "[", rawToChar(as.vector(m)), "]"))
     }
     # one encoding, so ids that R treats as identical (e.g. a UTF-8 and a
-    # Latin-1 "\u00e9") give the same bytes, byte counts and key
-    p <- enc2utf8(as.character(p))
+    # Latin-1 "\u00e9") give the same bytes, byte counts and key. An
+    # unmarked ("unknown") string that is already valid UTF-8 keeps its bytes:
+    # enc2utf8() would reinterpret it through the session locale, so the same
+    # bytes would hash differently under LC_ALL=C and a UTF-8 locale.
+    # An unmarked non-ASCII string that is not valid UTF-8 has no
+    # locale-free reading, so its raw bytes are hashed instead, as
+    # "#<hex digits>:<hex>" (no "<bytes>:" entry starts with "#").
+    p <- as.character(p)
+    unk <- !is.na(p) & Encoding(p) == "unknown"
+    keep <- unk & validUTF8(p)
+    raw_el <- which(unk & !keep)
+    if (any(keep)) Encoding(p)[keep] <- "UTF-8"
+    hex <- vapply(raw_el, function(i) {
+      paste(as.character(charToRaw(p[i])), collapse = "")
+    }, character(1))
+    if (length(raw_el)) p[raw_el] <- ""
+    p <- enc2utf8(p)
     # (paste0() with a zero-length part still emits the ":", so an empty part
     # is handled apart)
     el <- character(0)
     if (length(p)) {
       el <- paste0(nchar(p, type = "bytes"), ":", p)
+      el[raw_el] <- paste0("#", nchar(hex), ":", hex)
       el[is.na(p)] <- "~"
     }
     paste0(length(p), "[", paste(el, collapse = ""), "]")

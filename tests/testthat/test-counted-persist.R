@@ -350,3 +350,24 @@ test_that("a failing conversion does not warn about an existing default-named fi
   expect_no_warning(suppressMessages(as_numeric(hm, verbose = FALSE)))
   expect_false(file.exists("hm_numeric.txt"))
 })
+
+test_that("a counted column that contradicts the attribute is an error, NA entries are filled (round 9)", {
+  nc <- cp_num(cp_calls_a(), counted_column = TRUE)
+  nc$cm <- synthetic_map(nc$chr, nc$pos)
+  att <- attr(nc, "counted_allele")
+  expect_false(is.null(att))
+  # agreeing records convert as before
+  expect_s3_class(as_population(nc), "Population")
+  # a stale, contradicting attribute is no longer silently ignored
+  bad <- nc
+  attr(bad, "counted_allele") <- ifelse(att == "A", "G", "A")
+  expect_error(as_population(bad), "disagree")
+  # an all-unknown column takes the attribute instead of dropping it
+  unk <- nc
+  unk$counted <- NA
+  expect_identical(as_population(unk)$map$counted, toupper(att))
+  # an attribute of another length (stale after row subsetting) is ignored
+  sub <- nc[1:2, ]
+  attr(sub, "counted_allele") <- att
+  expect_s3_class(as_population(sub), "Population")
+})

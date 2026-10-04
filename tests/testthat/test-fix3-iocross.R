@@ -58,6 +58,16 @@ test_that("R3-6: 11 HapMap metadata columns and no sample is not HapMap", {
   expect_equal(ncol(suppressMessages(as_numeric(h, to_r = TRUE, verbose = FALSE))), 6L)
 })
 
+test_that("a character matrix without HapMap columns gets a package diagnostic", {
+  m <- matrix(c("AA", "AG", "GG", "AA"), 2)
+  expect_error(as_numeric(m, from = "hapmap", to_r = TRUE, verbose = FALSE),
+               "11 metadata columns")
+  # a valid HapMap table given as a character matrix converts like the data frame
+  h <- fx3_hmp(matrix(c("AA", "AG", "GG", "AA", "GG", "AG"), 3, 2))
+  expect_identical(as_numeric(as.matrix(h), from = "hapmap", to_r = TRUE, verbose = FALSE),
+                   as_numeric(h, from = "hapmap", to_r = TRUE, verbose = FALSE))
+})
+
 # ---------------------------------------------------------------------------
 # R3-7
 # ---------------------------------------------------------------------------

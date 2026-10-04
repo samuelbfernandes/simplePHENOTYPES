@@ -379,3 +379,22 @@ test_that("v1ld: a window with no pair in a small panel ends in an informative e
     expect_match(o$res, "used up every candidate marker|LD contract|ran past")
   }
 })
+
+test_that("direct LD never pairs two markers at one chromosome position (round 9)", {
+  e <- new.env()
+  utils::data("SNP55K_maize282_maf04", envir = e, package = "simplePHENOTYPES")
+  G <- e$SNP55K_maize282_maf04
+  expect_identical(simplePHENOTYPES:::.ld_direct_violation(G, 1475, 1476, 0.985491459,
+                                                           "corr", 0.98, 0.99),
+                   "a pair shares a chromosome position")
+  d <- withr::local_tempdir()
+  suppressMessages(suppressWarnings(create_phenotypes(
+    geno_obj = G, home_dir = d, output_dir = "", to_r = TRUE, verbose = FALSE,
+    architecture = "LD", type_of_ld = "direct", ld_method = "corr",
+    ld_min = 0.98, ld_max = 0.99, seed = 636, rep = 1, add_QTN_num = 1,
+    add_effect = c(0.5, 0.5), h2 = c(0.5, 0.5), model = "A")))
+  z <- utils::read.delim(file.path(d, "LD_Summary_Additive.txt"), check.names = FALSE)
+  ia <- match(z$QTN_for_trait_1, G$snp)
+  ib <- match(z$QTN_for_trait_2, G$snp)
+  expect_false(any(G$chr[ia] == G$chr[ib] & G$pos[ia] == G$pos[ib]))
+})

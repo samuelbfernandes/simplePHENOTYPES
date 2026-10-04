@@ -229,8 +229,17 @@ test_that("SNP55K HapMap matches NUM.txt reference structure", {
   skip_if_not(file.exists(snp55k_hmp), "SNP55K HapMap file not available")
   skip_if_not(file.exists(snp55k_ref), "SNP55K NUM reference file not available")
 
+  # The SNP55K file repeats some marker IDs: the file itself is refused, and the
+  # comparison runs on the markers whose ID is unique.
+  expect_error(.quiet(as_numeric(snp55k_hmp, to_r = TRUE, code_as = "012",
+                                 impute = "Middle", verbose = FALSE)),
+               "Duplicated marker ID")
+  hmp <- data.table::fread(snp55k_hmp, data.table = FALSE)
+  dup <- hmp[[1]][duplicated(hmp[[1]])]
+  hmp <- hmp[!hmp[[1]] %in% dup, ]
   ref <- data.table::fread(snp55k_ref, data.table = FALSE)
-  res <- .quiet(as_numeric(snp55k_hmp, to_r = TRUE,
+  ref <- ref[!ref[[1]] %in% dup, ]
+  res <- .quiet(as_numeric(hmp, to_r = TRUE,
                             code_as = "012", impute = "Middle", verbose = FALSE))
 
   # Dimensions: same SNP count, same sample count
