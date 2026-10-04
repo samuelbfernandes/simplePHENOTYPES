@@ -1,5 +1,18 @@
 # simplePHENOTYPES (development version)
 
+* Fixes (Codex review, 2026-10-03): `phenotype_value(h2 =, ref =)` with numeric `qtn` now scores `ref` at the
+  same markers by name, so a `ref` with another marker order no longer silently miscalibrates `var_e`
+  (row indices are still used when either side lacks unique marker names; by name, `ref` may be a
+  marker subset or have missing values at non-causal loci); `print.Population()` ignores unused
+  chromosome factor levels instead of printing a `-Inf` map span with warnings.
+
+* G x E on the fixed scale (breedingDesigner SPEC-0020 item 4, DECISION-047): new `gxe_value()` scores
+  each individual's genotype-by-environment slope, and `phenotype_value()` gains `gxe`, `gxe_intercept`,
+  `env` and `var_env`, giving `y = g + s * qnorm(env, sd = sqrt(var_env)) + e` -- AlphaSimR's `addTraitAG()`
+  trait phenotyped with `setPheno(p = env)`, matching it to 3e-15 on imported founders
+  (`dev/parity-gxe-alphasimr.R`). `env = NULL` draws the environment; the G x E term is excluded from
+  `h2` and the `genetic_value` attribute. Without `gxe` nothing changes.
+
 * Theory-review fixes (Codex, 2026-10-02): the `h2` completeness check now also applies with a `transcriptome()` layer (marker layers fill `h2`, or marker layers plus the transcriptome `prop` do); `select_ind(on = "gv")` now equals `genetic_values()` for derived transcriptome models; a transmissible breeding value (`on = "bv"`, quadratic index) is refused for a genome-mediated transcriptome layer instead of silently omitting it; record-scale realized H2 matches phenotypes to genetic values by id (it used to depend on row order); the breeding-value documentation now states it is twice the expected progeny deviation.
 
 * Tests: `mate_many_core()` and the exported crossing functions are pinned directly to the isqg fixtures (no behavior change).
@@ -142,7 +155,7 @@ otherwise.
 
 Items 1, 2, 3, 5, 6, 7 and 8 of the breedingDesigner engine-request list. All new
 arguments are appended with defaults that keep today's output and random stream.
-G x E traits (item 4) and native coalescent founders (item 9) are not implemented.
+G x E traits (item 4) followed in 2026-10 (fixed scale, DECISION-047); native coalescent founders (item 9) are not implemented.
 
 * `simulate_phenotype()` no longer deparses the whole genotype object to name it: a
   large inline `geno` (e.g. `do.call(simulate_phenotype, list(geno = pop, ...))`) used

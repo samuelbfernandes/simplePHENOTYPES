@@ -26,7 +26,7 @@ backend_contract <- c(
   "predict_ebv", "a_matrix", "prediction_accuracy", "selection_methods",
   "crossbreed", "breed_composition", "heterosis",
   # Fixed-scale accessors
-  "additive_value", "genotypic_value", "phenotype_value",
+  "additive_value", "genotypic_value", "phenotype_value", "gxe_value",
   # Genotype ingestion / QC
   "as_numeric", "filter_geno"
 )

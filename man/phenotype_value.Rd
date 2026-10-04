@@ -12,7 +12,11 @@ phenotype_value(
   var_e = NULL,
   ref = NULL,
   seed = NULL,
-  d = NULL
+  d = NULL,
+  gxe = NULL,
+  gxe_intercept = 0,
+  env = NULL,
+  var_env = 0
 )
 }
 \arguments{
@@ -48,11 +52,39 @@ locus): the genetic part is then the fixed total genotypic value \code{A + D} of
 \code{\link[=genotypic_value]{genotypic_value()}} (with \code{effect} as its \code{a}), and \code{h2} is the heritability
 of that total value in \code{ref} -- a broad-sense heritability. Default \code{NULL}:
 additive only.}
+
+\item{gxe}{optional per-locus genotype-by-environment (slope) effects, one per
+entry of \code{qtn} and in the same order (AlphaSimR \code{addTraitAG()}'s \code{gxeEff}).
+The phenotype then follows AlphaSimR's \code{setPheno()} for that trait:
+\deqn{y_i = g_i + s_i\,w + e_i,\qquad w = \Phi^{-1}(\mathrm{env};\,0,\,
+\sigma_w),}
+where \eqn{s_i} is \code{\link[=gxe_value]{gxe_value()}}\verb{(x, qtn, gxe, gxe_intercept)} and
+\eqn{\sigma_w = \sqrt{\mathrm{var\_env}}}, or 1 when \code{var_env = 0}. One
+covariate \code{w} is shared by every individual scored in the call (one trial).
+The G x E term is not part of the genetic value: \code{h2} converts to \code{var_e}
+from the genetic variance alone (as AlphaSimR's \code{setPheno(h2 =)} does from
+\code{varA} and \code{varG}), and the \code{genetic_value} attribute excludes it. Default
+\code{NULL}: no G x E, and the result and random stream are unchanged.}
+
+\item{gxe_intercept}{the slope intercept (AlphaSimR \code{gxeInt}; see
+\code{\link[=gxe_value]{gxe_value()}}). Only with \code{gxe}.}
+
+\item{env}{the trial's environment as a probability in \verb{(0, 1)}: the quantile
+of the covariate (AlphaSimR \code{setPheno(p =)}). \code{NULL} (default) draws it
+uniformly, before the residual, from the same seeded stream. Only with \code{gxe}.}
+
+\item{var_env}{the variance of the environmental covariate (AlphaSimR
+\code{varEnv}). With \code{var_env > 0} and a mean slope of 1 (\code{gxe_intercept} set as
+AlphaSimR does), \code{w} is also a main effect of the environment shared by all
+individuals; with \code{0} (the AlphaSimR default) the covariate has standard
+deviation 1. Only with \code{gxe}.}
 }
 \value{
 a named numeric vector of phenotypes, one per individual, with
 attributes \code{var_e} (the fixed residual variance used) and \code{genetic_value} (the
-fixed additive -- or, with \code{d}, total genotypic -- values).
+fixed additive -- or, with \code{d}, total genotypic -- values). With \code{gxe}, also
+\code{gxe_value} (the slopes \eqn{s_i}), \code{env} (the quantile used) and \code{env_value}
+(the covariate \eqn{w}).
 }
 \description{
 The phenotypic counterpart of \code{\link[=additive_value]{additive_value()}}: each individual's phenotype is
@@ -100,13 +132,38 @@ ve <- attr(y0, "var_e")
 # phenotype_value(descendants, qtn = c(1, 5, 9), effect = c(0.5, -1, 2),
 #                 var_e = ve, seed = 2)
 head(y0)
+
+# The same trait with G x E slopes in a low (env = 0.1) and a high
+# (env = 0.9) value of the environmental covariate. With the defaults the
+# covariate has no main effect (mean slope near 0): only the ranking changes.
+b <- c(0.2, -0.1, 0.3)
+y_low  <- phenotype_value(pop, qtn = c(1, 5, 9), effect = c(0.5, -1, 2),
+                          var_e = ve, gxe = b, env = 0.1, seed = 3)
+y_high <- phenotype_value(pop, qtn = c(1, 5, 9), effect = c(0.5, -1, 2),
+                          var_e = ve, gxe = b, env = 0.9, seed = 3)
+cor(y_low, y_high)
+
+# A main effect of the environment as well (AlphaSimR varEnv > 0): set the
+# mean slope of the base population to 1, so env = 0.9 is the better trial.
+int <- 1 - mean(gxe_value(pop, qtn = c(1, 5, 9), effect = b))
+y_poor <- phenotype_value(pop, qtn = c(1, 5, 9), effect = c(0.5, -1, 2),
+                          var_e = ve, gxe = b, gxe_intercept = int,
+                          env = 0.1, var_env = 2, seed = 3)
+y_good <- phenotype_value(pop, qtn = c(1, 5, 9), effect = c(0.5, -1, 2),
+                          var_e = ve, gxe = b, gxe_intercept = int,
+                          env = 0.9, var_env = 2, seed = 3)
+mean(y_good) - mean(y_poor)   # 2 * qnorm(0.9, sd = sqrt(2)) with equal residuals
 }
 \references{
 Falconer DS, Mackay TFC (1996) \emph{Introduction to Quantitative Genetics},
 4th ed. Longman, Harlow (heritability \eqn{h^2 = V_A / (V_A + V_E)}; with \code{d},
 the broad-sense \eqn{H^2 = V_G / (V_G + V_E)}); Lynch M,
 Walsh B (1998) \emph{Genetics and Analysis of Quantitative Traits}. Sinauer,
-Sunderland, MA.
+Sunderland, MA. Gaynor RC, Gorjanc G, Hickey JM (2021) AlphaSimR: an R
+package for breeding program simulations. \emph{G3} 11(2):jkaa017.
+\doi{10.1093/g3journal/jkaa017} (the additive-by-environment trait; the
+exact formula of \code{gxe} follows the AlphaSimR 2.1.0 source of
+\code{SimParam$addTraitAG()} and \code{calcPheno()}).
 }
 \seealso{
 \code{\link[=additive_value]{additive_value()}}, \code{\link[=genetic_values]{genetic_values()}}, \code{\link[=select_ind]{select_ind()}},

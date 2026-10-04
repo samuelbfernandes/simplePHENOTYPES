@@ -87,7 +87,8 @@ OCS), `cross_usefulness`, and `print.ocs`; marker-assisted backcrossing
 
 ### Fixed-scale cross-generation accessors
 `additive_value`, `genotypic_value`, `phenotype_value` (which gains `d =` in
-2.0.0.9001, DECISION-026) — the fixed-scale scorers
+2.0.0.9001, DECISION-026, and the appended G x E arguments `gxe`, `gxe_intercept`,
+`env`, `var_env` with the slope accessor `gxe_value`, DECISION-047) — the fixed-scale scorers
 a downstream recurrent driver needs so a selection response is visible across
 generations (DECISION-020 / DECISION-021). `genotypic_value()` is each
 individual's own **per se** additive-plus-dominance total genotypic value

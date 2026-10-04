@@ -1925,6 +1925,53 @@ Not compared with the paper's numerical results (no reference data); the tests p
 
 ---
 
+## DECISION-047: fixed-scale G x E (AlphaSimR `addTraitAG` semantics), SPEC-0020 item 4
+
+**Question:** breedingDesigner needs an additive-by-environment trait to reproduce Bancic et al.
+(2025) Program 4. Its cross-engine phenotyping runs on the fixed-scale accessors
+(`additive_value()` / `phenotype_value(var_e =)`), not the variance-partition grammar.
+
+**Decision:** a new export `gxe_value(x, qtn, effect, intercept = 0)` scores the G x E slope
+`s_i = intercept + sum_j dosage_ij b_j` (no rescaling), and `phenotype_value()` gains the appended
+arguments `gxe = NULL, gxe_intercept = 0, env = NULL, var_env = 0`. With `gxe`,
+`y_i = g_i + s_i w + e_i`, `w = qnorm(env, 0, sqrt(var_env))` (sd 1 when `var_env = 0`). This is
+AlphaSimR 2.1.0 `addTraitAG()` + `calcPheno()` read from source: per-locus `gxeEff` = `effect`,
+`gxeInt` = `intercept`, AlphaSimR's centred genotype `x - 1` = our dosage, `envVar` stored as 1
+when `varEnv = 0`. One covariate per call (one trial); `env = NULL` draws `runif(1)` *before* the
+residual from the same seeded stream (the `setPheno(p = NULL)` order). The G x E term is not genetic
+value: `h2` converts to `var_e` from Var(g) alone (AlphaSimR's `setPheno(h2 =)` also excludes it) and
+the `genetic_value` attribute excludes it; the result carries `gxe_value`, `env`, `env_value`.
+Without `gxe` the value and the random stream are unchanged (`env` / `var_env` / `gxe_intercept`
+alone are an error).
+
+**Evidence:** `dev/parity-gxe-alphasimr.R` (AlphaSimR is not a dependency): imported founders,
+two `addTraitAG` traits (`varEnv` 0 and 2), `p` = 0.10 / 0.50 / 0.93, `varE = 0`:
+max |AlphaSimR - simplePHENOTYPES| <= 2.7e-15; slopes <= 5.6e-16. Tests: `test-feat-gxe.R`.
+
+**Not done:** a `gxe()` layer in the variance-partition grammar (`simulate_phenotype()`); BD's
+Program 4 path does not need it. Multi-trait `corGxE` is the caller's (slopes are per trait).
+
+**Reaffirms:** DECISION-006 (draws in R), DECISION-020/021 (fixed-scale accessors).
+
+**Date:** 2026-10-03
+
+---
+
+## DECISION-048: coalescent founders (SPEC-0020 item 9) -- Rust PRNG exception to DECISION-006/012
+
+**Decision (maintainer, 2026-10-03):** build a full MaCS-style sequential Markov coalescent
+natively (`docs/SPEC-coalescent.md`), not a forward burn-in and not import-only. Because a
+coalescent draws an a-priori unknown number of random numbers, the core runs in Rust with its own
+PRNG (hand-written xoshiro256++ seeded through SplitMix64; no new crate in the vendored set). R draws
+one seed per chromosome from its own stream, so `set.seed()` / `seed =` reproduce the founders.
+
+**Scope of the exception:** only the founder generator. It has no isqg reference, so it is off the
+parity-critical path that DECISION-012 protects; every other stochastic step stays in R.
+
+**Date:** 2026-10-03 (design accepted; implementation pending)
+
+---
+
 ## Note: testthat edition 3 (2026-10)
 
 The package declares `Config/testthat/edition: 3` (DESCRIPTION). Expectations that relied on edition 2's
@@ -1983,3 +2030,5 @@ asserted with nested `expect_warning()`. `test-v130-parity.R` and the RDS refere
 | 044 | `write_qtn_table()` (all `qtn_table()` columns, text/JSON, several reps stacked with `rep`) + `write_phenotypes(qtn_file, split_markers, markers_files, rep)`: causal markers = union of `qtn_table()` marker-layer `snp` over the selected reps (genes excluded), non-causal = the rest; numeric-format text / self-describing JSON, chunked writing | locked (2026-10-02) |
 | 045 | Residual correlation between traits: `resid_cor = NULL \| scalar \| matrix` on `simulate_phenotype()` / `complex_phenotypes()` (genetic stays `cor`); unit draws under the unchanged sub-seeds mixed through `chol(R)` and re-standardized per trait, so each trait's residual variance, realized h2 and `var_budget` are unchanged; `NULL` bit-identical; sample correlation = target up to `1/sqrt(n)`; vqtl dilutes it | locked (2026-10-02) |
 | 046 | `select_ind(method = "bqp", lambda, min_gain)`: Montesinos-Lopez et al. 2025 relatedness-penalized BQP selection of exactly N (weighted standardized merit minus `lambda` x'Gx on the VanRaden G; per-trait `min_gain` constraints); dependency-free deterministic solver (exact enumeration if `choose(n,N) <= 2e5`, else greedy + 1-swap local search), no RNG | locked (2026-10-02) |
+| 047 | Fixed-scale G x E: `gxe_value(x, qtn, effect, intercept)`; `phenotype_value(gxe, gxe_intercept, env, var_env)` = AlphaSimR `addTraitAG`/`calcPheno` (`y = g + s qnorm(env, sd) + e`, sd 1 when `var_env = 0`, `env = NULL` drawn by `runif` before the residual); G x E excluded from `h2` and `genetic_value`; default stream unchanged; exact AlphaSimR parity (<= 3e-15) | locked (2026-10-03) |
+| 048 | Coalescent founders: full MaCS-style SMC' core in Rust with its own xoshiro256++ PRNG seeded per chromosome from R (only exception to DECISION-006/012; founder generator is off the isqg parity path) | accepted (2026-10-03), not implemented |
