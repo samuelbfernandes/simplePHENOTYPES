@@ -63,7 +63,7 @@ install.packages("simplePHENOTYPES",
 
 <summary>
 
-Building from source instead (Linux, or <code>install_github()</code>)
+Building from source instead (Linux, or <code>pak</code>)
 </summary>
 
 Part of the package is written in Rust, so building it *from source*
@@ -71,7 +71,7 @@ needs a **Rust toolchain** (`cargo` and `rustc` \>= 1.65) — install it
 once from <https://rustup.rs>, then:
 
 ``` r
-devtools::install_github("samuelbfernandes/simplePHENOTYPES", build_vignettes = TRUE)
+pak::pak("samuelbfernandes/simplePHENOTYPES")
 ```
 
 </details>
