@@ -137,12 +137,18 @@ population_from_haplotypes <- function(cis, trans, map, ids = NULL,
     }
   }
 
-  vals <- c(cis, trans)
-  if (anyNA(vals)) {
+  # each matrix checked in place (no combined copy): with no NA, a value is 0
+  # or 1 exactly when it lies in [0, 1] and is whole
+  zero_one <- function(h) {
+    !length(h) || (min(h) >= 0 && max(h) <= 1 &&
+                     (!is.double(h) || all(h == trunc(h))))
+  }
+  if (anyNA(cis) || anyNA(trans)) {
     stop("Haplotypes must not contain missing values; impute or phase them ",
          "first.", call. = FALSE)
   }
-  if (is.numeric(vals) && !all(vals %in% c(0, 1))) {
+  if ((is.numeric(cis) || is.numeric(trans)) &&
+      !(zero_one(cis) && zero_one(trans))) {
     stop("Haplotype values must be 0 or 1 (1 = the counted allele); found ",
          "other values.", call. = FALSE)
   }

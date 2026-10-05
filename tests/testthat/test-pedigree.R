@@ -223,3 +223,41 @@ test_that("every missing pool label is the same no-pool founder (review A r5)", 
   }
   expect_error(as_population(g, pool = list(NA)), "single character label")
 })
+
+test_that("batched founder keys equal the per-founder .stable_key() encoding", {
+  # the implementation .founder_pedigree() had before it was batched (verbatim)
+  ref_keys <- function(ids, cis, trans, pool) {
+    vapply(seq_along(ids), function(j) {
+      paste0("f", .stable_key("founder", pool,
+                              ids[j], paste(cis[, j], collapse = ""),
+                              paste(trans[, j], collapse = "")))
+    }, character(1))
+  }
+  set.seed(3)
+  m <- matrix(rbinom(60, 1, 0.5), 12)
+  storage.mode(m) <- "integer"
+  m2 <- m[, 5:1]
+  l1 <- iconv("é", "UTF-8", "latin1")
+  ids <- c("a", "é", l1, "A|B", "NA")
+  cases <- list(
+    list(m, m2), list(m * 1.0, m2), list(m == 1L, m2 == 1L),
+    list(m + 7L, m2), list(m - 1L, m2 + 9L), list(m * 10L, m2),
+    list(m[0, , drop = FALSE], m2[0, , drop = FALSE])
+  )
+  for (cs in cases) {
+    for (pool in list(NA_character_, "P", "A|B", "é")) {
+      expect_identical(.founder_pedigree(ids, cs[[1]], cs[[2]], pool)$keys,
+                       ref_keys(ids, cs[[1]], cs[[2]], pool))
+    }
+  }
+  # more founders than one hashing block
+  big <- matrix(rbinom(3 * 2500, 1, 0.5), 3)
+  storage.mode(big) <- "integer"
+  bid <- paste0("i", seq_len(2500))
+  expect_identical(.founder_pedigree(bid, big, big[, 2500:1])$keys,
+                   ref_keys(bid, big, big[, 2500:1], NA_character_))
+  # founders draw no random numbers
+  seed <- .Random.seed
+  .founder_pedigree(ids, m, m2)
+  expect_identical(.Random.seed, seed)
+})
