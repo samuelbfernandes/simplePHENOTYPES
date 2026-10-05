@@ -135,7 +135,8 @@ stable_hash_core <- function(x) .Call(wrap__stable_hash_core, x)
 #' Returns list(pos, hap, n_total, tmrca, length): `pos` in [0, 1); `hap` an
 #' integer vector of length n_sites * n_hap, sites x haplotypes column-major
 #' (1 = derived allele); `n_total` the number of segregating sites before
-#' subsetting; `tmrca` and `length` of the tree at position 0.
+#' subsetting; `tmrca` and `length` of the tree at position 0, `tmrca_end` of
+#' the tree at position 1.
 #' @noRd
 coalescent_chromosome_core <- function(n_hap, theta, rho, history_times, history_sizes, seg_sites, seed) .unwrap_extendr(.Call(wrap__coalescent_chromosome_core, n_hap, theta, rho, history_times, history_sizes, seg_sites, seed), "coalescent_chromosome_core")
 

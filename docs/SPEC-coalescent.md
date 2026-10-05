@@ -92,6 +92,24 @@ references below are not yet page-verified.
   haplotypes = 0.1 / 0.9 / 9.9 s per chromosome. The O(n) scan for the lineages at the
   re-coalescence time is the hotspot to remove in phase (b).
 
+- **Phase (b) 2026-10-04.** (1) *MaCS window dropped by maintainer decision:* AlphaSimR's MaCS
+  source (`src/simulator.cpp:44` `dBasesToTrack = 1`; `src/datastructures.cpp:328` trailing gap
+  `dBasesToTrack / dSeqLength`; `src/algorithm.cpp:1263-1271` pruning) keeps a 1-base window, and
+  `runMacs()` never passes `-h`, so AlphaSimR runs effectively SMC'. The phase (a) core is that
+  model; a longer window stays a possible later option. (2) *Speed:* the re-coalescence lineage
+  is drawn by rejection from the root and the children of internal nodes older than tau
+  (acceptance k / (2k - 1) >= 1/2; an O(log n) search plus O(1) expected draws, while keeping the
+  sorted node list still shifts O(n) entries per regraft) instead of an O(n) scan per draw: 20000 haplotypes 9.9 -> 2.2 s per
+  chromosome (debug build). (3) *Recombination gate:* the pair-TMRCA correlation at the two ends
+  of a sequence of scaled length rho lies above the SMC value 1/(1+rho) and at or just below the
+  ARG value (rho+18)/(rho^2+13rho+18) (Wilton, Carmi & Hobolth 2015, PMID 25786855): rho = 0.5 /
+  1 / 3 / 10 gave 0.746 / 0.580 / 0.297 / 0.101 vs ARG 0.748 / 0.594 / 0.318 / 0.113 and SMC
+  0.667 / 0.500 / 0.250 / 0.091. (4) *Cross-engine evidence* (`dev/parity-coalescent-alphasimr.R`,
+  GENERIC preset, 200 haplotypes, 20 replicates each): segregating sites, mean MAF, the folded
+  SFS and r^2 in seven distance bins all agree with AlphaSimR `runMacs()`, every |z| < 2 (largest
+  1.96 of 14 statistics; rerun after Codex found the script's per-replicate `set.seed()` made the
+  replicates dependent, which is fixed: one seed per run).
+
 ## 7. Size and plan
 
 XL. Phases: (a) Rust SMC' core + PRNG + gates 1 and 3; (b) recombination gate 2 and the MaCS

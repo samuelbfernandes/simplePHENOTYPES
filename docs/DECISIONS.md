@@ -1970,6 +1970,13 @@ parity-critical path that DECISION-012 protects; every other stochastic step sta
 
 **Date:** 2026-10-03 (design accepted; implementation pending)
 
+**Addendum 2026-10-04 (phase b):** no MaCS history window. AlphaSimR's bundled MaCS keeps a 1-base
+window by default and `runMacs()` never sets `-h`, so AlphaSimR runs effectively SMC'; the maintainer
+chose to match that and skip the window (a longer window remains possible later). Phase (a)
+committed (`ea0fa5d`); phase (b) adds the rejection re-coalescence sampler (O(log n) search + O(1) expected draws), the two-locus
+correlation gate (Wilton et al. 2015) and cross-engine evidence against `runMacs()`
+(`dev/parity-coalescent-alphasimr.R`, independent replicates, all |z| < 2).
+
 ---
 
 ## Note: testthat edition 3 (2026-10)

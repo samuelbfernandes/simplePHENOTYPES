@@ -225,8 +225,8 @@ pub struct Tree {
     children: Vec<[usize; 2]>,
     time: Vec<f64>,
     root: usize,
-    /// Times of the internal nodes, ascending.
-    internal_times: Vec<f64>,
+    /// (time, node) of the internal nodes, ascending in time.
+    internal: Vec<(f64, usize)>,
     fen: Fenwick,
     events: u64,
 }
@@ -241,7 +241,7 @@ impl Tree {
             children: vec![[NONE, NONE]; m],
             time: vec![0.0; m],
             root: NONE,
-            internal_times: Vec::with_capacity(n - 1),
+            internal: Vec::with_capacity(n - 1),
             fen: Fenwick::new(m),
             events: 0,
         };
@@ -276,7 +276,7 @@ impl Tree {
             tree.children[p] = [a, b];
             tree.parent[a] = p;
             tree.parent[b] = p;
-            tree.internal_times.push(u);
+            tree.internal.push((u, p));
             active.push(p);
         }
         tree.root = active[0];
@@ -312,7 +312,7 @@ impl Tree {
     /// Number of lineages of the tree at time u > 0.
     #[cfg(test)]
     fn lineages_at(&self, u: f64) -> usize {
-        let above = self.internal_times.len() - self.internal_times.partition_point(|&t| t <= u);
+        let above = self.internal.len() - self.internal.partition_point(|&(t, _)| t <= u);
         1 + above
     }
 
@@ -334,18 +334,14 @@ impl Tree {
     ) -> std::result::Result<f64, String> {
         let mut u = t;
         let mut ep = dem.epoch(u);
-        let mut idx = self.internal_times.partition_point(|&x| x <= u);
+        let mut idx = self.internal.partition_point(|&(x, _)| x <= u);
         loop {
-            let k = (1 + self.internal_times.len() - idx) as f64;
+            let k = (1 + self.internal.len() - idx) as f64;
             let rate = 2.0 * k / dem.sizes[ep];
             if !(rate.is_finite() && rate > 0.0) {
                 return Err(TIME_OVERFLOW.into());
             }
-            let next_node = self
-                .internal_times
-                .get(idx)
-                .copied()
-                .unwrap_or(f64::INFINITY);
+            let next_node = self.internal.get(idx).map_or(f64::INFINITY, |&(t, _)| t);
             let change = dem.next_change(ep);
             let bound = next_node.min(change);
             let dt = rng.exp1() / rate;
@@ -367,7 +363,9 @@ impl Tree {
     }
 
     /// The lineages present at time tau: child nodes whose branch spans tau
-    /// (the root counts above its own time).
+    /// (the root counts above its own time). O(n); the tests check the O(1)
+    /// sampler against it.
+    #[cfg(test)]
     fn lineages_crossing(&self, tau: f64) -> Vec<usize> {
         (0..self.parent.len())
             .filter(|&c| {
@@ -380,16 +378,42 @@ impl Tree {
             .collect()
     }
 
-    fn remove_internal_time(&mut self, t: f64) {
-        let i = self.internal_times.partition_point(|&x| x < t);
-        if i < self.internal_times.len() && self.internal_times[i] == t {
-            self.internal_times.remove(i);
+    fn remove_internal(&mut self, t: f64, node: usize) {
+        let mut i = self.internal.partition_point(|&(x, _)| x < t);
+        while i < self.internal.len() && self.internal[i].0 == t {
+            if self.internal[i].1 == node {
+                self.internal.remove(i);
+                return;
+            }
+            i += 1;
         }
     }
 
-    fn insert_internal_time(&mut self, t: f64) {
-        let i = self.internal_times.partition_point(|&x| x < t);
-        self.internal_times.insert(i, t);
+    fn insert_internal(&mut self, t: f64, node: usize) {
+        let i = self.internal.partition_point(|&(x, _)| x < t);
+        self.internal.insert(i, (t, node));
+    }
+
+    /// A uniform lineage among those present at time tau: an O(log n) search
+    /// plus O(1) expected rejection draws (keeping `internal` sorted still
+    /// shifts O(n) entries per regraft, a fast memmove). Candidates are the root and both children of every internal node
+    /// older than tau (2m + 1 of them for m such nodes; k = m + 1 lineages);
+    /// a candidate is a lineage at tau iff its branch starts at or below tau,
+    /// so rejection keeps a uniform draw with acceptance k / (2k - 1) >= 1/2.
+    fn sample_lineage_at(&self, tau: f64, rng: &mut Rng) -> usize {
+        let idx = self.internal.partition_point(|&(x, _)| x <= tau);
+        let m = self.internal.len() - idx;
+        loop {
+            let r = rng.below(2 * m + 1);
+            let c = if r == 2 * m {
+                self.root
+            } else {
+                self.children[self.internal[idx + r / 2].1][r % 2]
+            };
+            if self.time[c] <= tau {
+                return c;
+            }
+        }
     }
 
     /// One SMC' recombination event.
@@ -401,8 +425,7 @@ impl Tree {
         self.events += 1;
         let (b, t) = self.sample_point(rng);
         let tau = self.float_time(t, dem, rng)?;
-        let crossing = self.lineages_crossing(tau);
-        let mut c = crossing[rng.below(crossing.len())];
+        let mut c = self.sample_lineage_at(tau, rng);
         let p = self.parent[b];
         if c == b {
             return Ok(()); // rejoined its own branch: the tree is unchanged
@@ -424,7 +447,7 @@ impl Tree {
         if c == p {
             c = s; // p's lineage above its time is s's lineage once p is gone
         }
-        self.remove_internal_time(self.time[p]);
+        self.remove_internal(self.time[p], p);
         // regraft: p becomes the parent of b and c at tau
         let cp = self.parent[c];
         self.parent[p] = cp;
@@ -438,7 +461,7 @@ impl Tree {
         self.parent[b] = p;
         self.parent[c] = p;
         self.time[p] = tau;
-        self.insert_internal_time(tau);
+        self.insert_internal(tau, p);
         for node in [b, c, s, p] {
             self.refresh_len(node);
         }
@@ -487,6 +510,8 @@ pub struct Sites {
     pub n_total: u64,
     pub first_tmrca: f64,
     pub first_length: f64,
+    /// T_MRCA of the tree at the end of the chromosome (position 1).
+    pub last_tmrca: f64,
 }
 
 /// Simulate one chromosome of n haplotypes. `keep` = 0 keeps every
@@ -561,6 +586,7 @@ pub fn simulate_chromosome(
         n_total,
         first_tmrca,
         first_length,
+        last_tmrca: tree.tmrca(),
     })
 }
 
@@ -569,7 +595,8 @@ pub fn simulate_chromosome(
 /// Returns list(pos, hap, n_total, tmrca, length): `pos` in [0, 1); `hap` an
 /// integer vector of length n_sites * n_hap, sites x haplotypes column-major
 /// (1 = derived allele); `n_total` the number of segregating sites before
-/// subsetting; `tmrca` and `length` of the tree at position 0.
+/// subsetting; `tmrca` and `length` of the tree at position 0, `tmrca_end`
+/// of the tree at position 1.
 /// @noRd
 #[extendr]
 pub fn coalescent_chromosome_core(
@@ -610,7 +637,8 @@ pub fn coalescent_chromosome_core(
         hap = hap,
         n_total = sites.n_total as f64,
         tmrca = sites.first_tmrca,
-        length = sites.first_length
+        length = sites.first_length,
+        tmrca_end = sites.last_tmrca
     ))
 }
 
@@ -782,7 +810,9 @@ mod tests {
                 }
                 assert_eq!(x, tree.root);
             }
-            assert_eq!(tree.internal_times.len(), tree.n - 1);
+            assert_eq!(tree.internal.len(), tree.n - 1);
+            assert!(tree.internal.windows(2).all(|w| w[0].0 <= w[1].0));
+            assert!(tree.internal.iter().all(|&(t, v)| tree.time[v] == t));
             let len: f64 = (0..tree.parent.len()).map(|c| tree.branch_len(c)).sum();
             assert!((len - tree.total_length()).abs() < 1e-9);
             assert_eq!(tree.lineages_at(tree.tmrca() + 1.0), 1);
@@ -840,5 +870,73 @@ mod tests {
             let s = simulate_chromosome(4, 0.0, 0.0, &dem, 0, seed).unwrap();
             assert!(s.first_tmrca > 1e-300);
         }
+    }
+
+    #[test]
+    fn lineage_sampler_is_uniform_over_the_lineages_at_tau() {
+        let dem = Demography::new(&[], &[]).unwrap();
+        let mut rng = Rng::new(21);
+        let tree = Tree::kingman(9, &dem, &mut rng).unwrap();
+        for &tau in &[
+            1e-6,
+            0.05,
+            0.2,
+            0.5,
+            tree.tmrca() * 0.99,
+            tree.tmrca() + 1.0,
+        ] {
+            let crossing = tree.lineages_crossing(tau);
+            let draws = 60_000;
+            let mut counts = vec![0usize; tree.parent.len()];
+            for _ in 0..draws {
+                let c = tree.sample_lineage_at(tau, &mut rng);
+                assert!(crossing.contains(&c));
+                counts[c] += 1;
+            }
+            let expected = draws as f64 / crossing.len() as f64;
+            for &c in &crossing {
+                // 6 binomial standard deviations
+                let sd = (expected * (1.0 - 1.0 / crossing.len() as f64)).sqrt();
+                assert!((counts[c] as f64 - expected).abs() < 6.0 * sd + 1.0);
+            }
+        }
+    }
+
+    #[test]
+    fn two_locus_correlation_is_smc_prime_not_smc() {
+        // Pair TMRCAs at the two ends of a sequence of scaled length rho. The
+        // exact ARG gives Corr = (rho + 18) / (rho^2 + 13 rho + 18) and the SMC
+        // 1 / (1 + rho); SMC' lies just below the ARG value (Wilton et al. 2015).
+        let dem = Demography::new(&[], &[]).unwrap();
+        let rho = 1.0;
+        let reps = 40_000;
+        let mut rng = Rng::new(31);
+        let (mut sx, mut sy, mut sxx, mut syy, mut sxy) = (0.0, 0.0, 0.0, 0.0, 0.0);
+        for _ in 0..reps {
+            let mut tree = Tree::kingman(2, &dem, &mut rng).unwrap();
+            let a = tree.tmrca();
+            let mut x = 0.0;
+            loop {
+                x += rng.exp1() / (rho * tree.total_length());
+                if x >= 1.0 {
+                    break;
+                }
+                tree.recombine(&dem, &mut rng).unwrap();
+            }
+            let b = tree.tmrca();
+            sx += a;
+            sy += b;
+            sxx += a * a;
+            syy += b * b;
+            sxy += a * b;
+        }
+        let r = reps as f64;
+        let cov = sxy / r - (sx / r) * (sy / r);
+        let corr = cov / ((sxx / r - (sx / r).powi(2)) * (syy / r - (sy / r).powi(2))).sqrt();
+        let arg = (rho + 18.0) / (rho * rho + 13.0 * rho + 18.0);
+        let smc = 1.0 / (1.0 + rho);
+        let se = (1.0 - corr * corr) / r.sqrt();
+        assert!(corr > smc + 4.0 * se, "corr {corr} vs SMC {smc}");
+        assert!(corr < arg + 3.0 * se, "corr {corr} vs ARG {arg}");
     }
 }

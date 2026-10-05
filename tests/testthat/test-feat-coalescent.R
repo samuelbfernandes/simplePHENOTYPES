@@ -124,3 +124,19 @@ test_that("an extreme history is refused, never aborts R or collapses times (Cod
   expect_error(.coalescent_chromosome(2, 0, 0, history = data.frame(time = 1e13, size = 1),
                                       seed = 1), "times must be in")
 })
+
+test_that("two-locus TMRCA correlation is SMC' (near the ARG), not SMC", {
+  # pair TMRCAs at the two ends of a sequence of scaled length rho: the exact ARG
+  # gives (rho + 18) / (rho^2 + 13 rho + 18), the SMC 1 / (1 + rho); the SMC' lies
+  # just below the ARG value (Wilton, Carmi & Hobolth 2015, Genetics 200:343-355)
+  rho <- 1
+  set.seed(104)
+  x <- t(vapply(seq_len(20000), function(i) {
+    z <- .coalescent_chromosome(2, 0, rho)
+    c(z$tmrca, z$tmrca_end)
+  }, numeric(2)))
+  r <- cor(x[, 1], x[, 2])
+  se <- (1 - r^2) / sqrt(nrow(x))
+  expect_gt(r, 1 / (1 + rho) + 4 * se)
+  expect_lt(r, (rho + 18) / (rho^2 + 13 * rho + 18) + 3 * se)
+})

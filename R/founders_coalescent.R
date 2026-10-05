@@ -28,7 +28,11 @@
 #' (PMID 16539698).
 #' McVean GAT, Cardin NJ (2005) Approximating the coalescent with recombination.
 #' Philos Trans R Soc Lond B 360:1387-1393 (PMID 16048782).
-#' @return list(pos, hap = sites x haplotypes 0/1 matrix, n_total, tmrca, length).
+#' Wilton PR, Carmi S, Hobolth A (2015) The SMC' is a highly accurate
+#' approximation to the ancestral recombination graph. Genetics 200:343-355
+#' (PMID 25786855; the two-locus correlation gate).
+#' @return list(pos, hap = sites x haplotypes 0/1 matrix, n_total, tmrca, length,
+#'   tmrca_end = T_MRCA of the tree at the end of the chromosome).
 #' @keywords internal
 #' @noRd
 .coalescent_chromosome <- function(n_hap, theta, rho, history = NULL,

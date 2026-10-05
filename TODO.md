@@ -53,7 +53,7 @@ bancic-timing-2026-09-30.md` (one full-size DH cycle: 10,000 DH × 14,000 marker
       *Done 2026-09-30: `select_ind(method = "within_family", n_per_family = )` (one count or a vector named by family; undersized family is an error).*
 - [ ] 9. Coalescent founders (MaCS-like) natively, so a run does not need AlphaSimR for
       historical-LD founders.
-      *Maintainer decision 2026-10-03: build a full MaCS-style (sequential Markov) coalescent natively. Design: `docs/SPEC-coalescent.md`. Phase (a) (Rust SMC' core + PRNG + analytic gates) done, Codex theory items all PASS (review-20261004-165559); phases (b) MaCS window + LD gate + speed, (c) presets/split/inbred/Population, (d) export + docs remain.*
+      *Maintainer decision 2026-10-03: build a full MaCS-style (sequential Markov) coalescent natively. Design: `docs/SPEC-coalescent.md`. Phase (a) (Rust SMC' core + PRNG + analytic gates) done, Codex theory items all PASS (review-20261004-165559); phase (b) (no MaCS window by maintainer decision -- AlphaSimR runs MaCS with a 1-base window; rejection re-coalescence sampler (O(log n) + O(1) expected draws); SMC'-vs-SMC two-locus gate; cross-engine evidence vs runMacs) done, Codex genetics PASS (review-20261004-174436; script RNG and complexity wording fixed); phases (c) presets/split/inbred/Population, (d) export + docs remain.*
 
 <!-- AUDIT:BEGIN -->
 ## Audit findings — 2026-09-17 (from dev/audit-all.sh, run on v2.0.0)
