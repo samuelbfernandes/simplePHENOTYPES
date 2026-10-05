@@ -19,6 +19,21 @@
       co-heritability wording); G-04 was Codex-sandbox only.
 - [x] DECISION-048 h2 warning: only when the given `h2` differs from the population's (maintainer, 2026-10-03).
 
+## Request from breedingDesigner (2026-10-04): per-stage precision on a stored trait
+
+- [ ] **A per-call residual override with `refit = FALSE`.** Since DECISION-048 a selected
+      population carries its trait, so a later phenotyping stage of the same lineage with a
+      higher `h2` (a more precise trial: more plots and locations per entry) warns and uses the
+      first stage's h2. The genetics must stay fixed, but each stage needs its own precision.
+      breedingDesigner now converts a later stage's h2 into entry-mean `reps` on the stored
+      trait (`reps = (1 - h2_0) / h2_0 * h2_s / (1 - h2_s)`), which works today. Requested:
+      let `simulate_phenotype()` on a population with a trait take the stage's precision
+      directly -- e.g. `var_e =` (the stage's residual variance on the base phenotypic scale)
+      or `h2 =` read as the stage's entry-mean heritability in the base population -- while
+      keeping the stored loci, effects and genetic scale (no refit). `refit = TRUE` stays the
+      single-stage path (maintainer, 2026-10-04). Found by breedingDesigner's suite against
+      2.0.0.9003: five shipped multi-stage templates hit the warning (38 times).
+
 ## PRIORITY — open follow-ups from the 2026-10-02 session
 
 - [x] **Codex review, O1–O3 (`ld` fixed QTNs).** Findings were produced against branch `feat/qtn-passthrough-and-export` (worktree `.claude/worktrees/kind-shamir-c7d1df`, commit 557d7cc + 66af52d/ca8969d/2cc9728), not this branch. Fix there (or after merge): fixed linked pairs must have r2 > 0 and honor the window; normalize `ld_type` abbreviations once (`"i"` currently behaves as direct for fixed QTNs; `.check_arch_args()` validates but does not store the normalized value, L563-564); reserve a prior layer's `ld$cause` so a later layer never draws it as a QTN. Not reproducible on `feat/graph-followups`.
@@ -526,6 +541,27 @@ tests). Local suite: 63 files, 5761 expectations, 0 failures; local `R CMD check
 - [ ] Maintainer decision: keep the v1 vQTL equation (`k^2 = (1/h2 - 1)/median(sigma)^2`, documented
   as a median calibration) or switch to `mean(sigma^2)` so `h2` is the population ratio (breaks the
   hard-coded `test-adopt-v1-pleio.R` value and seeded v1 vQTL output).
+- [ ] Codex re-review of the last three export fixes of PR #16 (owner-only 0700 stage directory,
+  stage-directory name avoiding requested outputs, leaf-length check on the one-file call of
+  `write_phenotypes()`): covered by tests, but they were merged after the last Codex round (12).
+  Rounds 8-12 of the PR #16 review (`.tmp/evidence-kind-shamir-c7d1df/codex-review8..12`) ended with
+  THEORY: PASS for both groups; the export implementation kept finding POSIX filesystem corner cases.
+  Known limits, documented: hard links are not detected as the same file; the staged commit is
+  best-effort POSIX and was not exercised on Windows.
+
+**Open from PR #16 (passed QTNs, export)**
+- [ ] `epistasis()` is still not available under `architecture = "ld"` (no linked-pair construction for
+  sets, DECISION-023/043); decide whether a user-passed construction is wanted.
+- [ ] V1 `create_phenotypes(QTN_list = )` is still rejected with `architecture = "LD"` (frozen legacy,
+  DECISION-037 / D1); pick and pass work in pleiotropic and partially pleiotropic.
+- [ ] Under `"ld"`, ownership of a causal locus holds across layers and within each replication, not
+  across the replications of one `vary_qtn` layer (enforcing it would change the historical first-layer
+  draws; DECISION-043). Revisit only if a use case needs it.
+- [ ] Default pleiotropy draw (no `qtn`, no `effect`) is unchanged: effects come from the implicit
+  `cor = 0` draw, and `pi < 1` still creates trait-specific loci; the maintainer said single-trait QTNs
+  belong to `complex_phenotypes()`: decide whether to remove them from the default draw.
+- [ ] `write_phenotypes()` returns a named vector of paths (not `file`) when companion files are written:
+  confirm this is the wanted contract.
 
 **Open follow-ups from the new features**
 - [x] `.stable_key()` in `R/cross_pedigree.R` vectorised (identical keys, ~3x faster; 31% -> 13% of a
