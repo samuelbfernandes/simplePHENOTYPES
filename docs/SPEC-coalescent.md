@@ -1,7 +1,7 @@
 # SPEC — native coalescent founders (breedingDesigner SPEC-0020 item 9)
 
 Status: **accepted design, 2026-10-03.** The maintainer chose a full MaCS-style (sequential
-Markov) coalescent over a forward burn-in or import-only, and approved C1 (DECISION-048).
+Markov) coalescent over a forward burn-in or import-only, and approved C1 (DECISION-050).
 
 ## 1. Goal
 
@@ -58,7 +58,7 @@ founders_coalescent(n_ind, n_chr = 1, seg_sites = NULL, inbred = FALSE,
   dependency set). R draws one 32-bit seed per chromosome from its own stream (so `set.seed()` /
   `seed =` make the result reproducible; AlphaSimR's `runMacs()` is not). Rationale for the
   exception: the founder generator has no isqg reference, so it is not on the parity-critical
-  path that Rule 4 protects. **Approved 2026-10-03** (DECISION-048; Rule 4 amended in `AGENTS.md`).
+  path that Rule 4 protects. **Approved 2026-10-03** (DECISION-050; Rule 4 amended in `AGENTS.md`).
 - **C2 — window `h`.** Expose `history_window` (default MaCS's) or fix it. Proposal: expose it.
 - **C3 — map.** Linear physical-to-genetic map per chromosome (as `runMacs`), start at 0 cM.
 
@@ -123,7 +123,7 @@ references below are not yet page-verified.
 
 XL. Phases: (a) Rust SMC' core + PRNG + gates 1 and 3; (b) recombination gate 2 and the MaCS
 window; (c) demography presets, split, `seg_sites`, `inbred`, Population output; (d) R API, docs,
-DECISION-048, NEWS, BACKEND_CONTRACT, Codex theory review per phase.
+DECISION-050, NEWS, BACKEND_CONTRACT, Codex theory review per phase.
 
 ## References (to verify)
 

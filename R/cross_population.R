@@ -26,11 +26,10 @@
 #' 100 to give Morgans for meiosis). A map whose largest position is at most
 #' 5 across 20 or more markers looks like Morgans (or a proportion) and draws a
 #' warning: crossovers would be 100 times too rare. `cm` may start anywhere on a
-#' chromosome: with `interference = NULL` (the default; see the
-#' `interference` option of [cross()]) the number of crossovers on a chromosome
-#' is Poisson with mean equal to its **last** map position in Morgans (the isqg
-#' convention, see [cross()]), which is not its span `max(cm) - min(cm)` when the first marker is
-#' not at 0. Chromosomes are processed, and their random draws are consumed, in
+#' chromosome: the expected number of crossovers on a chromosome (Poisson with
+#' `interference = "poisson"`, gamma-spaced by default; see [cross()]) equals its
+#' **last** map position in Morgans (the isqg convention), which is not its span
+#' `max(cm) - min(cm)` when the first marker is not at 0. Chromosomes are processed, and their random draws are consumed, in
 #' a fixed **canonical order that does not depend on the storage type of `chr`
 #' or on the locale**: labels that are numbers first, in numeric order
 #' (`1, 2, 10`), then other labels by their non-numeric prefix in byte order
@@ -68,6 +67,9 @@
 #'   column `counted` right after `cm` (see `as_numeric(counted_column = )`) is
 #'   read as the counted-allele record, not as an individual; it must name one
 #'   allele per marker (`NA` = unknown), consistent with the `allele` label.
+#'   When the `"counted_allele"` attribute is also present (same length), it
+#'   fills the column's unknown entries, and a disagreement between the two
+#'   records is an error.
 #' @param individuals optional character or numeric vector selecting which
 #'   individuals to keep, in the order given. Defaults to all of them.
 #' @param pool optional label for the founder pool these individuals come from
@@ -102,16 +104,21 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
   # it (older files, subsetted or rebuilt data frames) keeps the label-only check.
   # The durable form is the optional `counted` column right after `cm`
   # (as_numeric(counted_column = TRUE)): it survives text files and row
-  # subsetting, so when present it is authoritative and the attribute (an
-  # R-object-only convenience that a text file cannot carry) is not consulted.
+  # subsetting, so when present it is authoritative. The attribute (an
+  # R-object-only convenience that a text file cannot carry) only fills the
+  # column's unknown (NA) entries, and an attribute that contradicts a known
+  # column entry is an error rather than a silent orientation choice; an
+  # attribute of the wrong length (stale after row subsetting) is ignored.
   k <- .n_meta(geno)
   if (ncol(geno) <= k) {
     stop("`geno` needs at least one individual column after the metadata ",
          "columns.", call. = FALSE)
   }
   counted <- if (k == 6L) {
-    .check_counted(.counted_col_values(geno[[6L]]), geno$allele, nrow(geno),
-                   "geno$counted")
+    .merge_counted(.check_counted(.counted_col_values(geno[[6L]]), geno$allele,
+                                  nrow(geno), "geno$counted"),
+                   attr(geno, "counted_allele", exact = TRUE), geno$allele,
+                   nrow(geno))
   } else {
     .check_counted(attr(geno, "counted_allele", exact = TRUE),
                    geno$allele, nrow(geno),
@@ -227,6 +234,36 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
   map
 }
 
+#' Combine the `counted` column with the `"counted_allele"` attribute
+#'
+#' The column wins; the attribute fills its `NA` entries. A known column entry
+#' that disagrees with a known attribute entry is an error (two records of the
+#' counted allele that contradict each other cannot be resolved safely). An
+#' attribute of another length (stale after row subsetting) is ignored.
+#' @param col validated column values (`NULL` when all unknown).
+#' @param att the raw attribute (or `NULL`).
+#' @keywords internal
+#' @noRd
+.merge_counted <- function(col, att, allele, n) {
+  if (is.null(att) || !is.null(dim(att)) || length(att) != n) return(col)
+  att <- .check_counted(att, allele, n, "attr(geno, \"counted_allele\")")
+  if (is.null(att)) return(col)
+  if (is.null(col)) return(att)
+  both <- !is.na(col) & !is.na(att)
+  clash <- both & toupper(col) != toupper(att)
+  if (any(clash)) {
+    i <- which(clash)[1L]
+    stop("The `counted` column and the \"counted_allele\" attribute disagree ",
+         "for ", sum(clash), " marker(s) (first: row ", i, ", column \"",
+         col[i], "\" vs attribute \"", att[i], "\"). Remove the stale record ",
+         "(`attr(geno, \"counted_allele\") <- NULL`) or repair the column.",
+         call. = FALSE)
+  }
+  fill <- is.na(col)
+  col[fill] <- att[fill]
+  col
+}
+
 #' Validate the `counted` (+1) allele column of a map
 #'
 #' `counted` must be a character vector (or all `NA`, which means unknown) with
@@ -294,12 +331,14 @@ as_population <- function(geno, individuals = NULL, pool = NA_character_) {
 #' @keywords internal
 #' @noRd
 .new_population <- function(map, cis, trans, ids, origin, keys = NULL,
-                            pedigree = NULL) {
+                            pedigree = NULL, trait = NULL) {
   out <- list(map = map, cis = cis, trans = trans, ids = ids, origin = origin)
   if (!is.null(keys)) {
     out$keys <- keys
     out$pedigree <- pedigree
   }
+  # the trait defined in a base population (see population_trait())
+  if (!is.null(trait)) out$trait <- trait
   structure(out, class = "Population")
 }
 
@@ -561,11 +600,13 @@ n_individuals <- function(x) {
     colnames(cis) <- colnames(trans) <- make.unique(colnames(cis), sep = "_")
   }
   if (is.null(x$keys)) {
-    return(.new_population(x$map, cis, trans, colnames(cis), x$origin))
+    return(.new_population(x$map, cis, trans, colnames(cis), x$origin,
+                           trait = x$trait))
   }
   keys <- x$keys[pos]
   .new_population(x$map, cis, trans, colnames(cis), x$origin, keys = keys,
-                  pedigree = .pedigree_ancestors(x$pedigree, keys))
+                  pedigree = .pedigree_ancestors(x$pedigree, keys),
+                  trait = x$trait)
 }
 
 #' Dosage matrix of a Population
@@ -858,7 +899,8 @@ gxe_value <- function(x, qtn, effect, intercept = 0) {
 #' \itemize{
 #'   \item `var_e` -- the residual variance directly. This is the robust choice for
 #'     multi-generation use: compute it once at the base generation and pass the
-#'     same value every cycle so it is truly frozen.
+#'     same value every cycle so it is truly frozen. [pedigree()] and
+#'     [recurrent_selection()] do this by default (`residual = "fixed"`).
 #'   \item `h2` -- a target heritability, converted to a residual variance
 #'     `var_e = Var(g_ref) (1 - h2) / h2` from a reference population's genetic
 #'     variance. `ref` names that reference (default: `x` itself). For

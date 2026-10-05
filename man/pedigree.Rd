@@ -24,9 +24,9 @@ used).}
 
 \item{phenotype}{a function mapping a \code{Population} to a realized
 \code{phenotype_sim} (e.g. \code{function(p) simulate_phenotype(p, ...) |> additive(...)}). Called once per generation to score the current
-population, which it must build its simulation from. Fix the causal loci with
-\code{additive(qtn = ...)} if the same QTNs should act every generation (see the
-fixed-scale caveat above).}
+population, which it must build its simulation from. From the second
+generation on it reuses the trait the population inherited (see the section
+"Heritability across generations").}
 
 \item{generations}{number of selfing generations.}
 
@@ -52,10 +52,11 @@ ambient RNG stream is used) or one non-negative whole number. When given, the
 caller's RNG state is restored on exit, so a seeded scheme does not disturb
 the surrounding random stream.}
 
-\item{interference}{\code{NULL} (default: Poisson crossovers, no interference, the
-isqg stream, bit-identical to earlier versions) or \code{list(nu = , p = )}, the
-two-pathway gamma model of crossover interference of \code{\link[=cross]{cross()}} (see its
-section "Crossover interference"). It is applied to every meiosis the scheme
+\item{interference}{crossover interference model of \code{\link[=cross]{cross()}} (see its
+section "Crossover interference"): \code{NULL} (default: the option
+\code{simplePHENOTYPES.interference} if set, else the gamma model with
+\code{nu = 2.6}, \code{p = 0}), \code{"poisson"} (Poisson crossovers, the isqg stream, the
+default before 2.0.0.9003) or \code{list(nu = , p = )}. It is applied to every meiosis the scheme
 runs, in every generation, so a whole scheme can use one meiosis model.}
 }
 \value{
@@ -69,30 +70,32 @@ Selfs and selects each generation: the population is phenotyped, the best
 fraction is kept, and those are selfed to form the next generation (Bernardo
 2020; Falconer & Mackay 1996).
 }
-\section{Scale of the response (fixed-scale caveat)}{
+\section{Heritability across generations}{
 
-\code{history$differential} and \code{history$intensity} are measured on the criterion each
-generation was ranked on. A \code{\link[=simulate_phenotype]{simulate_phenotype()}} callback re-standardises its
-genetic layer to the requested variance budget (\code{prop}, \code{h2}) in \strong{every}
-population it is applied to -- also when the causal loci are fixed with
-\code{additive(qtn = )}. The \emph{total} genetic share of the phenotype therefore does
-not decay across generations. For a purely additive model that share is the
-additive share, so the accuracy of mass selection, \code{cor(P, BV) = sqrt(h2)},
-stays near its target \eqn{\sqrt{h^2}} (it is not held exactly constant: in
-an executed example it ranged about 0.695-0.714 against 0.707). With
-dominance or epistasis layers it declines: the re-standardisation fixes the
-total genetic variance share, not the part of it that is additive, so
-\code{cor(P, BV)} declines as allele frequencies shift and inbreeding rises (in an
-executed example with additive \code{prop = 0.3} plus dominance \code{prop = 0.2} it
-fell over three pedigree generations, whereas the additive-only model stayed
-near \eqn{\sqrt{h^2}}). In either case \code{S} is in each generation's own
-re-standardised units, so genetic gain does not accumulate on that scale (the
-loci and their effect ratios are unchanged; only the scale is re-fit). To
-follow a response on a frozen scale, rank on \code{\link[=phenotype_value]{phenotype_value()}}
-(fixed effects and a fixed residual variance, DECISION-021) through \code{on}, e.g.
-\code{on = function(s) phenotype_value(s$geno, qtn, effect, var_e = ve)} for a
-whole-population sim, and measure gain with \code{\link[=additive_value]{additive_value()}} on the same
-\code{qtn} and \code{effect} (see the examples). The callback must build its simulation
+The first generation's phenotype defines the trait: \code{\link[=select_ind]{select_ind()}} stores its
+causal loci, effects and residual variance on the selected individuals (see
+\code{\link[=population_trait]{population_trait()}}), and their progeny inherit it. In later generations
+the \code{phenotype} callback's \code{\link[=simulate_phenotype]{simulate_phenotype()}} reuses that trait
+(\code{refit = FALSE}, its default for a population that carries one): the genetic
+value stays on the base population's scale and the residual variance is held
+fixed, so the heritability falls as selection and inbreeding exhaust genetic
+variance, as in AlphaSimR's \code{setPheno(varE = )} and the Bancic et al. scripts.
+The callback's \code{h2} and layer settings are then ignored (silently when they
+match the trait, as a callback written for the founders does).
+
+Write \code{simulate_phenotype(p, ..., refit = TRUE)} in the callback for the
+pre-2.0.0.9003 rule: the genetic layers are re-standardised to their \code{prop}
+and the residual re-fitted to \code{h2} in \strong{every} generation, so the genetic
+share of the phenotype does not decay: for a purely additive model the
+accuracy of mass selection, \code{cor(P, BV)}, stays near \eqn{\sqrt{h^2}} (with
+dominance it declines as the additive part of the re-fitted genetic variance
+shrinks). A phenotype with a \code{\link[=vqtl]{vqtl()}} or \code{\link[=transcriptome]{transcriptome()}} layer has no
+storable trait and is always re-fitted.
+
+\code{history$differential} and \code{history$intensity} are measured on the criterion
+each generation was ranked on. To follow genetic gain on a frozen scale,
+measure it with \code{\link[=additive_value]{additive_value()}} or \code{\link[=genotypic_value]{genotypic_value()}} on the frozen
+effects (see the examples). The callback must build its simulation
 from the population it is given; one that returns a simulation backed by a
 different population (e.g. a closure over the base population) is an error.
 }
@@ -105,20 +108,23 @@ f2  <- selfcross(f1, n = 40, seed = 9)
 pheno <- function(p) {
   simulate_phenotype(p, h2 = 0.5, seed = 7) |> additive(n_qtn = 30)
 }
+# the trait is defined in f2; later generations reuse it (h2 can fall)
 out <- pedigree(f2, pheno, generations = 3, prop = 0.2, seed = 2)
 attr(out, "history")
+population_trait(out)
 
-# Fixed-scale response: rank on phenotype_value() with frozen effects and a
-# frozen residual variance, so genetic variance is exhausted as selection
-# proceeds (a simulate_phenotype() callback would re-standardise it).
-d   <- dosages(f2)
-q   <- which(apply(d, 1, stats::sd) > 0)[c(20, 60, 100, 140, 180)]
-eff <- c(0.5, -0.3, 0.4, 0.2, -0.6)
-ve  <- attr(phenotype_value(f2, q, eff, h2 = 0.5, seed = 1), "var_e")
-fixed <- function(s) phenotype_value(s$geno, q, eff, var_e = ve)
-out2 <- pedigree(f2, pheno, generations = 3, prop = 0.2, on = fixed, seed = 2)
+# follow the genetic variance on the base scale
+tmpl <- template_effects(pheno(f2))
+var(genotypic_value(f2, tmpl$qtn, tmpl$a, tmpl$d))
+var(genotypic_value(out, tmpl$qtn, tmpl$a, tmpl$d))
+
+# the pre-2.0.0.9003 rule: re-fit to h2 = 0.5 in every generation
+refit <- function(p) {
+  simulate_phenotype(p, h2 = 0.5, seed = 7, refit = TRUE) |>
+    additive(n_qtn = 30)
+}
+out2 <- pedigree(f2, refit, generations = 3, prop = 0.2, seed = 2)
 attr(out2, "history")
-var(additive_value(f2, q, eff)); var(additive_value(out2, q, eff))
 }
 \references{
 Bernardo R (2020) \emph{Breeding for Quantitative Traits in

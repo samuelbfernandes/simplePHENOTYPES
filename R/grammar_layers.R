@@ -156,6 +156,15 @@
 #'
 #' head(phenotypes_long(ph))
 #'
+#' # A major QTN with a set share of the variance: stack two additive layers,
+#' # one locus explaining 20% of V_P and 50 equal-effect loci another 30%
+#' g <- SNP55K_maize282_maf04
+#' major <- simulate_phenotype(g, seed = 1) |>
+#'   additive(prop = 0.2, qtn = g$snp[100]) |>
+#'   additive(prop = 0.3, n_qtn = 50, effect = rep(1, 50))
+#' tb <- qtn_table(major)
+#' head(tb[order(-tb$var_explained), c("snp", "var_explained")], 3)
+#'
 #' # Effect sizes follow a geometric series by default. `effect` sets its base,
 #' # so QTN effects here are 0.5, 0.25, 0.125, ...
 #' simulate_phenotype(SNP55K_maize282_maf04, seed = 1) |>
@@ -181,6 +190,7 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
                      phase = c("coupling", "repulsion"), dist = "geometric",
                      orthogonal = FALSE, a = NULL, d = NULL) {
   .check_sim(sim)
+  if (isTRUE(sim$frozen)) return(.frozen_layer_ignored(sim, "additive"))
   .require_markers(sim, "additive")
   .validate_flag(orthogonal, "orthogonal")
   phase <- match.arg(phase)
@@ -457,6 +467,7 @@ additive <- function(sim, prop = NULL, n_qtn = NULL, qtn = NULL, effect = NULL,
 dominance <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
                       qtn = NULL, dist = "geometric", effect = NULL) {
   .check_sim(sim)
+  if (isTRUE(sim$frozen)) return(.frozen_layer_ignored(sim, "dominance"))
   .require_markers(sim, "dominance")
   .validate_flag(same_as_add, "same_as_add")
   if (any(vapply(sim$layers, function(l) isTRUE(l$orthogonal), logical(1)))) {
@@ -712,6 +723,7 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
                       interaction_type = "a", qtn = NULL, effect = NULL,
                       dist = "geometric") {
   .check_sim(sim)
+  if (isTRUE(sim$frozen)) return(.frozen_layer_ignored(sim, "epistasis"))
   .require_markers(sim, "epistasis")
   interaction <- .validate_count(interaction, "interaction", minimum = 2L)
   prop <- .resolve_prop(sim, prop, "epistasis")
@@ -899,6 +911,7 @@ epistasis <- function(sim, prop = NULL, n_pairs = NULL, interaction = 2,
 vqtl <- function(sim, prop = NULL, same_as_add = TRUE, n_qtn = NULL,
                  qtn = NULL, dist = "geometric") {
   .check_sim(sim)
+  if (isTRUE(sim$frozen)) return(.frozen_layer_ignored(sim, "vqtl"))
   .require_markers(sim, "vqtl")
   .validate_flag(same_as_add, "same_as_add")
   .cite_vqtl()

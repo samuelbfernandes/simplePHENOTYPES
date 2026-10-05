@@ -1,5 +1,5 @@
 # Coalescent founders, phase (a): the SMC' sampler (docs/SPEC-coalescent.md,
-# DECISION-048). Analytic gates under the standard neutral coalescent, time in
+# DECISION-050). Analytic gates under the standard neutral coalescent, time in
 # 4 N0 units (theta = 4 N0 mu per chromosome).
 
 a1 <- function(n) sum(1 / seq_len(n - 1))

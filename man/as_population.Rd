@@ -12,7 +12,10 @@ as_population(geno, individuals = NULL, pool = NA_character_)
 with the remaining columns individuals coded -1/0/1. An optional character
 column \code{counted} right after \code{cm} (see \code{as_numeric(counted_column = )}) is
 read as the counted-allele record, not as an individual; it must name one
-allele per marker (\code{NA} = unknown), consistent with the \code{allele} label.}
+allele per marker (\code{NA} = unknown), consistent with the \code{allele} label.
+When the \code{"counted_allele"} attribute is also present (same length), it
+fills the column's unknown entries, and a disagreement between the two
+records is an error.}
 
 \item{individuals}{optional character or numeric vector selecting which
 individuals to keep, in the order given. Defaults to all of them.}
@@ -60,11 +63,10 @@ The \code{cm} column must be a genetic map in \strong{centiMorgans} (it is divid
 100 to give Morgans for meiosis). A map whose largest position is at most
 5 across 20 or more markers looks like Morgans (or a proportion) and draws a
 warning: crossovers would be 100 times too rare. \code{cm} may start anywhere on a
-chromosome: with \code{interference = NULL} (the default; see the
-\code{interference} option of \code{\link[=cross]{cross()}}) the number of crossovers on a chromosome
-is Poisson with mean equal to its \strong{last} map position in Morgans (the isqg
-convention, see \code{\link[=cross]{cross()}}), which is not its span \code{max(cm) - min(cm)} when the first marker is
-not at 0. Chromosomes are processed, and their random draws are consumed, in
+chromosome: the expected number of crossovers on a chromosome (Poisson with
+\code{interference = "poisson"}, gamma-spaced by default; see \code{\link[=cross]{cross()}}) equals its
+\strong{last} map position in Morgans (the isqg convention), which is not its span
+\code{max(cm) - min(cm)} when the first marker is not at 0. Chromosomes are processed, and their random draws are consumed, in
 a fixed \strong{canonical order that does not depend on the storage type of \code{chr}
 or on the locale}: labels that are numbers first, in numeric order
 (\verb{1, 2, 10}), then other labels by their non-numeric prefix in byte order

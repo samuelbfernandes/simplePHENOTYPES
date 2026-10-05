@@ -1,5 +1,5 @@
 # Coalescent founders (breedingDesigner SPEC-0020 item 9; docs/SPEC-coalescent.md,
-# DECISION-048): the internal per-chromosome sampler .coalescent_chromosome() and
+# DECISION-050): the internal per-chromosome sampler .coalescent_chromosome() and
 # the exported founders_coalescent() with the runMacs() species presets.
 
 #' Coalescent haplotypes of one chromosome

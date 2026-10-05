@@ -163,7 +163,21 @@ THEORY: PASS | FAIL (n)
   (not the 1-based `rank > breaks`); never sort/dedupe/filter chiasmata in Rust; never
   divide by L.
 - **M3** All draws in R in isqg's exact order (parent-1 then parent-2, progeny-major);
-  Rust core pure; test asserts **exact** bit-equality, not distributional.
+  Rust core pure; test asserts **exact** bit-equality, not distributional. M1-M3 bind the
+  `interference = "poisson"` path; the default is the gamma model (DECISION-047).
+- **M4** Crossover interference (DECISION-041/047; McPeek & Speed 1995, *Genetics* 139:1031-1044,
+  doi:10.1093/genetics/139.2.1031; two-pathway: Housworth & Stahl 2003, *Am J Hum Genet*
+  73:188-197, doi:10.1086/376610). Check: (a) the **expected** number of crossovers per
+  gamete per Morgan is 1 for every `nu`, `p` (bivalent intensity 2, each chiasma kept with
+  probability 1/2, no chromatid interference); (b) the first interfering chiasma is the
+  stationary forward-recurrence time, `U * Gamma(nu + 1, rate)`, not a gap from 0; (c) gap
+  rate `2 nu (1 - p)`, non-interfering pathway Poisson at gamete intensity `p`; (d) `nu = 1`
+  or `p = 1` is Haldane in distribution; `nu = 2.6, p = 0` is within 0.001 of Kosambi over
+  0-1 M; (e) the realized `r(d)` and the coefficient of coincidence match
+  `r(d) = [1 - P0(d)] / 2` with `P0` from the closed form in `?cross`; (f) the default
+  resolves to gamma, `"poisson"` is the isqg stream draw for draw (M1-M3), and a value a
+  scheme resolved is forwarded unchanged (`"poisson"` and the list are fixed points of
+  `.check_interference()`).
 
 ### R. Reproducibility / RNG boundary (DECISION-006/009)
 - **R1** Every stochastic draw is on R's RNG; nothing random added to the Rust

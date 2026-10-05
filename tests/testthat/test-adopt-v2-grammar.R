@@ -336,6 +336,8 @@ test_that("print() runs on every branch and states the requested / realized shar
   expect_match(out_inc, "Incomplete h2 allocation", fixed = TRUE)
   expect_match(out_inc, "[0.50, 0.40, 0.30]", fixed = TRUE)
   expect_error(phenotypes_long(inc), "Incomplete h2 allocation")
+  grDevices::pdf(NULL)            # plot() may open a device before it errors
+  on.exit(grDevices::dev.off(), add = TRUE)
   expect_error(plot(inc), "Incomplete h2 allocation")
   # orthogonal: the emergent split rows replace a single additive row
   expect_match(txt$orthogonal, "emergent", fixed = TRUE)

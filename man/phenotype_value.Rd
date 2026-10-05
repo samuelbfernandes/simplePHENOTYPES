@@ -111,7 +111,8 @@ Supply \strong{exactly one} of \code{h2} or \code{var_e} to set that fixed resid
 \itemize{
 \item \code{var_e} -- the residual variance directly. This is the robust choice for
 multi-generation use: compute it once at the base generation and pass the
-same value every cycle so it is truly frozen.
+same value every cycle so it is truly frozen. \code{\link[=pedigree]{pedigree()}} and
+\code{\link[=recurrent_selection]{recurrent_selection()}} do this by default (\code{residual = "fixed"}).
 \item \code{h2} -- a target heritability, converted to a residual variance
 \code{var_e = Var(g_ref) (1 - h2) / h2} from a reference population's genetic
 variance. \code{ref} names that reference (default: \code{x} itself). For

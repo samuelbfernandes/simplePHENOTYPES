@@ -66,10 +66,12 @@
 #' @param seed optional RNG seed (mates, meioses and residuals are drawn in that
 #'   order from one stream); the caller's random-number stream is left as it was
 #'   found.
-#' @param interference `NULL` (default: Poisson crossovers, no interference, the
-#'   isqg stream, bit-identical to earlier versions) or `list(nu = , p = )`, the
-#'   two-pathway gamma model of crossover interference of [cross()] (see its
-#'   section "Crossover interference"), for the meioses that make the progeny.
+#' @param interference crossover interference model of [cross()] (see its
+#'   section "Crossover interference"): `NULL` (default: the option
+#'   `simplePHENOTYPES.interference` if set, else the gamma model with
+#'   `nu = 2.6`, `p = 0`), `"poisson"` (Poisson crossovers, the isqg stream, the
+#'   default before 2.0.0.9003) or `list(nu = , p = )`. Used for the meioses that make
+#'   the progeny.
 #' @return A data frame with `id` (parent), `progeny_mean` and `n`, with
 #'   attributes `progeny` (the progeny `Population`), `records` (each progeny's
 #'   value, named by id) and `var_e` (the residual variance used, 0 for none).

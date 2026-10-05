@@ -130,7 +130,7 @@ gamete_masks_core <- function(loci_per_chr, positions, chiasmata, counts, flips)
 #' @noRd
 stable_hash_core <- function(x) .Call(wrap__stable_hash_core, x)
 
-#' Coalescent haplotypes of one chromosome (SMC', DECISION-048).
+#' Coalescent haplotypes of one chromosome (SMC', DECISION-050).
 #'
 #' Returns list(pos, hap, n_total, tmrca, length): `pos` in [0, 1); `hap` an
 #' integer vector of length n_sites * n_hap, sites x haplotypes column-major

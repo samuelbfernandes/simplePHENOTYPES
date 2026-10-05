@@ -29,9 +29,11 @@ as the list).}
 
 \item{seed}{optional RNG seed; the caller's RNG state is restored on exit.}
 
-\item{interference}{\code{NULL} (default: the option \code{simplePHENOTYPES.interference}
-if set, else Poisson crossovers) or \code{list(nu = , p = )},
-the crossover interference model of \code{\link[=cross]{cross()}}, applied to every generation.}
+\item{interference}{crossover interference model of \code{\link[=cross]{cross()}} (see its
+section "Crossover interference"): \code{NULL} (default: the option
+\code{simplePHENOTYPES.interference} if set, else the gamma model with
+\code{nu = 2.6}, \code{p = 0}), \code{"poisson"} (Poisson crossovers, the isqg stream, the
+default before 2.0.0.9003) or \code{list(nu = , p = )}. Applied to every generation.}
 }
 \value{
 The final generation as a \code{Population}, with attribute \code{history}: a

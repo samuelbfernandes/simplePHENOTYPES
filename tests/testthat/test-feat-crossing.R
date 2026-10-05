@@ -4,7 +4,7 @@
 #   item 2 -- per-call cost: the batched integer-I/O meiosis path (.mate_many(),
 #             mate_many_core()) must equal the sequential path draw for draw;
 #   item 3 -- crossover interference: the two-pathway gamma model
-#             (`interference = list(nu, p)`), default NULL bit-identical to HEAD.
+#             (`interference = list(nu, p)`); default since DECISION-047 (nu = 2.6).
 
 # ---------------------------------------------------------------------------
 # fixtures
@@ -13,6 +13,10 @@
 # Interleaved chromosomes (rows sorted within a chromosome only), character
 # chromosome labels, a non-zero origin: the layout the isqg conventions are
 # hardest on.
+# These expectations are for Poisson crossovers (Haldane / the isqg stream),
+# the default before DECISION-047; pin it for this file.
+withr::local_options(simplePHENOTYPES.interference = "poisson")
+
 .fc_geno <- function(m = 90L, seed = 11) {
   set.seed(seed)
   chr <- rep(c("1", "2", "10"), each = m / 3)
@@ -278,7 +282,8 @@ test_that("a call at array size is cheap (the per-call string round trip is gone
 
 test_that("interference is validated", {
   chk <- simplePHENOTYPES:::.check_interference
-  expect_null(chk(NULL))
+  withr::local_options(simplePHENOTYPES.interference = NULL)
+  expect_identical(chk(NULL), list(nu = 2.6, p = 0))
   expect_identical(chk(list(nu = 2.6)), list(nu = 2.6, p = 0))
   expect_identical(chk(c(nu = 2, p = 0.25)), list(nu = 2, p = 0.25))
   expect_identical(chk(list(nu = 1, p = 1)), list(nu = 1, p = 1))

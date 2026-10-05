@@ -1,4 +1,4 @@
-//! Coalescent founder generator (DECISION-048, docs/SPEC-coalescent.md).
+//! Coalescent founder generator (DECISION-050, docs/SPEC-coalescent.md).
 //!
 //! A sequential Markov coalescent (SMC', Marjoram & Wall 2006) walked along one
 //! chromosome scaled to [0, 1). Time is in units of 4 N0 generations (the ms /
@@ -16,7 +16,7 @@
 //!
 //! This is the only place in the package where Rust draws random numbers: a
 //! xoshiro256++ generator seeded through SplitMix64 from one seed per chromosome
-//! that R draws from its own stream (DECISION-048), so a run is reproducible.
+//! that R draws from its own stream (DECISION-050), so a run is reproducible.
 
 use extendr_api::prelude::*;
 

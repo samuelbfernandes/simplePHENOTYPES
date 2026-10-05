@@ -1,12 +1,39 @@
 # simplePHENOTYPES (development version)
 
-* Fixes (Codex review, 2026-10-03): `phenotype_value(h2 =, ref =)` with numeric `qtn` now scores `ref` at the
+## Fixes from the independent theory reviews (October 2026, latest)
+
+* `as_numeric()` accepts a HapMap table given as a character matrix (it failed with "subscript out of
+  bounds"), and a matrix with fewer than 12 columns gets the package's HapMap diagnostic.
+* `as_population()`: when a numeric table has both the `counted` column and the `"counted_allele"`
+  attribute, the attribute now fills the column's unknown entries and a disagreement between them is an
+  error; before, the attribute was ignored, so a stale column could silently reverse the allele
+  orientation. An attribute of another length (stale after row subsetting) is still ignored.
+* `optimum_contribution()`: a feasible `max_coancestry` / `target_coancestry` is met whatever the scale of
+  `G` (the penalty search and the final solve now run on `G` divided by its mean diagonal when that is
+  outside 1e-6..1e6; ordinary problems are unchanged).
+* `simulate_transcriptome(mimic = )`: the per-gene rescale is formed from the expression normalized by its
+  largest absolute value, so subnormal or huge realized variances still give the requested variance; the
+  documentation and the ill-conditioning warning now say the variance is met up to rounding (and, for a
+  mean many orders of magnitude above the standard deviation, to the spacing of doubles near it).
+* `create_phenotypes(architecture = "LD", type_of_ld = "direct")` no longer accepts a QTN pair whose two
+  markers share a chromosome position (rows with duplicated `chr`/`pos`); the search retries instead, as
+  documented. Seeded results change only where the old search returned such a pair.
+* `create_phenotypes(vQTL = TRUE)`: the documentation now states that `h2` is met at the median vQTL
+  standard deviation, not as the population variance ratio, which is lower, equal or higher as
+  `mean(sigma^2)` is greater than, equal to or less than `median(sigma)^2` (unchanged equation, kept for
+  v1 compatibility); the printed label says so.
+* Pedigree keys no longer depend on the session locale: an unmarked string that is valid UTF-8 is read
+  as UTF-8, and any other unmarked non-ASCII string is hashed by its raw bytes (both were reinterpreted
+  through the locale, e.g. under `LC_ALL=C`). ASCII and marked strings keep their keys.
+* `phenotype_value(h2 =, ref =)` with numeric `qtn` now scores `ref` at the
   same markers by name, so a `ref` with another marker order no longer silently miscalibrates `var_e`
   (row indices are still used when either side lacks unique marker names; by name, `ref` may be a
   marker subset or have missing values at non-causal loci); `print.Population()` ignores unused
   chromosome factor levels instead of printing a `-Inf` map span with warnings.
 
-* `founders_coalescent()` (breedingDesigner SPEC-0020 item 9, DECISION-048): founders with historical
+## New features (October 2026, latest)
+
+* `founders_coalescent()` (breedingDesigner SPEC-0020 item 9, DECISION-050): founders with historical
   linkage disequilibrium simulated natively, so a breeding run does not need AlphaSimR's `runMacs()`. A
   sequential Markov coalescent (SMC', the model AlphaSimR runs: its MaCS keeps a one-base history window)
   in Rust under a piecewise-constant size history, infinite-sites mutation, an optional split into two
@@ -15,13 +42,50 @@
   its own seeded generator, the one exception to drawing every random number in R). Checked against the
   neutral-coalescent expectations (Watterson's E[S], the SFS theta/i, TMRCA under size changes and splits,
   the SMC' two-locus correlation) and against `runMacs()` (`dev/parity-coalescent-alphasimr.R`).
-
-* G x E on the fixed scale (breedingDesigner SPEC-0020 item 4, DECISION-047): new `gxe_value()` scores
+* G x E on the fixed scale (breedingDesigner SPEC-0020 item 4, DECISION-049): new `gxe_value()` scores
   each individual's genotype-by-environment slope, and `phenotype_value()` gains `gxe`, `gxe_intercept`,
   `env` and `var_env`, giving `y = g + s * qnorm(env, sd = sqrt(var_env)) + e` -- AlphaSimR's `addTraitAG()`
   trait phenotyped with `setPheno(p = env)`, matching it to 3e-15 on imported founders
   (`dev/parity-gxe-alphasimr.R`). `env = NULL` draws the environment; the G x E term is excluded from
   `h2` and the `genetic_value` attribute. Without `gxe` nothing changes.
+* `liability_threshold(sim, prop, trait)`: ordered categorical phenotypes under the liability-threshold model
+  (Wright 1934; Falconer 1965). The continuous phenotype is the liability, cut at `qnorm(cumsum(prop))` on its
+  standardized scale; the liability is kept in `sim$liability`, and the variance budget, realized H2 and
+  genetic values stay on the liability scale. A stored trait (`population_trait()`) keeps the base
+  population's thresholds, so category frequencies move under selection.
+* `coheritability(sim)`: the realized co-heritability matrix `Cov(G_i, G_j) / sqrt(Vp_i Vp_j)`
+  (`= rG h_i h_j`), realized H2 on the diagonal.
+* `cor_ar1(n_traits, rho)`: AR(1) correlation matrix for repeated (high-throughput) measurements, for the
+  pleiotropy engine's `cor` and for `resid_cor`.
+* `?additive` gains an example of a major QTN with a set variance share (stacked additive layers).
+
+## Behaviour changes (October 2026, latest): results of seeded crossing and selection runs change
+
+* **Crossover interference is now on by default.** Every function that runs meiosis (`cross()`,
+  `selfcross()`, `double_haploid()`, `mate()`, `crossbreed()`, and through them `single_seed_descent()`,
+  `bulk()`, `pedigree()`, `recurrent_selection()`, `cross_usefulness()`,
+  `combining_ability(method = "simulated")`, `progeny_test()`) uses the gamma interference model with
+  `nu = 2.6`, `p = 0` (AlphaSimR's default) instead of Poisson crossovers. The expected number of
+  crossovers per Morgan is unchanged, but **seeded progeny differ from earlier versions**. Poisson
+  crossovers, with the isqg random stream draw for draw, are `interference = "poisson"`; to reproduce
+  results of earlier versions for a whole session use `options(simplePHENOTYPES.interference = "poisson")`.
+  `"poisson"` also lets one call override a session option, which `interference = NULL` could not.
+  Reason: breedingDesigner's Bancic validation measured a gamma-versus-Poisson effect of +0.31 sigma_A0
+  on DH-program gain at cycle 20 inside AlphaSimR (DECISION-047).
+* **A population's heritability now travels with it.** `select_ind()` stores the trait its phenotype
+  defines (causal loci, effects on the base population's genetic scale, residual variance) on the selected
+  `Population`, and `cross()`, `selfcross()`, `double_haploid()`, `mate()` and `c()` pass it to the progeny
+  when every parent carries the same one (`population_trait()` shows it). `simulate_phenotype()` gains
+  `refit`: on a population that carries a trait the default is `refit = FALSE`, which reuses that trait and
+  holds its residual variance fixed, so heritability falls as selection and inbreeding exhaust genetic
+  variance (AlphaSimR `setPheno(varE =)`); an `h2` that differs from the population's then warns that the
+  population's heritability is used (the same `h2` is silent), and piped layer verbs are ignored (a layer type the trait lacks warns). `refit = TRUE` fits the layers and
+  residual to `h2` in the population given, as before, and is the default for marker data and populations
+  without a trait (single-population use such as GWAS is unchanged). Consequence: `pedigree()` and
+  `recurrent_selection()` with a `simulate_phenotype()` callback now hold the residual variance from the
+  second generation on; write `refit = TRUE` in the callback for the previous per-generation re-fit. Traits
+  with a `vqtl()` or transcriptome layer are not stored and are always re-fitted; epistatic loci keep the
+  centering of the base population, so epistasis traits are stored too (DECISION-048).
 
 * Theory-review fixes (Codex, 2026-10-02): the `h2` completeness check now also applies with a `transcriptome()` layer (marker layers fill `h2`, or marker layers plus the transcriptome `prop` do); `select_ind(on = "gv")` now equals `genetic_values()` for derived transcriptome models; a transmissible breeding value (`on = "bv"`, quadratic index) is refused for a genome-mediated transcriptome layer instead of silently omitting it; record-scale realized H2 matches phenotypes to genetic values by id (it used to depend on row order); the breeding-value documentation now states it is twice the expected progeny deviation.
 
@@ -29,10 +93,16 @@
 
 * `simulate_phenotype()` and `complex_phenotypes()` gain `resid_cor`: a target correlation between the traits' *residuals* (`cor` stays the genetic one), the grammar equivalent of v1 `cor_res`. `NULL` (default) is bit-identical to before; a scalar or an `n_traits x n_traits` symmetric PSD matrix with unit diagonal mixes the per-trait standardized draws through its Cholesky factor and re-standardizes, so each trait's residual variance, realized h2 and `var_budget` are unchanged and only correlation is induced (realized sample correlation matches the target up to `1/sqrt(n)` sampling error; a `vqtl()` component dilutes it).
 
-* `select_ind(method = "bqp")`: relatedness-penalized selection of exactly N individuals by binary quadratic programming (Montesinos-Lopez et al. 2025, *Plant Methods* 22:7), maximizing the weighted standardized merit minus `lambda` times the genomic-relationship quadratic form, with optional per-trait `min_gain` constraints. Dependency-free and deterministic (exact enumeration up to `choose(n, N) = 2e5`, else greedy + 1-swap local search); also listed in `selection_methods()`.
+* `select_ind(method = "bqp")`: relatedness-penalized selection of exactly N individuals by binary quadratic programming (Montesinos-Lopez et al. 2025, *Plant Methods* 22:7), maximizing the weighted standardized merit minus `lambda` times the genomic-relationship quadratic form (the paper's `G = WW'/p` from column-standardized markers), with optional per-trait `min_gain` constraints (`R_j` in percent, `[0, 100]`). Dependency-free and deterministic (exact enumeration up to `choose(n, N) = 2e5`, else greedy + 1-swap local search); also listed in `selection_methods()`.
 
 * `architecture = "ld"` gains `ld_phase = c("coded", "coupling", "repulsion")`: a haplotype-derived phase for each linked pair. `"coupling"`/`"repulsion"` flip trait 2's additive effect so that the linkage-induced covariance sign(e1*e2*r) is +1/-1 for every pair; the signed r is kept as the `"r"` attribute of the layer's `$ld` frame. The default `"coded"` is bit-identical to before.
-## Passing QTNs in every architecture (2026-10)
+* `architecture = "ld"` with passed loci (`qtn =`): a pair outside `[r2_min, r2_max]`, or unlinked
+  (r2 = 0), is now an error (it was used with a warning). A hidden cause-of-LD marker of an earlier
+  `ld_type = "indirect"` layer can no longer become a QTN of a later layer, drawn or passed. `ld_type`
+  abbreviations are normalized once, so `ld_type = "i"` is `"indirect"` in every check (it behaved as
+  `"direct"` with passed loci).
+
+## Passing QTNs in every architecture (October 2026)
 
 * `additive()`, `dominance()` and `epistasis()` accept `qtn =` under `architecture = "pleiotropy"` and
   `"ld"`, not only `"independent"` (it was an error there). Each architecture keeps its construction and only
@@ -52,7 +122,7 @@
 * A passed marker that is monomorphic (or heterozygous in every individual) now warns in every architecture:
   it carries no variance (random draws never pick such a marker).
 
-## Writing the QTN table and splitting the markers (2026-10)
+## Writing the QTN table and splitting the markers (October 2026)
 
 * New `write_qtn_table(sim, file, rep = 1L, file_type = c("text", "json"), sep = "\t")` writes every
   column of `qtn_table()` as a delimited text file (`data.table::fwrite()`) or as JSON (one object per
@@ -94,7 +164,7 @@
   classed metadata (e.g. `bit64::integer64`) is encoded as `jsonlite` encodes it. The one-file
   `write_phenotypes()` call is unchanged (byte-identical output).
 
-## Follow-ups and gaps after the audit (2026-10)
+## Follow-ups and gaps after the audit (October 2026)
 
 Feature and test work that closes the open follow-ups listed after the independent audit and the
 SPEC-0020 engine requests. Default behaviour and random streams are unchanged unless a bullet says
@@ -161,11 +231,11 @@ otherwise.
 * **testthat edition 3** is enabled (`Config/testthat/edition: 3`); expectations that
   relied on edition 2 semantics were corrected, parity fixtures are unchanged.
 
-## Engine requests from breedingDesigner SPEC-0020 (2026-09)
+## Engine requests from breedingDesigner SPEC-0020 (September 2026)
 
 Items 1, 2, 3, 5, 6, 7 and 8 of the breedingDesigner engine-request list. All new
 arguments are appended with defaults that keep today's output and random stream.
-G x E traits (item 4) followed in 2026-10 (fixed scale, DECISION-047) and native coalescent founders (item 9, `founders_coalescent()`, DECISION-048).
+G x E traits (item 4) followed in 2026-10 (fixed scale, DECISION-049) and native coalescent founders (item 9, `founders_coalescent()`, DECISION-050).
 
 * `simulate_phenotype()` no longer deparses the whole genotype object to name it: a
   large inline `geno` (e.g. `do.call(simulate_phenotype, list(geno = pop, ...))`) used
@@ -298,7 +368,7 @@ G x E traits (item 4) followed in 2026-10 (fixed scale, DECISION-047) and native
   converges to it only as QTNs and individuals grow, for causal loci in
   approximate linkage equilibrium and without major QTNs.
 
-## Audit fixes (independent dual-model audit, 2026-09)
+## Audit fixes (independent dual-model audit, September 2026)
 
 Fixes for the defects confirmed by a two-model theory and implementation audit
 (reports in the maintainers' `.tmp/audit-2026-09-29/`). Items that change seeded
@@ -538,8 +608,8 @@ reject previously accepted input are marked **(behaviour)**.
   unconstrained optimum is now purely relative (16 machine epsilons times the larger
   of the target and the optimum coancestry), with no absolute floor, so tiny-scale
   `G` matrices are judged on their own scale.
-* `simulate_transcriptome(mimic = )`: the per-gene rescale always hits the requested
-  per-gene variance whenever the realized unit-scale variance is finite and
+* `simulate_transcriptome(mimic = )`: the per-gene rescale hits the requested
+  per-gene variance (up to rounding) whenever the realized unit-scale variance is finite and
   positive (no absolute cutoff); a warning is issued when that realized variance is
   tiny (< 1e-12) and the rescale is ill-conditioned (it amplifies rounding noise).
   Only an exactly zero or non-finite realized variance keeps the unscaled fallback.

@@ -140,9 +140,11 @@ test_that("the option is unset by default and unset changes nothing", {
   skip_if_not_installed("withr")
   expect_null(getOption("simplePHENOTYPES.interference"))
   pop <- .gm_pop()
-  expect_null(simplePHENOTYPES:::.check_interference(NULL, "cross"))
+  # unset resolves to the default gamma model (DECISION-047)
+  expect_identical(simplePHENOTYPES:::.check_interference(NULL, "cross"),
+                   list(nu = 2.6, p = 0))
   # unset == option explicitly NULL == argument explicitly NULL: same outputs, same
-  # RNG state afterwards (all of them the isqg Poisson stream)
+  # RNG state afterwards (all of them the default gamma model)
   f <- function() cross(pop[1], pop[2], n = 6)
   a <- .gm_run(f)
   d <- .gm_run(function() cross(pop[1], pop[2], n = 6, interference = NULL))
@@ -274,4 +276,21 @@ test_that("combining_ability(method = \"expected\") is not broken by the option"
   # ... while an explicit `interference` with method = "expected" is still an error
   expect_error(combining_ability(pop[1:3], pop[4:6], q, a, design = "factorial",
                                  interference = .gm_itf), "simulated")
+})
+
+test_that(".stable_key() of unmarked UTF-8 bytes does not depend on the locale (round 9)", {
+  x <- rawToChar(as.raw(c(0x41, 0xc3, 0xa9)))
+  Encoding(x) <- "unknown"
+  sk <- simplePHENOTYPES:::.stable_key
+  ref <- sk("founder", "Aé")
+  expect_identical(sk("founder", x), ref)
+  old <- Sys.getlocale("LC_CTYPE")
+  on.exit(Sys.setlocale("LC_CTYPE", old), add = TRUE)
+  z <- rawToChar(as.raw(0xe9))                 # not valid UTF-8: hashed by bytes
+  Encoding(z) <- "unknown"
+  refz <- sk("founder", z)
+  skip_if(identical(suppressWarnings(Sys.setlocale("LC_CTYPE", "C")), ""), "C locale unavailable")
+  expect_identical(sk("founder", x), ref)
+  expect_identical(sk("founder", z), refz)
+  expect_false(identical(refz, sk("founder", "#2:e9")))
 })

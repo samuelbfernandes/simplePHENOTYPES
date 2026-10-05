@@ -43,10 +43,13 @@ is an error without \code{h2}.}
 
 \item{seed}{optional RNG seed for \code{"simulated"}.}
 
-\item{interference}{\code{NULL} (default: Poisson crossovers, no interference, the
-isqg stream, bit-identical to earlier versions) or \code{list(nu = , p = )}, the
-two-pathway gamma model of crossover interference of \code{\link[=cross]{cross()}} (see its
-section "Crossover interference"), for the meioses of \code{method = "simulated"}; an error with \code{"expected"}, which runs no meiosis.}
+\item{interference}{crossover interference model of \code{\link[=cross]{cross()}} (see its
+section "Crossover interference"): \code{NULL} (default: the option
+\code{simplePHENOTYPES.interference} if set, else the gamma model with
+\code{nu = 2.6}, \code{p = 0}), \code{"poisson"} (Poisson crossovers, the isqg stream, the
+default before 2.0.0.9003) or \code{list(nu = , p = )}. Used for the meioses of
+\code{method = "simulated"}; giving it with \code{"expected"}, which runs no meiosis,
+is an error.}
 }
 \value{
 A \code{combining_ability} object: a list with \code{gca} (named, over

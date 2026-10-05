@@ -133,6 +133,10 @@
 #'   leave the rest to expression; the marker-completeness check is then skipped
 #'   and only the realized h2 (which includes any genome-mediated expression
 #'   variance) is reported.
+#'   The genetic layers and the residual are fitted to `h2` in the population
+#'   the simulation is built on. On a population whose heritability is already
+#'   set (it carries a trait) `h2` is ignored with a warning unless
+#'   `refit = TRUE`; see `refit`.
 #' @param mean optional per-trait intercept added to the phenotype (scalar or
 #'   length `n_traits`). Genetic values stay centered; only the phenotype is
 #'   shifted.
@@ -218,6 +222,28 @@
 #'   variance by `1/reps`). The realized denominator
 #'   is then the variance of the full stored phenotype, which includes the
 #'   unreplicated transcriptome component and its covariances.
+#' @param refit whether to fit the genetic layers and the residual to `h2` in
+#'   this population. `NULL` (default): `FALSE` when `geno` is a `Population`
+#'   whose heritability is already set (it carries a trait, see
+#'   [population_trait()]), else `TRUE`.
+#'   * `TRUE` -- the usual behaviour, and the only one for marker data or a
+#'     population without a trait: the layers you add are drawn and scaled, and
+#'     the residual is fitted to the target `h2`, in the population given. This
+#'     is the rule for a single population (e.g. simulating phenotypes for GWAS).
+#'     On a population that carries a trait it defines a new one, which
+#'     [select_ind()] then stores on the selected individuals.
+#'   * `FALSE` -- reuse the population's trait: its causal loci and effects on its
+#'     base population's genetic scale (layers centered and scaled as in the base
+#'     population) and its residual variance, held fixed. The genetic variance of
+#'     this population can differ from the base one, so the heritability is no
+#'     longer the base `h2`: it falls as selection and inbreeding exhaust genetic
+#'     variance, as in AlphaSimR's `setPheno(varE = )`. `h2`, `n_qtn`, `n_traits`,
+#'     `architecture`, `model`, `mean`, `resid_cor` and `...` are taken from the
+#'     trait; an `h2` that differs from the population's warns that the
+#'     population's heritability is used (the same `h2` is silent). Layer verbs
+#'     piped onto the result ([additive()], [dominance()], ...) are ignored: a
+#'     layer type the trait already has silently, any other with a warning. `seed`, `n_reps`, `reps` and `individuals` apply as usual;
+#'     with `reps` the fixed residual variance is divided by `reps`.
 #' @param ... architecture-specific arguments (validated -- an unknown name is
 #'   an error, and an argument for a different architecture warns). For
 #'   `"pleiotropy"`: `cor`, `pi` (or the two-trait `pi_target` /
@@ -244,7 +270,11 @@
 #'   raising trait 1 travels with the allele raising trait 2; positive
 #'   linkage-induced genetic correlation); `"repulsion"` makes every pair's sign
 #'   negative (the allele raising trait 1 travels with the allele lowering trait
-#'   2). Only trait 2's additive effects change: the loci, trait 1's effects,
+#'   2). The sign is controlled pair by pair (each matched pair's contribution);
+#'   the total genetic correlation also includes the cross-pair terms between
+#'   loci of different pairs in LD, so with pairs close together on one
+#'   chromosome it can differ in sign from the pairs' common sign.
+#'   Only trait 2's additive effects change: the loci, trait 1's effects,
 #'   r and r2 are those of `"coded"`. It acts on the [additive()] layer's
 #'   effects (also per replication with `vary_qtn = TRUE`); a [dominance()]
 #'   layer reusing the linked loci (`same_as_add = TRUE`) keeps its own
@@ -318,8 +348,41 @@ simulate_phenotype <- function(geno = NULL,
                                transcriptome = NULL,
                                reps = 1,
                                resid_cor = NULL,
+                               refit = NULL,
                                ...) {
   architecture <- match.arg(architecture)
+  # A Population that carries a trait (defined in its base population, see
+  # population_trait()) reuses it unless refit = TRUE.
+  trait <- .pop_trait(geno)
+  if (is.null(refit)) refit <- is.null(trait)
+  .validate_flag(refit, "refit")
+  if (!refit) {
+    if (is.null(trait)) {
+      stop("simulate_phenotype(): refit = FALSE reuses the trait a Population ",
+           "carries, but `geno` carries none (marker data, or a population ",
+           "whose heritability was never set). Use refit = TRUE (the default ",
+           "for such input).", call. = FALSE)
+    }
+    # Warn only on a conflict: the same h2 as the population's (e.g. a scheme
+    # callback that sets h2 for its founders) is what is used anyway.
+    if (!is.null(h2)) {
+      h2 <- rep_len(.validate_proportion(h2, "h2", trait$n_traits),
+                    trait$n_traits)
+      if (any(abs(h2 - trait$h2) > 1e-8)) {
+        warning("simulate_phenotype(): `geno` is a population whose heritability ",
+                "is already set (h2 = ", paste(format(trait$h2, digits = 3),
+                                              collapse = ", "),
+                " in its base population, with its residual variance held ",
+                "fixed); that heritability is used, not h2 = ",
+                paste(format(h2, digits = 3), collapse = ", "),
+                ". To use your own h2, set refit = TRUE.", call. = FALSE)
+      }
+    }
+    n_reps <- .validate_count(n_reps, "n_reps", minimum = 1L)
+    return(.simulate_from_trait(geno, trait, .geno_label(substitute(geno)),
+                                n_reps, .validate_seed(seed), individuals,
+                                reps))
+  }
   n_traits <- .validate_count(n_traits, "n_traits", minimum = 1L)
   n_qtn <- .validate_count(n_qtn, "n_qtn", minimum = 0L)
   n_reps <- .validate_count(n_reps, "n_reps", minimum = 1L)
@@ -340,6 +403,12 @@ simulate_phenotype <- function(geno = NULL,
   }
   arch_args <- list(...)
   .check_arch_args(arch_args, architecture)
+  # store the full ld_type once, so an abbreviation ("i") means the same thing
+  # in every later check (they compare with identical())
+  if (architecture == "ld" && !is.null(arch_args[["ld_type"]])) {
+    arch_args[["ld_type"]] <- match.arg(arch_args[["ld_type"]],
+                                        c("direct", "indirect"))
+  }
 
   if (architecture == "pleiotropy" && n_traits == 1) {
     stop("architecture = \"pleiotropy\" requires n_traits > 1; use ",
@@ -1016,6 +1085,21 @@ print.phenotype_sim <- function(x, ...) {
   cat(sprintf("  Genotypes: %s   Traits: %d   Architecture: %s   Seed: %s\n",
               x$geno_name, x$n_traits, x$architecture,
               if (is.null(x$seed)) "NULL" else x$seed))
+  if (isTRUE(x$frozen)) {
+    # A stored trait: the layer props describe the base population, so show the
+    # realized shares in this one (.variance_budget_frozen()).
+    cat(sprintf(paste0("  Trait carried by the population (refit = FALSE): base ",
+                       "h2 = %s, residual variance fixed at %s\n"),
+                fmt(x$trait$h2), fmt(x$trait$var_e)))
+    cat("  Realized variance partition (proportions of V_P):\n")
+    vb <- x$var_budget
+    for (cmp in unique(vb$component)) {
+      cat(sprintf("    %-11s %s\n", cmp, fmt(vb$prop[vb$component == cmp])))
+    }
+    cat(sprintf("  realized H\u00b2 = %s\n", fmt(.realized_h2(x))))
+    .print_reps_note(x, fmt)
+    return(invisible(x))
+  }
   cat("  Variance partition (proportions of V_P):\n")
   if (identical(x$architecture, "complex")) {
     cat(sprintf("    combined from: %s\n",
@@ -1080,6 +1164,7 @@ print.phenotype_sim <- function(x, ...) {
     }
   }
   .print_ad_report(x)
+  .print_threshold_note(x)
   if (!is.null(x$mediation)) {
     md <- x$mediation
     cat(sprintf(
@@ -1093,6 +1178,21 @@ print.phenotype_sim <- function(x, ...) {
         sep = "")
   }
   invisible(x)
+}
+
+#' Name the liability-threshold traits (variance shares and H2 are on the
+#' liability scale; the phenotype is categorical)
+#' @keywords internal
+#' @noRd
+.print_threshold_note <- function(x) {
+  th <- x$threshold
+  if (is.null(th) || all(vapply(th, is.null, logical(1)))) return(invisible())
+  k <- which(!vapply(th, is.null, logical(1)))
+  cat(sprintf("  Liability-threshold: %s; phenotypes are categories 1..C, the\n",
+              paste(sprintf("Trait_%d (%d categories)", k,
+                            vapply(th[k], length, integer(1))), collapse = ", ")),
+      "   shares and realized H\u00b2 above are on the liability scale\n", sep = "")
+  invisible()
 }
 
 #' State the heritability scale when entry means of `reps > 1` records are shown

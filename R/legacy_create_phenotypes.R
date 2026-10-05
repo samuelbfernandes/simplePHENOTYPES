@@ -133,7 +133,12 @@
 #' the first trait's heritability of a row enters the residual seed, and
 #' positive values of at most 0.05 (exactly 0.05 included, since
 #' `round(10 * 0.05)` is 0 in R) are rejected when `rep > 1`: use `h2 > 0.05`
-#' (see `seed`).
+#' (see `seed`). With `vQTL = TRUE`, `h2` is met for an individual at the
+#' median vQTL standard deviation, not as the population variance ratio, which
+#' is \eqn{1/(1 + k^2 \mathrm{mean}(\sigma^2))} with
+#' \eqn{k^2 = (1/h^2 - 1)/\mathrm{median}(\sigma)^2}: lower than, equal to or
+#' higher than `h2` as \eqn{\mathrm{mean}(\sigma^2)} is greater than, equal to
+#' or less than \eqn{\mathrm{median}(\sigma)^2}.
 #' @param mean A vector with the mean (intercept) value for each of the simulated traits. If omitted, the simulated traits will be centered to zero. 
 #' @param model The genetic model to be assumed. The options are
 #' "A" (additive), "D" (dominance), "E" (epistatic), "V" (variance QTL)

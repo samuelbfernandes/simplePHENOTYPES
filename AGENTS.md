@@ -21,7 +21,7 @@
    NOT a wrapper over the new grammar (DECISION-008).
 4. **Rust is surgical, not a rewrite.** Only deterministic, profiled bottlenecks and
    C++-origin (isqg) code move to Rust. **Stochastic steps stay in R** (see Rust Boundary),
-   except the coalescent founder generator, whose Rust PRNG is seeded from R (DECISION-048).
+   except the coalescent founder generator, whose Rust PRNG is seeded from R (DECISION-050).
 5. **NEVER push code that fails `devtools::test()`.** Grammar owes v1 no bit-parity
    (DECISION-009); the isqg port owes **exact** parity (DECISION-012).
 6. **Push to a remote ONLY with the maintainer's explicit OK**; never force-push
@@ -117,7 +117,8 @@ Rust never calls an RNG on the parity-critical path (DECISION-012).
 
 ## Public API (NAMESPACE exports)
 `create_phenotypes()` (frozen) · `simulate_phenotype()` + `additive()`/`dominance()`/
-`epistasis()`/`vqtl()` · `complex_phenotypes()` · crossing (`as_population`, `cross`,
+`epistasis()`/`vqtl()` + `liability_threshold()` · `coheritability()` · `cor_ar1()` ·
+`population_trait()` · `complex_phenotypes()` · crossing (`as_population`, `cross`,
 `selfcross`, `double_haploid`, `synthetic_map`) · selection (`select_ind`,
 `single_seed_descent`, `bulk`, `pedigree`, `recurrent_selection`, `c.Population`,
 `g_matrix`, `optimum_contribution`, `sample_parents`, `cross_usefulness`) · `as_numeric()` ·

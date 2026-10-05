@@ -1945,7 +1945,8 @@ qtn_linkage <-
 
 #' Direct-LD contract violation (reason string) or NULL when the pairs are valid
 #'
-#' Distinct markers, no marker shared between the two traits, both members of
+#' Distinct markers at distinct positions (a pair never shares a chromosome
+#' position), no marker shared between the two traits, both members of
 #' a pair on the same chromosome, absolute LD of every pair inside the
 #' inclusive window `[ld_min, ld_max]`, and the reported LD equal to the
 #' recomputed one.
@@ -1958,6 +1959,9 @@ qtn_linkage <-
   }
   if (any(anchors == partners)) {
     return("a marker was paired with itself")
+  }
+  if (any(.ld_key(genotypes, anchors) == .ld_key(genotypes, partners))) {
+    return("a pair shares a chromosome position")
   }
   if (anyDuplicated(anchors) || anyDuplicated(partners) ||
       anyDuplicated(.ld_key(genotypes, anchors)) ||
@@ -2022,9 +2026,10 @@ qtn_linkage <-
 
 #' Seed used by search attempt `attempt` (1 = the original seed, unchanged)
 #'
-#' Attempt `a` >= 2 moves the seed by `(a - 1) * .ld_retry_stride` towards
-#' zero (away from zero for `seed <= 0`), so `abs()` of the result never
-#' exceeds `max(abs(seed), (.ld_max_attempts() - 1) * .ld_retry_stride)` and the
+#' Attempt `a` >= 2 subtracts `(a - 1) * .ld_retry_stride` from a positive
+#' seed (adds it to a seed `<= 0`): the step points towards zero and may cross it
+#' (seed 1, attempt 2 gives -1000002), but `abs()` of the result never exceeds
+#' `max(abs(seed), (.ld_max_attempts() - 1) * .ld_retry_stride)`, so the
 #' integer-range bound of `.v1_validate_seed_arith()` still holds.
 #' @keywords internal
 #' @noRd

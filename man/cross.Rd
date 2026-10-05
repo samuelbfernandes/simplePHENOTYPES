@@ -20,13 +20,15 @@ before the call works equally well. With a \code{seed} the caller's RNG state is
 restored on exit (a seeded call does not disturb the ambient stream); with
 \code{seed = NULL} the draws consume the ambient stream.}
 
-\item{interference}{\code{NULL} (default: the option \code{simplePHENOTYPES.interference}
-if set, else Poisson crossovers, no interference, the isqg random stream) or
-\code{list(nu = , p = )} for the two-pathway gamma model
-of crossover interference (see the section "Crossover interference").
-\verb{1 <= nu <= 1e6} is the interference strength (1 = none), \code{p} in \verb{[0, 1]} (default
-0 when omitted) the share of chiasmata that do not interfere. The expected
-number of crossovers per Morgan is unchanged.}
+\item{interference}{crossover interference model (see the section
+"Crossover interference"). \code{NULL} (default): the option
+\code{simplePHENOTYPES.interference} if set, else the gamma model with
+\code{nu = 2.6}, \code{p = 0} (AlphaSimR's default). \code{"poisson"}: Poisson crossovers,
+no interference, the isqg random stream (the default before 2.0.0.9003).
+\code{list(nu = , p = )}: the two-pathway gamma model with these values;
+\verb{1 <= nu <= 1e6} is the interference strength (1 = none), \code{p} in \verb{[0, 1]}
+(default 0 when omitted) the share of chiasmata that do not interfere. The
+expected number of crossovers per Morgan is the same under every model.}
 }
 \value{
 A \code{Population} of \code{n} progeny.
@@ -37,8 +39,11 @@ recombinant gamete from each parent, so the two parents contribute one
 homologue apiece.
 }
 \details{
-By default (\code{interference = NULL}) recombination follows the count-location
-model: the number of crossovers on
+Each gamete carries on average one crossover per Morgan of a chromosome's
+length. By default their spacing follows the gamma model of crossover
+interference (\code{nu = 2.6}, \code{p = 0}, AlphaSimR's default; see the section
+"Crossover interference"). With \code{interference = "poisson"} recombination
+follows the count-location model of isqg: the number of crossovers on
 a chromosome is Poisson with mean equal to its length in Morgans, and their
 positions are uniform along it. That length is the chromosome's \strong{last} map
 position (\code{cm / 100}), not its span \code{max(cm) - min(cm)}: positions are used as
@@ -68,11 +73,13 @@ order that does not depend on the storage type of \code{chr} or on the locale (s
 \section{Crossover interference}{
 
 By default (\code{interference = NULL}, with the option below unset) crossovers
-are Poisson, i.e. there is no interference, and the random draws are exactly
-isqg's. Give
-\code{interference = list(nu = , p = )} for a two-pathway gamma model of
-interference (\code{nu} plays the role of AlphaSimR's \code{v}, whose default \code{2.6}
-approximates Kosambi's map function):
+follow a two-pathway gamma model of interference with \code{nu = 2.6} and
+\code{p = 0}: AlphaSimR's default (its \code{SimParam} fields \code{v} and \code{p}), which
+approximates Kosambi's map function. Give \code{interference = list(nu = , p = )}
+for other values, or \code{interference = "poisson"} for Poisson crossovers (no
+interference), whose random draws are exactly isqg's. Before version
+2.0.0.9003 Poisson was the default; seeded results of every function that runs
+meiosis changed with the new default (see \code{NEWS.md}). The gamma model:
 \itemize{
 \item The four-strand bivalent carries chiasmata at an average of 2 per Morgan.
 A gamete takes part in each chiasma independently with probability 1/2
@@ -100,29 +107,26 @@ Gamma(\code{a}, 1) distribution function. With \code{nu = 1}, or \code{p = 1}, t
 Poisson in distribution (Haldane), although it then uses its own random
 stream, not isqg's. \code{p} is in \verb{[0, 1]}; \code{nu} must be in \verb{[1, 1e6]} (negative
 interference is not modelled). The gamma model of interference is that of
-McPeek and Speed (1995, \emph{Genetics}) and the two-pathway extension that of
-Housworth and Stahl (2003, \emph{American Journal of Human Genetics}) (author,
-year and journal only; the formulas above were derived and are checked
+McPeek and Speed (1995) and the two-pathway extension that of Housworth and
+Stahl (2003) (see References; the formulas above were derived and are checked
 numerically in this package's tests, not copied from either paper or from
 AlphaSimR). The draws are made in R; the Rust core only applies the drawn
 crossovers and is unchanged.
 
 To use one interference model for a whole session or scheme without passing
 \verb{interference =} to every call, set the option \code{simplePHENOTYPES.interference}
-to a \code{list(nu = , p = )} (\code{NULL}, the default, is Poisson crossovers). An
-\code{interference} argument that is \code{NULL} is then replaced by the option, in
+to \code{"poisson"} (the old default, e.g. to reproduce results of earlier
+versions) or to a \code{list(nu = , p = )} (\code{NULL}, the default, is the gamma
+model above). An \code{interference} argument that is \code{NULL} is then replaced by the option, in
 \code{\link[=cross]{cross()}}, \code{\link[=selfcross]{selfcross()}}, \code{\link[=double_haploid]{double_haploid()}}, \code{\link[=mate]{mate()}}, \code{\link[=crossbreed]{crossbreed()}} and in
 every function that forwards it (\code{\link[=single_seed_descent]{single_seed_descent()}}, \code{\link[=bulk]{bulk()}},
 \code{\link[=pedigree]{pedigree()}}, \code{\link[=recurrent_selection]{recurrent_selection()}}, \code{\link[=cross_usefulness]{cross_usefulness()}},
 \code{\link[=combining_ability]{combining_ability()}}, \code{\link[=progeny_test]{progeny_test()}}), so the precedence is: an explicit
-non-\code{NULL} argument, then the option, then Poisson. The option is validated by
-the same rules as the argument, and an invalid value is an error that names the
-option. Because \code{NULL} means "not given", an individual call cannot switch
-the option off with \code{interference = NULL}; use
-\code{withr::local_options(simplePHENOTYPES.interference = NULL)} (or
-\code{options()}) for that. With the option set, the draws are those of the gamma
-model (not isqg's stream), exactly as when the same list is passed to every
-call; with it unset nothing changes, draw for draw.
+non-\code{NULL} argument, then the option, then the default gamma model. The option
+is validated by the same rules as the argument, and an invalid value is an error
+that names the option. A call overrides the option with an explicit value
+(\code{interference = "poisson"} or a list). With the option set, the draws are
+exactly those made when the same value is passed to every call.
 }
 
 \examples{
@@ -135,6 +139,14 @@ f1
 Toledo, F.H., Perez-Rodriguez, P., Crossa, J. and Burgueno, J. (2019). isqg:
 A Binary Framework for in Silico Quantitative Genetics. \emph{G3
 Genes|Genomes|Genetics} 9(8), 2425--2428. \doi{10.1534/g3.119.400373}
+
+McPeek, M.S. and Speed, T.P. (1995). Modeling interference in genetic
+recombination. \emph{Genetics} 139(2), 1031--1044.
+\doi{10.1093/genetics/139.2.1031}
+
+Housworth, E.A. and Stahl, F.W. (2003). Crossover interference in humans.
+\emph{American Journal of Human Genetics} 73(1), 188--197.
+\doi{10.1086/376610}
 }
 \seealso{
 \code{\link[=selfcross]{selfcross()}}, \code{\link[=double_haploid]{double_haploid()}}, \code{\link[=as_population]{as_population()}}

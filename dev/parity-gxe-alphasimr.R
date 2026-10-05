@@ -1,5 +1,5 @@
 # Exact parity of the fixed-scale G x E path (gxe_value(), phenotype_value(gxe =,
-# env =, var_env =)) against AlphaSimR 2.1.0 addTraitAG + calcPheno (DECISION-047).
+# env =, var_env =)) against AlphaSimR 2.1.0 addTraitAG + calcPheno (DECISION-049).
 # Needs AlphaSimR (not a package dependency). Run from the repo root:
 #   Rscript -e "calcPheno <- AlphaSimR:::calcPheno; source('dev/parity-gxe-alphasimr.R')"
 # Result 2026-10-03: max |AlphaSimR - simplePHENOTYPES| <= 2.7e-15 for varEnv = 0 and 2,

@@ -72,8 +72,11 @@ state is restored afterwards.}
 
 \item{mimic}{optional \strong{user expression matrix} (genes x individuals, columns
 named/ordered to the genotypes) to calibrate the generator to. When supplied,
-the generator's \emph{targets} are set from it: exact per-gene mean and variance
-(the rescale is skipped only for a gene whose realized unit-scale variance is
+the generator's \emph{targets} are set from it: the per-gene mean and variance,
+met up to floating-point rounding (a gene whose mean is many orders of
+magnitude larger than its standard deviation is limited by the spacing of
+doubles near that mean, so its variance is met only to that resolution;
+the rescale is skipped only for a gene whose realized unit-scale variance is
 exactly zero or non-finite; a counted warning is issued when the rescale is
 ill-conditioned, i.e. the realized unit variance is below \code{1e-12});
 a per-gene heritability from a GREML estimator (REML on the genotypes' GRM,

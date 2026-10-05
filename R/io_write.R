@@ -1300,7 +1300,7 @@ mediation_split <- function(sim) {
     cols   <- sweep(design, 2L, eff, "*")
   }
   raw <- rowSums(cols)
-  s_raw <- stats::sd(raw)
+  s_raw <- .layer_sd(ly, raw, t)
   prop_t <- .expand_prop(ly$prop, sim$n_traits)[t]
   if (!is.finite(s_raw) || s_raw <= 0 || prop_t <= 0 ||
       !is.finite(var_p) || var_p <= 0) {
@@ -1398,8 +1398,8 @@ qtn_table <- function(sim, rep = 1L) {
   # Realized phenotypic variance per trait for this replication; var_explained
   # is reported as a fraction of it (SPEC realized variance-ratio convention).
   var_p <- vapply(seq_len(sim$n_traits), function(t) {
-    y <- sim$pheno$value[sim$pheno$trait == paste0("Trait_", t) &
-                         sim$pheno$rep == rep]
+    lt <- .liability_table(sim)          # liability scale for threshold traits
+    y <- lt$value[lt$trait == paste0("Trait_", t) & lt$rep == rep]
     stats::var(y)
   }, numeric(1))
   empty <- data.frame(

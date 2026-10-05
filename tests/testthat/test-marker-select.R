@@ -1,5 +1,9 @@
 # test-marker-select.R -- DECISION-029: MAS / pyramiding / marker index.
 
+# These expectations are for Poisson crossovers (Haldane / the isqg stream),
+# the default before DECISION-047; pin it for this file.
+withr::local_options(simplePHENOTYPES.interference = "poisson")
+
 .two_founders <- function(chr, cm) {
   k <- length(chr)
   g <- data.frame(snp = paste0("m", seq_len(k)), allele = "A/G", chr = chr,

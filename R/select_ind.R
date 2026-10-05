@@ -132,13 +132,16 @@
 #' maximizing \eqn{\sum_i\sum_j w_j s_{ij} x_i - \lambda\sum_i\sum_k G_{ik}
 #' x_i x_k}, with \eqn{x_i \in \{0,1\}}, \eqn{s_{ij}} the standardized criterion
 #' of trait `j`, `weights` the economic weights \eqn{w_j} (omitted: the single
-#' criterion `on`/`trait`, weight 1) and \eqn{G} the VanRaden genomic
-#' relationship matrix of the individuals ([g_matrix()]). `lambda` is the paper's
-#' penalty weight `k` (`lambda = 0` reduces to truncation on the merit).
-#' `min_gain` adds the paper's per-trait constraints
-#' \eqn{\sum_i s_{ij} x_i \ge N d_j/100}, with \eqn{d_j} in percent of a standard
-#' deviation (the standardized scale is this package's reading of the paper's
-#' \eqn{n\sigma_j d_j/100}); an unattainable constraint is an error. The paper
+#' criterion `on`/`trait`, weight 1; the paper's objective is the unweighted sum)
+#' and \eqn{G = WW'/p} the paper's genomic relationship matrix of the
+#' individuals, from the column-standardized marker matrix \eqn{W} over the
+#' \eqn{p} polymorphic markers (not [g_matrix()]'s VanRaden method 1). `lambda`
+#' is the paper's penalty weight `k` (`lambda = 0` reduces to truncation on the
+#' merit). `min_gain` adds the paper's per-trait constraints
+#' \eqn{\sum_i s_{ij} x_i \ge l_j = R_j N / 100} (Eq. 3-4), with \eqn{R_j} the
+#' minimum desired gain in percent, in \eqn{[0, 100]}; an unattainable
+#' constraint is an error (with the heuristic solver, "no set found" does not
+#' prove that none exists). The paper
 #' solves the problem with CVXR; here it is solved without dependencies and
 #' deterministically: exact enumeration when `choose(n, N) <= 2e5`, otherwise a
 #' greedy construction followed by best-improvement 1-swap local search (a
@@ -216,8 +219,9 @@
 #' @param lambda relatedness penalty weight for `method = "bqp"` (default 1;
 #'   >= 0).
 #' @param min_gain for `method = "bqp"`: NULL (default, no trait constraints), or
-#'   the paper's minimum desired gain `d_j` in percent of a standard deviation of
-#'   the standardized trait (one value, or one per trait when `weights` is given).
+#'   the paper's minimum desired gain `R_j` in percent, in `[0, 100]` (one value,
+#'   or one per trait when `weights` is given); the constraint is that the
+#'   selected set's summed standardized criterion is at least `R_j N / 100`.
 #' @param n_per_family for `method = "within_family"` only: the number of
 #'   individuals to keep **in each family**, in place of the proportional
 #'   allocation of a total `n`. One whole number >= 1 keeps that many from every
@@ -980,7 +984,12 @@ select_ind <- function(sim, n = NULL, prop = NULL, intensity = NULL,
 .selection_result <- function(sim, sel_idx, ids) {
   if (inherits(sim$geno, "Population")) {
     pop_idx <- match(ids[sel_idx], sim$geno$ids)
-    return(sim$geno[pop_idx])
+    out <- sim$geno[pop_idx]
+    # The selected individuals carry the trait they were ranked on, so their
+    # progeny reuse it (DECISION-048). A phenotype without a per-locus form
+    # (epistasis, vqtl, transcriptome) defines no storable trait.
+    out$trait <- .freeze_trait(sim)
+    return(out)
   }
   message("select_ind(): the phenotype was not built on a Population, so the ",
           "selected ids are returned rather than a crossable Population. Build ",

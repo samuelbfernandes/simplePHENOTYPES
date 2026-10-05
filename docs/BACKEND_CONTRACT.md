@@ -51,7 +51,7 @@ individuals by default, 1 = the counted (+1) allele, dosage = `cis + trans - 1`;
 `map$counted` is kept only if the supplied map has it. A consumer must call these
 instead of replacing the `cis`/`trans` slots of an `as_population()` result.
 `founders_coalescent(n_ind, n_chr, seg_sites, inbred, species, split, theta, rho,
-history, morgans, bp, pool, seed)` (SPEC-0020 item 9, DECISION-048) simulates founders with
+history, morgans, bp, pool, seed)` (SPEC-0020 item 9, DECISION-050) simulates founders with
 historical LD natively (SMC', the model `runMacs()` runs) with the `runMacs()` GENERIC / MAIZE /
 WHEAT / CATTLE presets; unlike `runMacs()` it is reproducible under `set.seed()` / `seed`.
 Appended optional arguments (SPEC-0020 items 3, 6, 8): `interference = NULL` on `cross`,
@@ -92,7 +92,7 @@ OCS), `cross_usefulness`, and `print.ocs`; marker-assisted backcrossing
 ### Fixed-scale cross-generation accessors
 `additive_value`, `genotypic_value`, `phenotype_value` (which gains `d =` in
 2.0.0.9001, DECISION-026, and the appended G x E arguments `gxe`, `gxe_intercept`,
-`env`, `var_env` with the slope accessor `gxe_value`, DECISION-047) — the fixed-scale scorers
+`env`, `var_env` with the slope accessor `gxe_value`, DECISION-049) — the fixed-scale scorers
 a downstream recurrent driver needs so a selection response is visible across
 generations (DECISION-020 / DECISION-021). `genotypic_value()` is each
 individual's own **per se** additive-plus-dominance total genotypic value

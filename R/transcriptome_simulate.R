@@ -143,8 +143,11 @@
 #'   scatter is large only at very small `n`).
 #' @param mimic optional **user expression matrix** (genes x individuals, columns
 #'   named/ordered to the genotypes) to calibrate the generator to. When supplied,
-#'   the generator's *targets* are set from it: exact per-gene mean and variance
-#'   (the rescale is skipped only for a gene whose realized unit-scale variance is
+#'   the generator's *targets* are set from it: the per-gene mean and variance,
+#'   met up to floating-point rounding (a gene whose mean is many orders of
+#'   magnitude larger than its standard deviation is limited by the spacing of
+#'   doubles near that mean, so its variance is met only to that resolution;
+#'   the rescale is skipped only for a gene whose realized unit-scale variance is
 #'   exactly zero or non-finite; a counted warning is issued when the rescale is
 #'   ill-conditioned, i.e. the realized unit variance is below `1e-12`);
 #'   a per-gene heritability from a GREML estimator (REML on the genotypes' GRM,
@@ -597,15 +600,20 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       # mu_g. Gg is exactly mean-zero (standardized cis/trans), so predict()'s
       # unit reconstruction times the stored scale reproduces this genetic.
       esc <- 1
+      Eg <- NULL
       if (!is.null(mim)) {
         rs <- .tx_mimic_scale(Gg, Rg, scl[g])
         esc <- rs$esc
         if (rs$ill) n_ill <- n_ill + 1L         # amplifies rounding noise: counted
+        # the expression is the scaled SUM, formed before scaling: with a
+        # near-cancelling G/R pair esc is huge and esc * G + esc * R would not
+        # reproduce esc * (G + R), missing the requested variance (Codex R4-5)
+        Eg <- loc[g] + rs$u
         Gg <- esc * (Gg - mean(Gg))
         Rg <- esc * (Rg - mean(Rg))
       }
       scl_used[g] <- esc
-      Eg <- loc[g] + Gg + Rg
+      if (is.null(Eg)) Eg <- loc[g] + Gg + Rg
       expression[g, ] <- Eg
       genetic[g, ] <- Gg
       vE <- stats::var(Eg)
@@ -682,7 +690,7 @@ simulate_transcriptome <- function(geno = NULL, n_genes = 1000,
       warning("simulate_transcriptome(): ", n_ill, " gene(s) had a near-cancelling ",
               "genetic/residual realization (unit-scale variance < 1e-12); the ",
               "per-gene mimic rescale factor is very large and amplifies rounding ",
-              "noise (the requested variance is still hit).", call. = FALSE)
+              "noise (the requested variance is still met up to rounding).", call. = FALSE)
     }
     list(expression = expression, genetic = genetic, h2_real = h2_real,
          h2_alloc = h2_alloc, epi_real = epi_real, module = module, n_cis = n_cis, n_epi = n_epi, om_real = om_real,
@@ -970,19 +978,28 @@ predict.transcriptome_sim <- function(object, geno, seed = NULL,
     class = "transcriptome_sim")
 }
 
-# Per-gene mimic rescale factor; returns list(esc, ill).
+# Per-gene mimic rescale factor; returns list(esc, ill, u) with esc the factor for
+# G and R and u the centered expression G + R already rescaled to variance scl^2
+# (formed from G + R normalized by max|u|, so a subnormal or huge unit variance
+# neither underflows nor overflows; see the caller).
 .tx_mimic_scale <- function(Gg, Rg, scl) {
-  # per-gene rescale factor hitting the requested variance scl^2 exactly.
+  # per-gene rescale factor hitting the requested variance scl^2 up to
+  # floating-point rounding (a large location loc adds a representable-value
+  # lattice on top: the variance of loc + u is then met only to that resolution).
   # scale-free: vu is the dimensionless unit-scale variance of G + R, so any
   # finite strictly positive value is rescaled (an absolute cutoff would silently
   # miss the requested variance for a near-cancelling G/R pair); only exact-zero /
   # non-finite vu keeps the unscaled fallback (scl itself).
   u  <- (Gg - mean(Gg)) + (Rg - mean(Rg))
-  vu <- stats::var(u)
-  if (is.finite(vu) && vu > 0) {
-    list(esc = scl / sqrt(vu), ill = 1 / sqrt(vu) > 1e6)   # 1e6: rounding-noise amplification
+  m  <- max(abs(u))
+  un <- if (is.finite(m) && m > 0) u / m else u
+  vn <- stats::var(un)                        # O(1) unless u is (near-)constant
+  if (is.finite(m) && m > 0 && is.finite(vn) && vn > 0) {
+    sdu <- m * sqrt(vn)                       # sd(u), may underflow to 0
+    list(esc = scl / sdu, ill = !(sdu >= 1e-6),   # 1e-6: rounding-noise amplification
+         u = un * (scl / sqrt(vn)))
   } else {
-    list(esc = scl, ill = FALSE)
+    list(esc = scl, ill = FALSE, u = scl * u)
   }
 }
 

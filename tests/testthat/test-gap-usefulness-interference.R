@@ -12,6 +12,10 @@
 # haplotype switches along a strand of a DH or F2 individual are the crossovers
 # of exactly one F1 meiosis. A short second chromosome of random homozygous
 # markers (identical across parents) carries the QTN.
+# These expectations are for Poisson crossovers (Haldane / the isqg stream),
+# the default before DECISION-047; pin it for this file.
+withr::local_options(simplePHENOTYPES.interference = "poisson")
+
 usefulness_parents <- function(seed = 11) {
   nm1 <- 101L
   nm2 <- 6L

@@ -77,10 +77,11 @@
 #' @param seed optional RNG seed for the whole evaluation: one non-negative whole
 #'   number. The caller's RNG state is restored on exit; with `seed = NULL` the
 #'   ambient RNG is used (and advanced).
-#' @param interference `NULL` (default: Poisson crossovers, no interference, the
-#'   isqg stream, bit-identical to earlier versions) or `list(nu = , p = )`, the
-#'   two-pathway gamma model of crossover interference of [cross()] (see its
-#'   section "Crossover interference"). It is applied to every meiosis of every
+#' @param interference crossover interference model of [cross()] (see its
+#'   section "Crossover interference"): `NULL` (default: the option
+#'   `simplePHENOTYPES.interference` if set, else the gamma model with
+#'   `nu = 2.6`, `p = 0`), `"poisson"` (Poisson crossovers, the isqg stream, the
+#'   default before 2.0.0.9003) or `list(nu = , p = )`. It is applied to every meiosis of every
 #'   simulated family (the F1 and each progeny generation), so the family
 #'   variance, and with it `sd` and `usefulness`, reflects interference.
 #' @return a data frame with `parent1`, `parent2`, `mean`, `sd`, `usefulness`,
@@ -202,7 +203,7 @@ cross_usefulness <- function(sim, pairs = NULL,
     # mu and sigma on the wrong scale).
     prop_t <- .expand_prop(ly$prop, nt)[trait]
     comp <- .component_raw(ly, sim, trait, 1L)
-    s <- stats::sd(comp)
+    s <- .layer_sd(ly, comp, trait)
     if (!(is.finite(s) && s > 0 && prop_t > 0)) next   # realizes to zero variance
     snp <- c(snp, sim$map$snp[idx])
     eff <- c(eff, as.numeric(e) * (sqrt(prop_t) / s))

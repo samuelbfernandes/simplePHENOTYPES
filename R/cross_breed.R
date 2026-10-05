@@ -227,9 +227,11 @@ heterosis <- function(pop, breeds, qtn, a, d = 0) {
 #' @param sire_breed for `"terminal"`: the name of the terminal sire breed
 #'   (default the last breed).
 #' @param seed optional RNG seed; the caller's RNG state is restored on exit.
-#' @param interference `NULL` (default: the option `simplePHENOTYPES.interference`
-#'   if set, else Poisson crossovers) or `list(nu = , p = )`,
-#'   the crossover interference model of [cross()], applied to every generation.
+#' @param interference crossover interference model of [cross()] (see its
+#'   section "Crossover interference"): `NULL` (default: the option
+#'   `simplePHENOTYPES.interference` if set, else the gamma model with
+#'   `nu = 2.6`, `p = 0`), `"poisson"` (Poisson crossovers, the isqg stream, the
+#'   default before 2.0.0.9003) or `list(nu = , p = )`. Applied to every generation.
 #' @return The final generation as a `Population`, with attribute `history`: a
 #'   data frame with one row per generation (`generation`, `sire_breed` and the
 #'   mean expected breed fraction per breed).
