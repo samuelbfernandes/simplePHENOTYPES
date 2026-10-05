@@ -219,6 +219,19 @@ const NONE: usize = usize::MAX;
 const TIME_OVERFLOW: &str = "coalescence rates or times left double precision \
                              (non-finite): the history is too extreme";
 
+/// Deme label of a node whose time is at or above the join (one population).
+const MERGED: u8 = 2;
+
+/// Two isolated subpopulations that merge into one at `join` (ms `-I 2 n1 n2`
+/// with no migration, then `-ej join 2 1`): haplotypes `0..n_first` sample
+/// deme 0 and the rest deme 1. Both demes take the population size of the
+/// history (ms `-eN` applies to every subpopulation).
+#[derive(Clone, Copy)]
+pub struct Split {
+    pub n_first: usize,
+    pub join: f64,
+}
+
 pub struct Tree {
     n: usize,
     parent: Vec<usize>,
@@ -229,12 +242,42 @@ pub struct Tree {
     internal: Vec<(f64, usize)>,
     fen: Fenwick,
     events: u64,
+    split: Option<Split>,
+    /// Deme of each node: 0 / 1 below the join (all its leaves sample that
+    /// deme, as there is no migration), MERGED at or above it.
+    deme: Vec<u8>,
+    /// Times of the internal nodes below the join, per deme, ascending.
+    deme_times: [Vec<f64>; 2],
+    /// Number of sampled haplotypes per deme.
+    deme_n: [usize; 2],
 }
 
 impl Tree {
-    /// Kingman coalescent tree of n >= 2 samples under the demography.
-    pub fn kingman(n: usize, dem: &Demography, rng: &mut Rng) -> std::result::Result<Self, String> {
+    /// Kingman coalescent tree of n >= 2 samples under the demography, with an
+    /// optional split into two isolated demes below `split.join`.
+    pub fn kingman(
+        n: usize,
+        dem: &Demography,
+        split: Option<Split>,
+        rng: &mut Rng,
+    ) -> std::result::Result<Self, String> {
+        if let Some(sp) = split {
+            if sp.n_first == 0 || sp.n_first >= n {
+                return Err("a split needs at least one haplotype in each subpopulation".into());
+            }
+            if !(sp.join > 0.0 && sp.join <= MAX_TIME) {
+                return Err(format!("the split time must be in (0, {MAX_TIME:e}]"));
+            }
+        }
         let m = 2 * n - 1;
+        let mut deme = vec![MERGED; m];
+        let mut deme_n = [0, 0];
+        if let Some(sp) = split {
+            for (i, d) in deme.iter_mut().enumerate().take(n) {
+                *d = u8::from(i >= sp.n_first);
+            }
+            deme_n = [sp.n_first, n - sp.n_first];
+        }
         let mut tree = Tree {
             n,
             parent: vec![NONE; m],
@@ -244,11 +287,73 @@ impl Tree {
             internal: Vec::with_capacity(n - 1),
             fen: Fenwick::new(m),
             events: 0,
+            split,
+            deme,
+            deme_times: [Vec::new(), Vec::new()],
+            deme_n,
         };
-        let mut active: Vec<usize> = (0..n).collect();
         let mut u = 0.0;
         let mut ep = dem.epoch(0.0);
         let mut next_node = n;
+        let mut join_at = |tree: &mut Tree, a: usize, b: usize, u: f64, label: u8| -> usize {
+            let p = next_node;
+            next_node += 1;
+            tree.time[p] = u;
+            tree.children[p] = [a, b];
+            tree.parent[a] = p;
+            tree.parent[b] = p;
+            tree.internal.push((u, p));
+            tree.deme[p] = label;
+            if label != MERGED {
+                tree.deme_times[label as usize].push(u);
+            }
+            p
+        };
+        let mut active: Vec<usize> = match split {
+            None => (0..n).collect(),
+            Some(sp) => {
+                // isolated demes: each coalesces at k_d (k_d - 1) / lambda
+                let mut act: [Vec<usize>; 2] =
+                    [(0..sp.n_first).collect(), (sp.n_first..n).collect()];
+                loop {
+                    let k0 = act[0].len() as f64;
+                    let k1 = act[1].len() as f64;
+                    let r0 = k0 * (k0 - 1.0) / dem.sizes[ep];
+                    let r1 = k1 * (k1 - 1.0) / dem.sizes[ep];
+                    let rate = r0 + r1;
+                    let change = dem.next_change(ep);
+                    let bound = change.min(sp.join);
+                    let dt = if rate > 0.0 {
+                        if !rate.is_finite() {
+                            return Err(TIME_OVERFLOW.into());
+                        }
+                        rng.exp1() / rate
+                    } else {
+                        f64::INFINITY
+                    };
+                    if u + dt >= bound {
+                        u = bound;
+                        if change <= sp.join {
+                            ep += 1;
+                        }
+                        if sp.join <= change {
+                            break;
+                        }
+                        continue;
+                    }
+                    u += dt;
+                    let d = usize::from(rng.unif() * rate >= r0);
+                    let i = rng.below(act[d].len());
+                    let a = act[d].swap_remove(i);
+                    let j = rng.below(act[d].len());
+                    let b = act[d].swap_remove(j);
+                    let p = join_at(&mut tree, a, b, u, d as u8);
+                    act[d].push(p);
+                }
+                let [a0, a1] = act;
+                a0.into_iter().chain(a1).collect()
+            }
+        };
         while active.len() > 1 {
             let k = active.len() as f64;
             let rate = k * (k - 1.0) / dem.sizes[ep];
@@ -270,13 +375,7 @@ impl Tree {
             let a = active.swap_remove(i);
             let j = rng.below(active.len());
             let b = active.swap_remove(j);
-            let p = next_node;
-            next_node += 1;
-            tree.time[p] = u;
-            tree.children[p] = [a, b];
-            tree.parent[a] = p;
-            tree.parent[b] = p;
-            tree.internal.push((u, p));
+            let p = join_at(&mut tree, a, b, u, MERGED);
             active.push(p);
         }
         tree.root = active[0];
@@ -325,15 +424,49 @@ impl Tree {
         (c, lo + rng.unif() * (hi - lo))
     }
 
-    /// Re-coalescence time of a lineage floating from time t (SMC').
+    /// Re-coalescence time of a lineage floating from time t on branch b
+    /// (SMC'). Below a split's join it can only meet lineages of its own deme.
     fn float_time(
         &self,
         t: f64,
+        b: usize,
         dem: &Demography,
         rng: &mut Rng,
     ) -> std::result::Result<f64, String> {
         let mut u = t;
         let mut ep = dem.epoch(u);
+        if let Some(sp) = self.split {
+            if u < sp.join {
+                let d = self.deme[b] as usize;
+                let list = &self.deme_times[d];
+                let mut idx = list.partition_point(|&x| x <= u);
+                loop {
+                    // lineages of deme d at u: its samples minus its coalescences so far
+                    let k = (self.deme_n[d] - idx) as f64;
+                    let rate = 2.0 * k / dem.sizes[ep];
+                    if !(rate.is_finite() && rate > 0.0) {
+                        return Err(TIME_OVERFLOW.into());
+                    }
+                    let next_node = list.get(idx).copied().unwrap_or(f64::INFINITY);
+                    let change = dem.next_change(ep);
+                    let bound = next_node.min(change).min(sp.join);
+                    let dt = rng.exp1() / rate;
+                    if u + dt < bound {
+                        return Ok(u + dt);
+                    }
+                    u = bound;
+                    if change <= bound {
+                        ep += 1;
+                    }
+                    if next_node <= bound {
+                        idx += 1;
+                    }
+                    if sp.join <= bound {
+                        break;
+                    }
+                }
+            }
+        }
         let mut idx = self.internal.partition_point(|&(x, _)| x <= u);
         loop {
             let k = (1 + self.internal.len() - idx) as f64;
@@ -400,7 +533,23 @@ impl Tree {
     /// older than tau (2m + 1 of them for m such nodes; k = m + 1 lineages);
     /// a candidate is a lineage at tau iff its branch starts at or below tau,
     /// so rejection keeps a uniform draw with acceptance k / (2k - 1) >= 1/2.
-    fn sample_lineage_at(&self, tau: f64, rng: &mut Rng) -> usize {
+    fn sample_lineage_at(&self, tau: f64, b: usize, rng: &mut Rng) -> usize {
+        if let Some(sp) = self.split {
+            if tau < sp.join {
+                // below the join: a uniform lineage of b's deme (O(n) scan; only
+                // split runs re-coalesce below the join)
+                let d = self.deme[b];
+                let cands: Vec<usize> = (0..self.parent.len())
+                    .filter(|&c| {
+                        self.deme[c] == d
+                            && self.time[c] <= tau
+                            && self.parent[c] != NONE
+                            && tau < self.time[self.parent[c]]
+                    })
+                    .collect();
+                return cands[rng.below(cands.len())];
+            }
+        }
         let idx = self.internal.partition_point(|&(x, _)| x <= tau);
         let m = self.internal.len() - idx;
         loop {
@@ -424,8 +573,8 @@ impl Tree {
     ) -> std::result::Result<(), String> {
         self.events += 1;
         let (b, t) = self.sample_point(rng);
-        let tau = self.float_time(t, dem, rng)?;
-        let mut c = self.sample_lineage_at(tau, rng);
+        let tau = self.float_time(t, b, dem, rng)?;
+        let mut c = self.sample_lineage_at(tau, b, rng);
         let p = self.parent[b];
         if c == b {
             return Ok(()); // rejoined its own branch: the tree is unchanged
@@ -448,6 +597,12 @@ impl Tree {
             c = s; // p's lineage above its time is s's lineage once p is gone
         }
         self.remove_internal(self.time[p], p);
+        if self.deme[p] != MERGED {
+            let d = self.deme[p] as usize;
+            let old = self.time[p];
+            let i = self.deme_times[d].partition_point(|&x| x < old);
+            self.deme_times[d].remove(i);
+        }
         // regraft: p becomes the parent of b and c at tau
         let cp = self.parent[c];
         self.parent[p] = cp;
@@ -462,6 +617,15 @@ impl Tree {
         self.parent[c] = p;
         self.time[p] = tau;
         self.insert_internal(tau, p);
+        self.deme[p] = match self.split {
+            Some(sp) if tau < sp.join => self.deme[b],
+            _ => MERGED,
+        };
+        if self.deme[p] != MERGED {
+            let d = self.deme[p] as usize;
+            let i = self.deme_times[d].partition_point(|&x| x < tau);
+            self.deme_times[d].insert(i, tau);
+        }
         for node in [b, c, s, p] {
             self.refresh_len(node);
         }
@@ -522,11 +686,12 @@ pub fn simulate_chromosome(
     theta: f64,
     rho: f64,
     dem: &Demography,
+    split: Option<Split>,
     keep: usize,
     seed: u64,
 ) -> std::result::Result<Sites, String> {
     let mut rng = Rng::new(seed);
-    let mut tree = Tree::kingman(n, dem, &mut rng)?;
+    let mut tree = Tree::kingman(n, dem, split, &mut rng)?;
     let first_tmrca = tree.tmrca();
     let first_length = tree.total_length();
     let mut positions = Vec::new();
@@ -596,8 +761,11 @@ pub fn simulate_chromosome(
 /// integer vector of length n_sites * n_hap, sites x haplotypes column-major
 /// (1 = derived allele); `n_total` the number of segregating sites before
 /// subsetting; `tmrca` and `length` of the tree at position 0, `tmrca_end`
-/// of the tree at position 1.
+/// of the tree at position 1. `split_n_first` > 0 splits the sample: the
+/// first `split_n_first` haplotypes in one subpopulation, the rest in another,
+/// isolated until they merge at `split_time` (4 N0 units; ms -I 2 / -ej).
 /// @noRd
+#[allow(clippy::too_many_arguments)]
 #[extendr]
 pub fn coalescent_chromosome_core(
     n_hap: i32,
@@ -607,6 +775,8 @@ pub fn coalescent_chromosome_core(
     history_sizes: Vec<f64>,
     seg_sites: i32,
     seed: f64,
+    split_n_first: i32,
+    split_time: f64,
 ) -> std::result::Result<List, String> {
     if n_hap < 2 {
         return Err("n_hap must be at least 2".into());
@@ -622,7 +792,15 @@ pub fn coalescent_chromosome_core(
     }
     let dem = Demography::new(&history_times, &history_sizes)?;
     let n = n_hap as usize;
-    let sites = simulate_chromosome(n, theta, rho, &dem, seg_sites as usize, seed as u64)?;
+    let split = if split_n_first > 0 {
+        Some(Split {
+            n_first: split_n_first as usize,
+            join: split_time,
+        })
+    } else {
+        None
+    };
+    let sites = simulate_chromosome(n, theta, rho, &dem, split, seg_sites as usize, seed as u64)?;
     let s = sites.positions.len();
     let mut hap = vec![0i32; s * n];
     for (i, bits) in sites.carriers.iter().enumerate() {
@@ -683,7 +861,7 @@ mod tests {
         let reps = 20_000;
         let mut rng = Rng::new(1);
         let mean: f64 = (0..reps)
-            .map(|_| Tree::kingman(n, &dem, &mut rng).unwrap().tmrca())
+            .map(|_| Tree::kingman(n, &dem, None, &mut rng).unwrap().tmrca())
             .sum::<f64>()
             / reps as f64;
         let expected = 1.0 - 1.0 / n as f64;
@@ -702,7 +880,11 @@ mod tests {
         let reps = 20_000;
         let mut rng = Rng::new(2);
         let mean: f64 = (0..reps)
-            .map(|_| Tree::kingman(n, &dem, &mut rng).unwrap().total_length())
+            .map(|_| {
+                Tree::kingman(n, &dem, None, &mut rng)
+                    .unwrap()
+                    .total_length()
+            })
             .sum::<f64>()
             / reps as f64;
         assert!((mean - harmonic(n)).abs() < 0.03, "mean {mean}");
@@ -720,7 +902,7 @@ mod tests {
         let reps = 40_000;
         let mut rng = Rng::new(3);
         let mean: f64 = (0..reps)
-            .map(|_| Tree::kingman(2, &dem, &mut rng).unwrap().tmrca())
+            .map(|_| Tree::kingman(2, &dem, None, &mut rng).unwrap().tmrca())
             .sum::<f64>()
             / reps as f64;
         assert!(
@@ -732,7 +914,7 @@ mod tests {
     /// Walk recombinations only (theta = 0) to the end of the sequence and
     /// return the tree there.
     fn tree_at_end(n: usize, rho: f64, dem: &Demography, rng: &mut Rng) -> Tree {
-        let mut tree = Tree::kingman(n, dem, rng).unwrap();
+        let mut tree = Tree::kingman(n, dem, None, rng).unwrap();
         let mut x = 0.0;
         loop {
             x += rng.exp1() / (rho * tree.total_length());
@@ -795,7 +977,7 @@ mod tests {
     fn tree_stays_consistent_through_recombination() {
         let dem = Demography::new(&[0.5], &[3.0]).unwrap();
         let mut rng = Rng::new(5);
-        let mut tree = Tree::kingman(12, &dem, &mut rng).unwrap();
+        let mut tree = Tree::kingman(12, &dem, None, &mut rng).unwrap();
         for _ in 0..5_000 {
             tree.recombine(&dem, &mut rng).unwrap();
             // every leaf reaches the root; parents are older than children
@@ -822,8 +1004,8 @@ mod tests {
     #[test]
     fn seeded_runs_reproduce() {
         let dem = Demography::new(&[], &[]).unwrap();
-        let a = simulate_chromosome(10, 20.0, 15.0, &dem, 0, 99).unwrap();
-        let b = simulate_chromosome(10, 20.0, 15.0, &dem, 0, 99).unwrap();
+        let a = simulate_chromosome(10, 20.0, 15.0, &dem, None, 0, 99).unwrap();
+        let b = simulate_chromosome(10, 20.0, 15.0, &dem, None, 0, 99).unwrap();
         assert_eq!(a.positions, b.positions);
         assert_eq!(a.carriers, b.carriers);
     }
@@ -831,7 +1013,7 @@ mod tests {
     #[test]
     fn reservoir_keeps_the_requested_number_in_order() {
         let dem = Demography::new(&[], &[]).unwrap();
-        let s = simulate_chromosome(20, 200.0, 50.0, &dem, 30, 11).unwrap();
+        let s = simulate_chromosome(20, 200.0, 50.0, &dem, None, 30, 11).unwrap();
         assert!(s.n_total > 30);
         assert_eq!(s.positions.len(), 30);
         assert!(s.positions.windows(2).all(|w| w[0] <= w[1]));
@@ -845,7 +1027,7 @@ mod tests {
     #[test]
     fn overflowing_rates_are_errors_not_hangs() {
         let dem = Demography::new(&[], &[]).unwrap();
-        assert!(simulate_chromosome(2, 1e308, 1e308, &dem, 0, 1).is_err());
+        assert!(simulate_chromosome(2, 1e308, 1e308, &dem, None, 0, 1).is_err());
     }
 
     #[test]
@@ -862,12 +1044,12 @@ mod tests {
         // the edges of the range still give finite trees for every seed
         let dem = Demography::new(&[1e-300], &[1e9]).unwrap();
         for seed in 0..200 {
-            let s = simulate_chromosome(4, 0.0, 0.0, &dem, 0, seed).unwrap();
+            let s = simulate_chromosome(4, 0.0, 0.0, &dem, None, 0, seed).unwrap();
             assert!(s.first_tmrca.is_finite() && s.first_tmrca > 0.0);
         }
         let dem = Demography::new(&[1e-300], &[1e-9]).unwrap();
         for seed in 0..200 {
-            let s = simulate_chromosome(4, 0.0, 0.0, &dem, 0, seed).unwrap();
+            let s = simulate_chromosome(4, 0.0, 0.0, &dem, None, 0, seed).unwrap();
             assert!(s.first_tmrca > 1e-300);
         }
     }
@@ -876,7 +1058,7 @@ mod tests {
     fn lineage_sampler_is_uniform_over_the_lineages_at_tau() {
         let dem = Demography::new(&[], &[]).unwrap();
         let mut rng = Rng::new(21);
-        let tree = Tree::kingman(9, &dem, &mut rng).unwrap();
+        let tree = Tree::kingman(9, &dem, None, &mut rng).unwrap();
         for &tau in &[
             1e-6,
             0.05,
@@ -889,7 +1071,7 @@ mod tests {
             let draws = 60_000;
             let mut counts = vec![0usize; tree.parent.len()];
             for _ in 0..draws {
-                let c = tree.sample_lineage_at(tau, &mut rng);
+                let c = tree.sample_lineage_at(tau, 0, &mut rng);
                 assert!(crossing.contains(&c));
                 counts[c] += 1;
             }
@@ -913,7 +1095,7 @@ mod tests {
         let mut rng = Rng::new(31);
         let (mut sx, mut sy, mut sxx, mut syy, mut sxy) = (0.0, 0.0, 0.0, 0.0, 0.0);
         for _ in 0..reps {
-            let mut tree = Tree::kingman(2, &dem, &mut rng).unwrap();
+            let mut tree = Tree::kingman(2, &dem, None, &mut rng).unwrap();
             let a = tree.tmrca();
             let mut x = 0.0;
             loop {
@@ -938,5 +1120,152 @@ mod tests {
         let se = (1.0 - corr * corr) / r.sqrt();
         assert!(corr > smc + 4.0 * se, "corr {corr} vs SMC {smc}");
         assert!(corr < arg + 3.0 * se, "corr {corr} vs ARG {arg}");
+    }
+
+    fn check_split_invariants(tree: &Tree) {
+        let sp = tree.split.unwrap();
+        for v in 0..tree.parent.len() {
+            if v < tree.n {
+                assert_eq!(tree.deme[v], u8::from(v >= sp.n_first));
+            } else if tree.time[v] < sp.join {
+                let [a, b] = tree.children[v];
+                assert!(tree.deme[v] < MERGED);
+                assert_eq!(tree.deme[a], tree.deme[v]);
+                assert_eq!(tree.deme[b], tree.deme[v]);
+            } else {
+                assert_eq!(tree.deme[v], MERGED);
+            }
+        }
+        for d in 0..2 {
+            let mut want: Vec<f64> = (tree.n..tree.parent.len())
+                .filter(|&v| tree.deme[v] == d as u8)
+                .map(|v| tree.time[v])
+                .collect();
+            want.sort_by(f64::total_cmp);
+            assert_eq!(tree.deme_times[d], want);
+        }
+        assert!(tree.tmrca() >= sp.join);
+    }
+
+    #[test]
+    fn split_keeps_demes_isolated_until_the_join() {
+        let dem = Demography::new(&[0.4], &[2.0]).unwrap();
+        let split = Some(Split {
+            n_first: 5,
+            join: 0.3,
+        });
+        let mut rng = Rng::new(41);
+        let mut tree = Tree::kingman(11, &dem, split, &mut rng).unwrap();
+        check_split_invariants(&tree);
+        for _ in 0..5_000 {
+            tree.recombine(&dem, &mut rng).unwrap();
+            check_split_invariants(&tree);
+        }
+    }
+
+    #[test]
+    fn between_deme_pair_tmrca_is_join_plus_half() {
+        // one haplotype per deme: no coalescence before the join, then rate 2
+        // at constant size, so E[T] = join + 1/2 -- at position 0 and, after
+        // recombination along the sequence, at position 1 too.
+        let dem = Demography::new(&[], &[]).unwrap();
+        let join = 0.7;
+        let split = Some(Split { n_first: 1, join });
+        let reps = 40_000;
+        let mut rng = Rng::new(51);
+        let (mut a, mut b) = (0.0, 0.0);
+        for _ in 0..reps {
+            let mut tree = Tree::kingman(2, &dem, split, &mut rng).unwrap();
+            a += tree.tmrca();
+            let mut x = 0.0;
+            loop {
+                x += rng.exp1() / (5.0 * tree.total_length());
+                if x >= 1.0 {
+                    break;
+                }
+                tree.recombine(&dem, &mut rng).unwrap();
+            }
+            b += tree.tmrca();
+        }
+        // sd of T = 1/2; 5 standard errors
+        let tol = 5.0 * 0.5 / (reps as f64).sqrt();
+        assert!(
+            (a / reps as f64 - (join + 0.5)).abs() < tol,
+            "start {}",
+            a / reps as f64
+        );
+        assert!(
+            (b / reps as f64 - (join + 0.5)).abs() < tol,
+            "end {}",
+            b / reps as f64
+        );
+    }
+
+    #[test]
+    fn within_deme_sample_before_a_late_join_is_kingman() {
+        // all but one haplotype in deme 0 and a join far in the past: the deme-0
+        // subtree is Kingman, E[T_MRCA of deme 0] = 1 - 1/n0, and the tree root
+        // sits above the join
+        let dem = Demography::new(&[], &[]).unwrap();
+        let n0 = 6;
+        let split = Some(Split {
+            n_first: n0,
+            join: 50.0,
+        });
+        let reps = 20_000;
+        let mut rng = Rng::new(61);
+        let mut acc = 0.0;
+        for _ in 0..reps {
+            let tree = Tree::kingman(n0 + 1, &dem, split, &mut rng).unwrap();
+            acc += tree.deme_times[0].last().copied().unwrap();
+        }
+        let mean = acc / reps as f64;
+        assert!((mean - (1.0 - 1.0 / n0 as f64)).abs() < 0.02, "mean {mean}");
+    }
+
+    #[test]
+    fn split_inputs_are_validated() {
+        let dem = Demography::new(&[], &[]).unwrap();
+        let mut rng = Rng::new(1);
+        assert!(Tree::kingman(
+            4,
+            &dem,
+            Some(Split {
+                n_first: 0,
+                join: 1.0
+            }),
+            &mut rng
+        )
+        .is_err());
+        assert!(Tree::kingman(
+            4,
+            &dem,
+            Some(Split {
+                n_first: 4,
+                join: 1.0
+            }),
+            &mut rng
+        )
+        .is_err());
+        assert!(Tree::kingman(
+            4,
+            &dem,
+            Some(Split {
+                n_first: 2,
+                join: 0.0
+            }),
+            &mut rng
+        )
+        .is_err());
+        assert!(Tree::kingman(
+            4,
+            &dem,
+            Some(Split {
+                n_first: 2,
+                join: f64::NAN
+            }),
+            &mut rng
+        )
+        .is_err());
     }
 }

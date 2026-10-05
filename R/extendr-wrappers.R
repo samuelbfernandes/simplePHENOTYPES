@@ -136,9 +136,11 @@ stable_hash_core <- function(x) .Call(wrap__stable_hash_core, x)
 #' integer vector of length n_sites * n_hap, sites x haplotypes column-major
 #' (1 = derived allele); `n_total` the number of segregating sites before
 #' subsetting; `tmrca` and `length` of the tree at position 0, `tmrca_end` of
-#' the tree at position 1.
+#' the tree at position 1. `split_n_first` > 0 puts the first `split_n_first`
+#' haplotypes in one subpopulation and the rest in another, isolated until
+#' `split_time` (4 N0 units; ms -I 2 / -ej).
 #' @noRd
-coalescent_chromosome_core <- function(n_hap, theta, rho, history_times, history_sizes, seg_sites, seed) .unwrap_extendr(.Call(wrap__coalescent_chromosome_core, n_hap, theta, rho, history_times, history_sizes, seg_sites, seed), "coalescent_chromosome_core")
+coalescent_chromosome_core <- function(n_hap, theta, rho, history_times, history_sizes, seg_sites, seed, split_n_first, split_time) .unwrap_extendr(.Call(wrap__coalescent_chromosome_core, n_hap, theta, rho, history_times, history_sizes, seg_sites, seed, split_n_first, split_time), "coalescent_chromosome_core")
 
 
 

@@ -6,6 +6,16 @@
   marker subset or have missing values at non-causal loci); `print.Population()` ignores unused
   chromosome factor levels instead of printing a `-Inf` map span with warnings.
 
+* `founders_coalescent()` (breedingDesigner SPEC-0020 item 9, DECISION-048): founders with historical
+  linkage disequilibrium simulated natively, so a breeding run does not need AlphaSimR's `runMacs()`. A
+  sequential Markov coalescent (SMC', the model AlphaSimR runs: its MaCS keeps a one-base history window)
+  in Rust under a piecewise-constant size history, infinite-sites mutation, an optional split into two
+  isolated subpopulations, inbred or outbred founders, a linear genetic map, and the `runMacs()` GENERIC /
+  MAIZE / WHEAT / CATTLE presets; returns a `Population`. Reproducible under `set.seed()` / `seed` (it has
+  its own seeded generator, the one exception to drawing every random number in R). Checked against the
+  neutral-coalescent expectations (Watterson's E[S], the SFS theta/i, TMRCA under size changes and splits,
+  the SMC' two-locus correlation) and against `runMacs()` (`dev/parity-coalescent-alphasimr.R`).
+
 * G x E on the fixed scale (breedingDesigner SPEC-0020 item 4, DECISION-047): new `gxe_value()` scores
   each individual's genotype-by-environment slope, and `phenotype_value()` gains `gxe`, `gxe_intercept`,
   `env` and `var_env`, giving `y = g + s * qnorm(env, sd = sqrt(var_env)) + e` -- AlphaSimR's `addTraitAG()`
@@ -155,7 +165,7 @@ otherwise.
 
 Items 1, 2, 3, 5, 6, 7 and 8 of the breedingDesigner engine-request list. All new
 arguments are appended with defaults that keep today's output and random stream.
-G x E traits (item 4) followed in 2026-10 (fixed scale, DECISION-047); native coalescent founders (item 9) are not implemented.
+G x E traits (item 4) followed in 2026-10 (fixed scale, DECISION-047) and native coalescent founders (item 9, `founders_coalescent()`, DECISION-048).
 
 * `simulate_phenotype()` no longer deparses the whole genotype object to name it: a
   large inline `geno` (e.g. `do.call(simulate_phenotype, list(geno = pop, ...))`) used

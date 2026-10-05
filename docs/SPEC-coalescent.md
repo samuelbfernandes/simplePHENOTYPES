@@ -110,6 +110,15 @@ references below are not yet page-verified.
   1.96 of 14 statistics; rerun after Codex found the script's per-replicate `set.seed()` made the
   replicates dependent, which is fixed: one seed per run).
 
+- **Phases (c) and (d) 2026-10-04.** `founders_coalescent()` exported (API in section 2 except
+  that `ne` is the preset's and the `history` time / size bounds of phase (a) apply; `pool` and
+  `bp` added). Split implemented in the Rust core (deme labels; per-deme sorted node times below the
+  join; SMC' re-coalescence restricted to the lineage's deme below the join). Gates: split
+  invariants through 5000 recombinations; between-deme pair E[T] = J + 1/2 at both ends of a
+  recombining sequence; deme-0 subtree Kingman below a late join; between-minus-within pairwise
+  differences = 2 theta J. BD scale (debug build): 10000 inbred WHEAT founders x 14000 markers on
+  10 chromosomes in 42 s, about half of it `population_from_haplotypes()` (separate follow-up).
+
 ## 7. Size and plan
 
 XL. Phases: (a) Rust SMC' core + PRNG + gates 1 and 3; (b) recombination gate 2 and the MaCS

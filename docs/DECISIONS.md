@@ -1977,6 +1977,14 @@ committed (`ea0fa5d`); phase (b) adds the rejection re-coalescence sampler (O(lo
 correlation gate (Wilton et al. 2015) and cross-engine evidence against `runMacs()`
 (`dev/parity-coalescent-alphasimr.R`, independent replicates, all |z| < 2).
 
+**Addendum 2026-10-04 (phases c-d):** exported `founders_coalescent()`: the `runMacs()` presets read
+from the AlphaSimR 2.1.0 source (GENERIC theta 1000 / rho 400 / 1 M; MAIZE 1000 / 800 / 2 M; WHEAT
+320 / 288 / 1.43 M; CATTLE from its per-bp rates and Ne 90), `split` as two isolated demes joined at
+`split / (4 Ne) + 1e-6` (ms `-I 2` / `-ej`, as `runMacs()`), `inbred` = one haplotype twice, map
+linear and rebased to 0 cM at the first site, derived allele = counted allele, too few sites = error
+(as `runMacs()`), seeds per chromosome drawn in R. Gates: split invariants under recombination,
+between-deme pair E[T] = J + 1/2, between-minus-within diversity = 2 theta J.
+
 ---
 
 ## Note: testthat edition 3 (2026-10)
@@ -2038,4 +2046,4 @@ asserted with nested `expect_warning()`. `test-v130-parity.R` and the RDS refere
 | 045 | Residual correlation between traits: `resid_cor = NULL \| scalar \| matrix` on `simulate_phenotype()` / `complex_phenotypes()` (genetic stays `cor`); unit draws under the unchanged sub-seeds mixed through `chol(R)` and re-standardized per trait, so each trait's residual variance, realized h2 and `var_budget` are unchanged; `NULL` bit-identical; sample correlation = target up to `1/sqrt(n)`; vqtl dilutes it | locked (2026-10-02) |
 | 046 | `select_ind(method = "bqp", lambda, min_gain)`: Montesinos-Lopez et al. 2025 relatedness-penalized BQP selection of exactly N (weighted standardized merit minus `lambda` x'Gx on the VanRaden G; per-trait `min_gain` constraints); dependency-free deterministic solver (exact enumeration if `choose(n,N) <= 2e5`, else greedy + 1-swap local search), no RNG | locked (2026-10-02) |
 | 047 | Fixed-scale G x E: `gxe_value(x, qtn, effect, intercept)`; `phenotype_value(gxe, gxe_intercept, env, var_env)` = AlphaSimR `addTraitAG`/`calcPheno` (`y = g + s qnorm(env, sd) + e`, sd 1 when `var_env = 0`, `env = NULL` drawn by `runif` before the residual); G x E excluded from `h2` and `genetic_value`; default stream unchanged; exact AlphaSimR parity (<= 3e-15) | locked (2026-10-03) |
-| 048 | Coalescent founders: full MaCS-style SMC' core in Rust with its own xoshiro256++ PRNG seeded per chromosome from R (only exception to DECISION-006/012; founder generator is off the isqg parity path) | accepted (2026-10-03), not implemented |
+| 048 | Coalescent founders: full MaCS-style SMC' core in Rust with its own xoshiro256++ PRNG seeded per chromosome from R (only exception to DECISION-006/012; founder generator is off the isqg parity path) | implemented (2026-10-04): `founders_coalescent()` |

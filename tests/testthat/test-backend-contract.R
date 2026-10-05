@@ -6,7 +6,7 @@
 # Keep in sync with docs/BACKEND_CONTRACT.md.
 backend_contract <- c(
   # Populations & crossing
-  "as_population", "population_from_haplotypes", "haplotypes", "cross",
+  "as_population", "population_from_haplotypes", "founders_coalescent", "haplotypes", "cross",
   "selfcross", "double_haploid", "dosages", "n_individuals", "synthetic_map",
   # Phenotype grammar
   "simulate_phenotype", "additive", "dominance", "epistasis", "vqtl",
