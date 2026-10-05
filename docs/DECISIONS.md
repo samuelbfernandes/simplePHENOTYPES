@@ -2122,6 +2122,68 @@ generation on (seeded results change); `refit = TRUE` in the callback is the pre
 
 ---
 
+## DECISION-049: fixed-scale G x E (AlphaSimR `addTraitAG` semantics), SPEC-0020 item 4
+
+**Question:** breedingDesigner needs an additive-by-environment trait to reproduce Bancic et al.
+(2025) Program 4. Its cross-engine phenotyping runs on the fixed-scale accessors
+(`additive_value()` / `phenotype_value(var_e =)`), not the variance-partition grammar.
+
+**Decision:** a new export `gxe_value(x, qtn, effect, intercept = 0)` scores the G x E slope
+`s_i = intercept + sum_j dosage_ij b_j` (no rescaling), and `phenotype_value()` gains the appended
+arguments `gxe = NULL, gxe_intercept = 0, env = NULL, var_env = 0`. With `gxe`,
+`y_i = g_i + s_i w + e_i`, `w = qnorm(env, 0, sqrt(var_env))` (sd 1 when `var_env = 0`). This is
+AlphaSimR 2.1.0 `addTraitAG()` + `calcPheno()` read from source: per-locus `gxeEff` = `effect`,
+`gxeInt` = `intercept`, AlphaSimR's centred genotype `x - 1` = our dosage, `envVar` stored as 1
+when `varEnv = 0`. One covariate per call (one trial); `env = NULL` draws `runif(1)` *before* the
+residual from the same seeded stream (the `setPheno(p = NULL)` order). The G x E term is not genetic
+value: `h2` converts to `var_e` from Var(g) alone (AlphaSimR's `setPheno(h2 =)` also excludes it) and
+the `genetic_value` attribute excludes it; the result carries `gxe_value`, `env`, `env_value`.
+Without `gxe` the value and the random stream are unchanged (`env` / `var_env` / `gxe_intercept`
+alone are an error).
+
+**Evidence:** `dev/parity-gxe-alphasimr.R` (AlphaSimR is not a dependency): imported founders,
+two `addTraitAG` traits (`varEnv` 0 and 2), `p` = 0.10 / 0.50 / 0.93, `varE = 0`:
+max |AlphaSimR - simplePHENOTYPES| <= 2.7e-15; slopes <= 5.6e-16. Tests: `test-feat-gxe.R`.
+
+**Not done:** a `gxe()` layer in the variance-partition grammar (`simulate_phenotype()`); BD's
+Program 4 path does not need it. Multi-trait `corGxE` is the caller's (slopes are per trait).
+
+**Reaffirms:** DECISION-006 (draws in R), DECISION-020/021 (fixed-scale accessors).
+
+**Date:** 2026-10-03
+
+---
+
+## DECISION-050: coalescent founders (SPEC-0020 item 9) -- Rust PRNG exception to DECISION-006/012
+
+**Decision (maintainer, 2026-10-03):** build a full MaCS-style sequential Markov coalescent
+natively (`docs/SPEC-coalescent.md`), not a forward burn-in and not import-only. Because a
+coalescent draws an a-priori unknown number of random numbers, the core runs in Rust with its own
+PRNG (hand-written xoshiro256++ seeded through SplitMix64; no new crate in the vendored set). R draws
+one seed per chromosome from its own stream, so `set.seed()` / `seed =` reproduce the founders.
+
+**Scope of the exception:** only the founder generator. It has no isqg reference, so it is off the
+parity-critical path that DECISION-012 protects; every other stochastic step stays in R.
+
+**Date:** 2026-10-03 (design accepted; implementation pending)
+
+**Addendum 2026-10-04 (phase b):** no MaCS history window. AlphaSimR's bundled MaCS keeps a 1-base
+window by default and `runMacs()` never sets `-h`, so AlphaSimR runs effectively SMC'; the maintainer
+chose to match that and skip the window (a longer window remains possible later). Phase (a)
+committed (`ea0fa5d`); phase (b) adds the rejection re-coalescence sampler (O(log n) search + O(1) expected draws), the two-locus
+correlation gate (Wilton et al. 2015) and cross-engine evidence against `runMacs()`
+(`dev/parity-coalescent-alphasimr.R`, independent replicates, all |z| < 2).
+
+**Addendum 2026-10-04 (phases c-d):** exported `founders_coalescent()`: the `runMacs()` presets read
+from the AlphaSimR 2.1.0 source (GENERIC theta 1000 / rho 400 / 1 M; MAIZE 1000 / 800 / 2 M; WHEAT
+320 / 288 / 1.43 M; CATTLE from its per-bp rates and Ne 90), `split` as two isolated demes joined at
+`split / (4 Ne) + 1e-6` (ms `-I 2` / `-ej`, as `runMacs()`), `inbred` = one haplotype twice, map
+linear and rebased to 0 cM at the first site, derived allele = counted allele, too few sites = error
+(as `runMacs()`), seeds per chromosome drawn in R. Gates: split invariants under recombination,
+between-deme pair E[T] = J + 1/2, between-minus-within diversity = 2 theta J.
+
+---
+
 ## Note: testthat edition 3 (2026-10)
 
 The package declares `Config/testthat/edition: 3` (DESCRIPTION). Expectations that relied on edition 2's
@@ -2183,3 +2245,5 @@ asserted with nested `expect_warning()`. `test-v130-parity.R` and the RDS refere
 | 046 | `select_ind(method = "bqp", lambda, min_gain)`: Montesinos-Lopez et al. 2025 relatedness-penalized BQP selection of exactly N (weighted standardized merit minus `lambda` x'Gx on the paper's standardized-marker G = WW'/p; per-trait `min_gain` constraints); dependency-free deterministic solver (exact enumeration if `choose(n,N) <= 2e5`, else greedy + 1-swap local search), no RNG | locked (2026-10-02) |
 | 047 | Gamma crossover interference (`nu = 2.6`, `p = 0`, AlphaSimR's default) is the default of every function that runs meiosis; `interference = "poisson"` (argument or option) keeps the isqg stream; the validator returns `"poisson"` or `list(nu, p)` (fixed points, so forwarded values do not re-resolve); every seeded meiosis result changed (BD: +0.31 sigma_A0 gamma vs Poisson effect) | locked (2026-10-03) |
 | 048 | A `Population` carries its trait (`select_ind()` stores loci, effects, base layer center/sd, `var_e = 1 - h2`; crossing / `[` / `c()` / `mate()` pass it when shared; `population_trait()`); `simulate_phenotype(refit = NULL)` = `FALSE` for a population with a trait (reuse it: fixed genetic scale and residual variance, so h2 changes; `h2` / `n_qtn` warn, layer verbs ignored) else `TRUE` (fit to `h2`, unchanged for marker data / GWAS); additive + dominance + epistasis (epistatic loci keep their base-population centering; vqtl / transcriptome / complex store none); scheme `residual =` argument removed | locked (2026-10-03) |
+| 049 | Fixed-scale G x E: `gxe_value(x, qtn, effect, intercept)`; `phenotype_value(gxe, gxe_intercept, env, var_env)` = AlphaSimR `addTraitAG`/`calcPheno` (`y = g + s qnorm(env, sd) + e`, sd 1 when `var_env = 0`, `env = NULL` drawn by `runif` before the residual); G x E excluded from `h2` and `genetic_value`; default stream unchanged; exact AlphaSimR parity (<= 3e-15) | locked (2026-10-03) |
+| 050 | Coalescent founders: full MaCS-style SMC' core in Rust with its own xoshiro256++ PRNG seeded per chromosome from R (only exception to DECISION-006/012; founder generator is off the isqg parity path) | implemented (2026-10-04): `founders_coalescent()` |

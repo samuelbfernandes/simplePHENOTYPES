@@ -1,5 +1,6 @@
 use extendr_api::prelude::*;
 
+mod coalescent;
 mod genome;
 mod hash;
 mod meiosis;
@@ -10,4 +11,5 @@ extendr_module! {
     use numeric;
     use meiosis;
     use hash;
+    use coalescent;
 }

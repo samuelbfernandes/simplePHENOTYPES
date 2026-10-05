@@ -79,9 +79,9 @@ bancic-timing-2026-09-30.md` (one full-size DH cycle: 10,000 DH × 14,000 marker
       `v`, `p`) as an option of the meiosis core — today Poisson only. Needed for
       like-for-like comparisons with AlphaSimR's default.
       *Done 2026-09-30 (DECISION-041): `interference = NULL` on `cross`/`selfcross`/`double_haploid`/`mate`/`crossbreed`; `list(nu, p)` = two-pathway gamma model, expected chiasma count per Morgan unchanged. Codex round 5: theory passed; `nu` limited to [1, 1e6] (2026-09-30); forwarded by every function that runs meiosis (see Block 3C).*
-- [ ] 4. Additive-by-environment (G×E) trait layer (AlphaSimR `addTraitAG` semantics) — needed
+- [x] 4. Additive-by-environment (G×E) trait layer (AlphaSimR `addTraitAG` semantics) — needed
       to reproduce Bančič Program 4.
-      *Not implemented: waiting for the maintainer's instructions.*
+      *Done 2026-10-03 (DECISION-049, maintainer chose "implement now"): fixed-scale `gxe_value()` + `phenotype_value(gxe, gxe_intercept, env, var_env)`; exact AlphaSimR parity (`dev/parity-gxe-alphasimr.R`); Codex THEORY: PASS 2026-10-03 (`review-20261003-213756`). Follow-up (not needed by BD): a `gxe()` layer in the variance-partition grammar.*
 - [x] 5. Public phased-haplotype constructor (`as_population(haplotypes = …)` or
       `population_from_haplotypes()`) — breedingDesigner currently builds the AlphaSimR
       view by replacing `cis`/`trans` after `as_population()` (documented shim).
@@ -95,9 +95,9 @@ bancic-timing-2026-09-30.md` (one full-size DH cycle: 10,000 DH × 14,000 marker
 - [x] 8. `select_ind(method = "within_family")`: a per-family count (`n_per_family`) for
       unequal families (today `n` is a total apportioned proportionally).
       *Done 2026-09-30: `select_ind(method = "within_family", n_per_family = )` (one count or a vector named by family; undersized family is an error).*
-- [ ] 9. Coalescent founders (MaCS-like) natively, so a run does not need AlphaSimR for
+- [x] 9. Coalescent founders (MaCS-like) natively, so a run does not need AlphaSimR for
       historical-LD founders.
-      *Not implemented: waiting for the maintainer's instructions.*
+      *Maintainer decision 2026-10-03: build a full MaCS-style (sequential Markov) coalescent natively. Design: `docs/SPEC-coalescent.md`. Phase (a) (Rust SMC' core + PRNG + analytic gates) done, Codex theory items all PASS (review-20261004-165559); phase (b) (no MaCS window by maintainer decision -- AlphaSimR runs MaCS with a 1-base window; rejection re-coalescence sampler (O(log n) + O(1) expected draws); SMC'-vs-SMC two-locus gate; cross-engine evidence vs runMacs) done, Codex genetics PASS (review-20261004-174436; script RNG and complexity wording fixed); phases (c)-(d) done 2026-10-04: exported `founders_coalescent()` (presets, split, inbred, Population), awaiting Codex review.*
 
 <!-- AUDIT:BEGIN -->
 ## Audit findings — 2026-09-17 (from dev/audit-all.sh, run on v2.0.0)
@@ -464,8 +464,8 @@ tests). Local suite: 63 files, 5761 expectations, 0 failures; local `R CMD check
   conflict with the merged work (grammar and NEWS/SPEC changed): rebase on `master`, run the suite
   and the installed-package tests, then open its own PR.
   *Done: merged as PR #14; the worktree and branch are gone.*
-- [ ] Items **4** (G x E trait layer) and **9** (coalescent founders) in the PRIORITY list are
-  NOT implemented: waiting for the maintainer's instructions.
+- [x] Items **4** (G x E, done: DECISION-049) and **9** (coalescent founders: full MaCS-style
+  coalescent chosen 2026-10-03, see `docs/SPEC-coalescent.md`) in the PRIORITY list are decided.
 - [x] Evidence is gitignored and lives only in the audit worktree
   (`.claude/worktrees/kind-shamir-c7d1df/.tmp/`): copy `.tmp/audit-2026-09-29/` (reports,
   equation-to-code PDF) and `.tmp/codex-review*/` to a permanent folder before the worktree is

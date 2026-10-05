@@ -309,7 +309,9 @@ test_that("AUX-F1/F5: evals/run.sh --check validates the golden set without writ
   expect_identical(r$status, 0L)
   expect_true(any(grepl("check: 5/5 present mutations valid", r$out)))
   expect_identical(unname(tools::md5sum(file.path(d, targets))), unname(before))
-  expect_identical(length(list.files(tmp)), 0L)                  # its own mktemp file is removed
+  # its own mktemp file is removed (`xcrun_db` is macOS xcrun's cache, written into TMPDIR when
+  # git runs inside a sandbox that hides DARWIN_USER_TEMP_DIR; it is not the script's file)
+  expect_identical(setdiff(list.files(tmp), "xcrun_db"), character(0))
   # --check reports a drifted target (find string no longer present) with a non-zero exit
   f <- file.path(d, "R/select_ocs.R")
   orig <- readBin(f, "raw", file.size(f))

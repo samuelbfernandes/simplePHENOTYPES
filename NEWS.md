@@ -25,9 +25,29 @@
 * Pedigree keys no longer depend on the session locale: an unmarked string that is valid UTF-8 is read
   as UTF-8, and any other unmarked non-ASCII string is hashed by its raw bytes (both were reinterpreted
   through the locale, e.g. under `LC_ALL=C`). ASCII and marked strings keep their keys.
+* `phenotype_value(h2 =, ref =)` with numeric `qtn` now scores `ref` at the
+  same markers by name, so a `ref` with another marker order no longer silently miscalibrates `var_e`
+  (row indices are still used when either side lacks unique marker names; by name, `ref` may be a
+  marker subset or have missing values at non-causal loci); `print.Population()` ignores unused
+  chromosome factor levels instead of printing a `-Inf` map span with warnings.
 
 ## New features (October 2026, latest)
 
+* `founders_coalescent()` (breedingDesigner SPEC-0020 item 9, DECISION-050): founders with historical
+  linkage disequilibrium simulated natively, so a breeding run does not need AlphaSimR's `runMacs()`. A
+  sequential Markov coalescent (SMC', the model AlphaSimR runs: its MaCS keeps a one-base history window)
+  in Rust under a piecewise-constant size history, infinite-sites mutation, an optional split into two
+  isolated subpopulations, inbred or outbred founders, a linear genetic map, and the `runMacs()` GENERIC /
+  MAIZE / WHEAT / CATTLE presets; returns a `Population`. Reproducible under `set.seed()` / `seed` (it has
+  its own seeded generator, the one exception to drawing every random number in R). Checked against the
+  neutral-coalescent expectations (Watterson's E[S], the SFS theta/i, TMRCA under size changes and splits,
+  the SMC' two-locus correlation) and against `runMacs()` (`dev/parity-coalescent-alphasimr.R`).
+* G x E on the fixed scale (breedingDesigner SPEC-0020 item 4, DECISION-049): new `gxe_value()` scores
+  each individual's genotype-by-environment slope, and `phenotype_value()` gains `gxe`, `gxe_intercept`,
+  `env` and `var_env`, giving `y = g + s * qnorm(env, sd = sqrt(var_env)) + e` -- AlphaSimR's `addTraitAG()`
+  trait phenotyped with `setPheno(p = env)`, matching it to 3e-15 on imported founders
+  (`dev/parity-gxe-alphasimr.R`). `env = NULL` draws the environment; the G x E term is excluded from
+  `h2` and the `genetic_value` attribute. Without `gxe` nothing changes.
 * `liability_threshold(sim, prop, trait)`: ordered categorical phenotypes under the liability-threshold model
   (Wright 1934; Falconer 1965). The continuous phenotype is the liability, cut at `qnorm(cumsum(prop))` on its
   standardized scale; the liability is kept in `sim$liability`, and the variance budget, realized H2 and
@@ -215,7 +235,7 @@ otherwise.
 
 Items 1, 2, 3, 5, 6, 7 and 8 of the breedingDesigner engine-request list. All new
 arguments are appended with defaults that keep today's output and random stream.
-G x E traits (item 4) and native coalescent founders (item 9) are not implemented.
+G x E traits (item 4) followed in 2026-10 (fixed scale, DECISION-049) and native coalescent founders (item 9, `founders_coalescent()`, DECISION-050).
 
 * `simulate_phenotype()` no longer deparses the whole genotype object to name it: a
   large inline `geno` (e.g. `do.call(simulate_phenotype, list(geno = pop, ...))`) used

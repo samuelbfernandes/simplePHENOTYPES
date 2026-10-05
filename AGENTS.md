@@ -20,7 +20,8 @@
    contractual. It is **frozen legacy** (bugfix-only, `lifecycle::badge("superseded")`),
    NOT a wrapper over the new grammar (DECISION-008).
 4. **Rust is surgical, not a rewrite.** Only deterministic, profiled bottlenecks and
-   C++-origin (isqg) code move to Rust. **Stochastic steps stay in R** (see Rust Boundary).
+   C++-origin (isqg) code move to Rust. **Stochastic steps stay in R** (see Rust Boundary),
+   except the coalescent founder generator, whose Rust PRNG is seeded from R (DECISION-050).
 5. **NEVER push code that fails `devtools::test()`.** Grammar owes v1 no bit-parity
    (DECISION-009); the isqg port owes **exact** parity (DECISION-012).
 6. **Push to a remote ONLY with the maintainer's explicit OK**; never force-push

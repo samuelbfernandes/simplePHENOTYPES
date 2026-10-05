@@ -822,6 +822,58 @@ genotypic_value <- function(x, qtn, a, d) {
   stats::setNames(as.numeric(gv), colnames(dose))
 }
 
+#' Genotype-by-environment slope on a fixed, cross-generational scale
+#'
+#' Scores each individual's **G x E slope** (its response to the environmental
+#' covariate) on a frozen architecture:
+#' \deqn{s_i = \mathrm{intercept} + \sum_j \mathrm{dosage}_{ij}\,b_j,}
+#' with the -1/0/1 dosages and **no per-population centring or rescaling**, like
+#' [additive_value()]. This is the additive-by-environment trait of AlphaSimR
+#' (`SimParam$addTraitAG()`): its per-locus `gxeEff` are the `effect` here and its
+#' `gxeInt` the `intercept`, and AlphaSimR's centred genotype `x - 1` (`x` = 0/1/2
+#' copies of the counted allele) is this package's dosage. [phenotype_value()]
+#' adds `s_i * w` to the phenotype, where `w` is the environmental covariate of the
+#' trial (see its `gxe` / `env` / `var_env` arguments).
+#'
+#' @inheritParams additive_value
+#' @param effect a finite numeric vector of per-locus G x E effects (slope
+#'   effects), one per entry of `qtn` and in the same order.
+#' @param intercept a single finite number added to every slope (AlphaSimR
+#'   `gxeInt`). AlphaSimR sets it so the mean slope of the founder population is
+#'   `1` when the trait has an environmental variance (`varEnv > 0`, so the
+#'   covariate is also a main effect of the environment) and `0` otherwise.
+#' @return a named numeric vector of slopes, one per individual.
+#' @seealso [phenotype_value()], [additive_value()].
+#' @references
+#'   Gaynor RC, Gorjanc G, Hickey JM (2021) AlphaSimR: an R package for
+#'   breeding program simulations. \emph{G3} 11(2):jkaa017.
+#'   \doi{10.1093/g3journal/jkaa017} (the additive-by-environment trait
+#'   additive-by-environment trait). The exact slope scaling and the phenotype
+#'   formula reproduced here are those of the AlphaSimR 2.1.0 source
+#'   (`SimParam$addTraitAG()`, `calcPheno()`), not equations printed in the paper.
+#' @export
+#' @examples
+#' data("SNP55K_maize282_maf04")
+#' pop <- as_population(SNP55K_maize282_maf04, individuals = 1:20)
+#' s <- gxe_value(pop, qtn = c(1, 5, 9), effect = c(0.2, -0.1, 0.3))
+#' head(s)
+gxe_value <- function(x, qtn, effect, intercept = 0) {
+  r <- .resolve_geno_qtn(x, qtn, "gxe_value")
+  idx <- r$idx
+  if (!is.numeric(effect) || length(effect) != length(idx) ||
+      any(!is.finite(effect))) {
+    stop("gxe_value(): `effect` must be a finite numeric vector with one ",
+         "value per locus in `qtn` (", length(idx), ").", call. = FALSE)
+  }
+  if (!is.numeric(intercept) || length(intercept) != 1L ||
+      !is.finite(intercept)) {
+    stop("gxe_value(): `intercept` must be a single finite number.",
+         call. = FALSE)
+  }
+  s <- colSums(r$dose[idx, , drop = FALSE] * effect) + intercept
+  stats::setNames(as.numeric(s), colnames(r$dose))
+}
+
 #' Phenotype on a fixed, cross-generational scale
 #'
 #' The phenotypic counterpart of [additive_value()]: each individual's phenotype is
@@ -876,9 +928,33 @@ genotypic_value <- function(x, qtn, a, d) {
 #'   [genotypic_value()] (with `effect` as its `a`), and `h2` is the heritability
 #'   of that total value in `ref` -- a broad-sense heritability. Default `NULL`:
 #'   additive only.
+#' @param gxe optional per-locus genotype-by-environment (slope) effects, one per
+#'   entry of `qtn` and in the same order (AlphaSimR `addTraitAG()`'s `gxeEff`).
+#'   The phenotype then follows AlphaSimR's `setPheno()` for that trait:
+#'   \deqn{y_i = g_i + s_i\,w + e_i,\qquad w = \Phi^{-1}(\mathrm{env};\,0,\,
+#'   \sigma_w),}
+#'   where \eqn{s_i} is [gxe_value()]`(x, qtn, gxe, gxe_intercept)` and
+#'   \eqn{\sigma_w = \sqrt{\mathrm{var\_env}}}, or 1 when `var_env = 0`. One
+#'   covariate `w` is shared by every individual scored in the call (one trial).
+#'   The G x E term is not part of the genetic value: `h2` converts to `var_e`
+#'   from the genetic variance alone (as AlphaSimR's `setPheno(h2 =)` does from
+#'   `varA` and `varG`), and the `genetic_value` attribute excludes it. Default
+#'   `NULL`: no G x E, and the result and random stream are unchanged.
+#' @param gxe_intercept the slope intercept (AlphaSimR `gxeInt`; see
+#'   [gxe_value()]). Only with `gxe`.
+#' @param env the trial's environment as a probability in `(0, 1)`: the quantile
+#'   of the covariate (AlphaSimR `setPheno(p =)`). `NULL` (default) draws it
+#'   uniformly, before the residual, from the same seeded stream. Only with `gxe`.
+#' @param var_env the variance of the environmental covariate (AlphaSimR
+#'   `varEnv`). With `var_env > 0` and a mean slope of 1 (`gxe_intercept` set as
+#'   AlphaSimR does), `w` is also a main effect of the environment shared by all
+#'   individuals; with `0` (the AlphaSimR default) the covariate has standard
+#'   deviation 1. Only with `gxe`.
 #' @return a named numeric vector of phenotypes, one per individual, with
 #'   attributes `var_e` (the fixed residual variance used) and `genetic_value` (the
-#'   fixed additive -- or, with `d`, total genotypic -- values).
+#'   fixed additive -- or, with `d`, total genotypic -- values). With `gxe`, also
+#'   `gxe_value` (the slopes \eqn{s_i}), `env` (the quantile used) and `env_value`
+#'   (the covariate \eqn{w}).
 #' @seealso [additive_value()], [genetic_values()], [select_ind()],
 #'   [simulate_phenotype()].
 #' @references
@@ -886,7 +962,11 @@ genotypic_value <- function(x, qtn, a, d) {
 #'   4th ed. Longman, Harlow (heritability \eqn{h^2 = V_A / (V_A + V_E)}; with `d`,
 #'   the broad-sense \eqn{H^2 = V_G / (V_G + V_E)}); Lynch M,
 #'   Walsh B (1998) \emph{Genetics and Analysis of Quantitative Traits}. Sinauer,
-#'   Sunderland, MA.
+#'   Sunderland, MA. Gaynor RC, Gorjanc G, Hickey JM (2021) AlphaSimR: an R
+#'   package for breeding program simulations. \emph{G3} 11(2):jkaa017.
+#'   \doi{10.1093/g3journal/jkaa017} (the additive-by-environment trait; the
+#'   exact formula of `gxe` follows the AlphaSimR 2.1.0 source of
+#'   `SimParam$addTraitAG()` and `calcPheno()`).
 #' @export
 #' @examples
 #' data("SNP55K_maize282_maf04")
@@ -900,8 +980,30 @@ genotypic_value <- function(x, qtn, a, d) {
 #' # phenotype_value(descendants, qtn = c(1, 5, 9), effect = c(0.5, -1, 2),
 #' #                 var_e = ve, seed = 2)
 #' head(y0)
+#'
+#' # The same trait with G x E slopes in a low (env = 0.1) and a high
+#' # (env = 0.9) value of the environmental covariate. With the defaults the
+#' # covariate has no main effect (mean slope near 0): only the ranking changes.
+#' b <- c(0.2, -0.1, 0.3)
+#' y_low  <- phenotype_value(pop, qtn = c(1, 5, 9), effect = c(0.5, -1, 2),
+#'                           var_e = ve, gxe = b, env = 0.1, seed = 3)
+#' y_high <- phenotype_value(pop, qtn = c(1, 5, 9), effect = c(0.5, -1, 2),
+#'                           var_e = ve, gxe = b, env = 0.9, seed = 3)
+#' cor(y_low, y_high)
+#'
+#' # A main effect of the environment as well (AlphaSimR varEnv > 0): set the
+#' # mean slope of the base population to 1, so env = 0.9 is the better trial.
+#' int <- 1 - mean(gxe_value(pop, qtn = c(1, 5, 9), effect = b))
+#' y_poor <- phenotype_value(pop, qtn = c(1, 5, 9), effect = c(0.5, -1, 2),
+#'                           var_e = ve, gxe = b, gxe_intercept = int,
+#'                           env = 0.1, var_env = 2, seed = 3)
+#' y_good <- phenotype_value(pop, qtn = c(1, 5, 9), effect = c(0.5, -1, 2),
+#'                           var_e = ve, gxe = b, gxe_intercept = int,
+#'                           env = 0.9, var_env = 2, seed = 3)
+#' mean(y_good) - mean(y_poor)   # 2 * qnorm(0.9, sd = sqrt(2)) with equal residuals
 phenotype_value <- function(x, qtn, effect, h2 = NULL, var_e = NULL,
-                            ref = NULL, seed = NULL, d = NULL) {
+                            ref = NULL, seed = NULL, d = NULL, gxe = NULL,
+                            gxe_intercept = 0, env = NULL, var_env = 0) {
   has_h2 <- !is.null(h2)
   has_ve <- !is.null(var_e)
   if (has_h2 == has_ve) {
@@ -934,6 +1036,21 @@ phenotype_value <- function(x, qtn, effect, h2 = NULL, var_e = NULL,
       stop("phenotype_value(): `h2` must be a single number in (0, 1].",
            call. = FALSE)
     }
+    if (!is.null(ref) && is.numeric(qtn)) {
+      # Numeric `qtn` are row indices of `x`; score `ref` at the same *markers*
+      # (by name) so a ref with another marker order is not silently a different
+      # architecture. Without marker names on both, indices are all there is.
+      # `ref` is not index-validated here: by name it may be a marker subset or
+      # carry missing values at loci that are not causal.
+      # Names identify a marker only when they are unique on both sides.
+      rx <- .resolve_geno_qtn(x, qtn, "phenotype_value")
+      x_names <- rownames(rx$dose)
+      ref_names <- .geno_marker_names(ref)
+      if (!is.null(x_names) && !anyNA(x_names) && !anyDuplicated(x_names) &&
+          !is.null(ref_names) && !anyNA(ref_names) && !anyDuplicated(ref_names)) {
+        qtn <- x_names[rx$idx]
+      }
+    }
     ref_g <- if (is.null(ref)) g else gv_of(ref)
     vg_ref <- stats::var(ref_g)
     if (!is.finite(vg_ref) || vg_ref <= 0) {
@@ -948,12 +1065,21 @@ phenotype_value <- function(x, qtn, effect, h2 = NULL, var_e = NULL,
            "directly.", call. = FALSE)
     }
   }
+  # G x E (AlphaSimR addTraitAG / calcPheno): slope s_i on the fixed scale, times
+  # the trial's covariate w = qnorm(env, sd = sqrt(var_env)), with sd 1 when
+  # var_env = 0 (AlphaSimR then stores envVar = 1). Validated before any draw.
+  gx <- .gxe_args(x, qtn, gxe, gxe_intercept, env, var_env)
   # Independent residual e ~ N(0, ve): var_e is the fixed variance *parameter*, so
   # e is drawn (not sample-rescaled) -- it is genuinely normal, works for n = 1,
   # and is uncorrelated with g in expectation. The seed draw restores the RNG.
+  # A missing `env` is drawn first, as setPheno(p = NULL) draws runif(1) before
+  # the residual; without `gxe` the stream is unchanged.
   n <- length(g)
-  draw <- function() stats::rnorm(n, mean = 0, sd = sqrt(ve))
-  e <- if (is.null(seed)) {
+  draw <- function() {
+    p <- if (!is.null(gx) && is.null(gx$env)) stats::runif(1) else gx$env
+    list(p = p, e = stats::rnorm(n, mean = 0, sd = sqrt(ve)))
+  }
+  dr <- if (is.null(seed)) {
     draw()
   } else {
     old <- .Random.seed_safe()
@@ -961,10 +1087,79 @@ phenotype_value <- function(x, qtn, effect, h2 = NULL, var_e = NULL,
     on.exit(.restore_seed(old))
     draw()
   }
-  y <- stats::setNames(as.numeric(g + e), names(g))
+  y <- as.numeric(g + dr$e)
+  if (!is.null(gx)) {
+    w <- stats::qnorm(dr$p, sd = sqrt(gx$var_env))
+    y <- y + gx$slope * w
+  }
+  y <- stats::setNames(y, names(g))
   attr(y, "var_e") <- ve
   attr(y, "genetic_value") <- g
+  if (!is.null(gx)) {
+    attr(y, "gxe_value") <- gx$slope
+    attr(y, "env") <- dr$p
+    attr(y, "env_value") <- w
+  }
   y
+}
+
+#' Marker names of a genotype argument, without validating any locus
+#'
+#' NULL when they are unknown (an unnamed dosage matrix or another object; the
+#' scorer then reports the bad argument itself).
+#' @keywords internal
+#' @noRd
+.geno_marker_names <- function(x) {
+  if (inherits(x, "Population")) {
+    return(x$map$snp)
+  }
+  if (inherits(x, "phenotype_sim") && inherits(x$geno, "Population")) {
+    return(x$geno$map$snp)
+  }
+  if (is.matrix(x)) {
+    return(rownames(x))
+  }
+  NULL
+}
+
+#' Validate phenotype_value()'s G x E arguments and score the slopes
+#'
+#' NULL when `gxe` is NULL (then `env` / `var_env` / `gxe_intercept` must be at
+#' their defaults). `var_env` 0 means a covariate of standard deviation 1 with
+#' no environmental main effect beyond the slopes (AlphaSimR stores envVar = 1).
+#' @keywords internal
+#' @noRd
+.gxe_args <- function(x, qtn, gxe, gxe_intercept, env, var_env) {
+  if (is.null(gxe)) {
+    if (!is.null(env) || !identical(var_env, 0) ||
+        !identical(gxe_intercept, 0)) {
+      stop("phenotype_value(): `env`, `var_env` and `gxe_intercept` describe ",
+           "the G x E term; give the per-locus G x E effects in `gxe` to use ",
+           "them.", call. = FALSE)
+    }
+    return(NULL)
+  }
+  if (!is.null(env) && (!is.numeric(env) || length(env) != 1L ||
+                        !is.finite(env) || env <= 0 || env >= 1)) {
+    stop("phenotype_value(): `env` must be a single probability in (0, 1) ",
+         "(the quantile of the environmental covariate, AlphaSimR ",
+         "`setPheno(p =)`), or NULL to draw it.", call. = FALSE)
+  }
+  if (!is.numeric(var_env) || length(var_env) != 1L || !is.finite(var_env) ||
+      var_env < 0) {
+    stop("phenotype_value(): `var_env` must be a single finite, non-negative ",
+         "number.", call. = FALSE)
+  }
+  slope <- tryCatch(
+    gxe_value(x, qtn, gxe, gxe_intercept),
+    error = function(err) {
+      stop(sub("^gxe_value\\(\\): `effect`", "phenotype_value(): `gxe`",
+               sub("^gxe_value\\(\\): `intercept`",
+                   "phenotype_value(): `gxe_intercept`", conditionMessage(err))),
+           call. = FALSE)
+    })
+  list(slope = slope, env = env,
+       var_env = if (var_env == 0) 1 else var_env)
 }
 
 #' @export
@@ -974,7 +1169,7 @@ print.Population <- function(x, ...) {
          call. = FALSE)
   }
   chr <- unique(x$map$chr)
-  len <- vapply(split(x$map$cm, x$map$chr), function(z) max(z) - min(z),
+  len <- vapply(split(x$map$cm, x$map$chr, drop = TRUE), function(z) max(z) - min(z),
                 numeric(1))
   cat("<Population>\n")
   cat(sprintf("  Individuals: %d   Markers: %d   Chromosomes: %d\n",

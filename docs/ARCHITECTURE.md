@@ -123,7 +123,8 @@ simplePHENOTYPES/
 │       ├── numeric.rs      ← as_numeric() core (deterministic)
 │       ├── genome.rs       ← bitwise chromosome representation (isqg port)
 │       ├── meiosis.rs      ← recombination / crossing / DH (isqg port)
-│       └── hash.rs         ← FNV-1a-128 content hash for pedigree keys (DECISION-024)
+│       ├── hash.rs         ← FNV-1a-128 content hash for pedigree keys (DECISION-024)
+│       └── coalescent.rs   ← SMC' coalescent founders, own seeded PRNG (DECISION-050)
 ├── inst/extdata/
 │   ├── v1_3_0_reference/   ← frozen QTNs + phenotypes from v1.3.0 (big-QTN removed)
 │   └── isqg_v1_outputs/    ← isqg parity references
