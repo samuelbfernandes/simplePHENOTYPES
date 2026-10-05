@@ -32,62 +32,104 @@
   # can produce (so NA never equals the string "NA" or "<NA>").
   # Vectorised per part (no per-element closure calls): the text is identical
   # to the element-by-element encoding it replaced, byte for byte.
-  digits <- charToRaw("0123456789abcdef")
-  enc <- vapply(list(...), function(p) {
-    if (is.double(p)) {
-      # a double's exact bits (16 hex digits, little-endian): no rounding, and
-      # no locale-dependent decimal mark. Each value is the 19 ASCII bytes
-      # "16:" + 16 lowercase hex digits, laid out as the columns of a raw
-      # matrix and turned into one string at once (a double is never NA here,
-      # whatever its bits).
-      n <- length(p)
-      b <- as.integer(writeBin(p, raw(), endian = "little"))
-      m <- matrix(raw(1L), 19L, n)
-      m[1:3, ] <- charToRaw("16:")
-      m[seq(4L, 18L, 2L), ] <- matrix(digits[b %/% 16L + 1L], 8L)
-      m[seq(5L, 19L, 2L), ] <- matrix(digits[b %% 16L + 1L], 8L)
-      return(paste0(n, "[", rawToChar(as.vector(m)), "]"))
-    }
-    # one encoding, so ids that R treats as identical (e.g. a UTF-8 and a
-    # Latin-1 "\u00e9") give the same bytes, byte counts and key. An
-    # unmarked ("unknown") string that is already valid UTF-8 keeps its bytes:
-    # enc2utf8() would reinterpret it through the session locale, so the same
-    # bytes would hash differently under LC_ALL=C and a UTF-8 locale.
-    # An unmarked non-ASCII string that is not valid UTF-8 has no
-    # locale-free reading, so its raw bytes are hashed instead, as
-    # "#<hex digits>:<hex>" (no "<bytes>:" entry starts with "#").
-    p <- as.character(p)
-    unk <- !is.na(p) & Encoding(p) == "unknown"
-    keep <- unk & validUTF8(p)
-    raw_el <- which(unk & !keep)
-    if (any(keep)) Encoding(p)[keep] <- "UTF-8"
-    hex <- vapply(raw_el, function(i) {
-      paste(as.character(charToRaw(p[i])), collapse = "")
-    }, character(1))
-    if (length(raw_el)) p[raw_el] <- ""
-    p <- enc2utf8(p)
-    # (paste0() with a zero-length part still emits the ":", so an empty part
-    # is handled apart)
-    el <- character(0)
-    if (length(p)) {
-      el <- paste0(nchar(p, type = "bytes"), ":", p)
-      el[raw_el] <- paste0("#", nchar(hex), ":", hex)
-      el[is.na(p)] <- "~"
-    }
-    paste0(length(p), "[", paste(el, collapse = ""), "]")
-  }, character(1))
+  enc <- vapply(list(...), .key_part, character(1))
   stable_hash_core(paste(enc, collapse = ""))
+}
+
+#' Canonical text of one .stable_key() part: "<count>[<elements>]"
+#' @keywords internal
+#' @noRd
+.key_part <- function(p) {
+  if (is.double(p)) {
+    # a double's exact bits (16 hex digits, little-endian): no rounding, and
+    # no locale-dependent decimal mark. Each value is the 19 ASCII bytes
+    # "16:" + 16 lowercase hex digits, laid out as the columns of a raw
+    # matrix and turned into one string at once (a double is never NA here,
+    # whatever its bits).
+    digits <- charToRaw("0123456789abcdef")
+    n <- length(p)
+    b <- as.integer(writeBin(p, raw(), endian = "little"))
+    m <- matrix(raw(1L), 19L, n)
+    m[1:3, ] <- charToRaw("16:")
+    m[seq(4L, 18L, 2L), ] <- matrix(digits[b %/% 16L + 1L], 8L)
+    m[seq(5L, 19L, 2L), ] <- matrix(digits[b %% 16L + 1L], 8L)
+    return(paste0(n, "[", rawToChar(as.vector(m)), "]"))
+  }
+  paste0(length(p), "[", paste(.key_elements(p), collapse = ""), "]")
+}
+
+#' The "<bytes>:<value>" elements of a non-double .stable_key() part
+#' @keywords internal
+#' @noRd
+.key_elements <- function(p) {
+  # one encoding, so ids that R treats as identical (e.g. a UTF-8 and a
+  # Latin-1 "\u00e9") give the same bytes, byte counts and key. An
+  # unmarked ("unknown") string that is already valid UTF-8 keeps its bytes:
+  # enc2utf8() would reinterpret it through the session locale, so the same
+  # bytes would hash differently under LC_ALL=C and a UTF-8 locale.
+  # An unmarked non-ASCII string that is not valid UTF-8 has no
+  # locale-free reading, so its raw bytes are hashed instead, as
+  # "#<hex digits>:<hex>" (no "<bytes>:" entry starts with "#").
+  p <- as.character(p)
+  unk <- !is.na(p) & Encoding(p) == "unknown"
+  keep <- unk & validUTF8(p)
+  raw_el <- which(unk & !keep)
+  if (any(keep)) Encoding(p)[keep] <- "UTF-8"
+  hex <- vapply(raw_el, function(i) {
+    paste(as.character(charToRaw(p[i])), collapse = "")
+  }, character(1))
+  if (length(raw_el)) p[raw_el] <- ""
+  p <- enc2utf8(p)
+  # (paste0() with a zero-length part still emits the ":", so an empty part
+  # is handled apart)
+  el <- character(0)
+  if (length(p)) {
+    el <- paste0(nchar(p, type = "bytes"), ":", p)
+    el[raw_el] <- paste0("#", nchar(hex), ":", hex)
+    el[is.na(p)] <- "~"
+  }
+  el
 }
 
 #' Founder pedigree rows and keys for newly imported individuals
 #' @keywords internal
 #' @noRd
 .founder_pedigree <- function(ids, cis, trans, pool = NA_character_) {
-  keys <- vapply(seq_along(ids), function(j) {
-    paste0("f", .stable_key("founder", pool,
-                            ids[j], paste(cis[, j], collapse = ""),
-                            paste(trans[, j], collapse = "")))
-  }, character(1))
+  # A founder's key is .stable_key("founder", pool, id, <cis text>,
+  # <trans text>), each strand's text being paste(<column>, collapse = "").
+  # The canonical text is assembled here for all founders at once (byte for
+  # byte the text .stable_key() builds) and hashed in one call; a strand of
+  # integer values 0..9 is one ASCII digit per marker, so its text is its
+  # column shifted to "0".."9" (no per-marker strings).
+  head <- paste0(.key_part("founder"), .key_part(pool))
+  id_part <- if (is.double(ids)) {
+    vapply(ids, .key_part, character(1))
+  } else {
+    paste0("1[", .key_elements(ids), "]")
+  }
+  digit_strand <- function(m) {
+    is.integer(m) && !anyNA(m) && (!length(m) || (min(m) >= 0L && max(m) <= 9L))
+  }
+  strand_part <- function(m, digits, cols) {
+    if (digits) {
+      txt <- vapply(cols, function(j) rawToChar(as.raw(m[, j] + 48L)),
+                    character(1))
+      paste0("1[", nrow(m), ":", txt, "]")
+    } else {
+      txt <- vapply(cols, function(j) paste(m[, j], collapse = ""),
+                    character(1))
+      paste0("1[", .key_elements(txt), "]")
+    }
+  }
+  dc <- digit_strand(cis)
+  dt <- digit_strand(trans)
+  # in blocks of founders, so at most a block of strand texts is held at once
+  keys <- character(length(ids))
+  for (cols in split(seq_along(ids), (seq_along(ids) - 1L) %/% 1000L)) {
+    keys[cols] <- paste0("f", stable_hash_core(paste0(
+      head, id_part[cols], strand_part(cis, dc, cols),
+      strand_part(trans, dt, cols))))
+  }
   ped <- data.frame(key = keys, id = ids, mother = NA_character_,
                     father = NA_character_, generation = 0L,
                     pool = as.character(pool), design = "founder",
