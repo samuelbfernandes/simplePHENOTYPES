@@ -883,7 +883,202 @@ head(read.delim(file.path(out_dir, "phenotypes_long.txt")))
 #> 6  A239 Trait_1   1 -1.1256463
 ```
 
-# 8. Original implementation of create_phenotypes
+# 8. Transcriptome and expression-mediated phenotypes
+
+A transcriptome layer lets a phenotype depend on **gene expression**
+instead of (or alongside) the markers. There are two pieces: a generator
+that simulates a genetically controlled genes x individuals expression
+matrix, and a `transcriptome()` layer that turns expression into a
+phenotype under the same variance budget as every other layer.
+
+## Simulating expression
+
+`simulate_transcriptome()` needs no reference expression and no gene
+annotation. Each gene gets cis-eQTL near its (synthetic) position, trans
+effects through a few co-expression modules, and a per-gene heritability
+`h2`:
+
+``` r
+tx <- simulate_transcriptome(geno, n_genes = 200, seed = 70)
+tx
+#> <transcriptome_sim>
+#>   Genes: 200   Individuals: 280   Factors: 5
+#>   Coordinates: synthetic   Profile: generic_bulk
+#>   Realized expression h2 Var(G)/Var(P): median 0.16  [0.01, 0.63]
+#>   cis-eQTL: 301 over 200 genes; trans hubs: 7
+dim(tx$expression)               # genes x individuals
+#> [1] 200 280
+head(tx$genes[, c("gene_id", "chr", "h2_target", "h2_realized", "n_cis")])
+#>    gene_id chr h2_target h2_realized n_cis
+#> 1 gene0001   1 0.5242829   0.5367475     2
+#> 2 gene0002  10 0.3370640   0.3658942     3
+#> 3 gene0003   6 0.1026378   0.1000263     1
+#> 4 gene0004   1 0.3476490   0.3403233     1
+#> 5 gene0005   9 0.1899271   0.1981428     2
+#> 6 gene0006   9 0.4289051   0.4395164     1
+head(tx$cis_eqtl)                # the cis truth: gene, marker, effect
+#>    gene_id         snp chr       pos     effect
+#> 1 gene0001 ss196427424   1 146441165  0.6041505
+#> 2 gene0001 ss196427410   1 146203350  0.4799341
+#> 3 gene0002 ss196511886  10 123574157  0.1103348
+#> 4 gene0002 ss196504582  10 123956232  0.2402038
+#> 5 gene0002 ss196499533  10 122808698 -0.1422082
+#> 6 gene0003 ss196472103   6  85206564 -0.1539420
+```
+
+Useful arguments: `h2` (a single value, one per gene, or `"beta"` for a
+realistic spread), `cis_fraction` (share of genetic variance that is
+cis), `cis_window` (bp), `n_factors` and `residual_module_fraction`
+(co-expression), and `annotation` (real gene coordinates). With
+`epistasis > 0`, genes also get additive-by-additive eQTL pairs,
+returned in `epi_eqtl`:
+
+``` r
+tx_epi <- simulate_transcriptome(geno, n_genes = 100, epistasis = 0.3, seed = 72)
+head(tx_epi$epi_eqtl)
+#>              gene_id        snp1        snp2 chr1 chr2      effect   prod_mean
+#> ss196490285 gene0001 ss196490285 ss196494524    9    9  0.01483969  0.14667092
+#> ss196515066 gene0001 ss196515066 ss196421592    2    1  0.21294751  0.22690051
+#> ss196490571 gene0002 ss196490571 ss196470080    9    6  0.15622813  0.17396684
+#> ss196463366 gene0003 ss196463366 ss196441917    5    2 -0.35730691  0.12364796
+#> ss196426936 gene0004 ss196426936 ss196485784    1    8 -0.36233064 -0.02584184
+#> ss196445264 gene0004 ss196445264 ss196443472    3    3  0.07602859 -0.01285714
+```
+
+## A phenotype from expression
+
+Hand the transcriptome to `simulate_phenotype()` with `transcriptome =`
+and add a `transcriptome()` layer. Its `prop` is **required** and is a
+separate variance category: it is not drawn from the `h2` budget. Pick
+the causal genes with `n_genes` (random) or `genes` (explicit), and
+optionally fix their `slopes`:
+
+``` r
+ph_tx <- simulate_phenotype(geno, h2 = 0.5, seed = 71, transcriptome = tx) |>
+  transcriptome(prop = 0.3, n_genes = 20) |>
+  additive(prop = 0.2, n_qtn = 10)
+ph_tx
+#> <phenotype_sim>  (realized · long format)
+#>   Genotypes: geno   Traits: 1   Architecture: independent   Seed: 71
+#>   Variance partition (proportions of V_P):
+#>     transcriptome 0.30   (20 genes)
+#>     additive    0.20   (10 QTNs, geometric)
+#>     residual    0.50
+#>   Requested genetic share = 0.20   realized H² = 0.21
+#>   Expression-mediated (derived): genetic 0.06 + environmental 0.23 + cov 0.00 of V_P
+#>   (the genetic-mediated share is included in realized H² above)
+```
+
+Passing `transcriptome = TRUE` derives the transcriptome from the same
+genome instead of supplying one.
+
+## Genetic and environmental mediation
+
+For a derived transcriptome the component splits into a **genetically
+mediated** part (expression traced to the genome), which counts toward
+realized `H²`, and an **environmental** part, which does not.
+`mediation_split()` reports both and their covariance as shares of the
+phenotypic variance:
+
+``` r
+mediation_split(ph_tx)
+#>     trait genetic_mediated env_mediated  covariance
+#> 1 Trait_1       0.05837516    0.2304993 0.002054562
+```
+
+`qtn_table()` lists the causal genes alongside any marker QTNs (`layer`
+tells them apart):
+
+``` r
+head(qtn_table(ph_tx), 4)
+#>     trait         layer set      snp chr pos maf     effect  d var_explained
+#> 1 Trait_1 transcriptome  NA gene0003  NA  NA  NA  0.1016006 NA  0.0002094589
+#> 2 Trait_1 transcriptome  NA gene0020  NA  NA  NA  0.1562553 NA  0.0004954224
+#> 3 Trait_1 transcriptome  NA gene0025  NA  NA  NA -0.8194778 NA  0.0136263812
+#> 4 Trait_1 transcriptome  NA gene0036  NA  NA  NA -0.7116215 NA  0.0102755317
+#>   QTN_t1 QTN_t2 ld_r2
+#> 1   <NA>   <NA>    NA
+#> 2   <NA>   <NA>    NA
+#> 3   <NA>   <NA>    NA
+#> 4   <NA>   <NA>    NA
+```
+
+A *supplied* expression matrix (`expression =`) is different: its
+genetic content is unknown, so the whole component is treated as
+environmental and is left out of the genetic value and of `H²`.
+
+## Without genotypes
+
+With an observed expression matrix and no genome, the phenotype is built
+from `transcriptome()` layers alone (there is no `h2` or marker layer to
+set):
+
+``` r
+set.seed(1)
+expr <- matrix(rnorm(50 * 100), 50, 100,
+               dimnames = list(paste0("g", 1:50), paste0("i", 1:100)))
+simulate_phenotype(expression = expr, seed = 75) |>
+  transcriptome(prop = 0.4, n_genes = 5)
+#> <phenotype_sim>  (realized · long format)
+#>   Genotypes: <expression>   Traits: 1   Architecture: independent   Seed: 75
+#>   Variance partition (proportions of V_P):
+#>     transcriptome 0.40   (5 genes)
+#>     residual    0.60
+#>   Requested genetic share = 0.00   realized H² = 0.00
+```
+
+## Reusing an architecture in a new population
+
+`predict()` applies a fixed transcriptome architecture (the same eQTL
+effects) to new genotypes, so a model learned in one population can be
+evaluated in another:
+
+``` r
+ids   <- seq_len(ncol(geno) - 5L)
+train <- geno[, c(1:5, 5L + ids[ids %% 2 == 1])]
+test  <- geno[, c(1:5, 5L + ids[ids %% 2 == 0])]
+tx_train <- simulate_transcriptome(train, n_genes = 100, seed = 73)
+tx_test  <- predict(tx_train, test, seed = 74)
+dim(tx_test$expression)
+#> [1] 100 140
+```
+
+## Calibrating to observed expression
+
+Give `mimic =` a genes x individuals matrix (columns named as the
+genotype individuals) to calibrate the generator to it: per-gene mean
+and variance, a GREML heritability per gene, and the co-expression
+strength. The estimates are returned in `$calibration`. Effects and
+loadings are still drawn de novo, so this matches the *distribution* of
+the data, not individual eQTL.
+
+``` r
+# here the "observed" matrix is the simulated one above; use your own in practice
+tx_m <- simulate_transcriptome(geno, mimic = tx$expression, seed = 77)
+names(tx_m$calibration)
+#> [1] "source"    "n_factors" "kappa"     "h2"
+```
+
+## RNA-seq counts
+
+`observe_counts()` adds a negative-binomial count layer on top of a
+`transcriptome_sim` (library size, baseline, coupling to expression and
+dispersion per gene):
+
+``` r
+tx_c <- observe_counts(tx, seed = 76)
+tx_c$counts[1:4, 1:4]
+#>          4226 4722 33-16 38-11
+#> gene0001   35   35    18    14
+#> gene0002   12   36    22    23
+#> gene0003   26   39    19    12
+#> gene0004   12   18    17    25
+```
+
+Directed regulatory networks and tissue specificity are outside this
+version's scope. See `docs/SPEC-transcriptome.md` for the full design.
+
+# 9. Original implementation of create_phenotypes
 
 `create_phenotypes()` is the original interface, kept frozen so
 published results stay reproducible. It receives bug fixes only; new

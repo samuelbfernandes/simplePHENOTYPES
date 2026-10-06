@@ -590,7 +590,135 @@ list.files(out_dir)
 head(read.delim(file.path(out_dir, "phenotypes_long.txt")))
 ```
 
-# 8. Original implementation of create_phenotypes
+# 8. Transcriptome and expression-mediated phenotypes
+
+A transcriptome layer lets a phenotype depend on **gene expression** instead of
+(or alongside) the markers. There are two pieces: a generator that simulates a
+genetically controlled genes x individuals expression matrix, and a
+`transcriptome()` layer that turns expression into a phenotype under the same
+variance budget as every other layer.
+
+## Simulating expression
+
+`simulate_transcriptome()` needs no reference expression and no gene
+annotation. Each gene gets cis-eQTL near its (synthetic) position, trans effects
+through a few co-expression modules, and a per-gene heritability `h2`:
+
+```{r tx-generate}
+tx <- simulate_transcriptome(geno, n_genes = 200, seed = 70)
+tx
+dim(tx$expression)               # genes x individuals
+head(tx$genes[, c("gene_id", "chr", "h2_target", "h2_realized", "n_cis")])
+head(tx$cis_eqtl)                # the cis truth: gene, marker, effect
+```
+
+Useful arguments: `h2` (a single value, one per gene, or `"beta"` for a
+realistic spread), `cis_fraction` (share of genetic variance that is cis),
+`cis_window` (bp), `n_factors` and `residual_module_fraction` (co-expression),
+and `annotation` (real gene coordinates). With `epistasis > 0`, genes also get
+additive-by-additive eQTL pairs, returned in `epi_eqtl`:
+
+```{r tx-epistasis}
+tx_epi <- simulate_transcriptome(geno, n_genes = 100, epistasis = 0.3, seed = 72)
+head(tx_epi$epi_eqtl)
+```
+
+## A phenotype from expression
+
+Hand the transcriptome to `simulate_phenotype()` with `transcriptome =` and add
+a `transcriptome()` layer. Its `prop` is **required** and is a separate variance
+category: it is not drawn from the `h2` budget. Pick the causal genes with
+`n_genes` (random) or `genes` (explicit), and optionally fix their `slopes`:
+
+```{r tx-layer}
+ph_tx <- simulate_phenotype(geno, h2 = 0.5, seed = 71, transcriptome = tx) |>
+  transcriptome(prop = 0.3, n_genes = 20) |>
+  additive(prop = 0.2, n_qtn = 10)
+ph_tx
+```
+
+Passing `transcriptome = TRUE` derives the transcriptome from the same genome
+instead of supplying one.
+
+## Genetic and environmental mediation
+
+For a derived transcriptome the component splits into a **genetically mediated**
+part (expression traced to the genome), which counts toward realized `H²`, and
+an **environmental** part, which does not. `mediation_split()` reports both and
+their covariance as shares of the phenotypic variance:
+
+```{r tx-mediation}
+mediation_split(ph_tx)
+```
+
+`qtn_table()` lists the causal genes alongside any marker QTNs (`layer` tells
+them apart):
+
+```{r tx-qtn}
+head(qtn_table(ph_tx), 4)
+```
+
+A *supplied* expression matrix (`expression =`) is different: its genetic
+content is unknown, so the whole component is treated as environmental and is
+left out of the genetic value and of `H²`.
+
+## Without genotypes
+
+With an observed expression matrix and no genome, the phenotype is built from
+`transcriptome()` layers alone (there is no `h2` or marker layer to set):
+
+```{r tx-nogeno}
+set.seed(1)
+expr <- matrix(rnorm(50 * 100), 50, 100,
+               dimnames = list(paste0("g", 1:50), paste0("i", 1:100)))
+simulate_phenotype(expression = expr, seed = 75) |>
+  transcriptome(prop = 0.4, n_genes = 5)
+```
+
+## Reusing an architecture in a new population
+
+`predict()` applies a fixed transcriptome architecture (the same eQTL effects)
+to new genotypes, so a model learned in one population can be evaluated in
+another:
+
+```{r tx-predict}
+ids   <- seq_len(ncol(geno) - 5L)
+train <- geno[, c(1:5, 5L + ids[ids %% 2 == 1])]
+test  <- geno[, c(1:5, 5L + ids[ids %% 2 == 0])]
+tx_train <- simulate_transcriptome(train, n_genes = 100, seed = 73)
+tx_test  <- predict(tx_train, test, seed = 74)
+dim(tx_test$expression)
+```
+
+## Calibrating to observed expression
+
+Give `mimic =` a genes x individuals matrix (columns named as the genotype
+individuals) to calibrate the generator to it: per-gene mean and variance, a
+GREML heritability per gene, and the co-expression strength. The estimates are
+returned in `$calibration`. Effects and loadings are still drawn de novo, so
+this matches the *distribution* of the data, not individual eQTL.
+
+```{r tx-mimic}
+# here the "observed" matrix is the simulated one above; use your own in practice
+tx_m <- simulate_transcriptome(geno, mimic = tx$expression, seed = 77)
+names(tx_m$calibration)
+```
+
+## RNA-seq counts
+
+`observe_counts()` adds a negative-binomial count layer on top of a
+`transcriptome_sim` (library size, baseline, coupling to expression and
+dispersion per gene):
+
+```{r tx-counts}
+tx_c <- observe_counts(tx, seed = 76)
+tx_c$counts[1:4, 1:4]
+```
+
+Directed regulatory networks and tissue specificity are outside this
+version's scope. See `docs/SPEC-transcriptome.md` for the full design.
+
+# 9. Original implementation of create_phenotypes
 
 `create_phenotypes()` is the original interface, kept frozen so published
 results stay reproducible. It receives bug fixes only; new work should use the
