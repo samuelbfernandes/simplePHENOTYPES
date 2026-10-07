@@ -3,7 +3,8 @@
 #' Recomputes the realized phenotypes from the current ordered list of layers.
 #' Each mean-effect component is centered and scaled to its target marginal
 #' variance, exactly, in the realized sample. The residual is a separate
-#' exact-variance draw, so the phenotypic variance is one only up to the
+#' exact-variance draw by default; `residual_mode = "random"` instead keeps
+#' normal sampling variation in its mean and variance. With the default, the phenotypic variance is one only up to the
 #' sample covariance between the genetic value and the residual, and -- more
 #' importantly -- the realized genetic variance is the requested sum only up to
 #' the cross-covariances between components (structural for additive + dominance
@@ -72,7 +73,7 @@
 
       if (is.null(Rm)) {
         seed_r <- .layer_seed(sim$seed, paste0("residual_t", t), rep - 1L)
-        resid <- .seeded_residual(seed_r, n, resid_var)
+        resid <- .seeded_residual(seed_r, n, resid_var, sim$residual_mode)
       } else {
         resid <- Rm[, t]
       }
@@ -590,8 +591,9 @@
 #' Apply variance-QTL heterogeneity to a residual vector
 #'
 #' Adds a residual component whose conditional variance has a log-linear
-#' genotype link at the vQTL loci. The component is scaled to sample variance
-#' `vqtl_prop`; it remains residual, rather than genetic, variance.
+#' genotype link at the vQTL loci. Fixed mode scales the component to sample
+#' variance `vqtl_prop`; random mode uses it as the mean conditional variance
+#' across individuals. This remains residual, rather than genetic, variance.
 #' @keywords internal
 #' @noRd
 .apply_vqtl <- function(resid, vqtl_layers, sim, t, rep, vqtl_prop) {
@@ -624,7 +626,13 @@
   # not counted as genetic variance in broad-sense heritability.
   factor <- exp(0.5 * loading)
   seed_v <- .layer_seed(sim$seed, paste0("vqtl_residual_t", t), rep - 1L)
-  z <- .seeded_residual(seed_v, n, 1)
+  z <- .seeded_residual(seed_v, n, 1, sim$residual_mode)
+  if (identical(sim$residual_mode, "random")) {
+    # Genotype-dependent SDs; their mean squared value is vqtl_prop.
+    # Stabilize the exponent before normalization. No sampled moments are used.
+    factor <- exp(0.5 * (loading - max(loading)))
+    return(resid + z * factor / sqrt(mean(factor^2)) * sqrt(vqtl_prop))
+  }
   hetero <- z * factor
   s <- stats::sd(hetero)
   if (!is.finite(s) || s <= 0) {
@@ -906,7 +914,10 @@
 #' factor of the target correlation matrix, re-standardizes each column to unit
 #' sample variance, and scales by `sqrt(resid_var)`. Each trait's residual
 #' variance is therefore exactly its h2-implied target; only correlation is
-#' induced. The realized sample correlation equals the target up to sampling
+#' induced. In random mode the unit draws are unstandardized independent
+#' normals and the mixed columns are scaled without sample normalization,
+#' giving independent multivariate normal rows with the requested covariance.
+#' The realized sample correlation equals the target up to sampling
 #' error of order `1/sqrt(n)`. A trait with zero residual variance stays zero.
 #' @keywords internal
 #' @noRd
@@ -915,11 +926,14 @@
   nt <- length(resid_var)
   Z <- vapply(seq_len(nt), function(t) {
     seed_r <- .layer_seed(sim$seed, paste0(tag, t), rep - 1L)
-    .seeded_residual(seed_r, n, 1)
+    .seeded_residual(seed_r, n, 1, sim$residual_mode)
   }, numeric(n))
   Z <- matrix(Z, nrow = n, ncol = nt)
   U <- .resid_cor_factor(sim$resid_cor)
   W <- Z %*% U
+  if (identical(sim$residual_mode, "random")) {
+    return(sweep(W, 2L, sqrt(resid_var), "*"))
+  }
   for (t in seq_len(nt)) {
     s <- stats::sd(W[, t])
     W[, t] <- if (resid_var[t] > 0 && is.finite(s) && s > 0) {
@@ -993,14 +1007,14 @@
 #' Draw a residual under a fixed sub-seed, restoring the prior RNG state
 #' @keywords internal
 #' @noRd
-.seeded_residual <- function(seed, n, resid_var) {
+.seeded_residual <- function(seed, n, resid_var, residual_mode = "fixed") {
   if (is.null(seed)) {
-    return(.draw_residual(n, resid_var))
+    return(.draw_residual(n, resid_var, residual_mode))
   }
   old <- .Random.seed_safe()
   set.seed(seed)
   on.exit(.restore_seed(old))
-  .draw_residual(n, resid_var)
+  .draw_residual(n, resid_var, residual_mode)
 }
 
 #' Snapshot the current RNG state (or NULL if uninitialized)

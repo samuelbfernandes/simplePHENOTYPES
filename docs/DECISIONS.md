@@ -2247,3 +2247,14 @@ asserted with nested `expect_warning()`. `test-v130-parity.R` and the RDS refere
 | 048 | A `Population` carries its trait (`select_ind()` stores loci, effects, base layer center/sd, `var_e = 1 - h2`; crossing / `[` / `c()` / `mate()` pass it when shared; `population_trait()`); `simulate_phenotype(refit = NULL)` = `FALSE` for a population with a trait (reuse it: fixed genetic scale and residual variance, so h2 changes; `h2` / `n_qtn` warn, layer verbs ignored) else `TRUE` (fit to `h2`, unchanged for marker data / GWAS); additive + dominance + epistasis (epistatic loci keep their base-population centering; vqtl / transcriptome / complex store none); scheme `residual =` argument removed | locked (2026-10-03) |
 | 049 | Fixed-scale G x E: `gxe_value(x, qtn, effect, intercept)`; `phenotype_value(gxe, gxe_intercept, env, var_env)` = AlphaSimR `addTraitAG`/`calcPheno` (`y = g + s qnorm(env, sd) + e`, sd 1 when `var_env = 0`, `env = NULL` drawn by `runif` before the residual); G x E excluded from `h2` and `genetic_value`; default stream unchanged; exact AlphaSimR parity (<= 3e-15) | locked (2026-10-03) |
 | 050 | Coalescent founders: full MaCS-style SMC' core in Rust with its own xoshiro256++ PRNG seeded per chromosome from R (only exception to DECISION-006/012; founder generator is off the isqg parity path) | implemented (2026-10-04): `founders_coalescent()` |
+
+## DECISION-051: Residual sampling mode (2026-10-07)
+
+`simulate_phenotype()` and `complex_phenotypes()` keep `residual_mode = "fixed"`
+as the default, preserving existing draws. `"random"` uses unstandardized normal
+residuals: the variance parameter stays fixed while sample mean, sample variance,
+and genetic-residual covariance fluctuate. Correlated traits use multivariate
+normal draws; entry means retain the `1/sqrt(reps)` scaling. vQTL conditional
+variances are normalized using genotype-dependent weights, not sampled residual
+moments. Stored population traits inherit the mode unless explicitly overridden.
+Genetic scaling and the legacy `create_phenotypes()` interface are unchanged.

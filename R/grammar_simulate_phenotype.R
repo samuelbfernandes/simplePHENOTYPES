@@ -122,7 +122,8 @@
 #' @param h2 optional requested genetic-variance share for one-call simulation.
 #'   For a single mean-effect layer this is the simulated broad-sense
 #'   heritability (the genetic component is scaled to `h2` exactly; only its
-#'   sample covariance with the residual moves the realized ratio slightly). With
+#'   sample covariance with the residual moves the realized ratio in fixed mode;
+#'   random mode also allows residual sample variance to fluctuate). With
 #'   multiple non-orthogonal layers -- above all additive and dominance on shared
 #'   loci -- the realized value can differ structurally from the requested sum;
 #'   see Details and the reported realized H2 / `$ad_report`.
@@ -137,6 +138,19 @@
 #'   the simulation is built on. On a population whose heritability is already
 #'   set (it carries a trait) `h2` is ignored with a warning unless
 #'   `refit = TRUE`; see `refit`.
+#' @param residual_mode `"fixed"` (default) centers and rescales residual draws
+#'   to the requested sample variance, preserving existing seeded results.
+#'   `"random"` draws normal residuals with the requested variance parameter,
+#'   without centering or sample rescaling: sample mean, variance and covariance
+#'   with genetic values fluctuate. Genetic layer scaling is unchanged. With
+#'   `resid_cor`, random mode draws multivariate normal residuals with the target
+#'   covariance; with `reps`, residuals are divided by `sqrt(reps)` in either mode.
+#'   A [vqtl()] component in random mode uses genotype-dependent normal variances
+#'   whose average over individuals equals its requested share; its realized
+#'   variance fluctuates too. Neither mode forces genetic-residual covariance to
+#'   zero. For a carried population trait (`refit = FALSE`), omission inherits
+#'   its residual mode (older stored traits use `"fixed"`); an explicit value
+#'   overrides the residual mode for this simulation.
 #' @param mean optional per-trait intercept added to the phenotype (scalar or
 #'   length `n_traits`). Genetic values stay centered; only the phenotype is
 #'   shifted.
@@ -162,7 +176,7 @@
 #'   symmetric positive semi-definite matrix with unit diagonal and entries in
 #'   `[-1, 1]`. Needs `n_traits >= 2`. Each trait's residual is drawn exactly as
 #'   in the independent case (same sub-seed), the traits are mixed through the
-#'   Cholesky factor of the correlation matrix and each column is re-standardized
+#'   Cholesky factor of the correlation matrix. In fixed mode each column is re-standardized
 #'   to the same exact variance, so every trait's residual variance is still its
 #'   `h2`-implied `1 - sum(prop)` target and only correlation is induced
 #'   (trait 1's residual is unchanged up to rounding). The correlation is a target: the realized
@@ -171,8 +185,10 @@
 #'   component is drawn independently per trait and dilutes it, and
 #'   `reps > 1` scales every trait's residual by its own `1/sqrt(reps)`, which leaves
 #'   the correlation unchanged. Because the realized-variance standardization is
-#'   applied per trait, the realized `h2` and the printed `var_budget` are
-#'   unaffected by `resid_cor`; the residual still has a nonzero sample covariance
+#'   applied per trait in fixed mode, the residual sample variances and requested
+#'   `var_budget` are unchanged by `resid_cor`; realized `h2` can change because
+#'   genetic-residual covariance changes. Random mode skips standardization and
+#'   treats these variances as distribution parameters. The residual has sample covariance
 #'   with the genetic values (as without it) and, with `resid_cor`, the traits'
 #'   residuals are correlated, so the phenotypic correlation is
 #'   a mix of the genetic (`cor`) and residual (`resid_cor`) correlations,
@@ -349,7 +365,10 @@ simulate_phenotype <- function(geno = NULL,
                                reps = 1,
                                resid_cor = NULL,
                                refit = NULL,
-                               ...) {
+                               ...,
+                               residual_mode = c("fixed", "random")) {
+  residual_mode_missing <- missing(residual_mode)
+  residual_mode <- match.arg(residual_mode)
   architecture <- match.arg(architecture)
   # A Population that carries a trait (defined in its base population, see
   # population_trait()) reuses it unless refit = TRUE.
@@ -381,7 +400,9 @@ simulate_phenotype <- function(geno = NULL,
     n_reps <- .validate_count(n_reps, "n_reps", minimum = 1L)
     return(.simulate_from_trait(geno, trait, .geno_label(substitute(geno)),
                                 n_reps, .validate_seed(seed), individuals,
-                                reps))
+                                reps, if (residual_mode_missing) {
+                                  if (is.null(trait$residual_mode)) "fixed" else trait$residual_mode
+                                } else residual_mode))
   }
   n_traits <- .validate_count(n_traits, "n_traits", minimum = 1L)
   n_qtn <- .validate_count(n_qtn, "n_qtn", minimum = 0L)
@@ -478,6 +499,7 @@ simulate_phenotype <- function(geno = NULL,
       mean         = mean,
       reps         = reps,
       resid_cor    = resid_cor,
+      residual_mode = residual_mode,
       arch_args    = arch_args,
       layers       = list(),
       pheno        = NULL,
@@ -1085,12 +1107,17 @@ print.phenotype_sim <- function(x, ...) {
   cat(sprintf("  Genotypes: %s   Traits: %d   Architecture: %s   Seed: %s\n",
               x$geno_name, x$n_traits, x$architecture,
               if (is.null(x$seed)) "NULL" else x$seed))
+  if (identical(x$residual_mode, "random")) {
+    cat("  Residual mode: random (sample mean and variance fluctuate).\n")
+  }
   if (isTRUE(x$frozen)) {
     # A stored trait: the layer props describe the base population, so show the
     # realized shares in this one (.variance_budget_frozen()).
     cat(sprintf(paste0("  Trait carried by the population (refit = FALSE): base ",
-                       "h2 = %s, residual variance fixed at %s\n"),
-                fmt(x$trait$h2), fmt(x$trait$var_e)))
+                       "h2 = %s, residual variance %s %s\n"),
+                fmt(x$trait$h2),
+                if (identical(x$residual_mode, "random")) "parameter =" else "fixed at",
+                fmt(x$trait$var_e)))
     cat("  Realized variance partition (proportions of V_P):\n")
     vb <- x$var_budget
     for (cmp in unique(vb$component)) {

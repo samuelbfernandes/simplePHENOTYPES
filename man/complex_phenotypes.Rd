@@ -4,7 +4,13 @@
 \alias{complex_phenotypes}
 \title{Combine single-architecture models under a common heritability}
 \usage{
-complex_phenotypes(..., h2, reps = 1, resid_cor = NULL)
+complex_phenotypes(
+  ...,
+  h2,
+  reps = 1,
+  resid_cor = NULL,
+  residual_mode = c("fixed", "random")
+)
 }
 \arguments{
 \item{...}{two or more \code{phenotype_sim} objects.}
@@ -21,7 +27,8 @@ single-record target share \code{V_G / (V_G + V_E)}; the entry-mean target is
 \code{Var(G) / Var(y_bar)} from the realized values, with
 \verb{Var(y_bar) = V_G + V_E / reps + 2 Cov(G, e) / sqrt(reps)} (record scale
 \verb{V_G + V_E + 2 Cov(G, e)}): it equals the allocation formula only when the
-sample covariance \code{Cov(G, e)} is zero. The inputs' own \code{reps} are not used
+sample covariance \code{Cov(G, e)} is zero in fixed mode. In random mode the
+residual sample variance can also differ from its parameter. The inputs' own \code{reps} are not used
 (their residuals are discarded); with \code{reps = 1} the result is bit-identical
 to a call without it.}
 
@@ -29,7 +36,12 @@ to a call without it.}
 residual: \code{NULL} (default, independent residuals, bit-identical to a call
 without it), one value in \verb{[-1, 1]} for every pair, or an \verb{n_traits x n_traits} symmetric positive semi-definite matrix with unit diagonal. Built
 as in \code{\link[=simulate_phenotype]{simulate_phenotype()}}: each trait keeps exactly its \code{1 - h2} residual
-variance and only correlation is induced.}
+sample variance in fixed mode. Random mode uses this as a distribution
+variance parameter instead.}
+
+\item{residual_mode}{\code{"fixed"} (default) or \code{"random"}, as in
+\code{\link[=simulate_phenotype]{simulate_phenotype()}}. Applies to the newly drawn common residual,
+independently of the modes of the input models.}
 }
 \value{
 a combined \code{phenotype_sim} (architecture "complex").

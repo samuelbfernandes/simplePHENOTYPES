@@ -90,6 +90,7 @@
     var_e        = pmax(0, 1 - h2),
     mean         = sim$mean,
     resid_cor    = sim$resid_cor,
+    residual_mode = if (is.null(sim$residual_mode)) "fixed" else sim$residual_mode,
     threshold    = sim$threshold,
     # liability_threshold(): the base population's absolute cut points
     threshold_cut = if (is.null(sim$threshold)) NULL else
@@ -199,7 +200,7 @@ population_trait <- function(x) {
 #' @keywords internal
 #' @noRd
 .simulate_from_trait <- function(geno, trait, geno_name, n_reps, seed,
-                                 individuals, reps) {
+                                 individuals, reps, residual_mode = "fixed") {
   norm <- .normalize_geno(geno, geno_name, individuals = individuals,
                           min_ind = 3L)
   sim <- structure(
@@ -224,6 +225,7 @@ population_trait <- function(x) {
       mean         = trait$mean,
       reps         = .validate_reps(reps, trait$n_traits),
       resid_cor    = trait$resid_cor,
+      residual_mode = residual_mode,
       arch_args    = trait$arch_args,
       layers       = .trait_layers_on(trait, norm$map),
       pheno        = NULL,

@@ -1,5 +1,13 @@
 # simplePHENOTYPES (development version)
 
+## Residual sampling
+
+* `simulate_phenotype()` and `complex_phenotypes()` accept
+  `residual_mode = "random"` to draw normal residuals without fixing their
+  sample mean or variance. The default `"fixed"` preserves existing results.
+  The option supports correlated traits, entry means, vQTLs, and inherited
+  population traits without changing genetic effects or their scaling.
+
 ## Fixes from the independent theory reviews (October 2026, latest)
 
 * `as_numeric()` accepts a HapMap table given as a character matrix (it failed with "subscript out of
