@@ -71,8 +71,11 @@ simulation has an \code{h2} budget.
 Conditional residual variance uses a log link,
 \verb{log Var(E_v | genotype) = constant + loading}, where \code{loading} is the sum of
 standardized vQTL genotype scores. This guarantees positive conditional
-variances. The resulting heterogeneous residual is scaled to sample variance
-\code{prop}; finite-sample covariance among components means total realized
+variances. In fixed residual mode the heterogeneous residual is scaled to
+sample variance \code{prop}. In random mode independent normal draws use
+genotype-dependent variances whose average over individuals is \code{prop},
+without sample centering or rescaling. Finite-sample covariance and, in
+random mode, residual variance fluctuations mean total realized
 phenotypic variance need not be exactly one.
 
 The log-linear variance link is this package's simulation choice (a

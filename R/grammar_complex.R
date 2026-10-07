@@ -34,7 +34,8 @@
 #'   `Var(G) / Var(y_bar)` from the realized values, with
 #'   `Var(y_bar) = V_G + V_E / reps + 2 Cov(G, e) / sqrt(reps)` (record scale
 #'   `V_G + V_E + 2 Cov(G, e)`): it equals the allocation formula only when the
-#'   sample covariance `Cov(G, e)` is zero. The inputs' own `reps` are not used
+#'   sample covariance `Cov(G, e)` is zero in fixed mode. In random mode the
+#'   residual sample variance can also differ from its parameter. The inputs' own `reps` are not used
 #'   (their residuals are discarded); with `reps = 1` the result is bit-identical
 #'   to a call without it.
 #' @param resid_cor target **residual** correlation between traits of the common
@@ -42,7 +43,11 @@
 #'   without it), one value in `[-1, 1]` for every pair, or an `n_traits x
 #'   n_traits` symmetric positive semi-definite matrix with unit diagonal. Built
 #'   as in [simulate_phenotype()]: each trait keeps exactly its `1 - h2` residual
-#'   variance and only correlation is induced.
+#'   sample variance in fixed mode. Random mode uses this as a distribution
+#'   variance parameter instead.
+#' @param residual_mode `"fixed"` (default) or `"random"`, as in
+#'   [simulate_phenotype()]. Applies to the newly drawn common residual,
+#'   independently of the modes of the input models.
 #' @return a combined `phenotype_sim` (architecture "complex").
 #' @export
 #' @examples
@@ -53,7 +58,9 @@
 #' indep <- simulate_phenotype(SNP55K_maize282_maf04, n_traits = 2, seed = 11)
 #' indep <- additive(indep, prop = 0.3, n_qtn = 3)
 #' both <- complex_phenotypes(pleio, indep, h2 = 0.5)
-complex_phenotypes <- function(..., h2, reps = 1, resid_cor = NULL) {
+complex_phenotypes <- function(..., h2, reps = 1, resid_cor = NULL,
+                               residual_mode = c("fixed", "random")) {
+  residual_mode <- match.arg(residual_mode)
   models <- list(...)
   if (length(models) < 2) {
     stop("complex_phenotypes() needs at least two phenotype_sim objects.",
@@ -130,12 +137,13 @@ complex_phenotypes <- function(..., h2, reps = 1, resid_cor = NULL) {
   k <- 0L
   for (r in seq_len(nr)) {
     Em <- if (is.null(Rres)) NULL else
-      .correlated_residuals(list(seed = seed, n_ind = n, resid_cor = Rres), r,
+      .correlated_residuals(list(seed = seed, n_ind = n, resid_cor = Rres,
+                                residual_mode = residual_mode), r,
                             pmax(0, 1 - h2v), tag = "complex_resid_t")
     for (t in seq_len(nt)) {
       if (is.null(Em)) {
         seed_r <- .layer_seed(seed, paste0("complex_resid_t", t), r - 1L)
-        e <- .seeded_residual(seed_r, n, max(0, 1 - h2v[t]))
+        e <- .seeded_residual(seed_r, n, max(0, 1 - h2v[t]), residual_mode)
       } else {
         e <- Em[, t]
       }
@@ -157,6 +165,7 @@ complex_phenotypes <- function(..., h2, reps = 1, resid_cor = NULL) {
   out$h2 <- h2v
   out$reps <- reps
   out$resid_cor <- Rres
+  out$residual_mode <- residual_mode
   out$n_reps <- nr
   out$layers <- list()
   # A combined model is terminal and has no per-input state: clear everything

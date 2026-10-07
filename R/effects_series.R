@@ -78,10 +78,11 @@
 #'
 #' @param n number of individuals (>= 2).
 #' @param resid_var target residual variance (>= 0).
+#' @param residual_mode `fixed` standardizes the sample; `random` keeps the normal draw.
 #' @return numeric vector of length `n`.
 #' @keywords internal
 #' @noRd
-.draw_residual <- function(n, resid_var) {
+.draw_residual <- function(n, resid_var, residual_mode = "fixed") {
   if (!is.numeric(n) || length(n) != 1L || is.na(n) || n < 2) {
     stop("A residual needs n >= 2 individuals so its variance is defined; got ",
          "n = ", paste(n, collapse = ", "), ".", call. = FALSE)
@@ -90,6 +91,7 @@
     return(rep(0, n))
   }
   e <- stats::rnorm(n, mean = 0, sd = sqrt(resid_var))
+  if (identical(residual_mode, "random")) return(e)
   # Rescale to the exact target variance so realized h2 tracks the requested
   # proportions without finite-sample residual-variance drift.
   s <- stats::sd(e)

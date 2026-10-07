@@ -21,7 +21,8 @@ simulate_phenotype(
   reps = 1,
   resid_cor = NULL,
   refit = NULL,
-  ...
+  ...,
+  residual_mode = c("fixed", "random")
 )
 }
 \arguments{
@@ -84,7 +85,8 @@ The caller's RNG state is left untouched.}
 \item{h2}{optional requested genetic-variance share for one-call simulation.
 For a single mean-effect layer this is the simulated broad-sense
 heritability (the genetic component is scaled to \code{h2} exactly; only its
-sample covariance with the residual moves the realized ratio slightly). With
+sample covariance with the residual moves the realized ratio in fixed mode;
+random mode also allows residual sample variance to fluctuate). With
 multiple non-orthogonal layers -- above all additive and dominance on shared
 loci -- the realized value can differ structurally from the requested sum;
 see Details and the reported realized H2 / \verb{$ad_report}.
@@ -176,7 +178,7 @@ it must be at least \code{-1/(n_traits - 1)}); or give an \verb{n_traits x n_tra
 symmetric positive semi-definite matrix with unit diagonal and entries in
 \verb{[-1, 1]}. Needs \code{n_traits >= 2}. Each trait's residual is drawn exactly as
 in the independent case (same sub-seed), the traits are mixed through the
-Cholesky factor of the correlation matrix and each column is re-standardized
+Cholesky factor of the correlation matrix. In fixed mode each column is re-standardized
 to the same exact variance, so every trait's residual variance is still its
 \code{h2}-implied \code{1 - sum(prop)} target and only correlation is induced
 (trait 1's residual is unchanged up to rounding). The correlation is a target: the realized
@@ -185,8 +187,10 @@ it is a statement about the homoskedastic residual: a \code{\link[=vqtl]{vqtl()}
 component is drawn independently per trait and dilutes it, and
 \code{reps > 1} scales every trait's residual by its own \code{1/sqrt(reps)}, which leaves
 the correlation unchanged. Because the realized-variance standardization is
-applied per trait, the realized \code{h2} and the printed \code{var_budget} are
-unaffected by \code{resid_cor}; the residual still has a nonzero sample covariance
+applied per trait in fixed mode, the residual sample variances and requested
+\code{var_budget} are unchanged by \code{resid_cor}; realized \code{h2} can change because
+genetic-residual covariance changes. Random mode skips standardization and
+treats these variances as distribution parameters. The residual has sample covariance
 with the genetic values (as without it) and, with \code{resid_cor}, the traits'
 residuals are correlated, so the phenotypic correlation is
 a mix of the genetic (\code{cor}) and residual (\code{resid_cor}) correlations,
@@ -294,6 +298,20 @@ matrix has to be positive semi-definite, which for two traits is
 \code{cor^2 <= pi_1 * pi_2} -- otherwise an error is raised rather than an
 approximation returned. Using \code{cor} prints a citation notice once per
 session.}
+
+\item{residual_mode}{\code{"fixed"} (default) centers and rescales residual draws
+to the requested sample variance, preserving existing seeded results.
+\code{"random"} draws normal residuals with the requested variance parameter,
+without centering or sample rescaling: sample mean, variance and covariance
+with genetic values fluctuate. Genetic layer scaling is unchanged. With
+\code{resid_cor}, random mode draws multivariate normal residuals with the target
+covariance; with \code{reps}, residuals are divided by \code{sqrt(reps)} in either mode.
+A \code{\link[=vqtl]{vqtl()}} component in random mode uses genotype-dependent normal variances
+whose average over individuals equals its requested share; its realized
+variance fluctuates too. Neither mode forces genetic-residual covariance to
+zero. For a carried population trait (\code{refit = FALSE}), omission inherits
+its residual mode (older stored traits use \code{"fixed"}); an explicit value
+overrides the residual mode for this simulation.}
 }
 \value{
 a \code{phenotype_sim} object. Beyond the realized \code{pheno} table and the
