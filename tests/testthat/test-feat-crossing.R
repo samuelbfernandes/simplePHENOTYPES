@@ -258,9 +258,13 @@ test_that("a call at array size is cheap (the per-call string round trip is gone
   pop <- as_population(g)
   f1 <- suppressMessages(cross(pop[1], pop[2], n = 1, seed = 2))
   invisible(double_haploid(f1, n = 10, seed = 1))
-  t <- system.time(for (i in 1:10) double_haploid(f1, n = 100, seed = i))[["elapsed"]]
-  # HEAD: ~0.14 s per call on this size; now ~0.02 s. Loose bound against noise.
-  expect_lt(t / 10, 0.1)
+  # Relative, not wall-clock: a fixed per-call cost (the old string round trip,
+  # ~0.14 s per call on this size) makes a 1-progeny call nearly as slow as a
+  # 200-progeny one (ratio near 1); without it the cost scales with the progeny
+  # drawn (ratio ~0.04). Machine speed cancels out of the ratio.
+  small <- system.time(for (i in 1:20) double_haploid(f1, n = 1, seed = i))[["elapsed"]] / 20
+  big <- system.time(for (i in 1:5) double_haploid(f1, n = 200, seed = i))[["elapsed"]] / 5
+  expect_lt(small / big, 0.25)
 })
 
 # ---------------------------------------------------------------------------

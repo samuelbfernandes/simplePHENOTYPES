@@ -526,7 +526,11 @@ test_that("tools/msrv.R: error branches, MSRV comparison and the Cargo.toml rust
       dir.create(file.path(w, "src", "rust"), recursive = TRUE)
       writeLines(cargo_toml, file.path(w, "src", "rust", "Cargo.toml"))
     }
-    .aux_run(rscript, msrv, dir = w, env = .aux_env(PATH = paste(bin, "/usr/bin:/bin", sep = ":")))
+    # Only the fake toolchain may be visible: --vanilla skips Renviron files
+    # (which can prepend a real toolchain to PATH, as on CI runners with rustup)
+    # and a throw-away HOME hides the ~/.cargo/bin that msrv.R appends.
+    .aux_run(rscript, c("--vanilla", msrv), dir = w,
+             env = .aux_env(PATH = paste(bin, "/usr/bin:/bin", sep = ":"), HOME = w))
   }
   mk_rust()
   # missing / incomplete SystemRequirements
@@ -553,6 +557,7 @@ test_that("tools/msrv.R: error branches, MSRV comparison and the Cargo.toml rust
   r <- run("Cargo (Rust's package manager), rustc >= 1.65.0, xz", cargo_toml = toml)
   expect_gt(r$status, 0L)                                        # installed 1.80.1 < 1.85
   expect_true(any(grepl("Minimum supported Rust version is 1.85", r$out, fixed = TRUE)))
+  expect_true(any(grepl("Installed Rust version is 1.80.1", r$out, fixed = TRUE)))
   mk_rust(rustc = "1.90.0")
   r <- run("Cargo (Rust's package manager), rustc >= 1.65.0, xz", cargo_toml = toml)
   expect_identical(r$status, 0L)
