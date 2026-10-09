@@ -20,7 +20,10 @@
 #' [mediation_split()] is `NULL` for a combined model (the environmental
 #' expression-mediated part of an input is discarded with the input's residual,
 #' so no split of the combined phenotype is defined), and breeding-value selection
-#' methods that need per-locus effects refuse it.
+#' methods that need per-locus effects refuse it. The combined phenotype is
+#' continuous: an input passed through [liability_threshold()] contributes its
+#' liability-scale genetic values, its thresholds are dropped (with a warning),
+#' and the combined result cannot itself be thresholded.
 #'
 #' @param ... two or more `phenotype_sim` objects.
 #' @param h2 requested genetic variance share (scalar or length `n_traits`), on
@@ -93,6 +96,18 @@ complex_phenotypes <- function(..., h2, reps = 1, resid_cor = NULL,
       stop("All inputs must contain the same genotype data, marker order, and ",
            "individual subset.", call. = FALSE)
     }
+  }
+
+  thresholded <- vapply(models, function(m) {
+    !is.null(m$threshold) && !all(vapply(m$threshold, is.null, logical(1)))
+  }, logical(1))
+  if (any(thresholded)) {
+    warning("complex_phenotypes(): input(s) ",
+            paste(which(thresholded), collapse = ", "),
+            " were passed through liability_threshold(); their genetic values ",
+            "(liability scale) are combined, but the thresholds are dropped. ",
+            "The combined phenotype is continuous and cannot be thresholded.",
+            call. = FALSE)
   }
 
   means <- lapply(models, function(m) {
@@ -178,6 +193,14 @@ complex_phenotypes <- function(..., h2, reps = 1, resid_cor = NULL,
   out$expression <- NULL
   out$genetic_expression <- NULL
   out$expression_source <- NULL
+  # The combined phenotype is continuous: an input's liability_threshold() and
+  # its stale liability table would otherwise be read as the combined model's
+  # (.realized_h2(), coheritability()). A frozen input's stored trait would
+  # likewise be carried by select_ind() and reused by refit = FALSE.
+  out$threshold <- NULL
+  out$liability <- NULL
+  out$frozen <- NULL
+  out$trait <- NULL
   out$n_qtn <- 0L
   out$arch_args <- list()
   out$vary_qtn <- any(vapply(models, function(m) isTRUE(m$vary_qtn), logical(1)))

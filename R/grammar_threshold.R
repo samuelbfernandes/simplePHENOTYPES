@@ -54,8 +54,9 @@
 liability_threshold <- function(sim, prop, trait = NULL) {
   .check_sim(sim)
   if (identical(sim$architecture, "complex")) {
-    stop("liability_threshold(): apply it to each simulation before ",
-         "complex_phenotypes(), not to the combined result.", call. = FALSE)
+    stop("liability_threshold(): a complex_phenotypes() result cannot be ",
+         "thresholded (its phenotype is continuous, and thresholds on the ",
+         "inputs are dropped when they are combined).", call. = FALSE)
   }
   nt <- sim$n_traits
   trait <- if (is.null(trait)) seq_len(nt) else trait

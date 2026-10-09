@@ -114,3 +114,56 @@ test_that("thresholding an unseeded simulation keeps its liability (Codex G-02)"
   th <- liability_threshold(base, prop = c(0.5, 0.5))
   expect_identical(th$liability, base$pheno)
 })
+
+test_that("complex_phenotypes() drops an input's thresholds and liability table", {
+  g <- .tc_g()
+  a <- simulate_phenotype(g, n_traits = 2, seed = 10, architecture = "pleiotropy",
+                          cor = 0.8) |>
+    additive(prop = 0.4, n_qtn = 10) |>
+    liability_threshold(prop = c(0.8, 0.2), trait = 2)
+  b <- simulate_phenotype(g, n_traits = 2, seed = 11) |>
+    additive(prop = 0.4, n_qtn = 10)
+  expect_warning(
+    withCallingHandlers(cmb <- complex_phenotypes(a, b, h2 = 0.5),
+                        warning = function(w) {
+                          if (grepl("different seeds", conditionMessage(w)))
+                            invokeRestart("muffleWarning")
+                        }),
+    "thresholds are dropped")
+  expect_null(cmb$threshold)
+  expect_null(cmb$liability)
+  # the combined phenotype is continuous
+  expect_gt(length(unique(cmb$pheno$value[cmb$pheno$trait == "Trait_2"])), 2L)
+  # realized H2 and coheritability read the combined phenotype
+  G <- genetic_values(cmb)
+  P <- sapply(1:2, function(t) {
+    s <- cmb$pheno[cmb$pheno$trait == paste0("Trait_", t) & cmb$pheno$rep == 1L, ]
+    s$value[match(rownames(G), s$id)]
+  })
+  expect_equal(unname(simplePHENOTYPES:::.realized_h2(cmb)),
+               unname(diag(stats::cov(G)) / apply(P, 2L, stats::var)))
+  expect_equal(unname(diag(coheritability(cmb))),
+               unname(diag(stats::cov(G)) / apply(P, 2L, stats::var)))
+  expect_no_match(capture.output(print(cmb)), "Liability-threshold")
+  expect_error(liability_threshold(cmb, prop = c(0.5, 0.5)),
+               "cannot be thresholded")
+  # unthresholded inputs: no warning
+  expect_no_warning(complex_phenotypes(b, b, h2 = 0.5))
+})
+
+test_that("complex_phenotypes() does not carry a frozen input's trait", {
+  g <- .tc_g()
+  pop <- suppressMessages(as_population(g, individuals = seq_len(120)))
+  s0 <- simulate_phenotype(pop, h2 = 0.5, n_qtn = 10, seed = 1) |>
+    liability_threshold(prop = c(0.7, 0.3))
+  top <- suppressMessages(select_ind(s0, prop = 0.5))
+  f1 <- simulate_phenotype(top, refit = FALSE, seed = 2)
+  f2 <- simulate_phenotype(top, seed = 3)
+  expect_true(isTRUE(f1$frozen))
+  cmb <- suppressWarnings(complex_phenotypes(f1, f2, h2 = 0.5))
+  expect_null(cmb$frozen)
+  expect_null(cmb$trait)
+  expect_null(cmb$threshold)
+  expect_null(simplePHENOTYPES:::.freeze_trait(cmb))
+  expect_no_match(capture.output(print(cmb)), "refit = FALSE")
+})
