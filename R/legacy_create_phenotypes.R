@@ -474,6 +474,12 @@ create_phenotypes <-
     # path: the engine runs under RNGversion(RNGversion) and calls set.seed().
     rng_env <- .v1_rng_capture()
     on.exit(.v1_rng_restore(rng_env), add = TRUE)
+    # An absolute home_dir: the run setwd()s into it and then builds output
+    # paths from it, so a relative one would resolve twice (home_dir/home_dir).
+    if (is.character(home_dir) && length(home_dir) == 1L &&
+        !is.na(home_dir) && dir.exists(home_dir)) {
+      home_dir <- normalizePath(home_dir, winslash = "/", mustWork = TRUE)
+    }
     check_in(geno_obj = geno_obj,
                      geno_file = geno_file,
                      geno_path = geno_path,

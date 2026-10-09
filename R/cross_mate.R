@@ -153,10 +153,10 @@ mate <- function(plan, ..., seed = NULL, prefix = NULL, interference = NULL) {
     # self vs cross by pedigree identity, not display id: the same individual
     # under two ids (e.g. after c(pop, pop)) is a self
     same <- identical(parents[[u1[k]]]$keys, parents[[u2[k]]]$keys)
-    if (is.null(plan$design) || is.na(plan$design[k])) {
+    if (is.null(plan[["design"]]) || is.na(plan[["design"]][k])) {
       design_k <- if (same) "self" else "cross"
     } else {
-      design_k <- plan$design[k]
+      design_k <- plan[["design"]][k]
       if (design_k %in% c("self", "dh") && !same) {
         stop("mate(): plan row ", k, " is a \"", design_k, "\" but names two ",
              "different individuals.", call. = FALSE)
@@ -291,8 +291,8 @@ mate <- function(plan, ..., seed = NULL, prefix = NULL, interference = NULL) {
     plan$mother_pool <- as.character(plan$mother_pool)
     plan$father_pool <- as.character(plan$father_pool)
   }
-  if (!is.null(plan$design)) {
-    plan$design <- as.character(plan$design)
+  if (!is.null(plan[["design"]])) {
+    plan$design <- as.character(plan[["design"]])
     if (!all(is.na(plan$design) | plan$design %in% c("cross", "self", "dh"))) {
       stop("mate(): `plan$design` must be \"cross\", \"self\", \"dh\" or NA.",
            call. = FALSE)
