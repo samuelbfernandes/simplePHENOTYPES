@@ -18,3 +18,16 @@ td code { overflow-wrap: anywhere; white-space: normal; }
 pre { border-radius: 0.4rem; }
 .book-intro { font-size: 1.18rem; color: #425b68; }
 .diagram-note { color: #536977; font-size: 0.9rem; }
+
+// Cover: logo floated beside the welcome text, as in r4ds.
+.quarto-cover-image {
+  float: right;
+  max-width: 34%;
+  margin: 0 0 1rem 1.75rem;
+}
+@media (max-width: 767.98px) {
+  .quarto-cover-image { float: none; display: block; max-width: 60%; margin: 0 auto 1rem; }
+}
+@media (max-width: 767.98px) {
+  .cover-banner { width: 100% !important; }
+}

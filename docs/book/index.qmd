@@ -1,5 +1,7 @@
 # Welcome {.unnumbered}
 
+![](images/head.png){fig-alt="Simulation of Pleiotropic, Linked and Epistatic Phenotypes" width=62% .cover-banner}
+
 ::: {.book-intro}
 Build simulations whose assumptions, genetic mechanisms, and realized outcomes
 you can explain and check.
