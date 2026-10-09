@@ -49,6 +49,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Render and check documentation
         run: |
+          # Generate the included indexes first: Quarto resolves includes
+          # while collecting chapters, before its own pre-render step runs.
+          python3 dev/book/build_index.py
           quarto render docs/book
           python3 dev/book/check_links.py
       - uses: actions/upload-artifact@v4
