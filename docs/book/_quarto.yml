@@ -6,12 +6,16 @@ project:
     - python3 ../../dev/book/build_index.py
   resources:
     - downloads/**
+    - images/**
 
 book:
-  title: simplePHENOTYPES
-  subtitle: Simulation methods, quantitative genetics, and reproducible workflows
+  title: "A framework for simulations in quantitative genetics and breeding with simplePHENOTYPES"
+  cover-image: images/SP_logo.png
+  cover-image-alt: "simplePHENOTYPES logo: the phenotypic variance partitioned into additive, dominance, interaction, and environmental components"
   search: true
   sidebar:
+    title: simplePHENOTYPES
+    logo: images/SP_logo.png
     style: docked
     collapse-level: 2
   chapters:

@@ -297,7 +297,7 @@ example. This does not imply that population heritability exceeds one.
 
 Keep the default `residual_mode = "fixed"` when you want the residual component
 to have the same sample variance in each run. Choose `"random"` when you want
-ordinary normal sampling variation, as in AlphaSimR's standard residual draw.
+ordinary normal sampling variation from independent normal residuals.
 In random mode, 0.5 describes the variance of the distribution supplying the
 residuals. A finite sample from that distribution need not have variance exactly
 0.5, and its mean need not be exactly zero.
@@ -352,29 +352,16 @@ make the variance ratio exactly 0.5, but it would impose another constraint on
 the sample. Such adjustment is a different simulation design and is not provided
 by either residual mode here.
 
-### Comparison with AlphaSimR
+### How other simulators draw residuals
 
-AlphaSimR 2.1.0 provides a useful comparison. Its ordinary `setPheno()` path
-draws normal residuals and adds them to genetic values. It neither projects those
-residuals off the genetic-value vector nor standardizes their realized sample
-variance. Its `h2` and `H2` arguments calibrate the error-variance parameter using
-founder-population variances. They therefore do not promise the requested sample
-ratio in every simulated population. See the
-[official setPheno documentation](https://gaynorr.github.io/AlphaSimR/reference/setPheno.html)
-and the `addError()` implementation in
-[phenotypes.R](https://github.com/gaynorr/AlphaSimR/blob/master/R/phenotypes.R).
-
-| Ordinary single-trait path, one record | Residual sample variance fixed? | Genetic–residual sample covariance forced to zero? |
-|---|---|---|
-| simplePHENOTYPES `residual_mode = "fixed"` (default) | Yes | No |
-| simplePHENOTYPES `residual_mode = "random"` | No | No |
-| AlphaSimR 2.1.0 `setPheno()` | No | No |
-| Hypothetical exact sample calibration | Yes | Yes |
-
-The optional repository script `dev/book/compare_alphasimr.R` reproduces the
-comparison without making AlphaSimR a dependency of this book. The matching residual-draw principle does not make the packages identical:
-AlphaSimR and simplePHENOTYPES use different trait-calibration workflows. GxE and
-other specialized model paths require separate interpretation.
+AlphaSimR's ordinary `setPheno()` path, for example, draws independent normal
+residuals without fixing their sample variance or removing their chance
+covariance with the genetic values, which matches `residual_mode = "random"`.
+Its `h2` and `H2` arguments calibrate the residual variance in the founder
+population, so the realized sample
+ratio still varies from population to population. The optional script
+`dev/book/compare_alphasimr.R` reproduces this comparison; other
+specialized model paths need separate interpretation.
 
 ## Implementation and practical limits
 

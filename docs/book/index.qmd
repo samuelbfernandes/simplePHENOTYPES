@@ -1,15 +1,18 @@
 # Welcome {.unnumbered}
 
+![](images/head.png){fig-alt="Simulation of Pleiotropic, Linked and Epistatic Phenotypes" width=62% .cover-banner}
+
 ::: {.book-intro}
 Build simulations whose assumptions, genetic mechanisms, and realized outcomes
 you can explain and check.
 :::
 
-We regard [AlphaSimR](https://gaynorr.github.io/AlphaSimR/) as the gold standard
-for breeding-program simulation. simplePHENOTYPES is not intended to compete
-with it. It is another tool for making simulation more widely used: bringing
-your own data, exploring how genetic assumptions affect outcomes, and using
-those results to understand a problem and make better decisions.
+simplePHENOTYPES is built for researchers who want to start from their own
+genotype data, state the genetic assumptions of a simulation explicitly, and
+check what each assumption does to the outcome. The same framework carries a
+simulated trait from a single panel of genotypes through crossing, prediction,
+and selection, so a question can grow from one phenotype to a whole breeding
+scheme without changing tools.
 
 This book is for researchers in plant, animal, and human genetics with basic R
 knowledge. Examples follow the tidyverse style, introduce unfamiliar functions,
@@ -48,6 +51,22 @@ heterogeneous-stock mice distributed with BGLR for
 - **Find a function:** use the [public function index](functions.qmd).
 - **Inspect a method:** follow the [implementation overview](architecture.qmd),
   [developer index](developer-index.qmd), and [equation index](equation-index.qmd).
+
+## Validation against established software {#sec-validation}
+
+Where a published tool already implements a method, we used it as an
+independent check of our implementation. Each comparison is reproducible
+from the repository.
+
+| Reference software | What was checked | How |
+|---|---|---|
+| isqg 1.4 | The meiosis core behind crossing, selfing, and doubled haploids | Exact agreement with stored isqg outputs from the same random draws, required by the package tests |
+| PLINK 1.9 | Composite and haplotypic LD pruning, variance-inflation pruning, haplotype blocks | Agreement with stored PLINK outputs in the package tests |
+| AlphaSimR 2.1.0 | Genotype-by-environment phenotypes; coalescent founder presets; default crossover interference; residual draws and entry means | Exact agreement for genotype-by-environment phenotypes; distributional comparison for coalescent founders; scripts in `dev/` |
+
+Agreement on these methods does not make the packages interchangeable. Each
+chapter states which conventions follow another tool and where
+simplePHENOTYPES makes its own choices.
 
 ## Version and scope
 
