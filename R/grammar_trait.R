@@ -32,10 +32,10 @@
 #' @keywords internal
 #' @noRd
 .freeze_trait <- function(sim) {
-  if (isTRUE(sim$frozen)) return(sim$trait)
   if (identical(sim$architecture, "complex")) {
     return(NULL)
   }
+  if (isTRUE(sim$frozen)) return(sim$trait)
   types <- vapply(sim$layers, `[[`, character(1), "type")
   nt <- sim$n_traits
   if ("vqtl" %in% types) {
