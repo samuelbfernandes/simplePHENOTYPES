@@ -122,8 +122,9 @@ population_from_haplotypes <- function(cis, trans, map, ids = NULL,
     stop("`cis`/`trans` must hold at least one marker and one individual.",
          call. = FALSE)
   }
-  counted <- .check_counted(map$counted, map$allele, nrow(map), "map$counted")
-  pmap <- .make_map(map$snp, map$chr, map$pos, map$cm, map$allele, counted)
+  counted <- .check_counted(map[["counted"]], map[["allele"]], nrow(map),
+                            "map$counted")
+  pmap <- .make_map(map$snp, map$chr, map$pos, map$cm, map[["allele"]], counted)
 
   # marker names of the matrices (when present) must be the map's, in order
   for (nm in c("cis", "trans")) {

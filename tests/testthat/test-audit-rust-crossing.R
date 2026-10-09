@@ -33,9 +33,9 @@
     stdout = TRUE, stderr = TRUE,
     env = paste0("R_LIBS=", paste(.libPaths(), collapse = .Platform$path.sep))
   ))
-  list(status = attr(out, "status") %||% 0L, out = as.character(out))
+  status <- attr(out, "status")
+  list(status = if (is.null(status)) 0L else status, out = as.character(out))
 }
-`%||%` <- function(a, b) if (is.null(a)) b else a
 
 # Evaluate named calls in the package namespace, one line of output each:
 #   CASE <name> ERROR <message>   |   CASE <name> OK
