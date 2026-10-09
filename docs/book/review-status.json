@@ -1,0 +1,27 @@
+{
+  "result": "PASS",
+  "scope": "Pilot book theory and random residual mode, including correlated traits, vQTLs, entry means, complex models and inherited traits. AlphaSimR comparison retained from prior review.",
+  "source_revision": "8a4725a",
+  "files": {
+    "docs/book/first-simulation.qmd": "c040b9fea50be6884a296fa9caccfe8083b0463a42aadf197f1c011e4d7f6113",
+    "docs/book/conventions.qmd": "b326ade4fe605321978ac6f90aae67a5ca07f6f4e079794c692d2094b7fa3859",
+    "docs/book/architecture.qmd": "8c24e95b8c501264e9c74623f2d373b0045b1bde9f407f8acd4adcb6994dc6d3",
+    "docs/book/derivations.qmd": "814a219f6b3ff75a8f8d4227666da88b348c76b280a7fef785f1faf42ac1e62f",
+    "dev/book/compare_alphasimr.R": "c242e9025ef2e21b3a5bac8048e5eaf499136e4f92240c9343c0e8cae8473710",
+    "docs/book/index.qmd": "0172f0ae6f2b25f7b9244c49432703c63383d887df7c2e6328f4812398f77cd4",
+    "docs/book/development.qmd": "658c33ae612b73923b6d5c0e4e1bd83fe4726039565bed423f30ea0f949cdab1",
+    "docs/book/coverage.json": "4187ae30d7033c7e0d848bf78cad10704f31ac7c1b4a50d45f4adde7981dff7b",
+    "R/effects_series.R": "686bc152c686bf0dbf236ba822ed0aef97be07f53eb76bd2beb1b5005ee44c74",
+    "R/grammar_complex.R": "b818b901d7473f51e196b7135ffa01da4473275082ad89a6cb2a21dc30f11523",
+    "R/grammar_layers.R": "4a1e9b6da1b9d7af0186cd19435a0779601eca2722f42bef77e13a0e47409167",
+    "R/grammar_realize.R": "134a527a8f4ded63b065d05b6e12eb540dd0a6a6a1a0e118bfc1fa4ea7dde887",
+    "R/grammar_simulate_phenotype.R": "9d2ba3d295380fb7ca5c33e6554935d6579fdd3f7e0900989cabf5fe01e76bae",
+    "R/grammar_trait.R": "71109072ecee93b21967e4c6fed8a3d49a0cbd8a99c31221cb7fca95280c0c05",
+    "tests/testthat/test-residual-mode.R": "49e58e1321f58b5543ca7b8ce552dbe7b1bf7f0ac4504189f5e395b2b3090db3"
+  },
+  "limitations": [
+    "This review does not validate the historical equation map or future chapters.",
+    "AlphaSimR source comparison was verified in the previous pilot review; the final residual-mode review did not re-fetch that external source."
+  ],
+  "package_source_sha256": "edcb2b4d23a72b3561098bb4101937dfadcfdaf1f18e8f8cc11f34223d740d67"
+}

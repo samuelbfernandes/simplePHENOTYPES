@@ -1,0 +1,430 @@
+# Contributions and cross usefulness {#sec-optimization}
+
+Truncation selection keeps the best candidates and discards the rest. Over
+cycles that erodes diversity and, with it, future gain. This chapter asks two
+questions a breeder faces before mating: how much should each candidate
+contribute to the next generation, and which crosses are worth making? The
+first is answered by optimum contribution selection, the second by the
+usefulness of a cross. Both are computed on simulated maize lines, so every
+expectation can be checked against realized progeny.
+
+[]{#optimization-setup}
+
+```{r}
+#| label: optimization-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-optimization-example}
+
+### Load the package and candidates
+
+[]{#optimization-library}
+
+```{r}
+#| label: optimization-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+```
+
+The candidates are the first 40 inbred lines of the bundled maize panel
+(see [A first simulation](first-simulation.qmd)), with an additive trait of 50
+causal markers. `as_population()` turns the numeric genotype table into a
+`Population`, the object the crossing and selection functions operate on.
+
+[]{#optimization-candidates}
+
+```{r}
+#| label: optimization-candidates
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+geno <- as_numeric(
+  SNP55K_maize282_maf04,
+  to_r = TRUE, to_file = FALSE, verbose = FALSE
+)
+pop <- as_population(geno, individuals = 1:40)
+sim <- simulate_phenotype(pop, h2 = 0.5, seed = 11) |>
+  additive(n_qtn = 50)
+print(sim)
+```
+
+The realized genetic-to-phenotypic variance ratio differs from the requested
+0.5 for the reasons explained in the [first chapter](first-simulation.qmd):
+the sample covariance between the genetic and residual components is free, and
+with only 40 individuals it can be large.
+
+### Relatedness among candidates
+
+`g_matrix()` builds the genomic relationship matrix from the marker dosages.
+Its diagonal exceeds one by the genomic inbreeding of each line relative to
+the current sample, and its off-diagonal entries measure how much two lines
+share marker alleles beyond what the sample's allele frequencies predict.
+
+[]{#optimization-g}
+
+```{r}
+#| label: optimization-g
+G <- g_matrix(pop)
+dim(G)
+round(G[1:4, 1:4], 3)
+summary(diag(G) - 1)
+```
+
+The lines are inbred, so their genomic inbreeding is close to one. Because
+`G` is built from the current sample's allele frequencies, the diagonal is not
+inbreeding relative to a founder population; the function's `base_freq`
+argument fixes a reference base when one is needed.
+
+### Optimum contributions
+
+`optimum_contribution()` chooses a contribution vector `c`, one value per
+candidate, that is non-negative and sums to one. It maximizes the expected
+merit of the parents minus a penalty on their group coancestry. The merit is
+the simulated breeding value by default. The penalty `lambda` sets the
+trade-off.
+
+[]{#optimization-ocs}
+
+```{r}
+#| label: optimization-ocs
+oc <- optimum_contribution(sim, merit = "bv", lambda = 2)
+print(oc)
+```
+
+The printed summary reports the expected merit `c'g`, the group coancestry
+`0.5 c'Gc`, and the largest contributions. We confirm the two defining
+properties of the solution directly: the contributions sum to one and the
+reported coancestry equals the quadratic form computed from `G`.
+
+[]{#optimization-ocs-check}
+
+```{r}
+#| label: optimization-ocs-check
+cc <- oc$contributions
+bv <- genetic_values(sim)[, 1]
+tibble(
+  quantity = c("Sum of contributions", "Expected merit", "Group coancestry"),
+  reported = c(sum(cc), oc$merit, oc$coancestry),
+  recomputed = c(
+    sum(cc),
+    sum(cc * bv[names(cc)]),
+    0.5 * drop(crossprod(cc, G %*% cc))
+  )
+)
+```
+
+### The gain-diversity frontier
+
+Repeating the optimization over a range of penalties traces the frontier
+between expected merit and group coancestry. At `lambda = 0` nothing
+penalizes relatedness, so all weight goes to the single best candidate. Larger
+penalties spread the contributions over more parents at a cost in expected
+merit.
+
+[]{#optimization-frontier}
+
+```{r}
+#| label: optimization-frontier
+frontier <- lapply(c(0, 0.5, 2, 10, 50), function(lambda) {
+  o <- optimum_contribution(sim, lambda = lambda)
+  tibble(
+    lambda = lambda, n_parents = o$n_parents,
+    merit = o$merit, coancestry = o$coancestry
+  )
+}) |>
+  bind_rows()
+frontier
+```
+
+Breeders more often think in terms of a coancestry they are willing to
+accept than in terms of a penalty. `target_coancestry` finds the penalty whose
+solution has exactly that group coancestry, by bisection on `lambda`.
+
+[]{#optimization-target}
+
+```{r}
+#| label: optimization-target
+tg <- optimum_contribution(sim, target_coancestry = 0.3)
+print(tg)
+```
+
+### From contributions to parents
+
+Contributions are fractions; a mating plan needs individuals. `sample_parents()`
+fills `n` parent slots. The default `"allocate"` method gives each candidate
+the whole-number part of `n` times its contribution, then assigns the
+leftover slots to the largest remainders. The `"multinomial"` method draws
+slots at random with replacement, weighted by the contributions.
+
+[]{#optimization-parents}
+
+```{r}
+#| label: optimization-parents
+parents <- sample_parents(oc, pop, n = 20, seed = 12)
+print(parents)
+
+slots <- attr(parents, "source") |>
+  count(id, name = "slots") |>
+  mutate(
+    realized = slots / 20,
+    optimized = oc$contributions[id]
+  ) |>
+  arrange(desc(optimized))
+slots
+```
+
+The `source` attribute records which candidate fills each slot. Every
+realized contribution is within one slot of its optimized value. The group
+coancestry of the realized set is not guaranteed to equal the optimum, because
+coancestry is quadratic in the contributions. The comparison below computes it
+for both methods; the multinomial draw usually lands further from the optimum
+because its counts carry sampling noise.
+
+[]{#optimization-parents-coancestry}
+
+```{r}
+#| label: optimization-parents-coancestry
+multinomial <- sample_parents(oc, pop, n = 20, seed = 12, method = "multinomial")
+
+realized_coancestry <- function(parents) {
+  counts <- table(attr(parents, "source")$id)
+  c_realized <- setNames(rep(0, nrow(G)), rownames(G))
+  c_realized[names(counts)] <- as.numeric(counts) / sum(counts)
+  0.5 * drop(crossprod(c_realized, G %*% c_realized))
+}
+
+tibble(
+  set = c("Optimized contributions", "allocate, n = 20", "multinomial, n = 20"),
+  coancestry = c(
+    oc$coancestry,
+    realized_coancestry(parents),
+    realized_coancestry(multinomial)
+  )
+)
+```
+
+The returned `Population` can be mated with `cross()` or
+[`mating_design()`](mating.qmd); repeated copies of a parent receive
+distinct identifiers because the crossing functions require unique names.
+
+### Which crosses to make
+
+Optimum contributions decide who should be a parent. Usefulness decides which
+pairs to cross. `cross_usefulness()` simulates a progeny family for each
+candidate pair, scores the progeny on the trait's additive effects, and reports
+the family mean, its genetic standard deviation, and the usefulness
+$U = \mu + i\,\sigma$, where $i$ is the selection intensity for the best
+`select_top` fraction.
+
+For the doubled-haploid and selfing schemes the family is derived from a
+single F1 of the cross, which is only well defined for inbred parents. The
+maize lines carry a little residual heterozygosity, so we take the first
+eight lines and remove the few markers at which any of them is heterozygous.
+This is a teaching convenience, not a recommendation for real data; it also
+keeps the candidates diverse, which matters because the scoring effects are
+standardized over the candidates themselves.
+
+[]{#optimization-inbred}
+
+```{r}
+#| label: optimization-inbred
+lines <- names(geno)[6:13]
+inbred_geno <- filter_geno(
+  geno[, c(names(geno)[1:5], lines)],
+  hets = "remove", verbose = FALSE
+)
+inbred <- as_population(inbred_geno)
+print(inbred)
+```
+
+The usefulness is computed on the scoring model of a simulation built on
+these eight lines: the simulation supplies the causal markers and their fixed
+additive effects.
+
+[]{#optimization-usefulness}
+
+```{r}
+#| label: optimization-usefulness
+sim8 <- simulate_phenotype(inbred, h2 = 0.5, seed = 11) |>
+  additive(n_qtn = 50)
+u <- cross_usefulness(sim8, scheme = "dh", n_progeny = 100, seed = 13)
+head(u)
+attr(u, "intensity")
+```
+
+All 28 pairs of the eight lines were evaluated, ranked best first. The
+`intensity` attribute is the normal-theory value for the top ten percent. A
+parent-mean ranking would use only the `midparent` column of the comparison below;
+usefulness adds the family's genetic spread, which is why crosses with a lower
+mean can rank above crosses with a higher one.
+
+[]{#optimization-midparent}
+
+```{r}
+#| label: optimization-midparent
+template <- template_effects(sim8)
+parent_value <- additive_value(inbred, template$qtn, template$a)
+
+u |>
+  mutate(midparent = (parent_value[parent1] + parent_value[parent2]) / 2) |>
+  select(parent1, parent2, midparent, mean, sd, usefulness) |>
+  head(8)
+```
+
+### Check the usefulness against realized progeny
+
+We simulate the top-ranked cross ourselves: make the F1, derive 100 doubled
+haploids, score them with the same additive effects, and compare the
+usefulness to the mean of the best ten progeny.
+
+[]{#optimization-usefulness-check}
+
+```{r}
+#| label: optimization-usefulness-check
+best <- u[1, ]
+f1 <- cross(inbred[best$parent1], inbred[best$parent2], n = 1, seed = 14)
+dh <- double_haploid(f1, n = 100, seed = 15)
+progeny <- additive_value(dh, template$qtn, template$a)
+top10 <- mean(sort(progeny, decreasing = TRUE)[1:10])
+
+tibble(
+  quantity = c(
+    "Family mean", "Family genetic SD",
+    "Usefulness (normal theory)", "Mean of the best 10 of 100 progeny"
+  ),
+  predicted = c(best$mean, best$sd, best$usefulness, NA),
+  simulated = c(mean(progeny), sd(progeny), NA, top10)
+)
+```
+
+The two family simulations use different seeds, so the means and standard
+deviations differ by Monte Carlo error. The usefulness and the realized
+top-fraction mean differ for a second reason explained below.
+
+The `"selfcross"` scheme derives near-inbred lines by repeated selfing
+instead of doubling the F1 gametes; its results are usually close to the
+doubled-haploid ranking for an additive trait.
+
+[]{#optimization-selfcross}
+
+```{r}
+#| label: optimization-selfcross
+cross_usefulness(
+  sim8, pairs = u[1:3, c("parent1", "parent2")],
+  scheme = "selfcross", n_progeny = 100, generations = 5, seed = 13
+)
+```
+
+## Assumptions and theory
+
+### The optimum contribution problem
+
+Optimum contribution selection maximizes
+
+$$
+c'g - \frac{\lambda}{2}\, c'Gc
+\qquad\text{subject to}\qquad c \ge 0,\; \mathbf{1}'c = 1,
+$$ {#eq-ocs-objective}
+
+where $c$ is the vector of contributions, $g$ the vector of merits, $G$ the
+genomic relationship matrix, and $\lambda$ the penalty. The group coancestry
+of the chosen parents is $\tfrac12 c'Gc$. The equation map records the
+reference as Meuwissen 1997 *J Anim Sci* 75:934–940 (verified; page
+unverified). The implementation in `optimum_contribution()` and the internal
+optimizer `.frank_wolfe()` is a package definition: an away-step Frank-Wolfe
+method on the simplex, with the penalty tuned by bisection in `.tune_lambda()`
+when a target coancestry is requested. With `direction = "low"` the merit is
+negated.
+
+Because the contributions sum to one, adding a constant to every merit does
+not change the solution. The merit scale does matter relative to `lambda`:
+doubling all merits halves the effective penalty, which is why the frontier
+should be read as a curve over `lambda`, not as a set of universal values.
+
+### The genomic relationship matrix
+
+`g_matrix()` computes
+
+$$
+G = \frac{ZZ'}{2\sum_j p_j(1-p_j)}, \qquad Z = M - 2p,
+$$ {#eq-vanraden}
+
+with $M$ the individuals-by-markers gene-content matrix (0, 1, 2) and $p_j$
+the frequency of the counted allele at marker $j$. This is VanRaden 2008
+*J Dairy Sci* 91:4414–4423, method 1 (paper verified; page unverified in the
+equation map). Markers monomorphic in the current set are dropped. The
+optional `ridge` argument blends $G$ with the identity; that blend is a
+package extension for numerical positive definiteness, not VanRaden's blend
+with a pedigree matrix.
+
+### Usefulness
+
+The usefulness criterion is
+
+$$
+U = \mu + i\,\sigma,
+$$ {#eq-usefulness}
+
+with $\mu$ the family mean and $\sigma$ the family genetic standard deviation
+of the additive value, both realized by the crossing engine from `n_progeny`
+simulated progeny, and $i = \varphi(\Phi^{-1}(1-p))/p$ the standard
+normal-theory selection intensity for the fraction $p$ in `select_top`. The
+equation map cites Zhong & Jannink 2007 *Genetics* 177:567–576 and Lehermeier
+et al. 2017 *Genetics* 207:1651–1661 (verified; pages unverified) for the
+criterion and Falconer & Mackay 1996 (author-year, no page asserted) for the
+intensity.
+
+Two facts explain why the usefulness need not equal the realized
+top-fraction mean. First, $i$ is the infinite-population value; the mean of
+the top 10 of 100 ordered normal values is slightly smaller. Second, the
+family's genetic values are a sum over a few dozen loci with geometric
+effects, so they are not exactly normal; a family dominated by a few large
+effects is discrete and skewed, and $U$ can then exceed the family maximum.
+`U` is therefore a ranking criterion under a normality assumption, not an
+exact prediction.
+
+### Scores are on a fixed scale
+
+The progeny scores in `cross_usefulness()` and the `additive_value()` checks
+above use the additive effects frozen from the template simulation,
+$g_i = \sum_j x_{ij} e_j$ with $e_j$ already multiplied by the layer's
+$\sqrt{\pi}/\mathrm{sd}$ factor (`.additive_model()`, a package definition
+mirroring `.genetic_matrix()`). Scoring a family by re-running
+`simulate_phenotype()` on it would re-standardize the genetic component within
+each family and destroy the comparability of means and standard deviations
+between crosses.
+
+## Implementation and practical limits
+
+The optimizer, the relationship matrix, and the usefulness calculations are
+deterministic R code; the random steps are the simulated meioses of
+`cross_usefulness()` and the slot ordering or draws of `sample_parents()`,
+all seeded through R.
+
+- `optimum_contribution()` takes exactly one of `lambda`, `target_coancestry`
+  or `max_coancestry`. A target above the coancestry of the unconstrained
+  optimum cannot be reached by a non-negative penalty; the function warns and
+  uses `lambda = 0`.
+- The default merit `"bv"` is the transmitting average effect
+  $\alpha_j = a_j + d_j(q_j - p_j)$, computed from the simulation's own
+  effects. It is refused for models with an epistasis layer; pass a numeric
+  `merit` there, for example estimated breeding values from
+  [`predict_ebv()`](prediction.qmd).
+- `g_matrix()` refuses missing genotypes and any coding other than `-1`, `0`,
+  `1`; impute first with `as_numeric(impute = )`.
+- `sample_parents()` with `"allocate"` can give a small contributor no slot
+  when `n` is small. Increase `n` if every contributor must appear.
+- `cross_usefulness()` evaluates all pairs by default; the count grows with
+  the square of the number of candidates. Pass `pairs` for large panels.
+- Only the additive component is scored; dominance and epistasis layers are
+  ignored, and the function warns when a parent is heterozygous at a scoring
+  locus under the `"dh"` or `"selfcross"` schemes.
+
+::: {.callout-tip title="Combining the two tools"}
+A common pipeline is to compute contributions with
+`optimum_contribution()`, fill the parent slots with `sample_parents()`,
+and then rank the pairs among those parents with `cross_usefulness()`
+before calling [`mate()`](mating.qmd). The
+[breeding schemes](programs.qmd) chapter shows how such a cycle is repeated.
+:::

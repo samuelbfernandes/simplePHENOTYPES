@@ -1,0 +1,447 @@
+# Meiosis and crossing {#sec-cross}
+
+Suppose you have two inbred maize lines and want to build a mapping or breeding
+population from them: an F1, its F2 or doubled-haploid progeny, several
+generations of selfing, and a record of who descends from whom. This chapter
+simulates those steps on the bundled maize genotypes and checks what the
+simulation produces against three expectations that any meiosis simulator must
+meet: Mendelian segregation ratios, the halving of heterozygosity under selfing,
+and recombination fractions that follow the genetic map.
+
+[]{#cross-setup}
+
+```{r}
+#| label: cross-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-cross-example}
+
+### Load the package and the founders
+
+[]{#cross-library}
+
+```{r}
+#| label: cross-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+```
+
+Meiosis needs two things a dosage table does not carry: the phase of each
+individual's two homologous chromosomes, and the genetic distances between
+markers. `as_population()` supplies the first by building a phased
+`Population`; the `cm` column of the genotype table supplies the second.
+
+[]{#cross-founders}
+
+```{r}
+#| label: cross-founders
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+geno <- as_numeric(
+  SNP55K_maize282_maf04,
+  to_r = TRUE, to_file = FALSE, verbose = FALSE
+)
+
+founders <- as_population(geno, individuals = c("33-16", "38-11"))
+founders
+n_individuals(founders)
+```
+
+The bundled map is synthetic, built from physical positions with
+`synthetic_map()` ([maps and founders](founders.qmd)). The genetic lengths it
+reports are therefore a model of maize recombination, not measured values.
+Both founders are inbred lines, so phasing their rare heterozygotes
+arbitrarily loses almost nothing; for outbred material that phasing is a real
+assumption, discussed below.
+
+### An F1 is heterozygous where the parents differ
+
+`cross()` takes one mother and one father, each a single-individual
+`Population`, and returns `n` progeny. Every progeny receives one recombinant
+gamete from each parent.
+
+[]{#cross-f1}
+
+```{r}
+#| label: cross-f1
+f1 <- cross(founders[1], founders[2], n = 1, seed = 11)
+f1
+```
+
+The markers that can tell the two founders apart are those where both are
+homozygous, for different alleles. At those **informative markers** the F1
+must be heterozygous, because it received one homologue from each parent.
+`dosages()` returns the familiar `-1`, `0`, `1` coding with markers in rows.
+
+[]{#cross-f1-het}
+
+```{r}
+#| label: cross-f1-het
+d_founders <- dosages(founders)
+informative <- which(
+  d_founders[, 1] != d_founders[, 2] &
+    d_founders[, 1] != 0 & d_founders[, 2] != 0
+)
+
+tibble(
+  markers = nrow(d_founders),
+  informative = length(informative),
+  f1_heterozygous_at_informative = mean(dosages(f1)[informative, 1] == 0)
+)
+```
+
+Requiring both founders to be homozygous matters. A locus where one founder is
+heterozygous also differs between them, but the F1 is heterozygous there only
+half the time, and including such loci would blur every ratio that follows.
+
+### An F2 segregates 1:2:1
+
+`selfcross()` pollinates an individual with itself. The two gametes come from
+independent meioses of the same plant, so at an informative locus the F2
+carries each parental homozygote with probability one quarter and the
+heterozygote with probability one half.
+
+[]{#cross-f2}
+
+```{r}
+#| label: cross-f2
+f2 <- selfcross(f1, n = 300, seed = 13)
+f2
+
+f2_counts <- table(dosages(f2)[informative, ])
+tibble(
+  genotype = c("homozygote 33-16 or 38-11", "heterozygote", "other homozygote"),
+  parameter = c(0.25, 0.5, 0.25),
+  simulated = as.numeric(prop.table(f2_counts))
+)
+```
+
+The `parameter` column gives the Mendelian expectation; `simulated` is the
+proportion over all informative markers and all F2 plants. Which homozygote
+appears first in the table depends on which allele is coded `1` at each marker,
+so the two homozygote rows are interchangeable.
+
+### Doubled haploids are homozygous by construction
+
+`double_haploid()` draws a single gamete and doubles it, so every doubled
+haploid is homozygous at every marker and, at an informative locus, carries
+either parent's allele with probability one half.
+
+[]{#cross-dh}
+
+```{r}
+#| label: cross-dh
+dh <- double_haploid(f1, n = 1000, seed = 14)
+
+tibble(
+  any_heterozygote = any(dosages(dh) == 0),
+  share_from_first_parent =
+    mean(dosages(dh)[informative, ] == d_founders[informative, 1])
+)
+```
+
+### Selfing halves heterozygosity each generation
+
+Repeated selfing is the classical route from an F2 to inbred lines. Here we
+advance 40 lines by single-seed descent for four generations and record the
+mean heterozygosity at the informative markers. `mate()` executes one selfing
+per line in a single call; its plan names the same individual as mother and
+father, which the package records as a self.
+
+[]{#cross-selfing}
+
+```{r}
+#| label: cross-selfing
+heterozygosity <- function(pop) {
+  mean(dosages(pop)[informative, ] == 0)
+}
+
+lines <- selfcross(f1, n = 40, seed = 20)
+het <- heterozygosity(lines)
+for (g in 2:4) {
+  ids <- parentage(lines)$id
+  plan <- data.frame(mother = ids, father = ids, n = 1)
+  lines <- mate(plan, lines, seed = 20 + g)
+  het <- c(het, heterozygosity(lines))
+}
+
+tibble(
+  generation = paste0("S", 1:4),
+  parameter = 0.5^(1:4),
+  simulated = het
+)
+```
+
+The `parameter` column is $1/2^t$ for generation $S_t$, the expectation
+derived below. Averaging over 40 lines is what makes the agreement visible.
+Any single line is a poor estimate, because heterozygosity survives in long
+chromosomal blocks rather than locus by locus, so a genome carries far fewer
+independent pieces of information than it has markers.
+
+### Pedigree and families
+
+Every `Population` records its pedigree. `parentage()` returns one row per
+individual with its parents, generation, founder pool, and the mating design
+that produced it. With `ancestors = TRUE` it returns every recorded ancestor as
+well.
+
+[]{#cross-parentage}
+
+```{r}
+#| label: cross-parentage
+parentage(f2) |>
+  select(id, mother, father, generation, design) |>
+  head(3)
+
+parentage(f2, ancestors = TRUE) |>
+  select(id, mother, father, generation, design) |>
+  head(4)
+```
+
+The hidden `key` columns link individuals by a stable identifier rather than
+by display name, so pooled populations with clashing names keep their pedigree
+links. `families()` turns the pedigree into a grouping factor, which the
+[selection chapter](selection.qmd) uses for within- and among-family selection.
+
+[]{#cross-families}
+
+```{r}
+#| label: cross-families
+third <- as_population(geno, individuals = "B73")
+mixed <- c(
+  cross(founders[1], founders[2], n = 3, seed = 31),
+  cross(founders[1], third, n = 2, seed = 32),
+  selfcross(f1, n = 2, seed = 33)
+)
+
+tibble(
+  id = parentage(mixed)$id,
+  full_sib = as.character(families(mixed, "full_sib")),
+  maternal_half_sib = as.character(families(mixed, "maternal_half_sib")),
+  selfed = as.character(families(mixed, "selfed"))
+)
+```
+
+The three crosses sharing mother `33-16` form one maternal half-sib group, the
+selfed progeny of `prog_1` form a `selfed` family, and the crosses are `NA`
+under `"selfed"` because they are not products of selfing.
+
+### Recombination follows the genetic map
+
+Segregation ratios confirm that alleles are transmitted, but say nothing about
+linkage. To check recombination we ask, for pairs of markers on one
+chromosome, how often a doubled haploid carries the first parent's allele at
+one marker and the second parent's at the other. Doubled haploids make this
+easy because their single allele names the founder it came from.
+
+[]{#cross-linkage}
+
+```{r}
+#| label: cross-linkage
+on_chr1 <- geno$chr == "1"
+p1 <- d_founders[on_chr1, 1]
+p2 <- d_founders[on_chr1, 2]
+inf1 <- which(p1 != p2 & p1 != 0 & p2 != 0)
+cm1 <- geno$cm[on_chr1][inf1]
+
+from_p1 <- dosages(dh)[on_chr1, ][inf1, ] == p1[inf1]
+pick <- c(5, 20, 60, 150, 400)
+distance <- (cm1[pick] - cm1[1]) / 100
+
+recombination <- tibble(
+  distance_cM = distance * 100,
+  simulated = rowMeans(from_p1[pick, ] != from_p1[rep(1, length(pick)), ]),
+  haldane = (1 - exp(-2 * distance)) / 2
+)
+recombination
+```
+
+The simulated recombination fractions rise with distance and never exceed one
+half, but at intermediate distances they sit **above** Haldane's map function.
+That is expected: the default crossover model includes interference, which
+suppresses nearby double crossovers and therefore raises the recombination
+fraction between loci tens of centiMorgans apart. The theory section gives the
+package's documented formula for the default model. Rerunning the doubled
+haploids with `interference = "poisson"` removes interference and recovers
+Haldane's function.
+
+[]{#cross-interference}
+
+```{r}
+#| label: cross-interference
+gamma_r <- function(d, nu = 2.6, p = 0) {
+  y <- 2 * nu * (1 - p) * d
+  p0 <- exp(-2 * p * d) *
+    (1 - pgamma(y, nu + 1) - (y / nu) * (1 - pgamma(y, nu)))
+  (1 - p0) / 2
+}
+
+dh_poisson <- double_haploid(f1, n = 1000, seed = 14, interference = "poisson")
+from_p1_poisson <- dosages(dh_poisson)[on_chr1, ][inf1, ] == p1[inf1]
+
+recombination |>
+  mutate(
+    gamma_model = gamma_r(distance),
+    simulated_poisson = rowMeans(
+      from_p1_poisson[pick, ] != from_p1_poisson[rep(1, length(pick)), ]
+    )
+  ) |>
+  select(distance_cM, simulated, gamma_model, simulated_poisson, haldane)
+```
+
+Each simulated fraction is an average over 1000 lines, so its standard error is
+roughly $\sqrt{r(1-r)/1000}$, below 0.02. The default draws track the gamma
+model column and the Poisson draws track Haldane's column within that
+precision.
+
+### Reproducibility
+
+All random quantities are drawn by R, so a pedigree is reproducible from its
+seed. A seeded call also restores the caller's random-number state on exit, so
+it does not disturb other draws in a script.
+
+[]{#cross-reproduce}
+
+```{r}
+#| label: cross-reproduce
+again <- selfcross(f1, n = 300, seed = 13)
+identical(dosages(again), dosages(f2))
+```
+
+## Assumptions and theory
+
+This chapter simulates diploid meiosis without sex-specific recombination,
+without mutation, and without selection. Parents are phased founders or their
+simulated descendants. Chromosomes assort independently, and the genetic map
+is taken as given.
+
+### How a gamete is made
+
+For each chromosome the package draws the number of crossovers and their
+positions, then draws which homologue the gamete starts on. The deterministic
+part, turning those positions into a recombinant chromosome, is the ancestry
+mask: the gamete copies the starting homologue up to the first crossover,
+switches at every crossover, and the result is the gamete's strand (package
+definition; `.draw_meiosis()` draws in R, `chromosome_mask()` and
+`recombine()` in the Rust module `meiosis.rs` apply the draws).
+
+Two crossover models are available.
+
+- **Poisson, `interference = "poisson"`.** The number of crossovers on a
+  chromosome is Poisson with mean equal to the chromosome's length in Morgans,
+  and their positions are uniform along it. This is the count-location model
+  of the isqg package, and the package's draws reproduce isqg's random stream
+  exactly (package definition, `.draw_meiosis()`; reference Toledo et al. 2019
+  as cited in `?cross`). The chromosome length is its last map position, not
+  its span, so crossovers upstream of the first marker only swap the whole
+  chromosome and do not change the recombination fraction between markers.
+- **Gamma interference, the default.** Chiasmata on the four-strand bivalent
+  follow a stationary renewal process whose gaps are gamma distributed with
+  shape $\nu = 2.6$ and, optionally, a share $p$ of non-interfering chiasmata
+  (here $p = 0$). A gamete takes part in each chiasma independently with
+  probability one half. These defaults are AlphaSimR's and approximate
+  Kosambi's map function; the package documents them as following the gamma
+  model of McPeek and Speed (1995) and the two-pathway extension of Housworth
+  and Stahl (2003), while stating that its formulas were derived and checked
+  numerically in its own tests rather than copied from those papers. Both
+  models give one crossover per Morgan on average, so the genetic map keeps
+  its meaning under either.
+
+Under the Poisson model the recombination fraction between two loci $d$
+Morgans apart is Haldane's
+
+$$
+r(d) = \tfrac{1}{2}\left(1 - e^{-2d}\right),
+$$ {#eq-haldane}
+
+because the loci recombine when an odd number of crossovers falls between
+them, and for a Poisson count the probability of an odd number is
+$(1 - e^{-2d})/2$. The equation map records this as Haldane (1919), page
+unverified, and as a property of the Poisson process rather than a formula the
+code evaluates. Under the gamma model the package documents
+
+$$
+r(d) = \frac{1 - P_0(d)}{2},\qquad
+P_0(d) = e^{-2pd}\left\{1 - F_{\nu+1}(y) - \frac{y}{\nu}\left[1 - F_\nu(y)\right]\right\},
+\quad y = 2\nu(1-p)\,d,
+$$ {#eq-gamma-r}
+
+where $P_0(d)$ is the probability of no chiasma in the interval and $F_a$ is
+the distribution function of a Gamma($a$, 1) variable. The `gamma_r()`
+function above evaluates this expression as written in `?cross`; it is the
+package's documented formula, not an independent derivation in this book.
+
+### Why selfing halves heterozygosity
+
+Consider one locus at which a plant is heterozygous. Each of its gametes
+carries either allele with probability one half, independently, so the selfed
+offspring is heterozygous with probability one half and homozygous otherwise.
+A homozygous locus stays homozygous. Averaging over loci and lines, the
+expected heterozygosity after $t$ generations of selfing is
+
+$$
+H_t = H_0 / 2^t,
+$$ {#eq-selfing}
+
+with $H_0$ the heterozygosity of the starting plant, here the F1, which is one
+at every informative marker. This is an algebraic consequence of Mendelian
+transmission at a single locus; linkage changes the variance among lines but
+not this expectation. The equation map attributes the result to Falconer and
+Mackay (1996), chapter 5, page unverified.
+
+### Doubled haploids and the F2
+
+A doubled haploid copies one gamete onto both homologues, so it is homozygous
+everywhere and shows the gamete's allele directly. At an informative locus the
+gamete carries each parent's allele with probability one half. An F2 combines
+two independent gametes of the F1, giving the 1:2:1 ratio. Both facts are
+package definitions of `double_haploid()` and `selfcross()` that follow from
+the gamete construction above.
+
+### Phasing of founders
+
+A dosage matrix says that an individual is heterozygous but not which
+homologue carries which allele. `as_population()` puts allele 1 on the first
+strand and allele 2 on the second at every heterozygote (package convention;
+equation map entry V2-crossing-1). For an inbred panel this is nearly
+lossless. For an outbred sample it imposes a coupling phase on every
+heterozygote, which distorts the haplotypes that recombination then shuffles.
+Use `population_from_haplotypes()` when phased haplotypes are available
+([maps and founders](founders.qmd)).
+
+## Implementation and practical limits
+
+R draws every random quantity, in isqg's order, and passes the results to
+Rust; the Rust core never calls a random-number generator. This is the
+boundary described in the [implementation overview](architecture.qmd) and is
+what makes the Poisson draws bit-identical to isqg and every pedigree
+reproducible from its seed. `mate()` batches many matings into one pass
+through the Rust core while keeping the same draws as the equivalent
+sequence of `cross()`, `selfcross()`, and `double_haploid()` calls.
+
+- Both parents must share one marker map and the same allele coded `1`. Convert
+  panels together, or with a fixed `ref_allele`, before crossing populations
+  built from separately converted files.
+- The map must have no missing `cm` values and must be non-decreasing within
+  each chromosome. A physical-position-only table needs `synthetic_map()`.
+- A chromosome's crossover count depends on its last map position. A map
+  whose first marker sits far from zero adds crossovers that swap whole
+  chromosomes and cost computing time without changing recombination between
+  markers.
+- Seeded results of every meiosis function changed when the default moved
+  from Poisson to gamma interference in version 2.0.0.9003; pass
+  `interference = "poisson"` to reproduce older results, or set the option
+  `simplePHENOTYPES.interference` once for a session.
+- The pedigree records parents, not per-locus founder origin, so realized
+  ancestry fractions along the genome are not tracked. The
+  [mating designs chapter](mating.qmd) returns to this point.
+
+::: {.callout-tip title="A check worth keeping"}
+Segregation ratios cannot see phasing or linkage bugs. The recombination table
+can: an earlier development version produced haplotypes the founders never
+had, and its F2 and doubled-haploid ratios still looked perfect while the
+recombination fractions came out near one. Keep the linkage check in any
+pipeline that modifies meiosis.
+:::

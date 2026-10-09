@@ -1,0 +1,429 @@
+# Trait values across generations {#sec-trait}
+
+Suppose you define a trait on an F2 population, select the best plants, and
+self them. You now want phenotypes for the progeny that mean the same thing as
+in the F2: the same causal loci, the same effects, and the same residual
+variance, so that a gain from selection can be read off the numbers. This
+chapter shows how a trait travels with a `Population`, how the fixed-scale
+accessors differ from the per-population scaling used in a single simulation,
+and how the two kinds of replication promised in
+[notation and conventions](conventions.qmd) differ.
+
+[]{#trait-setup}
+
+```{r}
+#| label: trait-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-trait-example}
+
+### Build a base population and define a trait
+
+[]{#trait-library}
+
+```{r}
+#| label: trait-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+```
+
+We start from two maize inbreds, make an F1, and self it to obtain 200 F2
+plants, as in the [crossing chapter](cross.qmd). The trait is defined on this
+F2 with the one-call form of `simulate_phenotype()`: `h2 = 0.4` and
+`n_qtn = 20` request a single additive layer that fills the genetic budget.
+
+[]{#trait-base}
+
+```{r}
+#| label: trait-base
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+geno <- as_numeric(
+  SNP55K_maize282_maf04,
+  to_r = TRUE, to_file = FALSE, verbose = FALSE
+)
+founders <- as_population(geno, individuals = c("33-16", "38-11"))
+f1 <- cross(founders[1], founders[2], n = 1, seed = 1)
+f2 <- selfcross(f1, n = 200, seed = 2)
+
+base <- simulate_phenotype(f2, h2 = 0.4, n_qtn = 20, seed = 3)
+base
+```
+
+The printed partition is the one explained in the
+[first chapter](first-simulation.qmd): the additive layer is scaled to sample
+variance 0.4 and the residual to 0.6 in this F2. Nothing has been stored on the
+population yet.
+
+[]{#trait-none}
+
+```{r}
+#| label: trait-none
+population_trait(f2)
+```
+
+### Select and let the trait travel
+
+`select_ind()` ranks on the phenotype and returns the selected individuals as
+a `Population`. It stores the trait it ranked on, so the selected plants, and
+every population bred from them, carry the trait's loci, effects, and residual
+variance.
+
+[]{#trait-carry}
+
+```{r}
+#| label: trait-carry
+top <- select_ind(base, prop = 0.2)
+population_trait(top)
+
+ids <- parentage(top)$id
+f3 <- mate(data.frame(mother = ids, father = ids, n = 5), top, seed = 4)
+population_trait(f3)
+```
+
+`var_e` is the residual variance of a single record on the base population's
+phenotypic scale, where the phenotypic variance was one. Simulating a
+phenotype on `f3` without arguments reuses the stored trait instead of
+fitting a new one.
+
+[]{#trait-inherit}
+
+```{r}
+#| label: trait-inherit
+inherited <- simulate_phenotype(f3, seed = 5)
+inherited
+```
+
+The print now says that the trait is carried and that the residual variance is
+fixed. The genetic share is **realized**, not requested: the additive layer
+keeps its base-population centering and scale, so its variance in `f3` is
+whatever the selected parents transmitted, and the realized heritability is no
+longer 0.4 by construction.
+
+### Fixed-scale accessors versus per-population scaling
+
+`genetic_values()` recenters and rescales every layer to its target share on
+whatever population is being scored, which is right for a single simulation
+and wrong for a trend across generations. `additive_value()` scores a frozen
+architecture, the loci and effects from `qtn_table()`, on the raw dosages
+with no centering or rescaling.
+
+[]{#trait-fixed-scale}
+
+```{r}
+#| label: trait-fixed-scale
+qt <- qtn_table(base)
+loci <- qt$snp
+effects <- qt$effect
+
+a_f2 <- additive_value(f2, qtn = loci, effect = effects)
+a_f3 <- additive_value(f3, qtn = loci, effect = effects)
+
+g_f2 <- genetic_values(base)[, "Trait_1"]
+g_f3 <- genetic_values(inherited)[, "Trait_1"]
+
+tibble(
+  generation = c("F2 (base)", "S1 of selected"),
+  mean_additive_value = c(mean(a_f2), mean(a_f3)),
+  var_additive_value = c(var(a_f2), var(a_f3)),
+  mean_genetic_values = c(mean(g_f2), mean(g_f3)),
+  var_genetic_values = c(var(g_f2), var(g_f3))
+)
+```
+
+The fixed-scale mean rises from the F2 to the progeny of the selected plants:
+that is the response to selection, in dosage-times-effect units. In the base
+population `genetic_values()` is centered on zero and scaled to variance 0.4,
+so it cannot express a level. For the carried trait it keeps the base
+population's centering and scale, so its mean shifts as well, but on the base
+population's standardized scale rather than in trait units; a re-fitted
+simulation would center it again. Within the base population the two
+accessors are the same quantity up to a linear transformation, which is why
+they rank individuals identically.
+
+[]{#trait-same-ranking}
+
+```{r}
+#| label: trait-same-ranking
+cor(a_f2[names(g_f2)], g_f2)
+```
+
+### Heritability from a reference, or a fixed residual variance
+
+`phenotype_value()` builds a phenotype on the frozen scale: the fixed additive
+value plus an independent normal residual with a **variance parameter**
+`var_e`. There are two ways to set that parameter. `h2` converts a target
+heritability to `var_e` using the genetic variance of a reference population,
+by default the population being scored. `var_e` sets it directly.
+
+[]{#trait-var-e}
+
+```{r}
+#| label: trait-var-e
+y_f2 <- phenotype_value(f2, qtn = loci, effect = effects, h2 = 0.4, seed = 10)
+ve <- attr(y_f2, "var_e")
+
+y_f3_fixed <- phenotype_value(f3, qtn = loci, effect = effects,
+                              var_e = ve, seed = 11)
+y_f3_refit <- phenotype_value(f3, qtn = loci, effect = effects,
+                              h2 = 0.4, seed = 11)
+y_f3_ref <- phenotype_value(f3, qtn = loci, effect = effects,
+                            h2 = 0.4, ref = f2, seed = 11)
+
+tibble(
+  call = c("F2, h2 = 0.4", "S1, var_e from F2", "S1, h2 = 0.4 (ref = S1)",
+           "S1, h2 = 0.4, ref = F2"),
+  var_e = c(ve, attr(y_f3_fixed, "var_e"), attr(y_f3_refit, "var_e"),
+            attr(y_f3_ref, "var_e")),
+  parametric_h2 = c(
+    var(a_f2) / (var(a_f2) + ve),
+    var(a_f3) / (var(a_f3) + attr(y_f3_fixed, "var_e")),
+    var(a_f3) / (var(a_f3) + attr(y_f3_refit, "var_e")),
+    var(a_f3) / (var(a_f3) + attr(y_f3_ref, "var_e"))
+  )
+)
+```
+
+Passing `var_e`, or `h2` with the base population as `ref`, gives the same
+residual variance in both generations, so the parametric heritability of the
+progeny is whatever their genetic variance makes it. Passing `h2` alone
+re-derives `var_e` from the progeny's own genetic variance and pins the
+heritability back to 0.4. Only the first design describes a trait that means
+the same thing in every generation. Selecting the top fifth and selfing them
+reduced the progeny's genetic variance, and with it the parametric
+heritability; sustained selection moves both further.
+
+### Total genotypic value with dominance
+
+`genotypic_value()` adds a dominance deviation `d` at each locus, the value of
+the heterozygote above the homozygous midpoint. Doubled haploids have no
+heterozygotes, so their dominance contribution is zero; the F2 has a
+heterozygote at about half its loci.
+
+[]{#trait-genotypic}
+
+```{r}
+#| label: trait-genotypic
+dh <- double_haploid(f1, n = 200, seed = 6)
+d_dev <- rep(0.1, length(loci))
+
+tibble(
+  population = c("F2", "doubled haploids"),
+  mean_additive = c(
+    mean(additive_value(f2, qtn = loci, effect = effects)),
+    mean(additive_value(dh, qtn = loci, effect = effects))
+  ),
+  mean_total_genotypic = c(
+    mean(genotypic_value(f2, qtn = loci, a = effects, d = d_dev)),
+    mean(genotypic_value(dh, qtn = loci, a = effects, d = d_dev))
+  ),
+  parameter_dominance_mean = c(0.5 * sum(d_dev), 0)
+)
+```
+
+With `d = 0.1` at 20 loci and an expected heterozygote frequency of one half
+in the F2, the dominance contribution to the F2 mean is close to one; in the
+doubled haploids it is exactly zero. `phenotype_value(d = )` uses this total
+value as the genetic part and then interprets `h2` as broad-sense.
+
+### Two kinds of replication
+
+`n_reps` asks for independent **simulation replications**: the same
+architecture is realized several times with fresh residuals, and each
+replication is a `rep` in the long table. `reps` asks for **entry means**:
+each individual's phenotype becomes the average of `reps` records, so only the
+residual shrinks.
+
+[]{#trait-replication}
+
+```{r}
+#| label: trait-replication
+three_runs <- simulate_phenotype(f2, h2 = 0.4, n_qtn = 20, seed = 3, n_reps = 3)
+entry_means <- simulate_phenotype(f2, h2 = 0.4, n_qtn = 20, seed = 3, reps = 4)
+
+runs <- phenotypes_long(three_runs)
+means <- phenotypes_long(entry_means)
+g <- genetic_values(three_runs)[, "Trait_1"]
+
+tibble(
+  design = c("n_reps = 3, replication 1", "n_reps = 3, replication 2",
+             "n_reps = 3, replication 3", "reps = 4, entry means"),
+  parameter_residual_variance = c(0.6, 0.6, 0.6, 0.6 / 4),
+  simulated_residual_variance = c(
+    var(runs$value[runs$rep == 1] - g[runs$id[runs$rep == 1]]),
+    var(runs$value[runs$rep == 2] - g[runs$id[runs$rep == 2]]),
+    var(runs$value[runs$rep == 3] - g[runs$id[runs$rep == 3]]),
+    var(means$value - g[means$id])
+  )
+)
+```
+
+The three replications are three independent samples of the same experiment,
+each with the full single-record residual. The entry-mean design has one
+phenotype per individual with one quarter of the residual variance. They
+answer different questions: `n_reps` is for studying sampling variability of
+an analysis, `reps` is for representing a trial in which each entry was
+measured several times. Because the layer is scaled on the single-record
+budget, the print of `entry_means` reports both the single-record and the
+entry-mean realized shares.
+
+### Genotype-by-environment slopes
+
+`gxe_value()` scores a second frozen architecture: per-locus slopes that
+describe how each individual responds to an environmental covariate.
+`phenotype_value(gxe = )` multiplies that slope by the trial's covariate value
+and adds the product to the phenotype.
+
+[]{#trait-gxe}
+
+```{r}
+#| label: trait-gxe
+slopes_effects <- rep(c(0.05, -0.03, 0.02, 0.04), 5)
+slopes <- gxe_value(f2, qtn = loci, effect = slopes_effects)
+
+y_low <- phenotype_value(f2, qtn = loci, effect = effects, var_e = ve,
+                         gxe = slopes_effects, env = 0.1, seed = 12)
+y_high <- phenotype_value(f2, qtn = loci, effect = effects, var_e = ve,
+                          gxe = slopes_effects, env = 0.9, seed = 12)
+
+tibble(
+  trial = c("env = 0.1", "env = 0.9"),
+  covariate_w = c(attr(y_low, "env_value"), attr(y_high, "env_value")),
+  mean_phenotype = c(mean(y_low), mean(y_high)),
+  correlation_between_trials = cor(y_low, y_high)
+)
+```
+
+The covariate is the normal quantile of `env`, so the two trials sit at
+opposite ends of the environmental range and their phenotypes are less than
+perfectly correlated even though the residual draw used the same seed. With
+`var_env = 0` the covariate has standard deviation one and no main effect:
+the mean slope of the slopes vector is near zero, so the two trial means are
+similar. Setting `gxe_intercept` so that the mean slope is one, together with
+`var_env > 0`, turns the covariate into a shared environmental main effect as
+well, following the AlphaSimR convention described in `?gxe_value`.
+
+## Assumptions and theory
+
+### The fixed additive scale
+
+For individual $i$ with coded genotypes $x_{ij} \in \{-1, 0, 1\}$ at the
+frozen causal loci and effects $\beta_j$, the fixed-scale additive value is
+
+$$
+A_i = \sum_j x_{ij}\,\beta_j,
+$$ {#eq-fixed-additive}
+
+with no centering and no rescaling (package definition, `additive_value()`;
+the equation map attributes the parameterization to Falconer and Mackay 1996,
+page unverified). The total genotypic value adds a dominance deviation at
+heterozygotes,
+
+$$
+G_i = \sum_j \left[a_j\,x_{ij} + d_j\,\mathbf{1}(x_{ij} = 0)\right],
+$$ {#eq-fixed-genotypic}
+
+so the per-locus term is $-a_j$, $+d_j$, $+a_j$ for the two homozygotes and the
+heterozygote (package definition, `genotypic_value()`; Falconer and Mackay
+1996, chapter 7, page unverified). This is the individual's own value, not a
+parent's combining ability and not its breeding value; `?genotypic_value`
+gives an example where the two rank parents differently.
+
+Within one population `genetic_values()` equals a linear transformation of
+@eq-fixed-additive, because the layer is the same score centered and divided
+by its sample standard deviation and multiplied by $\sqrt{\pi}$
+(@sec-scaling-derivation). The correlation of one shown above is that
+identity.
+
+### Residual variance from a heritability
+
+`phenotype_value()` draws independent residuals $e_i \sim N(0, \sigma_e^2)$
+and returns $A_i + e_i$. Given a target $h^2$ and a reference population with
+fixed-scale genetic variance $V_{A,\text{ref}}$, it sets
+
+$$
+\sigma_e^2 = V_{A,\text{ref}}\,\frac{1 - h^2}{h^2},
+$$ {#eq-var-e}
+
+which is $h^2 = V_A / (V_A + V_E)$ solved for $V_E$ (package definition,
+`phenotype_value()`; equation map entry V2-crossing-15, Falconer and Mackay
+1996, page unverified). In generation $t$ the parametric heritability is then
+
+$$
+h^2_t = \frac{V_{A,t}}{V_{A,t} + \sigma_e^2},
+$$ {#eq-h2-drift}
+
+an algebraic consequence of holding $\sigma_e^2$ fixed while $V_{A,t}$ changes.
+Selection reduces $V_{A,t}$, so $h^2_t$ falls. Inbreeding without selection
+does the opposite for an additive trait scored on this fixed scale: it raises
+the variance among lines toward twice the F2 value, so $h^2_t$ rises. A cross
+between divergent parents can also raise it. In the example above, truncation
+selection outweighed one generation of selfing. This is the behaviour that a
+cross-generation selection simulation needs and that re-fitting `h2` in every
+generation would hide. The residual here is a genuine normal draw, so its
+realized sample variance scatters around $\sigma_e^2$; the sample ratio
+$\operatorname{Var}(A)/\operatorname{Var}(y)$ tracks @eq-h2-drift up to that
+scatter and up to the sample covariance discussed in the
+[first chapter](first-simulation.qmd).
+
+A carried population trait uses the same idea inside `simulate_phenotype()`:
+the stored `var_e` is the base population's residual variance on its unit
+phenotypic scale, and the stored layers keep the base population's centering
+and scale (package definition, `population_trait()` and `refit`).
+
+### Entry means
+
+If each individual is measured $r$ times with independent single-record
+residuals of variance $V_E$, the mean of its records has residual variance
+$V_E / r$ and unchanged genetic value, so
+
+$$
+\operatorname{Var}(\bar y) = V_G + V_E / r .
+$$ {#eq-entry-mean}
+
+The package implements this by dividing the residual by $\sqrt{r}$ (package
+definition, `reps` argument of `simulate_phenotype()`). With a carried trait
+the fixed `var_e` is divided by `reps` in the same way. `n_reps` does not
+touch the residual variance; it repeats the whole realization.
+
+### Genotype-by-environment term
+
+With slopes $s_i = \text{intercept} + \sum_j x_{ij} b_j$ and a trial covariate
+$w$, the phenotype is
+
+$$
+y_i = A_i + s_i\,w + e_i, \qquad w = \sigma_w\,\Phi^{-1}(\text{env}),
+$$ {#eq-gxe}
+
+where $\Phi^{-1}$ is the standard normal quantile function and
+$\sigma_w = \sqrt{\text{var\_env}}$, or one when `var_env = 0`. One covariate
+is shared by every individual scored in the call. The package documents this
+as a reproduction of the AlphaSimR 2.1.0 source for its additive-by-environment
+trait, not as an equation printed in that package's paper (`?phenotype_value`,
+`?gxe_value`). The term is not part of the genetic value: `h2` converts to
+`var_e` from the additive variance alone.
+
+## Implementation and practical limits
+
+- A trait is stored by `select_ind()` and copied by `cross()`, `selfcross()`,
+  `double_haploid()`, `mate()`, and the scheme functions built on them, when
+  all parents carry the same trait. Populations that have never been selected
+  carry none, as the `NULL` above shows.
+- Phenotypes with a `vqtl()` or `transcriptome()` layer, or the complex
+  architecture, have no fixed form and are not carried; every generation is
+  re-fitted.
+- On a carried trait, `simulate_phenotype()` ignores `h2`, `n_qtn`, and layer
+  verbs unless `refit = TRUE`, which defines a new trait. Residual mode is
+  inherited from the base population unless given explicitly.
+- `additive_value()`, `genotypic_value()`, `gxe_value()`, and
+  `phenotype_value()` accept a `Population`, a population-backed simulation,
+  or a markers-by-individuals dosage matrix; loci can be marker names or row
+  indices.
+- For cross-generation use, compute `var_e` once from the base population, or
+  pass the base population as `ref`, and reuse it. `h2` with the default
+  `ref` re-derives the residual variance from each scored population.
+- `select_ind(on = "bv")` scores the average-effect breeding value, which
+  differs from the per se values above when dominance is present; see the
+  [selection chapter](selection.qmd).

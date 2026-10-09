@@ -1,0 +1,103 @@
+# Derivations and counterexamples
+
+## Scaling the genetic and residual components {#sec-scaling-derivation}
+
+Start with a raw genetic score. For individual $i$, multiply the coded genotype
+at each causal marker by that marker's effect and add the contributions:
+
+$$
+c_i = \sum_{j=1}^{m} x_{ij} b_j, \qquad
+g_i = \sqrt{\pi}\,\frac{c_i-\bar c}{s_c}.
+$$ {#eq-layer-scale}
+
+Read the second expression in three steps. Subtracting the mean score $\bar c$
+centers the scores on zero. Dividing by their sample standard deviation $s_c$
+gives variance one. Multiplying by $\sqrt{\pi}$ gives variance $\pi$, because
+variance changes by the square of a multiplier. In the first chapter, $m=20$
+is the number of causal markers and $\pi=0.5$ is the genetic allocation.
+$x_{ij}$ is individual $i$'s genotype at marker $j$, and $b_j$ is its raw effect.
+
+In default fixed mode, normal random values $z_i$ undergo the same process:
+
+$$
+e_i = \sqrt{1-\pi}\,\frac{z_i-\bar z}{s_z}, \qquad y_i=g_i+e_i.
+$$ {#eq-first-residual}
+
+The bar denotes the sample mean and $s_z$ the sample standard deviation.
+The multiplier gives residual sample variance $1-\pi$. This fixes the sample
+mean and variance, so the adjusted residuals are no longer independent normal
+observations. In random mode the package instead draws independent normal
+residuals with mean parameter zero and variance parameter $1-\pi$, without
+these adjustments. The resulting sample mean and variance fluctuate.
+
+These are package definitions: `.component_raw()`, `.genetic_matrix()`, and
+`.draw_residual()` implement these steps. They describe the first chapter's
+single additive layer, with no vQTL or other components.
+
+## The sample variance identity {#sec-variance-derivation}
+
+This appendix derives the identities used in the first chapter directly from
+sample definitions. It does not assume random mating, Hardy-Weinberg equilibrium,
+linkage equilibrium, or a particular distribution for the realized vectors.
+Use paired finite vectors with $n>1$; variance ratios additionally require a
+nonzero phenotypic sample variance.
+
+Here $s_y^2$, $s_g^2$, and $s_e^2$ denote sample variances, and $s_{ge}$
+denotes sample covariance. A bar denotes a sample mean; $n$ is the number of
+individuals. Each sum adds one term for each individual.
+
+For $y_i=g_i+e_i$, subtract the corresponding sample means and expand the square:
+
+$$
+\begin{aligned}
+s_y^2
+&=\frac{1}{n-1}\sum_i\left[(g_i-\bar g)+(e_i-\bar e)\right]^2\\
+&=\frac{\sum_i(g_i-\bar g)^2}{n-1}
+ +\frac{\sum_i(e_i-\bar e)^2}{n-1}
+ +2\frac{\sum_i(g_i-\bar g)(e_i-\bar e)}{n-1}\\
+&=s_g^2+s_e^2+2s_{ge}.
+\end{aligned}
+$$ {#eq-variance-proof}
+
+Centering and dividing a nonconstant vector by its sample standard deviation
+gives sample variance one. Multiplication by $\sqrt{\pi}$ then gives sample
+variance $\pi$. Applying this argument to the first chapter's two components
+in fixed mode gives $s_g^2=\pi$ and $s_e^2=1-\pi$. Substituting these into
+the variance identity gives
+
+$$
+R_G = \frac{s_g^2}{s_y^2} = \frac{\pi}{1+2s_{ge}}.
+$$ {#eq-realized-ratio}
+
+The two variance allocations add to one; the covariance supplies the remaining
+term in the denominator. $R_G$ is the genetic-to-phenotypic sample variance ratio.
+This reduced formula applies to fixed mode in this example. In random mode use
+the full identity, because $s_e^2$ need not equal $1-\pi$.
+
+These are algebraic derivations. The normalization steps themselves are package
+definitions, with code provenance in the [evidence register](equation-index.qmd#sec-evidence).
+
+### A ratio greater than one
+
+The following deliberately negatively associated vectors disprove the claim that
+every realized genetic-to-phenotypic sample variance ratio must lie in $[0,1]$.
+They do not represent a typical independent residual draw from the package.
+
+[]{#ratio-counterexample}
+
+```{r}
+#| label: ratio-counterexample
+g <- c(-1, 0, 1)
+e <- -0.75 * g
+y <- g + e
+tibble::tibble(
+  quantity = c(
+    "Genetic variance", "Residual variance", "Covariance",
+    "Phenotypic variance", "Genetic / phenotypic variance"
+  ),
+  value = c(var(g), var(e), cov(g, e), var(y), var(g) / var(y))
+)
+```
+
+The counterexample concerns the diagnostic ratio. It does not redefine the
+usual population heritability under a model with the required variance partition.

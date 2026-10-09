@@ -1,0 +1,517 @@
+# Complex phenotype architectures {#sec-complex}
+
+Two kinds of complexity are often needed beyond additive, dominance, and
+epistatic mean effects. The first is a locus that changes how *variable* a
+trait is rather than its mean: a variance QTL. The second is a model that no
+single architecture describes, for example two traits that share some causal
+loci but not others. This chapter builds both, checks what the simulation
+produces against what was requested, and explains why a vQTL is counted as
+residual rather than genetic variance.
+
+[]{#complex-setup}
+
+```{r}
+#| label: complex-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-complex-example}
+
+### Load the package and the data
+
+[]{#complex-library}
+
+```{r}
+#| label: complex-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+```
+
+A variance QTL is easiest to see when all three genotype classes are present,
+so the first part uses the human HapMap genotypes introduced in the
+[binary chapter](binary.qmd) and the [input chapter](input.qmd). The second
+part combines two architectures on the bundled maize panel.
+
+[]{#complex-genotypes}
+
+```{r}
+#| label: complex-genotypes
+source("_data.R")
+human <- book_human()
+
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+maize <- as_numeric(SNP55K_maize282_maf04,
+                    to_r = TRUE, to_file = FALSE, verbose = FALSE)
+```
+
+### Choose a locus whose variance effect can be seen
+
+A vQTL drawn at random may land on a marker with few individuals in one
+genotype class, which makes its effect hard to display. We therefore pick a
+marker on which every class has at least 60 individuals and pass it to
+`vqtl()` through `qtn`. The additive layer is still drawn at random.
+
+[]{#complex-choose}
+
+```{r}
+#| label: complex-choose
+class_counts <- human |>
+  select(-(1:5)) |>
+  apply(1, function(x) table(factor(x, levels = c(-1, 0, 1)))) |>
+  t() |>
+  as_tibble() |>
+  mutate(snp = human$snp, .before = 1)
+
+candidate <- class_counts |>
+  filter(`-1` >= 60, `0` >= 60, `1` >= 60) |>
+  slice(1)
+candidate
+```
+
+### A variance QTL on its own locus
+
+We request an additive share of 0.3 on ten markers and a vQTL share of 0.3 on
+the chosen marker, leaving 0.4 for the ordinary residual.
+
+[]{#complex-vqtl}
+
+```{r}
+#| label: complex-vqtl
+sim <- simulate_phenotype(human, seed = 31) |>
+  additive(prop = 0.3, n_qtn = 10) |>
+  vqtl(prop = 0.3, qtn = candidate$snp)
+print(sim)
+```
+
+The printout lists the vQTL as a separate row of the variance partition and
+states that it is not counted in the broad-sense heritability. The requested
+genetic share is 0.3, the additive layer alone. `qtn_table()` lists the vQTL
+locus with its layer effect and leaves its `var_explained` empty: a vQTL
+explains no variance of the mean.
+
+[]{#complex-vqtl-table}
+
+```{r}
+#| label: complex-vqtl-table
+qtn_table(sim) |>
+  filter(layer == "vqtl") |>
+  select(trait, layer, snp, chr, maf, effect, var_explained)
+```
+
+### Residual variance by genotype class
+
+Because the phenotype is genetic value plus residual, subtracting the genetic
+value recovers the residual. We attach each individual's genotype at the vQTL
+and compare the residual variance within the three classes.
+
+[]{#complex-classes}
+
+```{r}
+#| label: complex-classes
+genotype_at <- function(geno, marker) {
+  row <- geno[geno$snp == marker, ]
+  tibble(id = names(row)[-(1:5)], genotype = as.numeric(row[-(1:5)]))
+}
+
+residuals_of <- function(sim, rep = 1) {
+  genetic <- genetic_values(sim, rep = rep) |>
+    as_tibble(rownames = "id") |>
+    rename(genetic_value = Trait_1)
+  phenotypes_long(sim) |>
+    filter(rep == !!rep) |>
+    left_join(genetic, by = "id") |>
+    mutate(residual = value - genetic_value)
+}
+
+by_class <- residuals_of(sim) |>
+  left_join(genotype_at(human, candidate$snp), by = "id") |>
+  group_by(genotype) |>
+  summarise(
+    n = n(),
+    mean_residual = mean(residual),
+    residual_variance = var(residual),
+    mean_genetic_value = mean(genetic_value)
+  )
+by_class
+```
+
+The residual variance increases from one homozygote through the heterozygote
+to the other homozygote, while the mean residual stays near zero in every
+class. The mean genetic value also differs somewhat between classes. That
+difference does not come from the vQTL, which adds no mean effect; it comes
+from the sample association between this marker and the ten additive loci.
+In a panel drawn from four populations with different allele frequencies such
+associations are common. We have created a locus that affects the spread of
+the residual without affecting its average.
+
+### Compare with a model without the vQTL
+
+The same seed and additive layer without the variance component give a
+reference whose residual variance does not depend on the genotype at that
+marker. Any differences left between classes are sampling variation of a
+variance computed from 60 to 143 individuals; the replicated comparison in the
+next section separates such noise from the modelled pattern.
+
+[]{#complex-reference}
+
+```{r}
+#| label: complex-reference
+plain <- simulate_phenotype(human, seed = 31) |>
+  additive(prop = 0.3, n_qtn = 10)
+
+residuals_of(plain) |>
+  left_join(genotype_at(human, candidate$snp), by = "id") |>
+  group_by(genotype) |>
+  summarise(n = n(), residual_variance = var(residual))
+```
+
+### Replications and the expected pattern
+
+One realization can show a class difference by chance. With `n_reps` the
+residual is redrawn many times while the loci and effects stay the same. The
+log-linear link described in the theory section predicts that the conditional
+variances of the three classes are in geometric progression, with the ratio
+between adjacent classes set by the vQTL share and by the marker's
+standardized dosage.
+
+[]{#complex-replications}
+
+```{r}
+#| label: complex-replications
+replicated <- simulate_phenotype(human, seed = 31, n_reps = 200) |>
+  additive(prop = 0.3, n_qtn = 10) |>
+  vqtl(prop = 0.3, qtn = candidate$snp)
+
+dosage <- genotype_at(human, candidate$snp)
+loading <- dosage |>
+  mutate(loading = sqrt(0.3) * (genotype - mean(genotype)) / sd(genotype)) |>
+  distinct(genotype, loading)
+
+class_variances <- lapply(seq_len(200), function(r) {
+  residuals_of(replicated, rep = r) |>
+    left_join(dosage, by = "id") |>
+    group_by(genotype) |>
+    summarise(variance = var(residual), .groups = "drop") |>
+    mutate(rep = r)
+}) |>
+  bind_rows()
+
+class_variances |>
+  group_by(genotype) |>
+  summarise(mean_variance = mean(variance), sd_variance = sd(variance)) |>
+  left_join(loading, by = "genotype") |>
+  mutate(relative_factor = exp(loading) / exp(loading[genotype == 0]))
+```
+
+The `relative_factor` column is the conditional variance of the heterogeneous
+component relative to the heterozygote class, before the component is
+rescaled and added to the homogeneous residual. The replicated class
+variances follow the same ordering, but they are not proportional to the
+factor, because each class's total residual variance is the sum of the
+homogeneous part, which is the same in every class, and the heterogeneous
+part. The sign of the pattern depends on the sign of the vQTL effect, which
+is drawn with the effect series.
+
+### Fixed and random residual mode
+
+In fixed mode the heterogeneous component is centered and scaled so that its
+sample variance equals the requested share. In random mode the per-individual
+standard deviations are used directly, with their mean squared value equal to
+the share, and nothing is rescaled afterwards.
+
+[]{#complex-random}
+
+```{r}
+#| label: complex-random
+random_sim <- simulate_phenotype(human, seed = 31, residual_mode = "random") |>
+  additive(prop = 0.3, n_qtn = 10) |>
+  vqtl(prop = 0.3, qtn = candidate$snp)
+
+fixed_res <- residuals_of(sim)
+random_res <- residuals_of(random_sim)
+
+tibble(
+  quantity = c("Residual variance", "Phenotypic variance",
+               "Genetic / phenotypic variance"),
+  parameter = c(0.7, 1, 0.3),
+  fixed = c(var(fixed_res$residual), var(fixed_res$value),
+            var(fixed_res$genetic_value) / var(fixed_res$value)),
+  random = c(var(random_res$residual), var(random_res$value),
+             var(random_res$genetic_value) / var(random_res$value))
+)
+```
+
+In neither mode does the total residual variance equal 0.7 exactly. In fixed
+mode the homogeneous and heterogeneous parts each have the requested sample
+variance, but their sample covariance is free. In random mode their sample
+variances fluctuate as well. The realized genetic ratio is therefore a
+diagnostic, as in the [first chapter](first-simulation.qmd).
+
+### A vQTL on the additive loci
+
+By default `vqtl()` reuses the additive loci, so the markers that shift the
+mean also change the spread. The number of vQTL loci then follows the additive
+layer and `n_qtn` is ignored.
+
+[]{#complex-shared}
+
+```{r}
+#| label: complex-shared
+shared <- simulate_phenotype(human, seed = 31) |>
+  additive(prop = 0.3, n_qtn = 10) |>
+  vqtl(prop = 0.3)
+print(shared)
+
+qtn_table(shared) |>
+  count(layer)
+```
+
+Independent variance-only loci are requested with `same_as_add = FALSE` and a
+locus count, as in `vqtl(prop = 0.3, same_as_add = FALSE, n_qtn = 2)`.
+
+### Several components in one model
+
+Mean-effect layers and the variance component can be stacked. Here an
+additive layer, an epistatic layer, and a vQTL on the additive loci are
+combined on the maize panel. The maize lines are inbred, so a dominance layer
+is not used here; the [nonadditive chapter](nonadditive.qmd) shows how to
+prepare a panel for dominance.
+
+[]{#complex-stack}
+
+```{r}
+#| label: complex-stack
+stacked <- simulate_phenotype(maize, seed = 5) |>
+  additive(prop = 0.3, n_qtn = 10) |>
+  epistasis(prop = 0.2, n_pairs = 3) |>
+  vqtl(prop = 0.2)
+print(stacked)
+stacked$var_budget
+```
+
+The variance budget lists every component with its share. The genetic share
+is the sum of the mean-effect layers, 0.5; the vQTL share belongs to the
+residual side of the budget, and the homogeneous residual takes what remains.
+The one-call form `simulate_phenotype(maize, h2 = 0.5, model = "AE",
+n_qtn = 10)` builds the two mean-effect layers with equal shares; a vQTL has
+no one-call shortcut and is always added with `vqtl()`.
+
+### Partial pleiotropy by combining architectures
+
+Suppose two maize traits share some causal loci and also have loci of their
+own. No single architecture expresses this, but two models can be combined.
+The first uses the pleiotropy architecture with a genetic correlation target
+of 0.8; the second uses independent loci for each trait.
+
+[]{#complex-inputs}
+
+```{r}
+#| label: complex-inputs
+shared_loci <- simulate_phenotype(maize, architecture = "pleiotropy",
+                                  n_traits = 2, seed = 10, cor = 0.8) |>
+  additive(prop = 0.4, n_qtn = 10)
+
+own_loci <- simulate_phenotype(maize, n_traits = 2, seed = 11) |>
+  additive(prop = 0.4, n_qtn = 10)
+
+tibble(
+  model = c("shared loci", "own loci"),
+  genetic_correlation = c(cor(genetic_values(shared_loci))[1, 2],
+                          cor(genetic_values(own_loci))[1, 2])
+)
+```
+
+The two inputs were given different seeds so that they draw different loci.
+With one seed, both models would draw the same markers for the first trait;
+the pleiotropy model reuses them for the second trait while the independent
+model draws a separate set, so the inputs would no longer be partially
+pleiotropic. `complex_phenotypes()` warns about the differing seeds and records
+the first.
+
+[]{#complex-combine}
+
+```{r}
+#| label: complex-combine
+combined <- complex_phenotypes(shared_loci, own_loci, h2 = 0.5)
+print(combined)
+```
+
+The combined model has architecture `complex`. Its genetic value for each
+trait is the sum of the two inputs' genetic values, rescaled to the requested
+share, and a new common residual is added; the inputs' own residuals are
+discarded. The genetic correlation of the combined traits lies between the two
+inputs' correlations.
+
+[]{#complex-correlation}
+
+```{r}
+#| label: complex-correlation
+combined_genetic <- genetic_values(combined)
+summed <- genetic_values(shared_loci) + genetic_values(own_loci)
+
+tibble(
+  quantity = c("Genetic correlation", "Genetic variance, Trait_1",
+               "Correlation with the summed inputs, Trait_1"),
+  parameter = c(NA, 0.5, 1),
+  simulated = c(cor(combined_genetic)[1, 2], var(combined_genetic[, 1]),
+                cor(combined_genetic[, 1], summed[, 1]))
+)
+
+coheritability(combined)
+```
+
+The combined genetic value is an exact linear rescaling of the summed inputs,
+so the correlation with the sum is one. Each input contributes in proportion
+to its genetic variance; with equal shares of 0.4, the two contribute equally
+and the correlation is close to the average of 0.8 and the near-zero value of
+the independent model. Unequal shares weight the inputs differently.
+
+### Replicated records and correlated residuals in the combined model
+
+The combined model accepts the same residual options as a single model: entry
+means over several records, a residual correlation between traits, and the
+random residual mode.
+
+[]{#complex-combine-options}
+
+```{r}
+#| label: complex-combine-options
+combined_means <- complex_phenotypes(shared_loci, own_loci, h2 = 0.5,
+                                     reps = 4, resid_cor = 0.3,
+                                     residual_mode = "random")
+print(combined_means)
+```
+
+The printout separates the single-record target share from the entry-mean
+realized ratio, which is larger because the residual of a mean of four records
+is divided by two. The [trait values chapter](trait.qmd) discusses entry means.
+
+### What a combined model cannot do
+
+The combined object is terminal. Layers cannot be added to it, its
+`qtn_table()` is empty, and it cannot be thresholded: `liability_threshold()`
+refuses the combined object, and a threshold applied to an input is discarded
+with that input's phenotype, because the combined phenotype is rebuilt from the
+inputs' genetic values plus a new residual. The inputs must also be built on the same genotypes
+with the same individuals and the same number of traits.
+
+[]{#complex-terminal}
+
+```{r}
+#| label: complex-terminal
+#| error: true
+additive(combined, prop = 0.1)
+nrow(qtn_table(combined))
+```
+
+## Assumptions and theory
+
+The vQTL examples use one additive layer, one vQTL layer, and a normal
+residual. The combined-architecture examples use additive layers only. No
+selection or crossing is involved.
+
+### The variance-QTL model
+
+Let $s_{iv}$ be the score of individual $i$ at vQTL layer $v$, the sum of its
+coded genotypes at the layer's loci multiplied by the layer's effect series,
+exactly as for an additive layer. The package standardizes each layer's score
+and weights it by the square root of the layer's share $\pi_v$ to form a
+loading
+
+$$
+L_i = \sum_v \sqrt{\pi_v}\; \frac{s_{iv} - \bar s_v}{s_{s_v}} ,
+$$ {#eq-vqtl-loading}
+
+where the bar and $s_{s_v}$ denote the sample mean and sample standard
+deviation of the scores. The heterogeneous residual component is then
+
+$$
+\log \operatorname{Var}(E_{v,i} \mid \text{genotype}) = \text{constant} + L_i,
+\qquad E_{v,i} = z_i \, e^{L_i / 2},
+$$ {#eq-vqtl-link}
+
+with $z_i$ a standard normal draw. In fixed mode the vector $E_v$ is centered
+and scaled to sample variance $\pi_v$; in random mode the factors
+$e^{L_i/2}$ are divided by the root mean square of the factors and multiplied
+by $\sqrt{\pi_v}$, so that the mean of the per-individual variance parameters
+equals $\pi_v$, and nothing is rescaled afterwards. The component is added to
+the homogeneous residual. These are package definitions, implemented by
+`.apply_vqtl()`; the equation map records them as entries V2-grammar-19 and
+V2-grammar-20.
+
+The exponential link guarantees a positive conditional variance for any
+loading. For a single vQTL on one marker, the loading takes three values, one
+per genotype class, so the conditional variances form a geometric progression
+across classes. This is why the replication table showed a monotone pattern.
+The link is a package choice; the documentation of `vqtl()` cites Rönnegård
+and Valdar (2011) and Murphy et al. (2022) for the vQTL concept and its
+detection and states explicitly that neither is the source of this formula.
+
+### Why a vQTL is residual variance
+
+The heterogeneous component has mean zero within every genotype class in
+expectation, so it does not shift the trait mean and contributes nothing to
+the covariance between relatives through the mean. It changes the residual
+distribution, not the genetic value. The package therefore keeps it in the
+residual share of the budget: the residual share is
+$1 - \sum_\ell \pi_\ell - \sum_v \pi_v$, with the sum over mean-effect layers
+$\ell$ and vQTL layers $v$ (equation map entry V2-grammar-9, implemented by
+`.realize_phenotype()`), and the realized genetic ratio uses the vQTL share
+only in the denominator (entry V2-grammar-14, `.realized_h2()`). A detection
+method that models the residual variance, such as a double generalized linear
+model, is the appropriate way to recover such a locus; a model for the mean
+will not find it unless the locus also carries a mean effect.
+
+### How the combined model is built
+
+For trait $t$, let $G^{(m)}_{it}$ be the genetic value of individual $i$ in
+input model $m$. `complex_phenotypes()` forms the sum $\sum_m G^{(m)}_{it}$,
+centers it, divides by its sample standard deviation, and multiplies by
+$\sqrt{h^2_t}$, so the combined genetic value has sample variance $h^2_t$. A
+fresh residual with share $1 - h^2_t$ is drawn under the chosen residual mode
+and divided by $\sqrt{\text{reps}}$ when entry means are requested. This is a
+package definition, implemented in `complex_phenotypes()` itself.
+
+Two algebraic consequences follow. First, the combined genetic value is a
+linear function of the summed inputs, which the correlation of one above
+confirmed. Second, if the inputs have genetic variances $v_1$ and $v_2$ and
+genetic correlations $r_1$ and $r_2$ between the two traits, each input gives
+both traits the same genetic variance, and the inputs are uncorrelated with
+each other, the genetic correlation of the sum is the variance-weighted average
+
+$$
+r = \frac{v_1 r_1 + v_2 r_2}{v_1 + v_2} .
+$$ {#eq-complex-correlation}
+
+The inputs are not exactly uncorrelated in a finite sample, and the
+pleiotropy input's realized correlation is itself a sample quantity, so the
+combined correlation is near this value rather than equal to it. With
+unequal per-trait shares the general form is
+$r = \sum_m r_m \sqrt{v_{m1} v_{m2}} \big/ \sqrt{\sum_m v_{m1} \sum_m v_{m2}}$,
+where $v_{mt}$ is input $m$'s genetic variance for trait $t$. Both forms
+assume the inputs' genetic values are uncorrelated, which linkage
+disequilibrium between their causal loci would violate.
+
+## Implementation and practical limits
+
+All of the computations in this chapter are R functions: the vQTL loading and
+heterogeneous residual are built in `.apply_vqtl()`, the residual budget in
+`.realize_phenotype()`, and the combination in `complex_phenotypes()`.
+
+- A vQTL on a marker without variation, or with a constant combined loading,
+  is an error; on a nearly fixed marker it is legal but uninformative, which is
+  why this chapter chose a balanced locus.
+- Under the pleiotropy and linkage architectures, `vqtl(qtn = ...)` must
+  respect the architecture's rules for shared or paired loci.
+- The vQTL share is a marginal phenotypic-variance share. It is not a
+  heritability and does not add to one; requesting `prop` for it is mandatory
+  even when the simulation has an `h2` budget.
+- A combined model keeps no per-locus state: breeding-value selection and
+  marker-based methods that need effects refuse it, and `mediation_split()`
+  returns nothing for it. Apply such methods to the inputs, or build a single
+  model instead.
+- Inputs built with different seeds are combined under the first seed with a
+  warning; the warning is a reminder that the combined object reproduces only
+  if all inputs are rebuilt identically.

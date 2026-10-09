@@ -1,0 +1,8 @@
+# Public function index
+
+Every exported function and registered S3 method has a chapter assignment.
+An example link identifies an authored executable chunk. An example link shows
+that the function is exercised by executed code; it is not a claim that the
+chapter's scientific claims have passed independent review.
+
+{{< include _generated/public-index.qmd >}}

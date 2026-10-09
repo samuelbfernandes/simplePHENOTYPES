@@ -1,0 +1,403 @@
+# Additive phenotype models {#sec-additive}
+
+The first chapter simulated one additive trait with default settings. This
+chapter opens the additive layer up: how the causal markers are chosen, how
+their effects are generated, how the layer is scaled to its requested share of
+the phenotypic variance, and what the per-marker `var_explained` diagnostic does
+and does not mean. It also shows the options of `simulate_phenotype()` that
+apply to every later chapter: replications, a phenotype mean, a subset of
+individuals, entry means, and the one-call form.
+
+[]{#additive-setup}
+
+```{r}
+#| label: additive-setup
+#| include: false
+source("_setup.R")
+source("_data.R")
+```
+
+## Worked example {#sec-additive-example}
+
+### Load the package and the maize genotypes
+
+[]{#additive-library}
+
+```{r}
+#| label: additive-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+geno <- as_numeric(
+  SNP55K_maize282_maf04,
+  to_r = TRUE, to_file = FALSE, verbose = FALSE
+)
+```
+
+The data are the inbred maize panel used in [A first simulation](first-simulation.qmd).
+The genotype-input chapter explains the format and its quality checks.
+
+### A single additive layer and its causal markers
+
+`simulate_phenotype()` fixes the data, the seed, and the global settings;
+`additive()` adds one additive component. `prop` is the share of the
+phenotypic variance that the layer receives, and `n_qtn` is the number of
+causal markers, which the package calls QTNs (quantitative trait nucleotides).
+
+[]{#additive-model}
+
+```{r}
+#| label: additive-model
+sim <- simulate_phenotype(geno, seed = 11) |>
+  additive(prop = 0.6, n_qtn = 10)
+print(sim)
+
+qt <- qtn_table(sim)
+qt |>
+  select(snp, chr, pos, maf, effect, var_explained)
+```
+
+`qtn_table()` lists the causal markers in the order they were drawn, together
+with the minor-allele frequency (`maf`), the effect assigned to each marker,
+and `var_explained`. The effects follow a geometric series: the first marker's
+effect is 0.5, the second 0.25, and so on. The markers are a simple random
+sample of the markers that vary in the panel.
+
+### Effect series: geometric, custom base, or explicit effects
+
+The `effect` argument changes the series. A single value is the base of the
+geometric series; a vector of length `n_qtn` is used as given. Equal effects
+give a trait where no single marker dominates.
+
+[]{#additive-effects}
+
+```{r}
+#| label: additive-effects
+base_09 <- simulate_phenotype(geno, seed = 11) |>
+  additive(prop = 0.6, n_qtn = 10, effect = 0.9)
+
+equal <- simulate_phenotype(geno, seed = 11) |>
+  additive(prop = 0.6, n_qtn = 10, effect = rep(1, 10))
+
+tibble(
+  marker = seq_len(10),
+  default = qtn_table(sim)$effect,
+  base_0.9 = qtn_table(base_09)$effect,
+  equal = qtn_table(equal)$effect
+)
+```
+
+The three simulations share the same seed and therefore the same ten markers;
+only the effects differ. Because the layer is rescaled to `prop` afterwards,
+the absolute size of the effects does not matter. Only their relative sizes do.
+Multiplying every effect by the same constant leaves the phenotype unchanged.
+
+`phase = "repulsion"` alternates the sign of successive effects in draw order.
+It is a bookkeeping convenience, not a phase read from the haplotypes: for
+unlinked markers it merely relabels which allele increases the trait. The
+[multi-trait chapter](multitrait.qmd) shows the haplotype-derived phase of the
+`"ld"` architecture.
+
+[]{#additive-phase}
+
+```{r}
+#| label: additive-phase
+repulsion <- simulate_phenotype(geno, seed = 11) |>
+  additive(prop = 0.6, n_qtn = 10, phase = "repulsion")
+
+tibble(
+  coupling = qtn_table(sim)$effect,
+  repulsion = qtn_table(repulsion)$effect
+)
+```
+
+### Fix the causal markers yourself
+
+`qtn` accepts marker names or column indices. This is the way to simulate a
+trait on loci chosen for a reason, for example genes from a known pathway or
+markers at a chosen allele frequency. `n_qtn` is then taken from the length
+of `qtn`.
+
+[]{#additive-fixed-qtn}
+
+```{r}
+#| label: additive-fixed-qtn
+chosen <- geno$snp[c(10, 2000, 5000)]
+fixed <- simulate_phenotype(geno, seed = 11) |>
+  additive(prop = 0.6, qtn = chosen)
+
+qtn_table(fixed) |>
+  select(snp, chr, maf, effect, var_explained)
+```
+
+### The one-call form
+
+When `h2` and `n_qtn` are both given to `simulate_phenotype()`, the package
+builds the implied model directly. For a single additive layer this is the
+same simulation as the pipe, and the phenotypes are identical.
+
+[]{#additive-one-call}
+
+```{r}
+#| label: additive-one-call
+one_call <- simulate_phenotype(geno, h2 = 0.6, n_qtn = 10, seed = 11)
+
+identical(phenotypes_wide(one_call), phenotypes_wide(sim))
+```
+
+### Replications with the same or with new architectures
+
+`n_reps` requests simulation replications. By default every replication keeps
+the same causal markers and effects and draws new residuals. With
+`vary_qtn = TRUE` each replication draws its own markers and effects, so the
+replications are different genetic architectures. `qtn_table(rep = )` and
+`genetic_values(rep = )` retrieve a particular replication.
+
+[]{#additive-reps}
+
+```{r}
+#| label: additive-reps
+same_qtn <- simulate_phenotype(geno, seed = 11, n_reps = 3) |>
+  additive(prop = 0.6, n_qtn = 10)
+new_qtn <- simulate_phenotype(geno, seed = 11, n_reps = 3, vary_qtn = TRUE) |>
+  additive(prop = 0.6, n_qtn = 10)
+
+tibble(
+  replication = 1:3,
+  same_qtn = sapply(1:3, function(r) qtn_table(same_qtn, rep = r)$snp[1]),
+  new_qtn = sapply(1:3, function(r) qtn_table(new_qtn, rep = r)$snp[1])
+)
+
+phenotypes_long(same_qtn) |>
+  count(rep)
+```
+
+The first table shows the first causal marker of each replication: the same
+marker under the default, three different markers with `vary_qtn = TRUE`.
+The second confirms that each replication phenotypes every individual.
+
+### Mean, subset of individuals, and entry means
+
+`mean` shifts the phenotype without touching the genetic values.
+`individuals` restricts the simulation to a subset; allele frequencies are
+recomputed on that subset. `reps` is different from `n_reps`: it represents
+each phenotype as the average of `reps` independent records, which divides
+the residual by the square root of `reps`. The notation chapter
+([conventions](conventions.qmd)) distinguishes the two kinds of replication.
+
+[]{#additive-mean-subset}
+
+```{r}
+#| label: additive-mean-subset
+subset_sim <- simulate_phenotype(geno, seed = 11, mean = 100, individuals = 1:100) |>
+  additive(prop = 0.6, n_qtn = 10)
+
+entry_means <- simulate_phenotype(geno, seed = 11, reps = 4) |>
+  additive(prop = 0.6, n_qtn = 10)
+
+tibble(
+  simulation = c("mean = 100, 100 individuals", "reps = 4, all individuals"),
+  individuals = c(nrow(phenotypes_long(subset_sim)), nrow(phenotypes_long(entry_means))),
+  phenotype_mean = round(c(mean(phenotypes_long(subset_sim)$value),
+                           mean(phenotypes_long(entry_means)$value)), 3),
+  realized_ratio = c(
+    var(genetic_values(subset_sim)[, 1]) / var(phenotypes_wide(subset_sim)$Trait_1),
+    var(genetic_values(entry_means)[, 1]) / var(phenotypes_wide(entry_means)$Trait_1)
+  )
+)
+```
+
+For the entry-mean simulation the realized ratio is far above the requested
+0.6. That is expected: averaging four records shrinks the residual variance
+to a quarter, so the entry-mean heritability is larger than the single-record
+value. The `print()` method reports both. `prop` and `h2` always refer to the
+single-record scale.
+
+### Variance explained per marker
+
+`var_explained` is the marginal share of the realized phenotypic variance
+attributable to one marker: the variance of that marker's scaled contribution
+divided by the phenotypic variance. The shares need not add up to the layer's
+`prop`, because contributions of different markers covary when the markers are
+in linkage disequilibrium or, in a finite sample, by chance.
+
+[]{#additive-var-explained}
+
+```{r}
+#| label: additive-var-explained
+tibble(
+  quantity = c("Requested additive share", "Sum of var_explained",
+               "Realized genetic / phenotypic variance"),
+  value = c(
+    0.6,
+    sum(qtn_table(sim)$var_explained),
+    var(genetic_values(sim)[, 1]) / var(phenotypes_wide(sim)$Trait_1)
+  )
+)
+```
+
+### Equal effects on an outbred animal population
+
+The maize panel was filtered to minor-allele frequencies above 0.4, so every
+marker is nearly as variable as a marker can be. The heterogeneous-stock mice
+(see the [genotype-input chapter](input.qmd)) span the full frequency range.
+Giving ten mouse markers the same effect isolates the role of allele
+frequency: differences in `var_explained` then come from the genotypes alone.
+
+[]{#additive-mice}
+
+```{r}
+#| label: additive-mice
+mice <- book_mice()
+
+mice_sim <- simulate_phenotype(mice, seed = 11) |>
+  additive(prop = 0.6, n_qtn = 10, effect = rep(1, 10))
+
+qtn_table(mice_sim) |>
+  mutate(hw_variance = 2 * maf * (1 - maf)) |>
+  select(snp, maf, effect, var_explained, hw_variance) |>
+  arrange(desc(var_explained))
+```
+
+The markers with the highest minor-allele frequency explain the largest
+shares, and the ordering broadly follows `hw_variance`, the variance of the
+genotype code expected under Hardy-Weinberg proportions. Departures from
+that ordering reflect the realized genotype counts, which need not be in
+Hardy-Weinberg proportions in this structured population. Fewer individuals carry a rare
+allele, so a rare marker's contribution has a smaller variance even when its
+effect is the same. The theory section gives the formula.
+
+[]{#additive-plot}
+
+```{r}
+#| label: additive-plot
+#| fig-height: 6
+#| fig-cap: "Diagnostic plots for the mouse simulation. The effect panel shows the geometric series; the variance panel shows the requested and realized shares."
+plot(mice_sim)
+```
+
+## Assumptions and theory
+
+### The additive score
+
+Write $x_{ij}$ for the coded genotype of individual $i$ at causal marker $j$,
+with values `-1`, `0`, `1`, and $b_j$ for the marker's effect. The raw additive
+score is the weighted sum
+
+$$
+c_i = \sum_{j=1}^{m} x_{ij}\, b_j ,
+$$ {#eq-additive-score}
+
+and the layer's genetic value is the centered and rescaled score
+$g_i = \sqrt{\pi}\,(c_i - \bar c)/s_c$, as derived in @sec-scaling-derivation.
+Here $\pi$ is `prop` and $s_c$ is the sample standard deviation of the scores.
+Both steps are package definitions, implemented in `.component_raw()` and
+`.genetic_matrix()`. The sample variance of $g$ equals $\pi$ exactly, whatever
+the effects and whatever the allele frequencies.
+
+The coding counts one allele and is symmetric around the heterozygote; the
+model is linear in the number of copies, so it has no dominance. This is the
+v1 convention of the original publication (Fernandes and Lipka, 2020), not
+Fisher's average-effect decomposition. For a single additive layer on a
+population in Hardy-Weinberg proportions the requested `prop` is the
+narrow-sense heritability of the simulated trait, because the whole genetic
+value is then additive.
+
+### Geometric effect series
+
+The default effect of the $k$-th drawn marker is
+
+$$
+b_k = \beta^{\,k}, \qquad k = 1, \dots, m, \qquad \beta = 0.5 ,
+$$ {#eq-geometric-series}
+
+implemented in `.effect_series()`. The base $\beta$ is the scalar `effect`;
+a base near one gives nearly equal effects and a small base concentrates the
+trait on the first few markers. With $\beta = 0.5$ the tenth marker has an
+effect about a thousand times smaller than the first and is causal in name
+only. An explicit vector replaces the series. Because of the rescaling in the
+previous section, only ratios of effects matter.
+
+Under `phase = "repulsion"` the series is multiplied by $(-1)^{k+1}$ in draw
+order. The package documents this as positional alternation, not a phase
+derived from linkage.
+
+### Why the variance explained depends on allele frequency
+
+For a marker in Hardy-Weinberg proportions with allele frequency $p$ of the
+counted allele, the variance of the `-1`, `0`, `1` genotype code is $2p(1-p)$.
+This is the variance of a binomial count with two trials, shifted by a constant.
+The variance of the marker's contribution $x_{ij} b_j$ is therefore
+$2p(1-p)\,b_j^2$ in expectation. Two markers with the same effect can explain
+different shares of variance if their frequencies differ, and a rare allele
+with a large effect can explain less than a common allele with a smaller one.
+
+In the maize panel every marker has a minor-allele frequency above 0.4, so
+$2p(1-p)$ is close to its maximum of 0.5 and the ranking of `var_explained`
+follows the ranking of effects. In the mouse example the effects are equal, so
+the ranking follows $2p(1-p)$ instead.
+
+The package computes `var_explained` from the realized columns rather than
+from this expectation. Its definition (package convention, `.qtn_var()`) is
+the variance of the marker's scaled column divided by the realized phenotypic
+variance, so it inherits the finite-sample frequencies and any departure from
+Hardy-Weinberg proportions. Inbred lines are an extreme departure: their
+genotype codes take almost only the values `-1` and `1`, and the code variance
+at frequency $p$ is close to $4p(1-p)$ rather than $2p(1-p)$. The rescaling to
+`prop` absorbs this for the layer as a whole.
+
+### Why the shares do not add up
+
+Expanding the variance of the sum in @eq-additive-score gives
+
+$$
+\operatorname{Var}(c) = \sum_j b_j^2 \operatorname{Var}(x_j)
+  + 2 \sum_{j<k} b_j b_k \operatorname{Cov}(x_j, x_k).
+$$ {#eq-additive-sum-variance}
+
+Marginal shares report only the first sum. The covariance terms are nonzero
+when causal markers are in linkage disequilibrium, and in a finite sample they
+are nonzero by chance even for unlinked markers. The table in the worked
+example therefore shows a sum of `var_explained` that differs from 0.6. This is
+an algebraic consequence of the definitions, not a simulation error. For the
+same reason the sum can exceed `prop` when the covariances are negative, for
+example under `phase = "repulsion"` with linked markers.
+
+### Seeds and reproducibility
+
+With a non-missing `seed`, each layer draws its markers and effects under a
+sub-seed derived from the seed, the layer type, and the number of earlier
+layers of the same type (package scheme, `.layer_seed()`). Adding a dominance
+layer after an additive layer does not change the additive draw, which is why
+the chapters that follow can build on the simulations of this one. Inserting a
+second additive layer before an existing one does change the second one's
+draw. The caller's random-number state is left untouched.
+
+## Implementation and practical limits
+
+The additive layer is pure R: marker sampling, effect generation, scaling, and
+residual draws all stay in R so that seeded results are reproducible across
+platforms. The internal functions named above are listed in the
+[developer index](developer-index.qmd).
+
+- `n_qtn` must not exceed the number of markers that vary in the data.
+  Monomorphic markers and markers heterozygous in every individual are never
+  candidates.
+- A marker fixed with `qtn` that does not vary is accepted with a warning and
+  contributes nothing.
+- `var_explained` is a diagnostic of one simulated sample. It is not an
+  estimate and does not predict what an association study would detect.
+- `h2` in `simulate_phenotype()` is the budget for additive, dominance, and
+  epistatic layers together. With a single additive layer the layer may omit
+  `prop` and take the whole budget.
+- `reps` scales only the residual; the genetic value is unchanged. It does not
+  model repeated measurements with a shared permanent environment.
+
+::: {.callout-tip title="Choosing the number of causal markers"}
+A geometric series with base 0.5 makes the trait effectively oligogenic
+however large `n_qtn` is. For a polygenic trait raise the base toward one or
+give an explicit effect vector, and check the resulting `var_explained`
+column before trusting the architecture.
+:::

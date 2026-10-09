@@ -1,0 +1,109 @@
+# Development and verification
+
+## Editorial decisions
+
+| Decision | Adopted approach |
+|---|---|
+| Audience | Researchers with basic R knowledge; statistical concepts explained as needed |
+| Chapter sequence | Worked example, interpretation, assumptions and theory, implementation and limitations |
+| R examples | Tidyverse style, native pipes, simple tables, and default `plot()` calls; automated assertions belong in development checks |
+| Theory | Plain-language explanation first; define every symbol and explain each step of necessary equations |
+| Derivations | Linked appendices |
+| Public coverage | Every exported function, registered method, and scientifically distinct method option |
+| Internal coverage | Scientific algorithms explained through numerical demonstrations; all named helpers indexed |
+| Example context | Actual plant, animal, and human genotype datasets; human datasets for binary phenotypes; bring-your-own-data workflow first |
+| Hosting | Static book suitable for GitHub Pages; publication requires a separate maintainer decision |
+
+## Dataset strategy
+
+The opening workflow starts with a reader's genotype file and supplies observed
+maize genotypes as the reproducible example. Organism breadth means substantive
+worked examples from different research communities, not artificial data with
+species labels. Small constructed examples remain useful for checking algebra.
+
+| Context | Role in the book | Current status |
+|---|---|---|
+| Plant | Maize input, continuous traits, crossing, selection, and breeding schemes | Bundled `SNP55K_maize282_maf04` (Cook et al. 2012; 280 inbred lines, 10,650 markers, MAF > 0.4 subset, synthetic map); used throughout |
+| Animal | Relationship matrices, BLUP prediction, accuracy, and outbred allele frequencies | Heterogeneous-stock mice distributed with the BGLR package (`?BGLR::mice`, Valdar et al. 2006; 1,814 mice, 10,346 SNPs with physical positions); loaded by `_data.R` |
+| Human | Binary phenotypes using the liability-threshold model; dominance on an outbred panel | HapMap Phase II subset distributed with SNPRelate (279 CEU, YRI, HCB and JPT individuals; 9,028 SNPs after dropping duplicated identifiers; missing calls imputed); loaded by `_data.R` |
+
+Each dataset has documented provenance, redistribution through a CRAN or
+Bioconductor package, and a reproducible route from the distributed files to the
+chapter input (`docs/book/_data.R`, explained step by step in the
+[genotype input chapter](input.qmd)). The human and mouse datasets travel with
+their packages, so the book adds no data files of its own. The
+[binary phenotype chapter](binary.qmd) distinguishes liability-scale parameters,
+observed prevalence, and case/control sampling.
+
+## Progressive chapter plan {#sec-chapter-plan}
+
+The first simulation and conventions chapters establish the reading pattern.
+The following map assigns the public API to progressively more complex methods
+chapters. "Draft; Fable-reviewed" means the chapter is written, its examples
+execute, and a same-model theory review found and fixed its errors, but the
+independent cross-model review required by `docs/THEORY_REVIEW.md` is still
+pending. "Pilot draft" chapters have passed that independent review.
+
+{{< include _generated/chapter-plan.qmd >}}
+
+## Build the preview {#sec-build}
+
+From a checkout with the package build dependencies, R, Python 3, and Quarto:
+
+```{bash}
+#| eval: false
+Rscript --vanilla -e 'pkgload::load_all()'
+quarto render docs/book
+quarto preview docs/book
+```
+
+The R build dependencies include `pkgload`, `knitr`, `rmarkdown`, `jsonlite`, `dplyr`, `tibble`, `tidyr`, `readr`, `SNPRelate`, `gdsfmt`, and `BGLR`
+(the last three supply the human and mouse datasets).
+`dev/book/run_chapter.R` executes a single chapter's R chunks with knitr, without
+Quarto, for a fast check while editing.
+The package itself requires its declared R dependencies and the Rust toolchain.
+The book's hidden setup loads this checkout, preventing an older installed
+package from silently supplying the executed examples. Its visible examples use
+ordinary `library(simplePHENOTYPES)` calls for readers with the matching version.
+
+`dev/book/build_index.py` regenerates the function indexes, checks coverage
+against `NAMESPACE`, verifies that referenced example labels exist, and copies
+the archival equation map into the rendered resources. The generated indexes,
+downloads, and HTML output are ignored by Git; the sources and coverage records
+are maintained in the repository.
+
+## Scientific review
+
+For each scientific method, record its model assumptions, implemented expression,
+primary source and verified page where applicable, numerical checks, and
+independent review outcome. Algebraic derivations and package conventions must
+be identified as such. An unverified literature page is never replaced by a guess.
+
+The repository's `docs/THEORY_REVIEW.md` governs independent review before
+commit. Passing example execution alone does not validate the theory.
+Before publication, require complete example coverage, resolved scientific review,
+successful book rendering, and a passing package test suite.
+
+## Publication
+
+The source lives under `docs/book/`, which is already excluded from the CRAN
+package through the repository's `^docs$` build exclusion. The output directory
+is `docs/book/_book/`; the existing `docs/` contents must not be overwritten by
+rendered website files.
+
+GitHub Pages can serve these static files from a Pages deployment artifact.
+The preview workflow renders and uploads an artifact for inspection without
+deploying it. Deployment will be configured after the book and its publication
+scope have been reviewed. See the
+[Quarto publishing guide](https://quarto.org/docs/publishing/github-pages.html).
+
+## Build record {#sec-build-record}
+
+{{< include _generated/build-record.qmd >}}
+
+```{r}
+#| label: book-session
+#| code-fold: true
+source("_setup.R")
+sessionInfo()
+```

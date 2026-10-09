@@ -1,0 +1,61 @@
+name: Book preview
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'docs/book/**'
+      - 'dev/book/**'
+      - 'R/**'
+      - 'src/**'
+      - 'NAMESPACE'
+      - 'DESCRIPTION'
+      - 'docs/simplePHENOTYPES_equation_code_map.*'
+      - '.github/workflows/book-preview.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: |
+            any::pkgload
+            any::knitr
+            any::rmarkdown
+            any::jsonlite
+            any::dplyr
+            any::tibble
+            any::readr
+            any::tidyr
+            any::BGLR
+            bioc::SNPRelate
+            bioc::gdsfmt
+          needs: check
+      - uses: quarto-dev/quarto-actions/setup@v2
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Render and check documentation
+        run: |
+          # Generate the included indexes first: Quarto resolves includes
+          # while collecting chapters, before its own pre-render step runs.
+          python3 dev/book/build_index.py
+          quarto render docs/book
+          python3 dev/book/check_links.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simplePHENOTYPES-book-preview
+          path: docs/book/_book
+          if-no-files-found: error

@@ -1,0 +1,1340 @@
+{
+  "chapters": [
+    {
+      "id": "first",
+      "title": "A first simulation",
+      "scope": "Bring your own genotypes, observed maize example, diagnostics, export, and reproducibility",
+      "status": "Pilot draft"
+    },
+    {
+      "id": "conventions",
+      "title": "Notation and conventions",
+      "scope": "Coding, scales, objects, identifiers, and replication",
+      "status": "Pilot draft"
+    },
+    {
+      "id": "input",
+      "title": "Genotype input and quality control",
+      "scope": "File formats, allele orientation, missingness, filtering, and LD",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "founders",
+      "title": "Maps, haplotypes, and founders",
+      "scope": "Population input, synthetic maps, coalescent founders, and haplotype access",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "additive",
+      "title": "Additive phenotype models",
+      "scope": "Layer effects, causal loci, scaling, and additive diagnostics",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "nonadditive",
+      "title": "Dominance and epistasis",
+      "scope": "Coding, orthogonal models, interacting loci, and variance components",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "multitrait",
+      "title": "Pleiotropy, linkage, and multiple traits",
+      "scope": "Architectures, feasible correlations, partial sharing, and residual correlation",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "binary",
+      "title": "Binary phenotypes with human genotypes",
+      "scope": "Human genotype input, liability thresholds, prevalence, liability and observed scales, and case/control sampling interpretation",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "complex",
+      "title": "Complex phenotype architectures",
+      "scope": "vQTL and combined simulations",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "cross",
+      "title": "Meiosis and crossing",
+      "scope": "Crossing, selfing, doubled haploids, pedigree, and family access",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "trait",
+      "title": "Trait values across generations",
+      "scope": "Fixed effects, reference scales, environments, and phenotyping",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "mating",
+      "title": "Mating designs and crossbreeding",
+      "scope": "Planned matings, ancestry composition, and heterosis",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "prediction",
+      "title": "Relationship matrices and prediction",
+      "scope": "Animal-data worked examples: pedigree and genomic relationships, single- and multi-trait BLUP, accuracy",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "selection",
+      "title": "Individual, family, and multivariate selection",
+      "scope": "Truncation, family methods, indices, culling, BQP, and random controls",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "optimization",
+      "title": "Contributions and cross usefulness",
+      "scope": "OCS objectives, coancestry constraints, allocation, and usefulness",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "markers",
+      "title": "Marker-assisted breeding",
+      "scope": "Gene pyramiding, foreground and background selection, recovery",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "programs",
+      "title": "Combining ability and breeding schemes",
+      "scope": "Testcrosses, progeny tests, repeated selection, and population management",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "expression",
+      "title": "Transcriptome simulation and counts",
+      "scope": "Expression generation, mimic calibration, and count observations",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "mediation",
+      "title": "Expression-mediated phenotypes",
+      "scope": "Expression layers and genetic/environmental mediation summaries",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "output",
+      "title": "Inspecting and exporting results",
+      "scope": "Long/wide tables, plots, QTN metadata, text/JSON and split-marker exports",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    },
+    {
+      "id": "legacy",
+      "title": "Legacy interface and migration",
+      "scope": "Frozen create_phenotypes interface, independent theory, and migration",
+      "status": "Draft; Fable-reviewed, Codex review pending"
+    }
+  ],
+  "functions": {
+    "as_numeric": {
+      "chapter": "input",
+      "examples": [
+        "first-genotypes",
+        "input-toy-hapmap",
+        "input-reference",
+        "input-counted-column",
+        "input-coding",
+        "input-to-file",
+        "input-gds-error",
+        "input-human",
+        "input-classes"
+      ]
+    },
+    "filter_geno": {
+      "chapter": "input",
+      "examples": [
+        "input-filter-maf",
+        "input-filter-ld",
+        "input-filter-pairphase",
+        "input-filter-blocks",
+        "input-filter-population",
+        "optimization-inbred",
+        "legacy-pleiotropic-v2"
+      ]
+    },
+    "as_population": {
+      "chapter": "founders",
+      "examples": [
+        "cross-founders",
+        "mating-pools",
+        "founders-maize",
+        "founders-human",
+        "founders-mice-map",
+        "prediction-founders",
+        "selection-population"
+      ]
+    },
+    "population_from_haplotypes": {
+      "chapter": "founders",
+      "examples": [
+        "founders-from-haplotypes"
+      ]
+    },
+    "haplotypes": {
+      "chapter": "founders",
+      "examples": [
+        "founders-haplotypes",
+        "founders-human",
+        "founders-from-haplotypes"
+      ]
+    },
+    "dosages": {
+      "chapter": "founders",
+      "examples": [
+        "cross-f1-het",
+        "cross-linkage",
+        "founders-haplotypes",
+        "founders-from-haplotypes",
+        "founders-coalescent-presets",
+        "markers-founders",
+        "programs-schemes-compare",
+        "prediction-gmatrix-options"
+      ]
+    },
+    "n_individuals": {
+      "chapter": "founders",
+      "examples": [
+        "cross-founders",
+        "founders-maize",
+        "selection-mass",
+        "selection-intensity",
+        "selection-family",
+        "selection-per-family"
+      ]
+    },
+    "synthetic_map": {
+      "chapter": "founders",
+      "examples": [
+        "founders-human",
+        "founders-mice-map",
+        "founders-map-shape",
+        "founders-map-options",
+        "prediction-founders"
+      ]
+    },
+    "founders_coalescent": {
+      "chapter": "founders",
+      "examples": [
+        "founders-coalescent",
+        "founders-coalescent-presets"
+      ]
+    },
+    "simulate_phenotype": {
+      "chapter": "additive",
+      "examples": [
+        "first-model",
+        "first-random-residuals",
+        "additive-model",
+        "additive-one-call",
+        "additive-reps",
+        "additive-mean-subset",
+        "multitrait-independent",
+        "multitrait-pleiotropy",
+        "multitrait-ld",
+        "binary-model",
+        "binary-replications",
+        "binary-random",
+        "binary-two-traits",
+        "complex-vqtl",
+        "complex-replications",
+        "complex-random",
+        "complex-inputs",
+        "trait-base",
+        "trait-inherit",
+        "trait-replication",
+        "mediation-model",
+        "mediation-real",
+        "mediation-genotype-free",
+        "output-vary-qtn",
+        "legacy-single-v2",
+        "legacy-ld-v2",
+        "selection-trait",
+        "selection-progeny",
+        "selection-multitrait"
+      ]
+    },
+    "additive": {
+      "chapter": "additive",
+      "examples": [
+        "first-model",
+        "additive-model",
+        "additive-effects",
+        "additive-phase",
+        "additive-fixed-qtn",
+        "additive-mice",
+        "nonadditive-orthogonal",
+        "nonadditive-degree",
+        "binary-model",
+        "complex-vqtl",
+        "complex-stack",
+        "complex-inputs"
+      ]
+    },
+    "genetic_values": {
+      "chapter": "additive",
+      "examples": [
+        "first-tables",
+        "additive-var-explained",
+        "nonadditive-rebuild",
+        "multitrait-library",
+        "binary-liability",
+        "complex-classes",
+        "complex-inputs",
+        "complex-correlation",
+        "trait-fixed-scale",
+        "trait-replication",
+        "mediation-genetic-values",
+        "output-truth",
+        "output-vary-qtn",
+        "selection-trait",
+        "selection-progeny",
+        "selection-multitrait"
+      ]
+    },
+    "qtn_table": {
+      "chapter": "additive",
+      "examples": [
+        "first-tables",
+        "additive-model",
+        "additive-reps",
+        "additive-var-explained",
+        "nonadditive-rebuild",
+        "multitrait-ld",
+        "complex-vqtl-table",
+        "complex-shared",
+        "complex-terminal",
+        "trait-fixed-scale",
+        "mediation-qtn",
+        "output-truth",
+        "output-vary-qtn"
+      ]
+    },
+    "dominance": {
+      "chapter": "nonadditive",
+      "examples": [
+        "nonadditive-dominance",
+        "nonadditive-dominance-separate"
+      ]
+    },
+    "epistasis": {
+      "chapter": "nonadditive",
+      "examples": [
+        "nonadditive-epistasis",
+        "nonadditive-epistasis-types",
+        "complex-stack"
+      ]
+    },
+    "coheritability": {
+      "chapter": "multitrait",
+      "examples": [
+        "multitrait-coheritability",
+        "multitrait-ar1",
+        "binary-two-traits",
+        "complex-correlation"
+      ]
+    },
+    "cor_ar1": {
+      "chapter": "multitrait",
+      "examples": [
+        "multitrait-ar1"
+      ]
+    },
+    "vqtl": {
+      "chapter": "complex",
+      "examples": [
+        "complex-vqtl",
+        "complex-replications",
+        "complex-random",
+        "complex-shared",
+        "complex-stack"
+      ]
+    },
+    "liability_threshold": {
+      "chapter": "binary",
+      "examples": [
+        "binary-model",
+        "binary-two-traits",
+        "binary-ordinal",
+        "binary-random",
+        "binary-replications"
+      ]
+    },
+    "complex_phenotypes": {
+      "chapter": "complex",
+      "examples": [
+        "complex-combine",
+        "complex-combine-options",
+        "complex-terminal"
+      ]
+    },
+    "cross": {
+      "chapter": "cross",
+      "examples": [
+        "cross-f1",
+        "cross-families",
+        "mating-composition"
+      ]
+    },
+    "selfcross": {
+      "chapter": "cross",
+      "examples": [
+        "cross-f2",
+        "cross-selfing",
+        "trait-base"
+      ]
+    },
+    "double_haploid": {
+      "chapter": "cross",
+      "examples": [
+        "cross-dh",
+        "cross-interference",
+        "trait-genotypic",
+        "optimization-usefulness-check"
+      ]
+    },
+    "parentage": {
+      "chapter": "cross",
+      "examples": [
+        "cross-parentage",
+        "cross-selfing",
+        "programs-pool",
+        "prediction-pedigree",
+        "prediction-amatrix",
+        "selection-population"
+      ]
+    },
+    "families": {
+      "chapter": "cross",
+      "examples": [
+        "cross-families",
+        "mating-mate",
+        "selection-population"
+      ]
+    },
+    "population_trait": {
+      "chapter": "trait",
+      "examples": [
+        "trait-none",
+        "trait-carry",
+        "programs-population-trait",
+        "selection-progeny"
+      ]
+    },
+    "additive_value": {
+      "chapter": "trait",
+      "examples": [
+        "trait-fixed-scale",
+        "trait-genotypic",
+        "optimization-midparent",
+        "optimization-usefulness-check",
+        "markers-index",
+        "programs-progeny",
+        "prediction-trait",
+        "prediction-multitrait"
+      ]
+    },
+    "genotypic_value": {
+      "chapter": "trait",
+      "examples": [
+        "trait-genotypic",
+        "programs-template-check"
+      ]
+    },
+    "gxe_value": {
+      "chapter": "trait",
+      "examples": [
+        "trait-gxe"
+      ]
+    },
+    "phenotype_value": {
+      "chapter": "trait",
+      "examples": [
+        "trait-var-e",
+        "trait-gxe",
+        "prediction-trait",
+        "prediction-design",
+        "prediction-multitrait"
+      ]
+    },
+    "mate": {
+      "chapter": "mating",
+      "examples": [
+        "cross-selfing",
+        "trait-carry",
+        "mating-mate",
+        "prediction-pedigree",
+        "selection-population",
+        "selection-progeny"
+      ]
+    },
+    "mating_design": {
+      "chapter": "mating",
+      "examples": [
+        "mating-design",
+        "mating-mate",
+        "prediction-pedigree",
+        "selection-population",
+        "selection-progeny"
+      ]
+    },
+    "breed_composition": {
+      "chapter": "mating",
+      "examples": [
+        "mating-composition"
+      ]
+    },
+    "crossbreed": {
+      "chapter": "mating",
+      "examples": [
+        "mating-crossbreed",
+        "mating-three-way"
+      ]
+    },
+    "heterosis": {
+      "chapter": "mating",
+      "examples": [
+        "mating-heterosis"
+      ]
+    },
+    "a_matrix": {
+      "chapter": "prediction",
+      "examples": [
+        "prediction-amatrix"
+      ]
+    },
+    "g_matrix": {
+      "chapter": "prediction",
+      "examples": [
+        "optimization-g",
+        "prediction-gmatrix",
+        "prediction-gmatrix-options",
+        "prediction-amatrix"
+      ]
+    },
+    "predict_ebv": {
+      "chapter": "prediction",
+      "examples": [
+        "prediction-ebv",
+        "prediction-design",
+        "prediction-multitrait",
+        "prediction-custom-k"
+      ]
+    },
+    "prediction_accuracy": {
+      "chapter": "prediction",
+      "examples": [
+        "prediction-accuracy",
+        "prediction-design",
+        "prediction-multitrait"
+      ]
+    },
+    "select_ind": {
+      "chapter": "selection",
+      "examples": [
+        "trait-carry",
+        "selection-mass",
+        "selection-intensity",
+        "selection-response",
+        "selection-criteria",
+        "selection-random",
+        "selection-progeny",
+        "selection-family",
+        "selection-per-family",
+        "selection-multitrait",
+        "selection-culling",
+        "selection-bqp"
+      ]
+    },
+    "selection_methods": {
+      "chapter": "selection",
+      "examples": [
+        "selection-manifest"
+      ]
+    },
+    "optimum_contribution": {
+      "chapter": "optimization",
+      "examples": [
+        "optimization-ocs",
+        "optimization-ocs-check",
+        "optimization-frontier",
+        "optimization-target"
+      ]
+    },
+    "sample_parents": {
+      "chapter": "optimization",
+      "examples": [
+        "optimization-parents",
+        "optimization-parents-coancestry"
+      ]
+    },
+    "cross_usefulness": {
+      "chapter": "optimization",
+      "examples": [
+        "optimization-usefulness",
+        "optimization-usefulness-check",
+        "optimization-selfcross"
+      ]
+    },
+    "marker_select": {
+      "chapter": "markers",
+      "examples": [
+        "markers-foreground",
+        "markers-pyramid",
+        "markers-staged",
+        "markers-index"
+      ]
+    },
+    "mabc_select": {
+      "chapter": "markers",
+      "examples": [
+        "markers-mabc",
+        "markers-mabc-record"
+      ]
+    },
+    "recurrent_parent_recovery": {
+      "chapter": "markers",
+      "examples": [
+        "markers-mabc",
+        "markers-foreground",
+        "markers-drag",
+        "markers-weights"
+      ]
+    },
+    "combining_ability": {
+      "chapter": "programs",
+      "examples": [
+        "programs-diallel",
+        "programs-diallel-check",
+        "programs-diallel-sim",
+        "programs-topcross"
+      ]
+    },
+    "template_effects": {
+      "chapter": "programs",
+      "examples": [
+        "optimization-midparent",
+        "programs-trait",
+        "programs-schemes-compare",
+        "programs-recurrent"
+      ]
+    },
+    "progeny_test": {
+      "chapter": "programs",
+      "examples": [
+        "programs-progeny"
+      ]
+    },
+    "single_seed_descent": {
+      "chapter": "programs",
+      "examples": [
+        "programs-schemes",
+        "programs-pool"
+      ]
+    },
+    "bulk": {
+      "chapter": "programs",
+      "examples": [
+        "programs-schemes"
+      ]
+    },
+    "pedigree": {
+      "chapter": "programs",
+      "examples": [
+        "programs-schemes",
+        "programs-population-trait"
+      ]
+    },
+    "recurrent_selection": {
+      "chapter": "programs",
+      "examples": [
+        "programs-recurrent",
+        "programs-recurrent-cycles"
+      ]
+    },
+    "simulate_transcriptome": {
+      "chapter": "expression",
+      "examples": [
+        "expression-simulate",
+        "expression-fixed-h2",
+        "expression-coexpression",
+        "expression-epistasis",
+        "expression-mimic"
+      ]
+    },
+    "observe_counts": {
+      "chapter": "expression",
+      "examples": [
+        "expression-counts",
+        "expression-library-size"
+      ]
+    },
+    "transcriptome": {
+      "chapter": "mediation",
+      "examples": [
+        "mediation-model",
+        "mediation-genes",
+        "mediation-real",
+        "mediation-genotype-free",
+        "mediation-multitrait"
+      ]
+    },
+    "mediation_split": {
+      "chapter": "mediation",
+      "examples": [
+        "mediation-split",
+        "mediation-genes",
+        "mediation-real",
+        "mediation-multitrait"
+      ]
+    },
+    "phenotypes_long": {
+      "chapter": "output",
+      "examples": [
+        "first-tables",
+        "binary-tables",
+        "binary-replications",
+        "complex-classes",
+        "output-long-wide",
+        "output-counts"
+      ]
+    },
+    "phenotypes_wide": {
+      "chapter": "output",
+      "examples": [
+        "first-tables",
+        "binary-two-traits",
+        "mediation-reconstruct",
+        "output-long-wide",
+        "output-wide-cor",
+        "selection-trait",
+        "selection-progeny"
+      ]
+    },
+    "write_phenotypes": {
+      "chapter": "output",
+      "examples": [
+        "first-export",
+        "output-write",
+        "output-roundtrip",
+        "output-split",
+        "output-split-json"
+      ]
+    },
+    "write_qtn_table": {
+      "chapter": "output",
+      "examples": [
+        "first-export",
+        "output-write-qtn"
+      ]
+    },
+    "create_phenotypes": {
+      "chapter": "legacy",
+      "examples": [
+        "legacy-single",
+        "legacy-pleiotropic",
+        "legacy-ld"
+      ]
+    },
+    "[.Population": {
+      "chapter": "founders",
+      "examples": [
+        "cross-f1",
+        "mating-composition",
+        "founders-subset",
+        "prediction-pedigree",
+        "selection-population"
+      ]
+    },
+    "c.Population": {
+      "chapter": "programs",
+      "examples": [
+        "cross-families",
+        "mating-composition",
+        "programs-pool",
+        "prediction-pedigree"
+      ]
+    },
+    "plot.phenotype_sim": {
+      "chapter": "output",
+      "examples": [
+        "first-plot",
+        "additive-plot",
+        "multitrait-plot",
+        "output-plot"
+      ]
+    },
+    "predict.transcriptome_sim": {
+      "chapter": "expression",
+      "examples": [
+        "expression-predict",
+        "expression-predict-reference"
+      ]
+    },
+    "print.Population": {
+      "chapter": "founders",
+      "examples": [
+        "cross-founders",
+        "cross-f1",
+        "mating-pools",
+        "mating-mate",
+        "founders-maize",
+        "founders-subset",
+        "founders-coalescent",
+        "prediction-founders",
+        "selection-population",
+        "selection-mass"
+      ]
+    },
+    "print.combining_ability": {
+      "chapter": "programs",
+      "examples": [
+        "programs-diallel",
+        "programs-diallel-sim"
+      ]
+    },
+    "print.ocs": {
+      "chapter": "optimization",
+      "examples": [
+        "optimization-ocs",
+        "optimization-target"
+      ]
+    },
+    "print.phenotype_sim": {
+      "chapter": "output",
+      "examples": [
+        "first-model",
+        "additive-model",
+        "nonadditive-dominance",
+        "binary-model",
+        "complex-vqtl",
+        "complex-combine",
+        "output-print"
+      ]
+    },
+    "print.transcriptome_sim": {
+      "chapter": "expression",
+      "examples": [
+        "expression-simulate"
+      ]
+    }
+  },
+  "method_options": [
+    {
+      "function": "select_ind",
+      "option": "mass",
+      "status": "Authored: trait-carry, selection-mass"
+    },
+    {
+      "function": "select_ind",
+      "option": "within_family",
+      "status": "Authored: selection-family, selection-per-family"
+    },
+    {
+      "function": "select_ind",
+      "option": "among_family",
+      "status": "Authored: selection-family"
+    },
+    {
+      "function": "select_ind",
+      "option": "combined",
+      "status": "Authored: selection-family"
+    },
+    {
+      "function": "select_ind",
+      "option": "index",
+      "status": "Authored: selection-multitrait"
+    },
+    {
+      "function": "select_ind",
+      "option": "quadratic_index",
+      "status": "Authored: selection-multitrait"
+    },
+    {
+      "function": "select_ind",
+      "option": "random",
+      "status": "Authored: selection-random"
+    },
+    {
+      "function": "select_ind",
+      "option": "culling",
+      "status": "Authored: selection-culling"
+    },
+    {
+      "function": "select_ind",
+      "option": "bqp",
+      "status": "Authored: selection-bqp"
+    },
+    {
+      "function": "predict_ebv",
+      "option": "gblup, single trait",
+      "status": "Authored: prediction-ebv"
+    },
+    {
+      "function": "predict_ebv",
+      "option": "pedigree, single trait",
+      "status": "Authored: prediction-ebv"
+    },
+    {
+      "function": "predict_ebv",
+      "option": "gblup, multiple traits",
+      "status": "Authored: prediction-multitrait"
+    },
+    {
+      "function": "predict_ebv",
+      "option": "pedigree, multiple traits",
+      "status": "Authored: prediction-multitrait"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "independent",
+      "status": "Authored: multitrait-independent, binary-model, complex-vqtl"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "pleiotropy",
+      "status": "Authored: multitrait-pleiotropy, binary-two-traits, complex-inputs, legacy-pleiotropic-v2"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "ld",
+      "status": "Authored: multitrait-ld, legacy-ld-v2"
+    },
+    {
+      "function": "sample_parents",
+      "option": "allocate",
+      "status": "Authored: optimization-parents"
+    },
+    {
+      "function": "sample_parents",
+      "option": "multinomial",
+      "status": "Authored: optimization-parents-coancestry"
+    },
+    {
+      "function": "combining_ability",
+      "option": "expected",
+      "status": "Authored: programs-diallel"
+    },
+    {
+      "function": "combining_ability",
+      "option": "simulated",
+      "status": "Authored: programs-diallel-sim"
+    },
+    {
+      "function": "mating_design",
+      "option": "random",
+      "status": "Authored: prediction-pedigree"
+    },
+    {
+      "function": "mating_design",
+      "option": "factorial",
+      "status": "Planned"
+    },
+    {
+      "function": "mating_design",
+      "option": "nested",
+      "status": "Planned"
+    },
+    {
+      "function": "mating_design",
+      "option": "diallel",
+      "status": "Planned"
+    },
+    {
+      "function": "mating_design",
+      "option": "half_diallel",
+      "status": "Planned"
+    },
+    {
+      "function": "combining_ability",
+      "option": "topcross",
+      "status": "Authored: programs-topcross"
+    },
+    {
+      "function": "combining_ability",
+      "option": "factorial",
+      "status": "Authored: programs-topcross"
+    },
+    {
+      "function": "combining_ability",
+      "option": "diallel",
+      "status": "Authored: programs-diallel"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "residual_mode = fixed / random",
+      "status": "Authored: first-random-residuals"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "distinct_chr = TRUE",
+      "status": "Authored: multitrait-distinct-chr"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "pi (partial pleiotropy)",
+      "status": "Authored: multitrait-partial"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "n_pleio_major, prop_var_major",
+      "status": "Authored: multitrait-major"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "resid_cor",
+      "status": "Authored: multitrait-resid-cor"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "ld_phase coded/coupling/repulsion",
+      "status": "Authored: multitrait-ld-phase"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "vary_qtn",
+      "status": "Authored: additive-reps"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "reps (entry means)",
+      "status": "Authored: additive-mean-subset"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "model = \"AD\"",
+      "status": "Authored: nonadditive-model-ad"
+    },
+    {
+      "function": "additive",
+      "option": "orthogonal = TRUE",
+      "status": "Authored: nonadditive-orthogonal"
+    },
+    {
+      "function": "additive",
+      "option": "phase = \"repulsion\"",
+      "status": "Authored: additive-phase"
+    },
+    {
+      "function": "dominance",
+      "option": "same_as_add = FALSE",
+      "status": "Authored: nonadditive-dominance-separate"
+    },
+    {
+      "function": "epistasis",
+      "option": "interaction_type a/d, interaction = 3",
+      "status": "Authored: nonadditive-epistasis-types"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "residual_mode",
+      "status": "Authored: binary-random, complex-random, complex-combine-options"
+    },
+    {
+      "function": "liability_threshold",
+      "option": "prop, two categories",
+      "status": "Authored: binary-model"
+    },
+    {
+      "function": "liability_threshold",
+      "option": "prop, more than two categories",
+      "status": "Authored: binary-ordinal"
+    },
+    {
+      "function": "liability_threshold",
+      "option": "trait = subset of traits",
+      "status": "Authored: binary-two-traits"
+    },
+    {
+      "function": "vqtl",
+      "option": "same_as_add = TRUE",
+      "status": "Authored: complex-shared"
+    },
+    {
+      "function": "vqtl",
+      "option": "qtn = fixed locus",
+      "status": "Authored: complex-vqtl"
+    },
+    {
+      "function": "complex_phenotypes",
+      "option": "reps, resid_cor, residual_mode",
+      "status": "Authored: complex-combine-options"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "n_reps",
+      "status": "Authored: binary-replications, complex-replications"
+    },
+    {
+      "function": "mating_design",
+      "option": "random, factorial, nested, diallel, half_diallel",
+      "status": "Authored: mating-design"
+    },
+    {
+      "function": "cross",
+      "option": "interference = \"poisson\" vs gamma default",
+      "status": "Authored: cross-interference"
+    },
+    {
+      "function": "crossbreed",
+      "option": "two_way, backcross, rotational",
+      "status": "Authored: mating-crossbreed"
+    },
+    {
+      "function": "crossbreed",
+      "option": "three_way, terminal",
+      "status": "Authored: mating-three-way"
+    },
+    {
+      "function": "families",
+      "option": "full_sib, maternal_half_sib, selfed",
+      "status": "Authored: cross-families"
+    },
+    {
+      "function": "parentage",
+      "option": "ancestors = TRUE",
+      "status": "Authored: cross-parentage"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "n_reps vs reps",
+      "status": "Authored: trait-replication"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "refit = FALSE (carried trait)",
+      "status": "Authored: trait-inherit"
+    },
+    {
+      "function": "phenotype_value",
+      "option": "h2 / var_e / ref",
+      "status": "Authored: trait-var-e"
+    },
+    {
+      "function": "phenotype_value",
+      "option": "gxe, env",
+      "status": "Authored: trait-gxe"
+    },
+    {
+      "function": "mating_design",
+      "option": "allow_self = TRUE",
+      "status": "Authored: mating-design"
+    },
+    {
+      "function": "simulate_transcriptome",
+      "option": "h2 = \"beta\" vs numeric",
+      "status": "Authored: expression-simulate, expression-fixed-h2"
+    },
+    {
+      "function": "simulate_transcriptome",
+      "option": "geno = NULL, n_ind (genotype-free)",
+      "status": "Authored: expression-coexpression"
+    },
+    {
+      "function": "simulate_transcriptome",
+      "option": "epistasis > 0",
+      "status": "Authored: expression-epistasis"
+    },
+    {
+      "function": "simulate_transcriptome",
+      "option": "mimic",
+      "status": "Authored: expression-mimic"
+    },
+    {
+      "function": "observe_counts",
+      "option": "dispersion = 0 (Poisson) vs > 0",
+      "status": "Authored: expression-counts"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "transcriptome = (derived) vs expression = (real) vs genotype-free",
+      "status": "Authored: mediation-model, mediation-real, mediation-genotype-free"
+    },
+    {
+      "function": "transcriptome",
+      "option": "n_genes vs explicit genes + slopes",
+      "status": "Authored: mediation-model, mediation-genes"
+    },
+    {
+      "function": "as_numeric",
+      "option": "method = \"frequency\" / \"reference\"",
+      "status": "Authored: input-reference"
+    },
+    {
+      "function": "as_numeric",
+      "option": "code_as = \"012\"",
+      "status": "Authored: input-coding"
+    },
+    {
+      "function": "as_numeric",
+      "option": "impute",
+      "status": "Authored: input-coding, input-human"
+    },
+    {
+      "function": "as_numeric",
+      "option": "counted_column = TRUE",
+      "status": "Authored: input-counted-column"
+    },
+    {
+      "function": "as_numeric",
+      "option": "to_file = TRUE",
+      "status": "Authored: input-to-file"
+    },
+    {
+      "function": "as_numeric",
+      "option": "GDS input",
+      "status": "Authored: input-human"
+    },
+    {
+      "function": "filter_geno",
+      "option": "maf_above",
+      "status": "Authored: input-filter-maf"
+    },
+    {
+      "function": "filter_geno",
+      "option": "hets = \"include\"",
+      "status": "Authored: input-filter-maf"
+    },
+    {
+      "function": "filter_geno",
+      "option": "indep_pairwise, window_unit = \"kb\"",
+      "status": "Authored: input-filter-ld"
+    },
+    {
+      "function": "filter_geno",
+      "option": "indep (VIF)",
+      "status": "Authored: input-filter-ld"
+    },
+    {
+      "function": "filter_geno",
+      "option": "indep_pairphase",
+      "status": "Authored: input-filter-pairphase"
+    },
+    {
+      "function": "filter_geno",
+      "option": "blocks = TRUE",
+      "status": "Authored: input-filter-blocks"
+    },
+    {
+      "function": "filter_geno",
+      "option": "Population input",
+      "status": "Authored: input-filter-population"
+    },
+    {
+      "function": "founders_coalescent",
+      "option": "species = \"MAIZE\", inbred = TRUE, split",
+      "status": "Authored: founders-coalescent-presets"
+    },
+    {
+      "function": "synthetic_map",
+      "option": "suppression = 0, total_cm",
+      "status": "Authored: founders-map-shape, founders-map-options"
+    },
+    {
+      "function": "optimum_contribution",
+      "option": "lambda",
+      "status": "Authored: optimization-frontier"
+    },
+    {
+      "function": "optimum_contribution",
+      "option": "target_coancestry",
+      "status": "Authored: optimization-target"
+    },
+    {
+      "function": "cross_usefulness",
+      "option": "scheme = dh",
+      "status": "Authored: optimization-usefulness"
+    },
+    {
+      "function": "cross_usefulness",
+      "option": "scheme = selfcross",
+      "status": "Authored: optimization-selfcross"
+    },
+    {
+      "function": "mabc_select",
+      "option": "flanking_markers, exclude_interval",
+      "status": "Authored: markers-mabc"
+    },
+    {
+      "function": "marker_select",
+      "option": "requirement carrier/homozygote",
+      "status": "Authored: markers-pyramid"
+    },
+    {
+      "function": "marker_select",
+      "option": "min_markers (staged)",
+      "status": "Authored: markers-staged"
+    },
+    {
+      "function": "marker_select",
+      "option": "rank_on",
+      "status": "Authored: markers-index"
+    },
+    {
+      "function": "recurrent_parent_recovery",
+      "option": "weights = \"interval\"",
+      "status": "Authored: markers-weights"
+    },
+    {
+      "function": "write_phenotypes",
+      "option": "format = long/wide, sep",
+      "status": "Authored: output-write"
+    },
+    {
+      "function": "write_phenotypes",
+      "option": "file_type = json",
+      "status": "Authored: output-write, output-split-json"
+    },
+    {
+      "function": "write_phenotypes",
+      "option": "split_markers, markers_files, rep = \"all\"",
+      "status": "Authored: output-split, output-split-json"
+    },
+    {
+      "function": "write_qtn_table",
+      "option": "rep = \"all\"",
+      "status": "Authored: output-write-qtn"
+    },
+    {
+      "function": "simulate_phenotype",
+      "option": "vary_qtn = TRUE",
+      "status": "Authored: output-vary-qtn"
+    },
+    {
+      "function": "create_phenotypes",
+      "option": "architecture = pleiotropic, model = AD, QTN_variance",
+      "status": "Authored: legacy-pleiotropic"
+    },
+    {
+      "function": "create_phenotypes",
+      "option": "architecture = LD, type_of_ld = indirect",
+      "status": "Authored: legacy-ld"
+    },
+    {
+      "function": "plot.phenotype_sim",
+      "option": "which panels",
+      "status": "Authored: output-plot"
+    },
+    {
+      "function": "predict_ebv",
+      "option": "K supplied",
+      "status": "Authored: prediction-custom-k"
+    },
+    {
+      "function": "g_matrix",
+      "option": "ridge, base_freq",
+      "status": "Authored: prediction-gmatrix-options"
+    },
+    {
+      "function": "select_ind",
+      "option": "intensity argument",
+      "status": "Authored: selection-intensity"
+    },
+    {
+      "function": "select_ind",
+      "option": "on = gv / bv, direction = low",
+      "status": "Authored: selection-criteria"
+    }
+  ]
+}

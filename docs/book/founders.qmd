@@ -1,0 +1,404 @@
+# Maps, haplotypes, and founders {#sec-founders}
+
+Suppose you want to simulate crosses, selfing, or doubled haploids from your
+genotyped individuals. A dosage table is not enough: meiosis needs to know
+which allele sits on which of the two homologous chromosomes and how far apart
+markers are in recombination units. This chapter builds a `Population` from
+real genotypes, inspects its haplotypes, supplies a genetic map when the data
+have none, and generates founders from a coalescent model when you have no
+genotypes at all.
+
+[]{#founders-setup}
+
+```{r}
+#| label: founders-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-founders-example}
+
+### Load the packages
+
+[]{#founders-library}
+
+```{r}
+#| label: founders-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+```
+
+### Founders from the maize panel
+
+The bundled maize data carry a `cm` column, so `as_population()` can use them
+directly. The print method summarizes the individuals, markers, genetic map,
+and pedigree status.
+
+[]{#founders-maize}
+
+```{r}
+#| label: founders-maize
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+maize <- as_numeric(SNP55K_maize282_maf04, to_r = TRUE, to_file = FALSE,
+                    verbose = FALSE)
+
+founders <- as_population(maize)
+founders
+n_individuals(founders)
+```
+
+Every individual is recorded as a pedigree founder in generation 0. The
+population keeps the marker map and a pedigree table; both are plain data
+frames you can inspect.
+
+[]{#founders-components}
+
+```{r}
+#| label: founders-components
+founders$map |> head(3)
+founders$pedigree |> select(id, mother, father, generation, design) |> head(3)
+```
+
+### Dosages and haplotypes
+
+`dosages()` returns the markers-by-individuals `-1/0/1` matrix.
+`haplotypes()` returns the two strands, called `cis` and `trans`, with `1`
+marking the counted allele. The dosage is the sum of the two strands minus
+one, and we check that identity on the whole panel.
+
+[]{#founders-haplotypes}
+
+```{r}
+#| label: founders-haplotypes
+d <- dosages(founders)
+h <- haplotypes(founders)
+
+d[1:3, 1:4]
+h$cis[1:3, 1:4]
+
+tibble(
+  quantity = c("markers", "individuals", "dosage equals cis + trans - 1"),
+  value = c(nrow(d), ncol(d), identical(h$cis + h$trans - 1L, d))
+)
+```
+
+The strands have no parental meaning. Meiosis treats them symmetrically, so
+either assignment is valid as long as both strands of an individual stay
+together.
+
+### Selecting individuals
+
+Subsetting with `[` keeps the selected individuals in the order given, by
+name, position, or logical mask. A repeated subscript duplicates an
+individual: the copy receives a unique id but shares the original's pedigree
+key, so the pedigree still records one individual.
+
+[]{#founders-subset}
+
+```{r}
+#| label: founders-subset
+parents <- founders[c("33-16", "38-11")]
+parents
+
+twice <- founders[c(1, 1, 2)]
+twice$ids
+nrow(twice$pedigree)
+```
+
+`as_population()` accepts the same selection through its `individuals`
+argument, which avoids phasing the full panel when only a few lines are
+needed.
+
+### Outbred founders and the phasing guess
+
+The maize lines are almost completely homozygous, so their haplotypes are
+nearly determined by the dosages. The human panel is different. We load it
+with the helper described in [Genotype input and quality control](input.qmd),
+give it a synthetic map, and phase the first 50 individuals.
+
+[]{#founders-human}
+
+```{r}
+#| label: founders-human
+source("_data.R")
+human <- book_human()
+human$cm <- synthetic_map(human$chr, human$pos, cm_per_mb = 1)
+
+people <- as_population(human, individuals = 1:50)
+people
+
+strands <- haplotypes(people)
+het <- dosages(people) == 0
+
+tibble(
+  heterozygous_calls = sum(het),
+  cis_carries_counted_allele = sum(strands$cis[het] == 1),
+  trans_carries_counted_allele = sum(strands$trans[het] == 1)
+)
+```
+
+Every heterozygote has been placed with the counted allele on the first
+strand. That is a rule, not an inference: the dosage table does not say which
+allele sits on which chromosome, and the package does not import external
+phase. For these founders, all heterozygous sites on a chromosome are in
+perfect coupling, so their first-generation gametes carry more linkage
+disequilibrium than real gametes would. The founders' own dosages are exact,
+but every gamete they produce, from the first cross on, carries this
+coupling-phase linkage disequilibrium. Use `population_from_haplotypes()` with
+phased data whenever meiosis of outbred founders matters.
+
+### Founders from known haplotypes
+
+When the phase is known, from statistically phased data or another
+simulator, `population_from_haplotypes()` builds the population from the two
+strand matrices directly. Here we rebuild the human founders from their own
+strands and confirm that the dosages agree, then construct a two-individual
+example by hand where one individual is heterozygous at two linked markers
+with a specified phase.
+
+[]{#founders-from-haplotypes}
+
+```{r}
+#| label: founders-from-haplotypes
+rebuilt <- population_from_haplotypes(strands$cis, strands$trans, people$map,
+                                      pool = "hapmap")
+identical(dosages(rebuilt), dosages(people))
+
+map <- data.frame(snp = paste0("m", 1:4), chr = 1, pos = c(100, 200, 300, 400),
+                  cm = c(0, 10, 20, 30))
+cis <- cbind(ind1 = c(1, 1, 0, 0), ind2 = c(0, 0, 0, 0))
+trans <- cbind(ind1 = c(1, 0, 1, 0), ind2 = c(0, 0, 0, 0))
+known <- population_from_haplotypes(cis, trans, map)
+dosages(known)
+haplotypes(known)$cis
+```
+
+Individual `ind1` is heterozygous at `m2` and `m3`, with the counted allele
+at `m2` on the first strand and at `m3` on the second: repulsion phase.
+`as_population()` would have put both on the first strand. The
+[meiosis chapter](cross.qmd) shows how that difference changes the gametes.
+
+### A map for data without one
+
+The mouse genotypes carry physical positions but no genetic map, so
+`as_population()` refuses them until `cm` is filled. `synthetic_map()`
+converts base pairs into a plausible centiMorgan map. It starts each
+chromosome at 0 and is non-decreasing within a chromosome.
+
+[]{#founders-mice-map}
+
+```{r}
+#| label: founders-mice-map
+mice <- book_mice()
+mice$cm <- synthetic_map(mice$chr, mice$pos)
+
+tibble(chr = mice$chr, pos = mice$pos, cm = mice$cm) |>
+  group_by(chr) |>
+  summarise(markers = n(), span_mb = max(pos) / 1e6,
+            length_cm = max(cm), .groups = "drop") |>
+  head(5)
+
+mouse_founders <- as_population(mice, individuals = 1:100)
+mouse_founders
+```
+
+::: {.callout-note title="This map is a model"}
+The `cm` values are not estimates of mouse recombination distances. They give
+the simulation a recombination landscape with the right order of magnitude
+and centromeric suppression. If you have a measured map for your markers,
+put it in `cm` instead.
+:::
+
+The default rate of 0.73 cM per Mb is a maize-scale value. The shape of the
+map comes from a local rate that dips around the centromere, which defaults
+to the midpoint of each chromosome's span. Setting `suppression = 0` gives a
+uniform map, and `total_cm` fixes chromosome lengths directly.
+
+[]{#founders-map-shape}
+
+```{r}
+#| label: founders-map-shape
+#| fig-cap: "Synthetic genetic map for mouse chromosome 1 under the default centromeric suppression and under a uniform rate. The physical positions are real; the cM values are a model."
+on1 <- mice$chr == "1"
+uniform <- synthetic_map(mice$chr, mice$pos, suppression = 0)
+plot(mice$pos[on1] / 1e6, mice$cm[on1], type = "l", lwd = 2,
+     xlab = "Physical position on chromosome 1 (Mb)",
+     ylab = "Genetic position (cM)")
+lines(mice$pos[on1] / 1e6, uniform[on1], lwd = 2, lty = 2, col = "grey50")
+legend("topleft", c("centromere-suppressed", "uniform"),
+       lwd = 2, lty = c(1, 2), col = c("black", "grey50"), bty = "n")
+```
+
+[]{#founders-map-options}
+
+```{r}
+#| label: founders-map-options
+fixed <- synthetic_map(mice$chr, mice$pos, total_cm = 80)
+tibble(chr = mice$chr, default = mice$cm, uniform = uniform, fixed = fixed) |>
+  group_by(chr) |>
+  summarise(across(c(default, uniform, fixed), max), .groups = "drop") |>
+  head(4)
+```
+
+### Founders without genotypes
+
+`founders_coalescent()` simulates founder haplotypes under a sequential
+Markov coalescent with recombination and mutation, using the same demographic
+presets that AlphaSimR's `runMacs()` builds. The result is a `Population`
+whose counted allele is the derived allele. The seed makes it reproducible.
+
+[]{#founders-coalescent}
+
+```{r}
+#| label: founders-coalescent
+generic <- founders_coalescent(50, n_chr = 2, seg_sites = 500, seed = 1)
+generic
+
+again <- founders_coalescent(50, n_chr = 2, seg_sites = 500, seed = 1)
+identical(dosages(again), dosages(generic))
+
+attr(generic, "coalescent")$n_total
+```
+
+`seg_sites` keeps a uniform random subset of the segregating sites the
+coalescent produced; the attribute records how many existed before
+subsetting. A constant-size neutral coalescent sample has a spectrum skewed
+toward rare variants. The `"GENERIC"` preset instead follows AlphaSimR's
+demography, a recent strong bottleneck, which depletes rare variants, so the
+median minor allele frequency in the summary is well above what a
+constant-size sample would give.
+
+[]{#founders-coalescent-spectrum}
+
+```{r}
+#| label: founders-coalescent-spectrum
+x <- dosages(generic)
+p <- rowMeans(x + 1) / 2
+tibble(
+  quantity = c("minimum MAF", "median MAF", "fraction heterozygous"),
+  value = c(min(pmin(p, 1 - p)), median(pmin(p, 1 - p)), mean(x == 0))
+)
+```
+
+Species presets change the chromosome length, mutation and recombination
+parameters, and the population-size history. `inbred = TRUE` duplicates each
+simulated haplotype so every founder is homozygous, the usual starting point
+for a line-breeding program. `split` separates the founders into two
+subpopulations with no migration for a number of generations before the
+present.
+
+[]{#founders-coalescent-presets}
+
+```{r}
+#| label: founders-coalescent-presets
+maize_like <- founders_coalescent(50, n_chr = 2, seg_sites = 500,
+                                  species = "MAIZE", seed = 1)
+maize_like
+
+lines <- founders_coalescent(20, seg_sites = 300, inbred = TRUE, seed = 2)
+all(dosages(lines) != 0)
+
+split_pop <- founders_coalescent(40, seg_sites = 300, split = 50, seed = 3)
+xs <- dosages(split_pop)
+p1 <- rowMeans(xs[, 1:20] + 1) / 2
+p2 <- rowMeans(xs[, 21:40] + 1) / 2
+tibble(mean_absolute_frequency_difference = mean(abs(p1 - p2)))
+```
+
+The last table is a descriptive statistic of the two halves' allele
+frequencies, not an estimator of a population parameter.
+
+## Assumptions and theory
+
+### Phasing and dosage rules
+
+For an individual's dosage $x_j \in \{-1, 0, 1\}$ at marker $j$,
+`as_population()` sets
+
+$$
+\text{cis}_j = \mathbf{1}[x_j \ge 0], \qquad
+\text{trans}_j = \mathbf{1}[x_j > 0],
+$$ {#eq-phasing-rule}
+
+so homozygotes are determined and every heterozygote has its counted allele
+on the first strand. This is a package convention; the equation map records
+it for `as_population()`. The inverse,
+
+$$
+x_j = \text{cis}_j + \text{trans}_j - 1,
+$$ {#eq-dosage-rule}
+
+is the isqg `genotype_num` convention that `dosages()` and the Rust genome
+module implement. The identity check above executes it.
+
+### The synthetic map model
+
+`synthetic_map()` assigns each physical position $p$ on a chromosome of span
+$L$ a local rate
+
+$$
+r(p) = 1 - s \exp\!\left(-\tfrac{1}{2}\left(\frac{p - c}{wL}\right)^2\right),
+$$ {#eq-synthetic-map}
+
+where $c$ is the centromere position, $s$ the suppression strength and $w$ the
+relative width of the suppressed region. The rate is integrated across marker
+intervals and rescaled so that the chromosome reaches its target length,
+either `total_cm` or `cm_per_mb` times the span in Mb. Because $r(p)$ is
+positive for $s < 1$, cM is a monotone function of bp.
+
+The Gaussian form is a phenomenological package choice. The package
+documentation cites Bauer et al. (2013) for the pericentromeric suppression
+pattern in maize and the genome-wide scale the defaults approximate, and
+states that the functional form and parameters are not taken from that
+source. The map's length matters for what follows: the expected number of
+crossovers on a chromosome equals its last map position in Morgans, as the
+[meiosis chapter](cross.qmd) explains.
+
+### The coalescent founders
+
+`founders_coalescent()` follows the model documented for the function: time
+in units of $4N_0$ generations, per-chromosome $\theta = 4N_0\mu$ and
+$\rho = 4N_0 r$, a piecewise-constant population-size history relative to
+$N_0$, infinite-sites mutation, and a sequential Markov coalescent (SMC')
+walk along the chromosome. The genetic map is linear in physical position and
+starts at 0 cM at the first segregating site. The species presets reproduce
+the demographic commands that AlphaSimR 2.1.0's `runMacs()` builds; their
+parameter values are AlphaSimR's choices, not estimates made in this package.
+The package references are Marjoram and Wall (2006), Chen, Marjoram and Wall
+(2009), Hudson (2002), and Gaynor, Gorjanc and Hickey (2021), as given in the
+function documentation. This book does not verify the coalescent algorithm
+against those sources; the allele-frequency summary above is a sanity check
+of the output, not a validation of the model.
+
+### Randomness and reproducibility
+
+This function is the one place where random numbers are drawn in Rust. Its
+pseudorandom generator is seeded from R, so a `seed` reproduces the founders
+and the caller's R random state is restored afterwards. Meiosis, QTN sampling,
+and effect and residual draws remain in R, as described in the
+[implementation overview](architecture.qmd).
+
+## Implementation and practical limits
+
+`as_population()` and `population_from_haplotypes()` are R functions in the
+crossing module; `dosages()` combines the strands through the Rust genome
+code; `founders_coalescent()` calls `coalescent_chromosome_core()` per
+chromosome and assembles the result with `population_from_haplotypes()`. The
+[developer index](developer-index.qmd) gives current locations.
+
+- `cm` must be in centiMorgans, non-decreasing within a chromosome, with no
+  missing values; a map whose largest value is at most 5 across 20 or more
+  markers draws a warning because it looks like Morgans.
+- Chromosomes are processed in a canonical order (numeric labels first), so
+  `chr` stored as text or as numbers gives the same seeded progeny.
+- Populations built from separately converted panels can count different
+  alleles as `1`. Convert jointly or carry the `counted` column, as the
+  [input chapter](input.qmd) describes; `cross()` and `c.Population()` stop
+  when the records disagree.
+- Phasing a large outbred panel is fast, but the phase is a guess. Use
+  `population_from_haplotypes()` when real phase information exists.
+- `founders_coalescent()` can return fewer segregating sites than requested
+  only by stopping with an error; ask for fewer sites or more individuals.
+- A filtered population (see `filter_geno()`) has a different marker set from
+  the unfiltered one and cannot be crossed or pooled with it.

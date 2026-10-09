@@ -1,0 +1,587 @@
+# Transcriptome simulation and counts {#sec-expression}
+
+Suppose you want gene expression for your genotyped individuals: a matrix of
+genes by individuals in which some of the variation traces to the genome through
+cis and trans regulatory effects, some is shared co-expression, and the rest is
+gene-specific noise. You also want to know the truth behind it, so that an eQTL
+or co-expression analysis can be scored, and you may need the same expression
+as integer sequencing counts. This chapter builds such a transcriptome on the
+maize genotypes, checks what the requested parameters mean once realized, applies
+the same architecture to new individuals, and converts the expression to counts.
+
+[]{#expression-setup}
+
+```{r}
+#| label: expression-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-expression-example}
+
+### Load the package and the genotypes
+
+[]{#expression-library}
+
+```{r}
+#| label: expression-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+geno <- as_numeric(
+  SNP55K_maize282_maf04,
+  to_r = TRUE, to_file = FALSE, verbose = FALSE
+)
+```
+
+The maize panel and its coding are described in
+[A first simulation](first-simulation.qmd). Expression simulation needs marker
+chromosomes and physical positions, because cis regulation is defined by
+distance from a gene's transcription start site. The panel provides both.
+
+### Simulate a transcriptome
+
+`simulate_transcriptome()` draws a gene set with synthetic coordinates, assigns
+each gene a target expression heritability and a cis fraction, samples cis
+markers near each gene and trans hub markers for latent regulatory factors,
+and returns the expression matrix together with the truth tables.
+
+[]{#expression-simulate}
+
+```{r}
+#| label: expression-simulate
+tx <- simulate_transcriptome(geno, n_genes = 400, seed = 11)
+tx
+dim(tx$expression)
+```
+
+The default `h2 = "beta"` draws each gene's target heritability from a
+Beta(1.5, 6) distribution with mean 0.20, and the default `cis_fraction = 0.25`
+asks that one quarter of each gene's genetic variance come from cis markers.
+The print method summarizes the realized heritabilities, the number of
+cis-eQTL, and the number of trans hub markers. The object holds the expression
+matrix, the genetic part of expression, a per-gene table, the eQTL truth
+tables, and a per-gene variance budget.
+
+[]{#expression-genes}
+
+```{r}
+#| label: expression-genes
+tx$genes |>
+  select(gene_id, chr, tss, module, h2_target, h2_realized, h2_allocated,
+         cis_fraction_target, cis_fraction_realized, n_cis) |>
+  head()
+```
+
+Each gene belongs to a co-expression module, which is also the latent factor
+carrying its trans regulation. The table reports three heritability columns,
+explained below, together with the realized cis fraction and the number of
+cis-eQTL drawn for the gene.
+
+### Compare requested and realized heritability
+
+A per-gene target is a parameter; the realized value is a sample quantity. The
+package reports both and does not force them to agree. The table compares the
+distribution of targets with the distribution of realized values across genes.
+
+[]{#expression-h2}
+
+```{r}
+#| label: expression-h2
+h2_summary <- function(x) c(mean = mean(x), median = median(x),
+                            min = min(x), max = max(x))
+
+tibble(
+  quantity = names(h2_summary(tx$genes$h2_target)),
+  target = h2_summary(tx$genes$h2_target),
+  allocated = h2_summary(tx$genes$h2_allocated),
+  realized = h2_summary(tx$genes$h2_realized)
+)
+```
+
+`h2_allocated` equals the target on the reference panel by construction: the
+genetic and residual components of each gene are scaled separately to sample
+variances `h2` and `1 - h2`. `h2_realized` divides the genetic variance by the
+variance of the expression actually produced, which includes the chance sample
+covariance between the two components. It therefore scatters around the target,
+exactly as the realized variance ratio did in the first chapter. The following
+chunk shows the scatter for a constant target, where it is easiest to see.
+
+[]{#expression-fixed-h2}
+
+```{r}
+#| label: expression-fixed-h2
+tx_fixed <- simulate_transcriptome(
+  geno, n_genes = 400, h2 = 0.3, cis_fraction = 0.5, seed = 12
+)
+
+tibble(
+  quantity = c("Expression heritability", "Cis fraction"),
+  parameter = c(0.3, 0.5),
+  realized_mean = c(mean(tx_fixed$genes$h2_realized),
+                    mean(tx_fixed$genes$cis_fraction_realized)),
+  realized_min = c(min(tx_fixed$genes$h2_realized),
+                   min(tx_fixed$genes$cis_fraction_realized)),
+  realized_max = c(max(tx_fixed$genes$h2_realized),
+                   max(tx_fixed$genes$cis_fraction_realized))
+)
+```
+
+The realized cis fraction varies for the same reason. The cis score and the
+trans score of a gene are standardized separately and blended with weights
+$\sqrt{\omega}$ and $\sqrt{1-\omega}$, so their marginal shares equal the
+requested fraction. But the two scores covary through linkage disequilibrium
+and population structure, and the realized fraction is defined relative to the
+variance of the combined genetic component, which contains that covariance.
+
+### Inspect the eQTL truth tables
+
+The cis table lists, for each gene, the markers inside its cis window and their
+effects on centered dosage. The factor table lists the hub markers driving each
+latent factor. Joining the cis table with the gene table confirms the window
+rule: every cis marker is on the gene's chromosome and within `cis_window`
+(one million positions by default) of its transcription start site.
+
+[]{#expression-cis}
+
+```{r}
+#| label: expression-cis
+head(tx$cis_eqtl)
+head(tx$factor_eqtl)
+
+cis_check <- tx$cis_eqtl |>
+  left_join(
+    tx$genes |> select(gene_id, gene_chr = chr, tss),
+    by = "gene_id"
+  ) |>
+  mutate(same_chromosome = chr == gene_chr,
+         distance = abs(pos - tss))
+
+tibble(
+  cis_markers = nrow(cis_check),
+  genes_with_cis = n_distinct(cis_check$gene_id),
+  all_on_gene_chromosome = all(cis_check$same_chromosome),
+  max_distance_from_tss = max(cis_check$distance),
+  cis_window = tx$reference$cis_window
+)
+```
+
+Only markers with minor allele frequency of at least 0.05 and a known
+chromosome and position are eligible as eQTL. This threshold is fixed in the
+generator. The bundled maize panel was already filtered to a high minor allele
+frequency, so every marker is eligible here. A sparser panel can leave a gene
+without any cis marker; that gene then realizes its heritability through its
+trans factor alone, with a realized cis fraction of zero. Only a gene with
+neither a cis marker nor an active module factor realizes zero heritability.
+
+### Reconstruct the genetic expression from the truth
+
+The truth tables are complete. For a gene without epistasis, the genetic part of
+its expression is the cis effects applied to dosages centered on the reference
+marker means, plus the gene's `trans_scale` times the hub effects of its module.
+The chunk reconstructs it for every gene and compares with the stored matrix.
+
+[]{#expression-reconstruct}
+
+```{r}
+#| label: expression-reconstruct
+dosage <- t(as.matrix(geno[, -(1:5)]))
+colnames(dosage) <- geno$snp
+centered <- sweep(dosage, 2, tx$reference$marker_mean[colnames(dosage)])
+
+reconstruct <- function(g) {
+  gene <- tx$genes[g, ]
+  cis <- tx$cis_eqtl |> filter(gene_id == gene$gene_id)
+  hubs <- tx$factor_eqtl |> filter(factor == gene$module)
+  as.numeric(centered[, cis$snp, drop = FALSE] %*% cis$effect) +
+    gene$trans_scale * as.numeric(centered[, hubs$snp, drop = FALSE] %*% hubs$hub_effect)
+}
+genetic_hat <- sapply(seq_len(tx$n_genes), reconstruct)
+
+tibble(
+  quantity = "Largest absolute difference, reconstructed vs stored genetic expression",
+  value = max(abs(genetic_hat - t(tx$genetic_expression)))
+)
+```
+
+The agreement is at floating-point precision. The same reconstruction is what
+`predict()` applies to new individuals below. The variance budget uses these
+parts: for each gene, the cis variance, the trans variance, and twice their
+covariance add up to the variance of the genetic expression.
+
+[]{#expression-budget}
+
+```{r}
+#| label: expression-budget
+budget <- tx$var_budget |>
+  mutate(genetic_variance = apply(tx$genetic_expression, 1, var),
+         closure = v_cis + v_trans + cis_trans_cov - genetic_variance)
+
+budget |>
+  select(gene_id, v_cis, v_trans, cis_trans_cov, genetic_variance, closure) |>
+  head()
+```
+
+The `gr_cov` column of the budget, not shown, records twice the sample
+covariance between the genetic and residual parts; it is the term that moves
+`h2_realized` away from `h2_allocated`.
+
+### Co-expression without genetics
+
+Genes co-express through their module's non-genetic factor, controlled by
+`residual_module_fraction`, and through shared trans regulation. To see the
+non-genetic part alone, simulate a transcriptome with no genotypes. In this
+mode every gene has zero heritability and `n_ind` sets the sample size. The
+table compares mean absolute correlations within and between modules for two
+settings of the module fraction.
+
+[]{#expression-coexpression}
+
+```{r}
+#| label: expression-coexpression
+module_correlation <- function(kappa) {
+  tx0 <- simulate_transcriptome(
+    n_genes = 200, n_ind = 200, n_factors = 4,
+    residual_module_fraction = kappa, seed = 7
+  )
+  r <- cor(t(tx0$expression))
+  same <- outer(tx0$genes$module, tx0$genes$module, "==")
+  diag(same) <- NA
+  c(within = mean(abs(r[which(same)])), between = mean(abs(r[which(!same)])))
+}
+
+tibble(
+  residual_module_fraction = c(0, 0.5),
+  within_module = c(module_correlation(0)["within"],
+                    module_correlation(0.5)["within"]),
+  between_module = c(module_correlation(0)["between"],
+                     module_correlation(0.5)["between"])
+)
+```
+
+With a zero module fraction, the within-module and between-module correlations
+are both at the level expected from noise alone. With half of the residual
+variance carried by the module factor, genes in the same module are clearly
+correlated while genes in different modules are not. A naive co-expression
+network analysis of this genotype-free transcriptome would recover the modules
+even though no gene is heritable: co-expression is not evidence of shared
+genetic control.
+
+### Apply the architecture to new individuals
+
+A simulated transcriptome is tied to its reference individuals through the
+marker means used for centering and the scaling of each gene. `predict()`
+applies the stored architecture to different genotypes without recomputing any
+constant, so the genetic expression of a given genotype is the same whichever
+population it sits in. The example fits the architecture on 200 maize lines and
+predicts the remaining 80.
+
+[]{#expression-predict}
+
+```{r}
+#| label: expression-predict
+reference <- geno[, c(1:5, 5 + 1:200)]
+new_lines <- geno[, c(1:5, 5 + 201:280)]
+
+tx_ref <- simulate_transcriptome(reference, n_genes = 400, seed = 11)
+tx_new <- predict(tx_ref, new_lines, seed = 5)
+tx_new
+
+tibble(
+  panel = c("Reference (200 lines)", "New (80 lines)"),
+  mean_target = c(mean(tx_ref$genes$h2_target), mean(tx_new$genes$h2_target)),
+  mean_realized = c(mean(tx_ref$genes$h2_realized), mean(tx_new$genes$h2_realized)),
+  sd_realized_minus_target = c(sd(tx_ref$genes$h2_realized - tx_ref$genes$h2_target),
+                               sd(tx_new$genes$h2_realized - tx_new$genes$h2_target))
+)
+```
+
+On the new lines the residual is drawn afresh, and nothing is rescaled. The
+realized heritability is therefore emergent: it depends on the allele
+frequencies and linkage of the new individuals, and it scatters more widely in
+a smaller panel. `predict(..., residual = FALSE)` returns the noiseless genetic
+expression, which on the reference panel itself reproduces `genetic_expression`.
+
+[]{#expression-predict-reference}
+
+```{r}
+#| label: expression-predict-reference
+noiseless <- predict(tx_ref, reference, residual = FALSE)
+tibble(
+  quantity = "Largest absolute difference, noiseless prediction vs stored genetic expression",
+  value = max(abs(noiseless$expression - tx_ref$genetic_expression))
+)
+```
+
+The new genotypes must carry every marker named in the eQTL tables with the
+same allele orientation; only names and the dosage coding are checked, as the
+[genotype-input chapter](input.qmd) discusses for merged panels.
+
+### Add epistatic expression
+
+`epistasis` assigns each gene one or two marker pairs whose centered dosage
+product contributes to its expression, with a requested share of the genetic
+variance. The pairs are reported in an additional truth table.
+
+[]{#expression-epistasis}
+
+```{r}
+#| label: expression-epistasis
+tx_epi <- simulate_transcriptome(geno, n_genes = 100, epistasis = 0.2, seed = 13)
+head(tx_epi$epi_eqtl)
+
+tibble(
+  quantity = "Epistatic share of realized genetic variance",
+  parameter = 0.2,
+  realized_mean = mean(tx_epi$genes$epistasis_realized),
+  realized_min = min(tx_epi$genes$epistasis_realized),
+  realized_max = max(tx_epi$genes$epistasis_realized)
+)
+```
+
+As with the cis fraction, `epistasis` is a marginal blend weight, and the
+realized share differs from it through the covariance between the epistatic
+score and the additive scores. The function documentation gives the exact
+relation.
+
+### Calibrate to an existing expression matrix
+
+`mimic` takes a genes-by-individuals expression matrix for the same genotyped
+individuals and sets the generator's targets from it: the per-gene mean and
+variance, a per-gene heritability estimated by a single-component REML fit on
+the genomic relationship matrix, the number of co-expression factors, and the
+residual module fraction. Here the matrix simulated above stands in for a
+user's data, which lets us compare the estimated targets with the known truth.
+
+[]{#expression-mimic}
+
+```{r}
+#| label: expression-mimic
+tx_mimic <- simulate_transcriptome(geno, mimic = tx$expression, seed = 4)
+tx_mimic
+
+calibration <- tx_mimic$calibration$h2 |>
+  left_join(tx$genes |> select(gene_id, h2_target, h2_realized), by = "gene_id")
+
+tibble(
+  quantity = c("Largest absolute difference in gene means",
+               "Largest absolute difference in gene variances"),
+  value = c(
+    max(abs(rowMeans(tx_mimic$expression) - rowMeans(tx$expression))),
+    max(abs(apply(tx_mimic$expression, 1, var) - apply(tx$expression, 1, var)))
+  )
+)
+
+tibble(
+  quantity = c(
+    "Correlation of REML heritability with the realized truth",
+    "Mean REML heritability minus the realized truth",
+    "Estimated factors (5 were simulated)",
+    "Estimated residual module fraction (0.15 was simulated)"
+  ),
+  value = c(
+    cor(calibration$h2_greml, calibration$h2_realized),
+    mean(calibration$h2_greml - calibration$h2_realized),
+    tx_mimic$calibration$n_factors,
+    tx_mimic$calibration$kappa
+  )
+)
+```
+
+The means and variances are met to rounding. The heritability calibration is a
+distribution-level match: the per-gene estimates correlate with the truth but
+are noisy at 280 individuals, and the documentation warns that they are less
+reliable below 100. The eQTL effects, loadings, and module memberships are
+drawn afresh, so a mimicked transcriptome reproduces the moments and the
+heritability distribution of the input, not its individual genes.
+
+### Observe sequencing counts
+
+`observe_counts()` maps the latent expression to integer counts through a
+negative-binomial model with a log link. Per gene, the latent expression is
+standardized, multiplied by a coupling slope, and added to a log baseline; per
+individual, a library-size factor scales the expected count. With a zero
+coupling the expected count is constant across individuals, which isolates the
+negative-binomial mean-variance relation, $\operatorname{Var} = \mu + \phi\mu^2$.
+
+[]{#expression-counts}
+
+```{r}
+#| label: expression-counts
+count_moments <- function(phi) {
+  counts <- observe_counts(
+    tx, coupling = 0, baseline = log(50), dispersion = phi, seed = 3
+  )$counts
+  c(mean = mean(rowMeans(counts)), variance = mean(apply(counts, 1, var)))
+}
+moments <- sapply(c(0, 0.1, 0.5), count_moments)
+
+tibble(
+  dispersion = c(0, 0.1, 0.5),
+  parameter_mean = 50,
+  simulated_mean = moments["mean", ],
+  parameter_variance = 50 + c(0, 0.1, 0.5) * 50^2,
+  simulated_variance = moments["variance", ]
+)
+```
+
+A dispersion of zero is the Poisson limit, where the variance equals the mean.
+Larger dispersions add the quadratic term. The default coupling of 0.5 means a
+one-standard-deviation change in latent expression multiplies the expected
+count by $e^{0.5}$. The library-size factor enters multiplicatively, which the
+column totals show.
+
+[]{#expression-library-size}
+
+```{r}
+#| label: expression-library-size
+depth <- c(rep(0.5, 140), rep(2, 140))
+counts <- observe_counts(tx, library_size = depth, seed = 4)
+totals <- colSums(counts$counts)
+
+tibble(
+  quantity = "Ratio of mean column totals, deep to shallow libraries",
+  parameter = 2 / 0.5,
+  simulated = mean(totals[depth == 2]) / mean(totals[depth == 0.5])
+)
+counts$counts[1:4, 1:4]
+```
+
+The count matrix and the realized expected-count matrix are stored in the
+returned object. Counts are an observation layer for count-based methods. The
+share of count variance explained by the genome is not the latent heritability,
+because the link is nonlinear and mean-dependent.
+
+## Assumptions and theory
+
+The expression model, the eQTL architecture, and the count model are package
+definitions. The literature references below are those recorded in the
+package's equation map and documentation; where the map marks a page as
+unverified, that status is kept here.
+
+### The expression model
+
+For gene $g$ and individual $i$, the normalized expression is
+
+$$
+E_{gi} = \mu_g + G_{gi} + R_{gi},
+$$ {#eq-expression-model}
+
+a gene location $\mu_g$ (zero unless `mimic` is used), a genetic component
+$G_{gi}$, and a residual component $R_{gi}$. The additive dosage model and the
+definition of heritability follow Falconer and Mackay (1996; page unverified).
+The genetic and residual components are drawn independently, so their
+covariance is zero in expectation but not in a finite sample.
+
+Dosages are centered on the reference marker means, $Z_{ij} = x_{ij} - \bar x_j$,
+a package convention that fixes the genetic scale on the reference panel. The
+cis score of a gene sums normal effects over markers in its window,
+$c_g = \sum_{j \in W(g)} \beta_{gj} Z_{j}$, with one to three cis markers per
+gene (GTEx Consortium 2020, recorded in the map as verified). The trans score is
+the gene's latent factor, $f_q = \sum_{k \in H(q)} \gamma_{qk} Z_k$, driven by
+one or two hub markers outside the cis windows of the module's genes (Albert et
+al. 2018, recorded as verified). Each component is standardized with the
+sample standard deviation, denominator $n-1$.
+
+The additive genetic score blends the standardized cis and trans scores and is
+then scaled to the target heritability:
+
+$$
+G^0_g = \sqrt{\omega_g}\,\tilde c_g + \sqrt{1-\omega_g}\,\tilde t_g,
+\qquad
+G_g = \sqrt{h^2_g}\;\frac{G^0_g}{s_{G^0_g}}.
+$$ {#eq-expression-genetic}
+
+Here $\omega_g$ is the cis fraction and $h^2_g$ the target heritability. The
+residual is built the same way from the module factor $u_{q(g)}$ and
+gene-specific noise $\varepsilon_g$ with the residual module fraction $\kappa$:
+
+$$
+R^0_g = \sqrt{\kappa}\,\tilde u_{q(g)} + \sqrt{1-\kappa}\,\tilde\varepsilon_g,
+\qquad
+R_g = \sqrt{1-h^2_g}\;\frac{R^0_g}{s_{R^0_g}}.
+$$ {#eq-expression-residual}
+
+These are package definitions implemented in `simulate_transcriptome()`; the
+map records them as the package's own composite design. With epistasis, the
+standardized sum of centered dosage products for the gene's marker pairs is
+blended with the additive score with weights $\sqrt{1-\epsilon}$ and
+$\sqrt{\epsilon}$ before the final scaling.
+
+### Three heritability columns
+
+Because $G_g$ and $R_g$ are each scaled on the reference panel, the allocation
+$\operatorname{Var}(G_g) / (\operatorname{Var}(G_g) + \operatorname{Var}(R_g))$
+equals $h^2_g$ there. The realized heritability is
+
+$$
+h^2_{\text{realized},g} = \frac{\operatorname{Var}(G_g)}{\operatorname{Var}(E_g)}
+= \frac{h^2_g}{1 + 2\operatorname{Cov}(G_g, R_g)},
+$$ {#eq-expression-realized}
+
+where the second form holds only when the two variances sum to one, that is,
+without `mimic` rescaling. This is the same sample-variance identity derived in
+@sec-variance-derivation; the covariance is reported in the budget as `gr_cov`
+rather than projected away. The quantity is not bounded by one, and the
+documentation warns that it is unreliable below 30 individuals.
+
+### The count model
+
+With $z_{gi}$ the per-gene standardized latent expression,
+
+$$
+\log \mu_{gi} = \log L_i + \alpha_g + \sigma_g z_{gi},
+\qquad
+Y_{gi} \sim \mathrm{NB}(\mu_{gi}, \phi_g),
+\qquad
+\operatorname{Var}(Y_{gi}) = \mu_{gi} + \phi_g \mu_{gi}^2.
+$$ {#eq-expression-counts}
+
+$L_i$ is the library-size factor, $\alpha_g$ the log baseline, $\sigma_g$ the
+coupling, and $\phi_g$ the dispersion, with $\phi_g = 0$ giving the Poisson
+limit. The variance parameterization follows the edgeR convention (McCarthy,
+Chen and Smyth 2012; Robinson and Smyth 2008; page-level equation numbers not
+verified). The log link to the latent expression and the library-size factor
+are the package's own design, implemented in `observe_counts()`.
+
+### What mimic estimates
+
+The per-gene heritability under `mimic` is a single-variance-component REML
+estimate on a genomic relationship matrix built from reference-centered
+dosages (`.tx_grm()`, after VanRaden 2008 method 1 up to a constant; the map
+notes the page was not re-verified). The profile likelihood is the EMMA form of
+Kang et al. (2008), recorded as verified, implemented in `.greml_h2()`. The
+factor count uses the Marchenko-Pastur edge of the sample covariance spectrum
+(`.tx_estimate_factors()`; page unverified), and the residual module fraction
+comes from a spiked-covariance estimator (`.tx_estimate_kappa()`). That
+estimator subtracts the genetic trans share implied by the GREML heritability
+and by the `cis_fraction` passed to the mimic call, so it over-estimates the
+fraction when the assumed cis fraction is higher than the input's.
+
+## Implementation and practical limits
+
+The generator is R code in `simulate_transcriptome()`, with `predict.transcriptome_sim()`
+for re-scoring, `observe_counts()` for counts, and the `mimic` estimators in
+the `.tx_*` and `.greml_h2()` helpers. No Rust kernel is involved.
+
+- The default profile is a documented benchmarking compromise, not a set of
+  biological constants. Report the profile and parameters with any result.
+- Eligibility requires minor allele frequency of at least 0.05 and known
+  coordinates. On a small or sparse panel, a gene can lack both a cis marker
+  and an active hub, and then realizes zero heritability; the gene table shows it.
+- Random draws flow gene by gene from one stream, so changing an option for one
+  gene changes the draws of every later gene. Per-gene reproducibility holds only
+  for the same full call and seed.
+- `mimic` reproduces moments, the heritability distribution, and the factor
+  count; it does not retain the input's loadings or their signs, so
+  anti-correlated blocks of the input become positively co-expressed.
+- Count-scale heritability differs from latent heritability. Use counts as an
+  observation layer for methods that model counts.
+- Directed regulatory networks and tissue specificity are outside the scope of
+  this generator.
+
+The next chapter, [Expression-mediated phenotypes](mediation.qmd), uses a
+transcriptome from this generator as a source of phenotypic variation and
+separates the part of that variation that traces to the genome.

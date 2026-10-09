@@ -1,0 +1,402 @@
+# Marker-assisted breeding {#sec-markers}
+
+A donor line carries an allele you want, at a known marker, inside a genome
+you do not want. Marker-assisted backcrossing moves that allele into an elite
+recurrent parent while recovering the recurrent genome faster than repeated
+backcrossing alone would. A related task stacks several target alleles into
+one line. This chapter runs both on two maize inbreds, B73 and Mo17, and
+checks the recovery of the recurrent genome against its Mendelian expectation.
+
+[]{#markers-setup}
+
+```{r}
+#| label: markers-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-markers-example}
+
+### Founders and informative markers
+
+[]{#markers-library}
+
+```{r}
+#| label: markers-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+```
+
+The two parents come from the bundled maize panel. B73 is the recurrent
+parent and Mo17 the donor. A marker is **informative** for backcrossing only
+when the two parents are homozygous for different alleles, because only then
+does a progeny genotype reveal which parent each allele came from.
+
+[]{#markers-founders}
+
+```{r}
+#| label: markers-founders
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+geno <- as_numeric(
+  SNP55K_maize282_maf04,
+  to_r = TRUE, to_file = FALSE, verbose = FALSE
+)
+founders <- as_population(geno, individuals = c("B73", "MO17"))
+recurrent <- founders["B73"]
+donor <- founders["MO17"]
+
+d <- dosages(founders)
+informative <- d[, "B73"] * d[, "MO17"] == -1
+tibble(markers = nrow(d), informative = sum(informative))
+```
+
+`dosages()` returns the markers-by-individuals matrix of `-1`, `0`, `1`
+codes. The product of the two parental dosages is `-1` exactly when they are
+opposite homozygotes.
+
+### Choose a target and its flanking markers
+
+The target is an informative marker on chromosome 1 near 60 cM of the
+bundled synthetic map. Two informative markers about five centimorgans to
+either side serve as flanking markers for recombinant selection.
+
+[]{#markers-target}
+
+```{r}
+#| label: markers-target
+map <- founders$map
+chr1 <- which(informative & map$chr == "1")
+target_row <- chr1[which.min(abs(map$cm[chr1] - 60))]
+target <- map$snp[target_row]
+
+left <- chr1[chr1 < target_row & map$cm[chr1] <= map$cm[target_row] - 5]
+right <- chr1[chr1 > target_row & map$cm[chr1] >= map$cm[target_row] + 5]
+flanking <- map$snp[c(max(left), min(right))]
+
+map |>
+  filter(snp %in% c(target, flanking)) |>
+  select(snp, chr, pos, cm)
+```
+
+The donor allele at the target is the one coded by Mo17's dosage there.
+
+### Backcross with and without background selection
+
+We make the F1, then three backcross generations of 100 progeny each. In the
+first scheme, `mabc_select()` keeps the single best candidate each
+generation: it must carry the donor allele at the target (foreground
+selection), is preferred when both flanking markers are already homozygous
+for B73 (recombinant selection), and among those is ranked by its recovery of
+the B73 genome at the remaining informative markers (background selection).
+The target region of 10 cM on either side is excluded from the background
+score, because that is the donor segment we intend to keep.
+
+[]{#markers-mabc}
+
+```{r}
+#| label: markers-mabc
+f1 <- cross(recurrent, donor, n = 1, seed = 1)
+region <- list(chr = "1", from = map$cm[target_row] - 10, to = map$cm[target_row] + 10)
+
+parent <- f1
+mabc <- list()
+for (t in 1:3) {
+  parent_recovery <- recurrent_parent_recovery(parent, recurrent, donor)
+  cohort <- cross(parent, recurrent, n = 100, seed = 10 + t)
+  cohort_recovery <- recurrent_parent_recovery(cohort, recurrent, donor)
+  parent <- mabc_select(
+    cohort, recurrent, donor,
+    target_markers = target, flanking_markers = flanking,
+    exclude_interval = region, n = 1, seed = 20 + t
+  )
+  mabc[[t]] <- tibble(
+    generation = paste0("BC", t),
+    unselected = 1 - 0.5^(t + 1),
+    expected_cohort = 0.5 + 0.5 * parent_recovery,
+    cohort_mean = mean(cohort_recovery),
+    cohort_best = max(cohort_recovery),
+    selected = recurrent_parent_recovery(parent, recurrent, donor)
+  )
+}
+bc3 <- parent
+bind_rows(mabc)
+```
+
+`recurrent_parent_recovery()` scores each individual by its fraction of
+B73 alleles over the informative markers. A backcross progeny receives one
+complete recurrent gamete and half of its parent's genome, so a cohort's
+expected recovery is one half plus half of its parent's recovery
+(`expected_cohort`). The `unselected` column is the Mendelian value
+$1 - 2^{-(t+1)}$ for a pedigree with no selection; it applies to BC1 only here,
+because from BC2 on each cohort descends from a selected plant. The simulated
+cohort means track `expected_cohort`. The selected individual exceeds its cohort because it was chosen for
+exactly that score. The last selected candidate's record shows how the three
+stages were applied:
+
+[]{#markers-mabc-record}
+
+```{r}
+#| label: markers-mabc-record
+record <- attr(bc3, "mabc")
+record |>
+  filter(selected) |>
+  select(id, target, feasible, flank_recurrent, background_recovery, rank)
+
+record |>
+  count(target, feasible)
+```
+
+The `target` column codes each candidate's genotype at the target as `R`,
+`H` or `D` for recurrent homozygote, heterozygote or donor homozygote. In a
+backcross about half the progeny are heterozygous at the target; only those
+are feasible.
+
+In the second scheme we keep a carrier of the donor allele but choose it at
+random, which is foreground selection alone. `marker_select()` does this with
+the favourable allele given explicitly; with no `rank_on` score, feasible
+candidates are ranked by the number of targets met, which is one for all of
+them, and the tie is broken at random.
+
+[]{#markers-foreground}
+
+```{r}
+#| label: markers-foreground
+donor_allele <- dosages(donor)[target, 1]
+
+carrier <- f1
+foreground <- numeric(3)
+for (t in 1:3) {
+  cohort <- cross(carrier, recurrent, n = 100, seed = 10 + t)
+  carrier <- marker_select(
+    cohort, markers = target, favorable = donor_allele,
+    requirement = "carrier", n = 1, seed = 30 + t
+  )
+  foreground[t] <- recurrent_parent_recovery(carrier, recurrent, donor)
+}
+
+bind_rows(mabc) |>
+  select(generation, unselected, with_background = selected) |>
+  mutate(foreground_only = foreground)
+```
+
+Only the BC1 cohort is shared. From BC2 on the cohorts differ because they
+descend from different selected plants, so the table compares the two rules
+compounded over three generations.
+
+### Linkage drag around the target
+
+Recovery over the whole genome hides what happens next to the target. The
+donor segment carried with the target shrinks only through recombination
+nearby, so recovery on chromosome 1 lags behind the other chromosomes. We
+score the selected BC3 plant from the background-selected scheme separately
+on chromosome 1 and on the rest of the genome.
+
+[]{#markers-drag}
+
+```{r}
+#| label: markers-drag
+best_bc3 <- bind_rows(mabc)$selected[3]
+chr1_markers <- map$snp[informative & map$chr == "1"]
+other_markers <- map$snp[informative & map$chr != "1"]
+tibble(
+  region = c("Genome", "Chromosome 1", "Other chromosomes"),
+  recovery = c(
+    best_bc3,
+    recurrent_parent_recovery(bc3, recurrent, donor, markers = chr1_markers),
+    recurrent_parent_recovery(bc3, recurrent, donor, markers = other_markers)
+  )
+)
+```
+
+The `weights = "interval"` option scores each marker by the length of genome
+it represents instead of equally, which matters when markers cluster.
+
+[]{#markers-weights}
+
+```{r}
+#| label: markers-weights
+tibble(
+  weights = c("equal", "interval"),
+  recovery = c(
+    recurrent_parent_recovery(bc3, recurrent, donor),
+    recurrent_parent_recovery(bc3, recurrent, donor, weights = "interval")
+  )
+)
+```
+
+### Gene pyramiding in an F2
+
+Pyramiding stacks several target alleles in one individual. We select three
+informative markers on different chromosomes and ask which F2 plants of the
+B73 x Mo17 cross are homozygous for the Mo17 allele at all three. Under
+independent assortment, one plant in 64 should qualify.
+
+[]{#markers-pyramid}
+
+```{r}
+#| label: markers-pyramid
+targets <- sapply(c("2", "5", "8"), function(chr) {
+  k <- which(informative & map$chr == chr)
+  map$snp[k[which.min(abs(map$cm[k] - 50))]]
+})
+favourable <- dosages(donor)[targets, 1]
+
+f2 <- selfcross(f1, n = 400, seed = 3)
+pyramid <- marker_select(
+  f2, markers = targets, favorable = favourable, requirement = "homozygote"
+)
+status <- attr(pyramid, "marker_select")
+head(status)
+
+tibble(
+  requirement = c("Homozygous at all three", "Carrier at all three"),
+  expected = c(400 / 64, 400 * (3 / 4)^3),
+  simulated = c(
+    sum(status$feasible),
+    sum(attr(marker_select(
+      f2, markers = targets, favorable = favourable, requirement = "carrier"
+    ), "marker_select")$feasible)
+  )
+)
+```
+
+The `state` column lists the genotype at each target as `F`, `H` or `U`
+(favourable homozygote, heterozygote, unfavourable homozygote). A staged
+pyramid relaxes the requirement to some of the targets and ranks candidates
+by the number met, which lets a program select now and finish the stack
+later. Candidates that already meet all three targets rank first, so with
+enough of them the staged selection still returns complete stacks.
+
+[]{#markers-staged}
+
+```{r}
+#| label: markers-staged
+staged <- marker_select(
+  f2, markers = targets, favorable = favourable,
+  requirement = "homozygote", min_markers = 2, n = 5, seed = 4
+)
+attr(staged, "marker_select_info")$staged
+attr(staged, "marker_select") |>
+  filter(selected) |>
+  select(id, state, n_met, rank)
+```
+
+### Ranking feasible candidates on a marker index
+
+`rank_on` orders the feasible candidates by any score. With the simulation's
+own causal loci and their additive effects, `additive_value()` is a marker
+index of the kind used in marker-assisted recurrent selection, here with the
+true effects rather than estimated ones. We define a trait on the F2 and keep
+the five carriers with the highest index.
+
+[]{#markers-index}
+
+```{r}
+#| label: markers-index
+sim <- simulate_phenotype(f2, h2 = 0.5, seed = 5) |>
+  additive(n_qtn = 30)
+template <- template_effects(sim)
+index <- additive_value(f2, template$qtn, template$a)
+
+mars <- marker_select(
+  f2, markers = targets, favorable = favourable, requirement = "carrier",
+  rank_on = index, n = 5, seed = 6
+)
+attr(mars, "marker_select") |>
+  filter(selected) |>
+  select(id, state, score, rank)
+```
+
+## Assumptions and theory
+
+### Informative markers and the recovery score
+
+For the recurrent parent homozygous with dosage $r_m \in \{-1, +1\}$ at an
+informative marker $m$ and a candidate with dosage $x_{mi}$, the package
+defines the recurrent-allele score
+
+$$
+s_{mi} = \frac{x_{mi}\, r_m + 1}{2},
+$$ {#eq-recurrent-score}
+
+which is 1, 1/2 or 0 for a recurrent homozygote, a heterozygote or a donor
+homozygote (`.mabc_founders()`, a package definition). Recovery is the
+weighted mean of these scores over the background set $B$,
+
+$$
+R_i = \frac{\sum_{m \in B} w_m s_{mi}}{\sum_{m \in B} w_m},
+$$ {#eq-recovery}
+
+with equal weights, interval weights or user weights (`.mabc_recovery()`,
+package definition). The interval weight of a marker is the centimorgan
+length of genome nearer to it than to any other scored marker on its
+chromosome, minus any part inside an excluded interval (`.mabc_weights()`).
+This is recovery of recurrent-parent **marker alleles**, not identity by
+descent: a `Population` carries no per-locus ancestry, so a marker allele
+shared by both parents is simply uninformative and is dropped.
+
+### Expected recovery without selection
+
+Each backcross joins one gamete from the recurrent parent, which is entirely
+recurrent, to one gamete from the current backcross plant, which carries on
+average that plant's recurrent fraction. For an unselected cohort after $t$
+backcrosses following the F1,
+
+$$
+R_0 = \tfrac12, \qquad R_t = \tfrac12 + \tfrac12 R_{t-1}, \qquad
+R_t = 1 - 2^{-(t+1)}.
+$$ {#eq-expected-recovery}
+
+The equation map records this as Mendelian, attributed to Frisch & Melchinger
+2005 *Genetics* 170:909–917 (paper verified; location unverified). The
+expectation holds for the cohort mean; the selected individual is drawn from
+the upper tail of that cohort.
+
+### Staged selection in `mabc_select()`
+
+Feasibility requires the donor allele at every target: at least one donor
+allele for `"donor_carrier"`, both for `"donor_homozygote"`. Among feasible
+candidates the ranking is lexicographic: the number of flanking markers in
+the recurrent-homozygous state first, then the background recovery, then a
+seeded random tie-break. The equation map attributes the three-stage
+procedure to Frisch & Melchinger 2001 *Crop Sci* 41:1485–1494 (verified;
+page unverified); the feasibility rule and the recovery estimator are package
+definitions.
+
+### Feasibility and ranking in `marker_select()`
+
+With $f_m \in \{-1, +1\}$ the favourable homozygote at target $m$, the
+package computes $z_{mi} = x_{mi} f_m$ and declares the requirement met when
+$z_{mi} \ge 0$ (carrier) or $z_{mi} \ge 1$ (homozygote). A candidate is
+feasible when it meets the requirement at `min_markers` or more targets.
+The equation map records this as DECISION-029, a package definition. A
+`rank_on` index of the form $I_i = \sum_j w_j x_{ij}$ is the marker index of
+Lande & Thompson 1990 *Genetics* 124:743–756 (verified; page unverified);
+with the simulation's own effects as weights it is an oracle index, an upper
+bound on what estimated effects could achieve.
+
+## Implementation and practical limits
+
+Marker selection is deterministic R code apart from the seeded tie-break;
+the meioses that produce each cohort are simulated by the crossing engine,
+with the random draws made in R.
+
+- Every target and flanking marker must be informative; the function errors
+  rather than guess which allele is the donor's.
+- The founders, the candidates and the donor must share one allele coding.
+  That holds when the candidates are bred from the founders, as here. For
+  separately converted panels, convert them in one `as_numeric()` call or
+  use `method = "reference"` with the same `ref_allele`, because the coding
+  cannot be checked from dosages.
+- Both weightings drop an excluded interval from the denominator. With equal
+  weights the denominator is a marker count, so a densely genotyped region
+  counts more; `marker_weights = "interval"` weights each marker by the map
+  length it represents.
+- A one-sided set of flanking markers is accepted with a warning; without any
+  flanking markers no recombinant selection takes place.
+- `marker_select()` is an error when fewer candidates are feasible than `n`
+  requests. Check the `feasible` column of its attribute first when the stack
+  is large or the population small.
+- Phenotypic truncation with [`select_ind()`](selection.qmd) is not
+  marker-assisted selection; the two can be combined through `rank_on`.

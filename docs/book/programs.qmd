@@ -1,0 +1,452 @@
+# Combining ability and breeding schemes {#sec-programs}
+
+A hybrid program wants to know which inbreds combine well in crosses; a
+line-development program wants inbred lines from a segregating cross; a
+population-improvement program wants gain cycle after cycle. This chapter
+runs each of these on maize lines: a diallel scored for combining ability
+both by expectation and by simulated progeny, a progeny test, three ways of
+deriving inbred lines from one cross, and recurrent selection with its
+response per cycle. Each simulated result is placed next to the quantity it
+is supposed to estimate.
+
+[]{#programs-setup}
+
+```{r}
+#| label: programs-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-programs-example}
+
+### A trait with dominance
+
+[]{#programs-library}
+
+```{r}
+#| label: programs-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+```
+
+Combining ability is only interesting when crosses can differ from the
+average of their parents, which needs dominance. The maize lines are inbred
+and carry almost no heterozygotes, so we define the trait on an F2 of two
+lines, where every segregating marker has heterozygotes, and freeze its
+effects.
+
+[]{#programs-trait}
+
+```{r}
+#| label: programs-trait
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+geno <- as_numeric(
+  SNP55K_maize282_maf04,
+  to_r = TRUE, to_file = FALSE, verbose = FALSE
+)
+pop <- as_population(geno, individuals = 1:30)
+f1 <- cross(pop[1], pop[2], n = 1, seed = 1)
+f2 <- selfcross(f1, n = 100, seed = 2)
+
+sim <- simulate_phenotype(f2, h2 = 0.6, seed = 3) |>
+  additive(prop = 0.4, n_qtn = 20) |>
+  dominance(prop = 0.2)
+template <- template_effects(sim)
+head(template)
+```
+
+`template_effects()` returns each causal locus with its additive effect `a`
+and dominance deviation `d` on the scale of the realized genetic values. The
+functions below take these frozen effects and apply them to any population on
+the same marker map, so values are comparable across populations. The check
+confirms that the frozen effects reproduce the simulation's own genetic
+values up to a constant.
+
+[]{#programs-template-check}
+
+```{r}
+#| label: programs-template-check
+frozen <- genotypic_value(f2, template$qtn, template$a, template$d)
+realized <- genetic_values(sim)[, 1]
+tibble(
+  correlation = cor(frozen, realized[names(frozen)]),
+  sd_of_difference = sd(frozen - realized[names(frozen)])
+)
+```
+
+### A diallel among six inbreds
+
+`combining_ability()` with `design = "diallel"` evaluates every unordered
+pair of the candidates. With `method = "expected"` it computes the expected
+progeny value of each cross from the parents' genotypes without simulating
+anything; general combining ability (GCA) is each parent's average deviation
+across its crosses and specific combining ability (SCA) is the remaining
+cross-specific deviation.
+
+[]{#programs-diallel}
+
+```{r}
+#| label: programs-diallel
+lines <- pop[1:6]
+expected <- combining_ability(
+  lines, qtn = template$qtn, a = template$a, d = template$d,
+  design = "diallel", method = "expected"
+)
+print(expected)
+round(expected$gca, 3)
+round(expected$sca, 3)
+```
+
+The SCA matrix is symmetric with an empty diagonal, because selfs are not
+part of the design. GCAs sum to zero and each row of SCAs sums to zero; these
+are properties of the decomposition, checked below.
+
+[]{#programs-diallel-check}
+
+```{r}
+#| label: programs-diallel-check
+tibble(
+  quantity = c("Sum of GCAs", "Largest row sum of SCAs"),
+  value = c(sum(expected$gca), max(abs(rowSums(expected$sca, na.rm = TRUE))))
+)
+```
+
+`method = "simulated"` realizes progeny for every cross with the crossing
+engine, scores them, and averages. With no residual and fully inbred parents,
+every progeny of a cross is genetically identical, so the simulated and
+expected results agree exactly. With a residual, each cross mean carries
+environmental sampling error that shrinks with `n_progeny`.
+
+[]{#programs-diallel-sim}
+
+```{r}
+#| label: programs-diallel-sim
+simulated <- combining_ability(
+  lines, qtn = template$qtn, a = template$a, d = template$d,
+  design = "diallel", method = "simulated", n_progeny = 30, h2 = 0.5, seed = 4
+)
+print(simulated)
+
+tibble(
+  candidate = names(expected$gca),
+  expected_gca = expected$gca,
+  simulated_gca = simulated$gca[names(expected$gca)]
+)
+```
+
+The parents' residual heterozygosity is tiny but not zero, so the
+"identical progeny" statement holds only approximately for this panel; the
+`h2 = 0.5` residual is the main source of the differences in the table.
+
+### Testers and factorial designs
+
+A topcross crosses every candidate to a common set of testers. GCA then
+depends on the testers: the expected GCA of a candidate is proportional to
+the average effect of its alleles **in the testers' allele frequencies**. A
+factorial reports GCA for both sides.
+
+[]{#programs-topcross}
+
+```{r}
+#| label: programs-topcross
+testers <- pop[7:8]
+topcross <- combining_ability(
+  lines, testers, qtn = template$qtn, a = template$a, d = template$d,
+  design = "topcross"
+)
+round(topcross$gca, 3)
+round(topcross$sca, 3)
+
+factorial <- combining_ability(
+  lines, testers, qtn = template$qtn, a = template$a, d = template$d,
+  design = "factorial"
+)
+round(factorial$gca_testers, 3)
+```
+
+With only two testers each candidate's two SCAs are mirror images, because
+they must sum to zero.
+
+### A progeny test
+
+`progeny_test()` mates each parent to randomly drawn distinct mates and
+reports the mean of its half-sib progeny. We test ten F2 plants against the
+remaining ninety, with twenty progeny each and a residual such that the
+heritability of the total genotypic value among the progeny is 0.3. The
+progeny mean is compared with the parents' additive value on the frozen
+effects.
+
+[]{#programs-progeny}
+
+```{r}
+#| label: programs-progeny
+test <- progeny_test(
+  f2[1:10], f2[11:100],
+  qtn = template$qtn, a = template$a, d = template$d,
+  n_progeny = 20, h2 = 0.3, seed = 5
+)
+test
+
+parent_additive <- additive_value(f2[1:10], template$qtn, template$a)
+tibble(
+  correlation = cor(test$progeny_mean, parent_additive[test$id]),
+  own_performance_accuracy = sqrt(0.3),
+  progeny_test_accuracy = sqrt(20 * 0.3 / (4 + 19 * 0.3))
+)
+```
+
+The two reference accuracies are the classical values for an additive trait
+described in the theory section; the observed correlation over ten parents
+is one noisy draw, and the trait includes dominance, so the comparison is
+illustrative rather than a test of the formula.
+
+### Three ways to derive inbred lines
+
+Starting from the same 100 F2 plants, single seed descent selfs each plant
+one seed per generation without selection; bulk advance pools the selfed
+progeny each generation and draws the next generation at random, losing line
+identity; pedigree selection phenotypes every generation, keeps the best
+fraction, and selfs those. The pedigree scheme needs a phenotyping rule,
+written as a function of the current population.
+
+[]{#programs-schemes}
+
+```{r}
+#| label: programs-schemes
+phenotype <- function(p) {
+  simulate_phenotype(p, h2 = 0.5, seed = 7) |> additive(n_qtn = 50)
+}
+
+ssd <- single_seed_descent(f2, generations = 5, seed = 9)
+bulked <- bulk(f2, generations = 5, n = 100, seed = 9)
+selected <- pedigree(
+  f2, phenotype, generations = 5, prop = 0.2, pop_size = 100, seed = 9
+)
+attr(selected, "history")
+```
+
+The pedigree history records the number selected, the selection differential
+and the standardized intensity in each generation, measured on the phenotype
+each generation was ranked on. To compare the three schemes on one scale we
+freeze the effects of the trait the pedigree scheme selected on and score
+every final population with them.
+
+[]{#programs-schemes-compare}
+
+```{r}
+#| label: programs-schemes-compare
+frozen_trait <- template_effects(phenotype(f2))
+summarize_lines <- function(p, scheme) {
+  value <- additive_value(p, frozen_trait$qtn, frozen_trait$a)
+  tibble(
+    scheme = scheme, lines = n_individuals(p),
+    heterozygosity = mean(dosages(p) == 0),
+    mean_value = mean(value), sd_value = sd(value)
+  )
+}
+bind_rows(
+  summarize_lines(f2, "F2 (start)"),
+  summarize_lines(ssd, "Single seed descent"),
+  summarize_lines(bulked, "Bulk"),
+  summarize_lines(selected, "Pedigree selection")
+)
+```
+
+Five selfing generations drive the fraction of heterozygous marker calls
+from its F2 value toward zero in all three schemes. Single seed descent
+keeps the F2's mean, apart from sampling, and increases the genetic spread
+among lines, as inbreeding converts within-line heterozygosity into
+between-line variance. The bulk's mean drifts because seeds are drawn at
+random each generation. Pedigree selection raises the mean and narrows the
+spread, because it repeatedly keeps the top fifth. The
+population returned by the pedigree scheme remembers the trait it was
+selected on:
+
+[]{#programs-population-trait}
+
+```{r}
+#| label: programs-population-trait
+population_trait(selected)
+```
+
+### Pooling populations
+
+Breeding programs combine material from several crosses. `c()` pools
+`Population` objects that share a marker map and keeps identifiers unique.
+Here lines from two single seed descent families are pooled.
+
+[]{#programs-pool}
+
+```{r}
+#| label: programs-pool
+other_f1 <- cross(pop[3], pop[4], n = 1, seed = 1)
+other_f2 <- selfcross(other_f1, n = 50, seed = 2)
+other_ssd <- single_seed_descent(other_f2, generations = 5, seed = 9)
+
+pooled <- c(ssd[1:10], other_ssd[1:10])
+print(pooled)
+parentage(pooled) |>
+  select(id, mother, father, generation) |>
+  head(3)
+```
+
+`parentage()` reads the recorded pedigree, so the origin of each pooled line
+remains traceable; see [Meiosis and crossing](cross.qmd).
+
+### Recurrent selection
+
+`recurrent_selection()` phenotypes the population, selects the best parents,
+intercrosses them at random, and repeats. We run three cycles on thirty
+founders, selecting ten parents per cycle with ten progeny per cross, and
+follow the mean additive value on the frozen scale of the founders' trait.
+
+[]{#programs-recurrent}
+
+```{r}
+#| label: programs-recurrent
+founders <- pop
+founder_trait <- template_effects(phenotype(founders))
+cycle_mean <- function(p) mean(additive_value(p, founder_trait$qtn, founder_trait$a))
+
+improved <- recurrent_selection(
+  founders, phenotype, cycles = 3, n_parents = 10, progeny_per_cross = 10, seed = 8
+)
+attr(improved, "history")
+tibble(
+  population = c("Founders", "After 3 cycles"),
+  mean_additive_value = c(cycle_mean(founders), cycle_mean(improved))
+)
+```
+
+To see the response per cycle, run one cycle at a time, feeding each
+result back in. The founders' trait is carried by the selected individuals
+and their progeny, so later cycles are phenotyped on the same genetic scale
+with the same residual variance.
+
+[]{#programs-recurrent-cycles}
+
+```{r}
+#| label: programs-recurrent-cycles
+current <- founders
+response <- tibble(cycle = 0, mean_additive_value = cycle_mean(current))
+for (k in 1:4) {
+  current <- recurrent_selection(
+    current, phenotype, cycles = 1, n_parents = 10, progeny_per_cross = 10,
+    seed = 100 + k
+  )
+  response <- bind_rows(
+    response, tibble(cycle = k, mean_additive_value = cycle_mean(current))
+  )
+}
+response
+```
+
+The response per cycle is not constant: the genetic variance among the
+candidates changes as selection and drift act, and the heritability on the
+original residual scale falls with it.
+
+## Assumptions and theory
+
+### Expected cross means
+
+For one locus with genotypic values $-a$, $d$, $+a$ at gene content 0, 1, 2,
+a parent with gene content $x$ transmits the counted allele with probability
+$g = x/2$. The expected progeny value of the cross between parents $i$ and
+$k$ is
+
+$$
+E[G_{ik}] = g_i g_k\, a + \left[g_i(1-g_k) + (1-g_i) g_k\right] d - (1-g_i)(1-g_k)\, a,
+$$ {#eq-expected-cross}
+
+summed over loci (`.expected_cross_means()`). The equation map records this
+as a package derivation from the genotypic values of Falconer & Mackay 1996
+(page unverified). The expectation depends only on gamete frequencies, so
+linkage does not enter it; linkage enters the variance of a realized family.
+
+### GCA and SCA
+
+For a topcross or factorial with cross means $Y_{ik}$ and grand mean $\mu$,
+
+$$
+g_i = \bar Y_{i\cdot} - \mu, \qquad h_k = \bar Y_{\cdot k} - \mu, \qquad
+s_{ik} = Y_{ik} - \mu - g_i - h_k,
+$$ {#eq-gca-factorial}
+
+the two-way model the equation map attributes to Sprague & Tatum 1942
+*J. Am. Soc. Agron.* 34:923–932 (page unverified). For a diallel of $p$
+candidates without reciprocals or selfs, each candidate appears in $p-1$
+crosses, and the least-squares GCA is
+
+$$
+g_i = (m_i - \mu)\,\frac{p-1}{p-2}, \qquad s_{ij} = Y_{ij} - \mu - g_i - g_j,
+$$ {#eq-gca-diallel}
+
+with $m_i$ the mean of candidate $i$'s crosses. The equation map records
+this as algebraically identical to Griffing 1956 *Aust. J. Biol. Sci.*
+9:463–493, method 4 (page unverified); the implementation is
+`.decompose_ca()`. With $d = 0$ every expected SCA is exactly zero; with
+dominance, the GCA of a candidate toward a set of testers is proportional to
+the tester-referenced average effect $\alpha_T = a + d(1 - 2p_T)$, with
+$p_T$ the testers' gamete frequency (Falconer & Mackay 1996, page
+unverified).
+
+### Progeny-test accuracy
+
+Under the classical half-sib assumptions, the mates a large random-mating
+population, each progeny by an independent mate, the package derives for an
+additive trait the accuracy of a progeny test on $n$ records as
+
+$$
+r = \sqrt{\frac{n h^2}{4 + (n-1) h^2}},
+$$ {#eq-progeny-accuracy}
+
+which exceeds own-performance accuracy $\sqrt{h^2}$ once
+$n > (4 - h^2)/(1 - h^2)$. The equation map lists this as a package
+derivation of a classical result, with no page asserted. The worked example
+violates the assumptions in two ways, dominance in the trait and a mate pool
+of only ninety related F2 plants, which is why it is presented as an
+illustration.
+
+### What the schemes do
+
+The schemes are package definitions implemented in `single_seed_descent()`,
+`bulk()`, `pedigree()` and `recurrent_selection()`, following the
+descriptions in Bernardo 2020 *Breeding for Quantitative Traits in Plants*
+(cited by the roxygen documentation, no page given). Bulk advance draws the
+next generation uniformly from the pooled selfed progeny, so each plant's
+number of advanced seeds is multinomial; line identity is not tracked.
+Pedigree selection and recurrent selection use `select_ind()` for the
+selection step and record its differential and intensity per generation.
+From the second generation on, the phenotype callback reuses the trait the
+population carries: genetic values stay on the base scale and the residual
+variance is fixed, so heritability changes as the genetic variance changes.
+Pass `refit = TRUE` inside the callback to re-standardize every generation
+instead.
+
+## Implementation and practical limits
+
+Expected combining ability is deterministic linear algebra on gamete
+frequencies. The simulated method, the progeny test and all schemes draw
+their meioses through the crossing engine, with every random quantity drawn
+in R and passed to the Rust recombination kernel.
+
+- `combining_ability()` and `progeny_test()` take frozen `qtn`, `a`, `d`
+  effects; `template_effects()` refuses models with an epistasis layer or an
+  expression-mediated layer carrying variance, because those have no
+  per-locus `a`/`d` form.
+- Only a diallel without reciprocals is modelled (Griffing's method 4);
+  reciprocal and maternal effects are outside the model, and at least three
+  candidates are required.
+- A candidate appearing twice, for example after `c(pop, pop)`, is an error:
+  it would be one cross scored twice.
+- `h2` in the simulated method and in `progeny_test()` is the heritability of
+  the **total** genotypic value in the reference population, a broad-sense
+  value when `d` is not zero.
+- `pedigree()` and `recurrent_selection()` require the callback to build its
+  simulation from the population it is handed; a closure over the base
+  population is detected and refused.
+- `recurrent_selection()` draws crosses with replacement among the selected
+  parents, so with few crosses some selected parents may not be used.
+- Pooling populations that carry different traits drops the trait from the
+  pool with a warning; the next phenotype is then fitted afresh.

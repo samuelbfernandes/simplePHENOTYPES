@@ -1,0 +1,19 @@
+# Developer function index
+
+This index covers package-owned R and Rust definitions. Internal functions do not
+form a stable user API. Scientific algorithms will receive explanations and
+numerical demonstrations in the relevant chapters; validation, formatting, and
+storage helpers remain in the reference index.
+
+R-to-Rust wrappers and their compiled kernels are listed separately because they
+are distinct definitions of the same interface. Local R helpers are scoped to
+their enclosing functions. Rust test definitions are separate from production
+code. Anonymous callbacks, vendored dependencies, development scripts, and
+historical sources in `context/` are outside this index.
+
+Use the browser's find command or book search to locate a function. A
+[standalone searchable inventory](downloads/function-inventory.html) provides
+category filters. Its [JSON data](downloads/function-inventory.json) are also
+available for programmatic use.
+
+{{< include _generated/developer-index.qmd >}}
