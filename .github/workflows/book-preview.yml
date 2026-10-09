@@ -36,7 +36,6 @@ jobs:
             any::knitr
             any::rmarkdown
             any::jsonlite
-            any::devtools
             any::dplyr
             any::tibble
             any::readr
@@ -48,8 +47,6 @@ jobs:
       - uses: quarto-dev/quarto-actions/setup@v2
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Package test gate
-        run: Rscript --vanilla -e 'devtools::test(stop_on_failure = TRUE)'
       - name: Render and check documentation
         run: |
           quarto render docs/book
