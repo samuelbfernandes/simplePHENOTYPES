@@ -1,1 +1,5 @@
 theme: jekyll-theme-cayman
+
+# Pandoc-formatted documents whose front matter Jekyll cannot parse.
+exclude:
+  - docs/simplePHENOTYPES_equation_code_map.md
