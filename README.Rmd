@@ -254,6 +254,10 @@ lower.
 
 # Documentation
 
+**[The simplePHENOTYPES book](https://samuelbfernandes.github.io/simplePHENOTYPES/book/)**
+— worked examples on plant, animal, and human genotype data, with the
+quantitative genetics behind each method.
+
 **[Complete reference: every option in one
 place](docs/complete-reference.md)** — every version 2 option exercised end to
 end, readable here on GitHub without installing anything.

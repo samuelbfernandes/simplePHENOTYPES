@@ -1,0 +1,338 @@
+# Mating designs and crossbreeding {#sec-mating}
+
+Suppose you have two groups of inbred lines, say two heterotic pools, and want
+to plan the crosses among them, run them all in one call, trace each progeny's
+expected ancestry, and ask how much of the hybrid advantage survives a
+backcross or a rotation. This chapter writes mating plans with
+`mating_design()`, executes them with `mate()`, follows ancestry with
+`breed_composition()` and `crossbreed()`, and checks the heterosis produced by
+a dominance architecture against its expected value.
+
+[]{#mating-setup}
+
+```{r}
+#| label: mating-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-mating-example}
+
+### Two founder pools from the maize panel
+
+[]{#mating-library}
+
+```{r}
+#| label: mating-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+```
+
+The maize panel has no breed labels, so we form two pools of eight inbred
+lines each by taking the first sixteen lines of the table. The `pool`
+argument of `as_population()` records the label in the pedigree; it is the
+only thing that distinguishes the pools, and it is what `breed_composition()`
+and `heterosis()` trace. The pools are therefore an arbitrary split of one
+panel, not two diverged populations, and the heterosis they show is whatever
+their allele-frequency differences happen to produce.
+
+[]{#mating-pools}
+
+```{r}
+#| label: mating-pools
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+geno <- as_numeric(
+  SNP55K_maize282_maf04,
+  to_r = TRUE, to_file = FALSE, verbose = FALSE
+)
+ids <- colnames(geno)[-(1:5)]
+
+pool_a <- as_population(geno, individuals = ids[1:8], pool = "A")
+pool_b <- as_population(geno, individuals = ids[9:16], pool = "B")
+pool_a
+```
+
+### Write a mating plan
+
+`mating_design()` returns a data frame with `mother`, `father`, and `n`
+columns. The standard designs differ only in which pairs they list.
+
+[]{#mating-design}
+
+```{r}
+#| label: mating-design
+mating_design(pool_a[1:3], pool_b[1:2], design = "factorial",
+              progeny_per_cross = 4)
+
+designs <- tibble(
+  design = c("factorial 3 x 2", "half_diallel 4", "diallel 4",
+             "diallel 4 with selfs", "nested 2 fathers x 2 mothers", "random 5"),
+  rows = c(
+    nrow(mating_design(pool_a[1:3], pool_b[1:2], design = "factorial")),
+    nrow(mating_design(pool_a[1:4], design = "half_diallel")),
+    nrow(mating_design(pool_a[1:4], design = "diallel")),
+    nrow(mating_design(pool_a[1:4], design = "diallel", allow_self = TRUE)),
+    nrow(mating_design(pool_a[1:4], pool_b[1:2], design = "nested",
+                       mothers_per_father = 2)),
+    nrow(mating_design(pool_a, pool_b, design = "random", n_crosses = 5,
+                       seed = 1))
+  ),
+  parameter = c(3 * 2, choose(4, 2), 4 * 3, 4 * 3 + 4, 2 * 2, 5)
+)
+designs
+```
+
+The `parameter` column is the number of pairs each design defines: every
+mother with every father for the factorial (North Carolina design II), every
+unordered pair once for the half diallel, every ordered pair for the full
+diallel, plus one self per parent when selfs are allowed, each father with its
+own set of mothers for the nested design (North Carolina design I), and the
+requested number of random pairs. `?mating_design` names the Griffing (1956)
+methods that the diallel variants correspond to.
+
+### Execute the plan across pools
+
+When parents come from several populations, the plan needs `mother_pool` and
+`father_pool` columns naming the arguments of `mate()`. All rows run in one
+pass, and the returned `Population` carries the plan with each row's progeny
+identifiers.
+
+[]{#mating-mate}
+
+```{r}
+#| label: mating-mate
+plan <- mating_design(pool_a[1:3], pool_b[1:2], design = "factorial",
+                      progeny_per_cross = 4) |>
+  mutate(mother_pool = "A", father_pool = "B")
+
+hybrids <- mate(plan, A = pool_a, B = pool_b, seed = 1, prefix = "H")
+hybrids
+
+attr(hybrids, "plan") |>
+  select(mother, father, n, progeny) |>
+  head(3)
+
+table(families(hybrids, "full_sib"))
+```
+
+Each row produced a full-sib family of four, and the family labels name the
+two parents. Progeny identifiers follow the `prefix`.
+
+### Expected ancestry
+
+`breed_composition()` gives each individual's expected fraction of genes from
+each founder pool, traced through the pedigree: a founder is one for its own
+pool, and every progeny is the mean of its parents. We build a backcross
+series by hand with `cross()` to see the familiar halving of the donor
+fraction.
+
+[]{#mating-composition}
+
+```{r}
+#| label: mating-composition
+f1 <- hybrids[1]
+bc1 <- cross(f1, pool_a[1], n = 1, seed = 2)
+bc2 <- cross(bc1, pool_a[1], n = 1, seed = 3)
+bc3 <- cross(bc2, pool_a[1], n = 1, seed = 4)
+
+series <- c(f1, bc1, bc2, bc3)
+breed_composition(series) |>
+  as_tibble(rownames = "id") |>
+  mutate(generation = c("F1", "BC1", "BC2", "BC3"),
+         parameter_A = c(1 / 2, 3 / 4, 7 / 8, 15 / 16)) |>
+  select(generation, id, A, B, parameter_A)
+```
+
+These are **expected** fractions. The realized share of an individual's
+genome that came from pool A varies around them, and the `Population` does not
+record per-locus founder origin, so the realized share is not available from
+the pedigree. The [marker-assisted breeding chapter](markers.qmd) estimates
+it from markers instead.
+
+### Crossbreeding systems
+
+`crossbreed()` runs the classical systems on named pure-breed populations:
+each generation mates random pairs between the pools the system prescribes,
+and the attribute `history` records the mean expected composition per
+generation. Sex is not modelled; "dam" and "sire" are the roles of the two
+pools in the plan.
+
+[]{#mating-crossbreed}
+
+```{r}
+#| label: mating-crossbreed
+breeds <- list(A = pool_a, B = pool_b)
+
+two_way <- crossbreed(breeds, "two_way", n_progeny = 60, seed = 5)
+backcross <- crossbreed(breeds, "backcross", n_progeny = 60, seed = 6)
+rotation <- crossbreed(breeds, "rotational", n_progeny = 60,
+                       generations = 5, seed = 7)
+
+attr(backcross, "history")
+attr(rotation, "history")
+```
+
+A two-breed rotation alternates the sire breed, and its composition converges
+toward two thirds of the current sire breed and one third of the other. The
+three-way and terminal systems add a third pool.
+
+[]{#mating-three-way}
+
+```{r}
+#| label: mating-three-way
+pool_c <- as_population(geno, individuals = ids[17:24], pool = "C")
+three <- list(A = pool_a, B = pool_b, C = pool_c)
+
+attr(crossbreed(three, "three_way", n_progeny = 60, seed = 8), "history")
+attr(crossbreed(three, "terminal", n_progeny = 60, sire_breed = "C",
+                seed = 9), "history")
+```
+
+Both systems reach the same composition, one quarter from each of the first
+two pools and one half from the third. The difference is in use: a terminal
+cross is not bred further.
+
+### Heterosis on a dominance architecture
+
+`heterosis()` scores a crossbred population on a frozen additive-plus-dominance
+architecture ([trait values](trait.qmd)) and reports its mean minus the
+composition-weighted mean of the pure pools. It also returns the **expected**
+F1 heterosis of each pair of pools, computed from the pools' own gamete
+frequencies. We take 30 marker loci at random as causal, give each the same
+additive effect and the same dominance deviation, and compare.
+
+[]{#mating-heterosis}
+
+```{r}
+#| label: mating-heterosis
+set.seed(1)
+causal <- sample(nrow(geno), 30)
+a_eff <- rep(0.5, 30)
+d_dev <- rep(0.3, 30)
+
+h_f1 <- heterosis(two_way, breeds, qtn = causal, a = a_eff, d = d_dev)
+h_bc <- heterosis(backcross, breeds, qtn = causal, a = a_eff, d = d_dev)
+h_additive <- heterosis(two_way, breeds, qtn = causal, a = a_eff, d = 0)
+
+p_a <- rowMeans(dosages(pool_a)[causal, ] == 1)
+p_b <- rowMeans(dosages(pool_b)[causal, ] == 1)
+expected_inbred <- sum(d_dev * (p_a + p_b - 2 * p_a * p_b))
+
+tibble(
+  quantity = c("Expected F1 heterosis (package)",
+               "Expected F1 heterosis (inbred-line formula)",
+               "Realized F1 heterosis", "Realized backcross heterosis",
+               "Realized F1 heterosis, d = 0"),
+  value = c(h_f1$expected_f1["A", "B"], expected_inbred,
+            h_f1$realized, h_bc$realized, h_additive$realized)
+)
+h_f1$breed_means
+```
+
+The package's expected value and the inbred-line formula agree, because every
+line in both pools is homozygous at the causal loci. The realized F1 value
+scatters around the expectation, since 60 progeny of random pairs sample the
+pool allele frequencies. With `d = 0` the realized heterosis is close to
+zero: the additive part cancels against the mid-parent except for that
+sampling of parents.
+
+The backcross retains more than the classical one half of the F1 heterosis.
+That is not an error. The one-half rule assumes the recurrent breed is in
+Hardy-Weinberg proportions at the locus, and a pool of inbred lines that
+differ at a locus has no heterozygotes at all. The theory section gives the
+exact condition.
+
+## Assumptions and theory
+
+### Expected composition
+
+Let $F_{i,b}$ be the expected fraction of individual $i$'s genes from pool
+$b$. A founder has $F_{i,b} = 1$ for its own pool and $0$ otherwise, and a
+progeny of mother $m$ and father $f$ has
+
+$$
+F_{i,b} = \tfrac{1}{2}\left(F_{m,b} + F_{f,b}\right),
+$$ {#eq-composition}
+
+with a self or doubled haploid equal to its parent (package definition,
+`breed_composition()`). This is the expectation of the share of alleles
+inherited from each pool and says nothing about which loci came from where.
+
+### Realized and expected heterosis
+
+The realized heterosis of a crossbred population is its mean total genotypic
+value minus the pool means weighted by its mean expected composition,
+
+$$
+H = \bar G_{\text{cross}} - \sum_b \bar F_b\,\bar G_b,
+$$ {#eq-realized-heterosis}
+
+the mid-parent value for an F1 (package definition, `heterosis()`; the equation
+map cites Falconer and Mackay 1996, chapter 14, page unverified, for mid-parent
+heterosis). For the expected F1 heterosis between pools A and B, write
+$p_A$ and $p_B$ for the gamete frequencies of the allele coded $+a$ at a locus
+and $h_A$, $h_B$ for the pools' own heterozygote frequencies. The F1's allele
+frequency is the average of the two, so the additive part cancels against the
+mid-parent and what remains is
+
+$$
+H_{F1} = \sum_j d_j\left[h_{AB,j} - \tfrac{1}{2}\left(h_{A,j} + h_{B,j}\right)\right],
+\qquad h_{AB} = p_A(1 - p_B) + (1 - p_A)\,p_B .
+$$ {#eq-expected-heterosis}
+
+The package documents this as its own derivation from gamete frequencies,
+which is why linkage does not enter. Two special cases follow algebraically.
+When each pool is in Hardy-Weinberg proportions, $h = 2p(1-p)$ and the
+expression reduces to $\sum_j d_j (p_{Aj} - p_{Bj})^2$, the textbook
+$H_{F1} = \sum d\,y^2$ with $y$ the allele-frequency difference (Falconer and
+Mackay 1996, page unverified, as cited in `?heterosis`). When each pool
+consists of fully inbred lines, $h = 0$ and it reduces to
+$\sum_j d_j\,(p_{Aj} + p_{Bj} - 2p_{Aj}p_{Bj})$, the formula evaluated in the
+worked example. A purely additive architecture gives zero in every case.
+
+### How much heterosis later generations retain
+
+The classical fractions, one half in an F2 or backcross and two thirds in a
+two-breed rotation at equilibrium, come from the probability that an
+individual's two alleles at a locus originate from different pools under a
+dominance model. The package's documentation states the exact conditions:
+at a locus with non-zero F1 heterosis, a backcross to pool A retains one half
+if and only if $h_A = 2p_A(1 - p_A)$, that is, only the recurrent pool needs to
+be in Hardy-Weinberg proportions; an F2 retains one half if and only if the
+two pools' deviations $h - 2p(1-p)$ sum to zero. The condition for the
+two-thirds rotation figure is not derived in the package and is given as the
+classical value for pools in Hardy-Weinberg proportions. Our inbred-line
+pools violate the backcross condition at every segregating locus, with $h_A =
+0 < 2p_A(1-p_A)$, which is why the backcross retained more than one half.
+`heterosis()` computes the realized value from the actual genotypes and does
+not assume any retention fraction.
+
+### Mating designs
+
+The designs are bookkeeping, not genetics: they enumerate pairs. Individuals
+are compared by pedigree identity rather than display name, so two pools that
+reuse names stay distinct provided they were imported under their own pool
+labels, and a parent that appears twice under different names enters a design
+once. The random design draws a mother uniformly and then one of her
+admissible fathers uniformly, which is uniform over pairs only when every
+mother has the same number of admissible fathers.
+
+## Implementation and practical limits
+
+- Pool labels are the only record of origin. Import each breed or heterotic
+  group with its own `pool`, or two founders with the same name and genotype
+  are the same individual, and mating them is a self.
+- All populations in one plan must share one marker map and the same allele
+  coded `1`; see the [crossing chapter](cross.qmd) on allele orientation.
+- `crossbreed()` mates random dam-sire pairs with one progeny each; the
+  number of progeny per generation is `n_progeny`, and no sexes are modelled.
+- `breed_composition()` and the `history` attribute are expectations from the
+  pedigree. Realized genome shares require marker-based estimation, as in
+  `recurrent_parent_recovery()`.
+- `heterosis()` requires every founder that the crossbred pedigree traces to
+  be present in the supplied pools, and scores the frozen architecture per se;
+  epistasis is outside the function.
+- The pools here are an arbitrary split of one panel. For a study of
+  heterotic groups, import populations with documented provenance and let the
+  observed allele-frequency differences, not a label, carry the biology.

@@ -1,0 +1,495 @@
+# Genotype input and quality control {#sec-input}
+
+Suppose you have a genotype file in one of the usual formats and want to use it
+as the basis for a simulation. You need to know which allele the numeric
+coding counts, what happened to missing calls, and which markers are suitable
+for the genetic model you plan to simulate. This chapter converts files and
+in-memory tables with `as_numeric()`, checks orientation and missingness, and
+applies marker filters with `filter_geno()`, using the bundled maize panel and
+a real human dataset distributed with the SNPRelate package.
+
+[]{#input-setup}
+
+```{r}
+#| label: input-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-input-example}
+
+### Load the packages
+
+[]{#input-library}
+
+```{r}
+#| label: input-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+library(readr)
+```
+
+### A small HapMap file, written and read back
+
+To see exactly what `as_numeric()` does, start with a table small enough to
+check by hand. The HapMap text format has eleven metadata columns followed by
+one column per individual, with diploid calls such as `AG` and `NN` for
+missing. We build such a table, write it to the `results` folder, and read the
+file back as a reader would read their own file.
+
+[]{#input-toy-hapmap}
+
+```{r}
+#| label: input-toy-hapmap
+hmp <- tibble(
+  `rs#` = c("m1", "m2", "m3", "m4"),
+  alleles = c("A/G", "C/T", "G/T", "A/C"),
+  chrom = c(1, 1, 2, 2),
+  pos = c(100, 500, 200, 900),
+  strand = "+", `assembly#` = NA, center = NA, protLSID = NA,
+  assayLSID = NA, panelLSID = NA, QCcode = NA,
+  L1 = c("AA", "CC", "GT", "AA"),
+  L2 = c("AG", "TT", "TT", "CC"),
+  L3 = c("GG", "CT", "NN", "AC"),
+  L4 = c("AA", "CC", "GG", "CC"),
+  L5 = c("GG", "CC", "TT", "AA"),
+  L6 = c("AA", "TT", "GT", "CC")
+)
+
+dir.create("results", showWarnings = FALSE)
+write_tsv(hmp, "results/toy.hmp.txt", na = "NA")
+
+toy <- as_numeric("results/toy.hmp.txt", to_r = TRUE, to_file = FALSE,
+                  verbose = FALSE)
+toy
+```
+
+The format is detected from the file contents. The result has the five
+metadata columns `snp`, `allele`, `chr`, `pos`, `cm`, then one integer column
+per individual. `cm` is `NA` because HapMap files carry no genetic map; see
+[Maps, haplotypes, and founders](founders.qmd) for how to supply one.
+
+### Which allele is coded 1
+
+Compare marker `m3` with its calls. Allele `T` occurs more often than `G`
+across the six individuals, so `T` is the reference: `TT` is `1`, `GT` is
+`0`, `GG` is `-1`, and `NN` is `NA`. The counted allele at each marker is
+recorded as an attribute of the returned table.
+
+[]{#input-counted}
+
+```{r}
+#| label: input-counted
+attr(toy, "counted_allele")
+```
+
+By default (`method = "frequency"`) the most frequent allele of **this**
+dataset becomes `1`. Two panels converted separately can therefore count
+different alleles at the same marker. To fix the orientation yourself, pass a
+reference allele per marker; here we force the first-listed allele to be the
+reference, which flips `m3` and `m4` relative to the frequency-based result.
+
+[]{#input-reference}
+
+```{r}
+#| label: input-reference
+by_reference <- as_numeric("results/toy.hmp.txt", to_r = TRUE, to_file = FALSE,
+                           verbose = FALSE, method = "reference",
+                           ref_allele = c("A", "C", "G", "A"))
+by_reference
+```
+
+The `counted` column makes the record durable. It is written into text files
+and moves with its row when the table is subset. The attribute is kept
+unchanged by base row subsetting, so after subsetting or reordering it no
+longer lines up with the rows.
+
+[]{#input-counted-column}
+
+```{r}
+#| label: input-counted-column
+as_numeric("results/toy.hmp.txt", to_r = TRUE, to_file = FALSE,
+           verbose = FALSE, counted_column = TRUE)
+```
+
+### Alternative codings and missing calls
+
+`code_as = "012"` counts copies of the reference allele instead of centering
+on the heterozygote. `impute` replaces missing calls; `"Middle"` sets them to
+the heterozygote, `"Major"` to the homozygote coded 1 (the counted allele) and
+`"Minor"` to the homozygote coded -1. Imputation follows orientation, so with
+`method = "reference"` the counted allele, and therefore the `"Major"` fill,
+need not be the more frequent allele.
+
+[]{#input-coding}
+
+```{r}
+#| label: input-coding
+as_numeric("results/toy.hmp.txt", to_r = TRUE, to_file = FALSE,
+           verbose = FALSE, code_as = "012")
+
+as_numeric("results/toy.hmp.txt", to_r = TRUE, to_file = FALSE,
+           verbose = FALSE, impute = "Major")
+```
+
+Imputed values are not observations. For a simulation they only decide which
+genotype class the individual is assigned at that marker; nothing in the
+output distinguishes an imputed call from a real one.
+
+### Writing the numeric file
+
+With `to_file = TRUE` the same conversion is written to disk. Reading that file
+again returns the same table, which is how a converted panel can be reused
+across sessions without repeating the conversion.
+
+[]{#input-to-file}
+
+```{r}
+#| label: input-to-file
+as_numeric("results/toy.hmp.txt", to_r = FALSE, to_file = TRUE,
+           file_name = "results/toy_numeric.txt", verbose = FALSE)
+
+from_file <- as_numeric("results/toy_numeric.txt", to_r = TRUE,
+                        to_file = FALSE, verbose = FALSE)
+
+tibble(
+  same_values = identical(from_file[, -(1:5)], toy[, -(1:5)]),
+  counted_allele_kept = !is.null(attr(from_file, "counted_allele"))
+)
+```
+
+The genotype values are the same, but the counted-allele attribute is gone:
+a plain text file has nowhere to store it, which is what `counted_column`
+is for. An already numeric input cannot be re-oriented or imputed;
+`as_numeric()` stops with an error if you ask for it. Keep the original
+allele calls when you may need a different orientation later.
+
+### Other formats
+
+VCF, GDS and PLINK bed/ped files follow the same call. For VCF, only complete
+biallelic diploid calls are used; haploid and partially missing calls are set
+to missing with a warning. Among the external formats, only PLINK `.bim`/`.map`
+files supply a genetic map; a table already in the package's numeric format
+keeps whatever `cm` it has. These recipes are not executed here
+because they refer to reader-supplied files.
+
+```{r}
+#| eval: false
+geno <- as_numeric("path/to/study.vcf", to_r = TRUE, to_file = FALSE)
+geno <- as_numeric("path/to/study.bed", to_r = TRUE, to_file = FALSE)
+geno <- as_numeric("path/to/study.gds", to_r = TRUE, to_file = FALSE)
+```
+
+### A real human dataset
+
+The SNPRelate package ships a HapMap Phase II subset: 279 individuals from the
+CEU, YRI, HCB and JPT panels, with 9,088 SNPs after LD pruning. It is a GDS
+file, which `as_numeric()` reads directly. The first attempt fails.
+
+[]{#input-gds-error}
+
+```{r}
+#| label: input-gds-error
+#| error: true
+library(SNPRelate)
+src <- snpgdsExampleFileName()
+as_numeric(src, to_r = TRUE, to_file = FALSE, verbose = FALSE)
+```
+
+Downstream functions index markers by name, so duplicated marker IDs are an
+error rather than a warning. The file uses `---` for SNPs without an rs
+identifier and lists one rs number twice. We inspect the problem with the GDS
+tools and write a cleaned copy that keeps only uniquely named SNPs.
+
+[]{#input-gds-clean}
+
+```{r}
+#| label: input-gds-clean
+gds <- snpgdsOpen(src)
+ids <- read.gdsn(index.gdsn(gds, "snp.id"))
+rs <- read.gdsn(index.gdsn(gds, "snp.rs.id"))
+snpgdsClose(gds)
+
+tibble(id = ids, rs = rs) |>
+  filter(rs == "---" | rs %in% rs[duplicated(rs)]) |>
+  count(rs)
+
+keep <- ids[rs != "---" & !(rs %in% rs[duplicated(rs)])]
+clean <- "results/hapmap_clean.gds"
+if (file.exists(clean)) file.remove(clean)
+snpgdsCreateGenoSet(src, clean, snp.id = keep, verbose = FALSE)
+```
+
+Now the conversion succeeds. We first convert without imputation to measure
+the missing calls, then convert again with `impute = "Middle"`, which is the
+version later chapters use.
+
+[]{#input-human}
+
+```{r}
+#| label: input-human
+human_raw <- as_numeric(clean, to_r = TRUE, to_file = FALSE, verbose = FALSE)
+calls <- human_raw[, -(1:5)]
+
+tibble(
+  markers = nrow(human_raw),
+  individuals = ncol(calls),
+  missing_calls = sum(is.na(calls)),
+  missing_fraction = mean(is.na(calls)),
+  markers_with_missing = sum(rowSums(is.na(calls)) > 0)
+)
+
+human <- as_numeric(clean, to_r = TRUE, to_file = FALSE, verbose = FALSE,
+                    impute = "Middle")
+sum(is.na(human[, -(1:5)]))
+```
+
+The file `_data.R` in the book source wraps exactly these steps in
+`book_human()`, so later chapters can load the same object with one call.
+Setting a missing call to the heterozygote is a neutral choice for an additive
+model, but it creates heterozygotes that were never observed. There is no
+call-rate filter in the package; if missingness matters for your study,
+remove individuals or markers before conversion.
+
+### Genotype classes in an inbred and an outbred panel
+
+The maize panel is an inbred association panel; the human panel is outbred.
+The mean frequency of each genotype class shows the difference directly.
+
+[]{#input-classes}
+
+```{r}
+#| label: input-classes
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+maize <- as_numeric(SNP55K_maize282_maf04, to_r = TRUE, to_file = FALSE,
+                    verbose = FALSE)
+
+class_frequencies <- function(geno) {
+  x <- as.matrix(geno[, -(1:5)])
+  tibble(
+    major_homozygote = mean(x == 1),
+    heterozygote = mean(x == 0),
+    minor_homozygote = mean(x == -1)
+  )
+}
+
+bind_rows(maize = class_frequencies(maize),
+          human = class_frequencies(human), .id = "data")
+```
+
+Heterozygotes are nearly absent in maize. A dominance layer, which assigns an
+effect to the heterozygote class, would have almost nothing to act on there.
+The maize panel was also filtered to minor allele frequency above 0.4 to keep
+the bundled data small, so its allele-frequency spectrum is far from a typical
+genotyping panel.
+
+### Minor allele frequency and heterozygosity filters
+
+`filter_geno()` applies monomorphic removal, minor allele frequency bounds, a
+heterozygosity rule, and LD pruning, in that order. With `verbose = TRUE` it
+reports how many markers each step removed; the tables below count them.
+
+[]{#input-filter-maf}
+
+```{r}
+#| label: input-filter-maf
+human_common <- filter_geno(human, maf_above = 0.05)
+
+maize_hets <- filter_geno(maize, hets = "include")
+
+tibble(
+  panel = c("human", "maize"),
+  before = c(nrow(human), nrow(maize)),
+  after = c(nrow(human_common), nrow(maize_hets))
+)
+```
+
+`hets = "include"` keeps only markers with at least one heterozygote. On the
+maize panel it removes about half the markers, which is the first thing to
+check before simulating dominance on inbred lines. `hets = "remove"` does the
+opposite and is useful for strictly homozygous material.
+
+### LD pruning
+
+Three pruners follow PLINK's definitions. `indep_pairwise` drops one marker of
+every pair whose composite genotype $r^2$ exceeds the threshold inside a
+sliding window; `indep_pairphase` uses the haplotypic $r^2$ instead;
+`indep` removes markers by variance inflation factor. The window is counted
+in markers unless `window_unit = "kb"`.
+
+[]{#input-filter-ld}
+
+```{r}
+#| label: input-filter-ld
+pruned <- filter_geno(human, maf_above = 0.05,
+                      indep_pairwise = c(50, 5, 0.2))
+
+pruned_kb <- filter_geno(human, maf_above = 0.05,
+                         indep_pairwise = c(500, 50, 0.2),
+                         window_unit = "kb")
+
+vif_pruned <- filter_geno(human, maf_above = 0.05, indep = c(50, 5, 2))
+
+tibble(
+  pruner = c("MAF filter only", "pairwise, 50 markers", "pairwise, 500 kb", "VIF, 50 markers"),
+  markers = c(nrow(human_common), nrow(pruned), nrow(pruned_kb), nrow(vif_pruned))
+)
+```
+
+The human example data were already LD pruned by their distributors. The
+marker-count windows still remove roughly an eighth of the common markers,
+while the 500 kb window removes very few, because the markers are sparse
+enough that few pairs fall within one window at this threshold. Window choice
+matters as much as the $r^2$ threshold. The
+phased pruner is slower because it solves a two-locus maximum-likelihood
+problem for each pair.
+
+[]{#input-filter-pairphase}
+
+```{r}
+#| label: input-filter-pairphase
+phased <- filter_geno(human, maf_above = 0.05,
+                      indep_pairphase = c(50, 5, 0.2))
+```
+
+### Haplotype blocks
+
+`blocks = TRUE` defines haplotype blocks by the method of Gabriel et al.
+(2002), as PLINK implements it, and keeps one tag marker per block. It needs
+physical positions. We apply it to one maize chromosome, where linkage
+disequilibrium is extensive.
+
+[]{#input-filter-blocks}
+
+```{r}
+#| label: input-filter-blocks
+maize_chr10 <- maize |> filter(chr == "10")
+tagged <- filter_geno(maize_chr10, blocks = TRUE, block_max_kb = 500)
+
+tibble(markers = nrow(maize_chr10), tag_markers = nrow(tagged))
+```
+
+The block definitions reproduce PLINK's; collapsing each block to its
+highest-MAF marker is a package convenience, not part of the block method.
+
+### Filtering other genotype objects
+
+The same function accepts an individuals-by-markers matrix coded `-1/0/1` and
+a `Population` from `as_population()`. A filtered population keeps its map,
+individuals and pedigree, but it has a different marker set from the original,
+so filter founders once before crossing them.
+
+[]{#input-filter-population}
+
+```{r}
+#| label: input-filter-population
+pop <- as_population(maize, individuals = 1:20)
+filter_geno(pop, maf_above = 0.45, verbose = FALSE)
+```
+
+A matrix input uses `code_as` to declare whether it is `-1/0/1` or `0/1/2`,
+because a marker with only `0` and `1` present is ambiguous between the two.
+
+## Assumptions and theory
+
+### Allele frequency and minor allele frequency
+
+For a marker with $n$ called individuals and dosage $d_i \in \{0, 1, 2\}$
+counting copies of one allele,
+
+$$
+p = \frac{\sum_i d_i}{2n}, \qquad \text{MAF} = \min(p, 1 - p).
+$$ {#eq-maf}
+
+Missing calls are excluded from $n$. These are package definitions following
+PLINK's `--maf` semantics; the equation map records them for `filter_geno()`.
+The `maf_above` and `maf_below` bounds are inclusive. Heterozygosity filters
+use the count of heterozygotes, not a rate; there is no heterozygosity-rate
+threshold and no Hardy-Weinberg test in the package.
+
+### The orientation rule
+
+With `method = "frequency"` the package flips a marker so that the more
+frequent homozygote class is coded `1`. Heterozygotes cancel in that
+comparison. When the two homozygote classes are exactly equally frequent, no
+flip occurs and the first-listed allele of the input stays the reference. This
+tie rule is a package convention, and it is applied identically by every
+reader, so a file path and the same table in memory give the same dosages.
+
+### Composite $r^2$
+
+For two markers with dosage vectors $x$ and $y$ over $n$ individuals, the
+composite genotype $r^2$ used by `indep_pairwise` and `indep` is the squared
+Pearson correlation of the dosages,
+
+$$
+r^2 = \frac{\left(n \sum xy - \sum x \sum y\right)^2}
+           {\left(n \sum x^2 - (\sum x)^2\right)\left(n \sum y^2 - (\sum y)^2\right)}.
+$$ {#eq-composite-r2}
+
+This is PLINK's `--indep-pairwise` quantity, computed from integer sums. When
+a pair has missing calls, the package falls back to a pairwise-complete
+correlation, which is not claimed to match PLINK's missing-data path. A pair is
+pruned when $r^2$ exceeds the threshold, and the marker with the lower MAF is
+dropped; ties keep the earlier marker.
+
+### Haplotypic $r^2$ and the variance inflation factor
+
+`indep_pairphase` estimates haplotype frequencies for each pair by resolving
+the double-heterozygote phase with PLINK's exact two-locus maximum-likelihood
+solver, then computes
+
+$$
+r^2 = \frac{D^2}{p_1 q_1 p_2 q_2}, \qquad D = f_{11} - f_{1\cdot} f_{\cdot 1},
+$$ {#eq-hap-r2}
+
+where $f_{11}$ is the estimated frequency of the haplotype carrying the first
+allele at both loci and $p_1, q_1, p_2, q_2$ are the allele frequencies. The
+equation map cites Hill and Robertson (1968) for this quantity, with the page
+of the equation not verified, and the cubic solution of Gaunt, Rodríguez and
+Day (2007) for the phase step, also page unverified.
+
+The VIF pruner inverts the correlation matrix $R$ of the markers in a window,
+takes $\text{VIF}_k = [R^{-1}]_{kk}$, and removes the largest-VIF marker while
+any VIF exceeds the threshold. This follows PLINK's `--indep`, attributed to
+Purcell et al. (2007). The treatment of singular windows is a package
+implementation detail that the equation map records as unverifiable against
+PLINK's source.
+
+### What the filters do not do
+
+- No call-rate filter and no Hardy-Weinberg test exist; if your study needs
+  them, apply them before conversion.
+- LD is computed from every individual in the object, including progeny in a
+  crossing population. PLINK uses founders only. Pass the founders if you want
+  to reproduce a PLINK pruning.
+- Pruning changes which markers can become causal in a later simulation; it
+  does not change the genotypes of the markers that remain.
+
+## Implementation and practical limits
+
+`as_numeric()` dispatches on the detected format and calls a Rust kernel,
+`numericalize_core()`, for the numeric coding and imputation; orientation is
+decided in R by `compute_flip()`. `filter_geno()` is R code; the pruners
+`.ld_sweep()`, `.plink_hap_rsq()` and `.gabriel_blocks()` port PLINK's
+algorithms. The [developer index](developer-index.qmd) lists their locations.
+
+- Marker and individual identifiers must be unique. Fix them in the source
+  file or, as above, subset the file before conversion.
+- The `counted_allele` attribute is not subset with the table rows, so it
+  becomes stale after subsetting or reordering. Use `counted_column = TRUE` when panels converted separately will be
+  crossed or pooled.
+- Convert panels that will be crossed **jointly**, or give each the same
+  `ref_allele`, so that `1` means the same allele in both.
+- A numeric table cannot be re-oriented or imputed. Keep the allele-coded
+  source.
+- `window_unit = "kb"` and `blocks = TRUE` need `chr` and `pos` for every
+  marker.
+
+::: {.callout-tip title="Which panel for which model"}
+Inbred lines suit additive models and crossing designs; dominance needs
+heterozygotes, which arise naturally in the progeny of crosses or in an outbred
+sample such as the human panel. Check the genotype class table before
+choosing a model rather than after inspecting a disappointing variance budget.
+:::

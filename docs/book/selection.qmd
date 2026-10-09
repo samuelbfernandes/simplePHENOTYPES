@@ -1,0 +1,593 @@
+# Individual, family, and multivariate selection {#sec-selection}
+
+Suppose you have a segregating population organized in families, with a
+phenotype for each individual, and you want to choose the parents of the next
+generation. This chapter selects on individual records, on family information,
+and on several traits at once, and checks the classical prediction of response
+against what the simulation actually delivers. The simulation knows every
+individual's genetic value, so the genetic consequence of each selection
+decision can be measured directly.
+
+[]{#selection-setup}
+
+```{r}
+#| label: selection-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-selection-example}
+
+### Load the package and build families
+
+[]{#selection-library}
+
+```{r}
+#| label: selection-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+```
+
+The example starts from the bundled maize inbred lines, restricted to three
+chromosomes to keep the meiosis simulation fast. Ten lines are crossed to ten
+others in a factorial design, giving 100 F1 hybrids, and each F1 is selfed to
+produce ten S1 progeny. The result is 1,000 individuals in 100 families, each
+family being the selfed progeny of one F1. The [crossing chapter](cross.qmd)
+explains the meiosis model; here only the resulting population matters.
+
+[]{#selection-population}
+
+```{r}
+#| label: selection-population
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+geno <- as_numeric(SNP55K_maize282_maf04, to_r = TRUE, to_file = FALSE,
+                   verbose = FALSE)
+geno <- geno[geno$chr %in% c("1", "2", "3"), ]
+
+parents <- as_population(geno, individuals = 1:20)
+plan_f1 <- mating_design(parents[1:10], parents[11:20], design = "factorial")
+f1 <- mate(plan_f1, parents, seed = 1, prefix = "F1")
+
+plan_s1 <- data.frame(mother = parentage(f1)$id, father = parentage(f1)$id, n = 10)
+s1 <- mate(plan_s1, f1, seed = 2, prefix = "S1")
+family <- families(s1, by = "selfed")
+
+s1
+table(family) |> head()
+```
+
+`mating_design()` writes the mother-father plan and `mate()` executes it. A
+plan row with the same individual as mother and father is a self. `families()`
+labels each S1 individual by the F1 it descends from, which is the grouping
+the family methods need.
+
+### Simulate the phenotype
+
+A single additive trait with 50 causal loci and a genetic share of 0.3 is
+simulated on the S1 population. The [additive chapter](additive.qmd) explains
+the model; the selection functions only require a realized simulation object.
+
+[]{#selection-trait}
+
+```{r}
+#| label: selection-trait
+sim <- simulate_phenotype(s1, h2 = 0.3, n_qtn = 50, seed = 3)
+sim
+
+pheno <- phenotypes_wide(sim)
+gv <- genetic_values(sim)[, "Trait_1"]
+```
+
+`phenotypes_wide()` gives one row per individual, and `genetic_values()`
+returns the simulated genetic values that selection cannot see but the book
+can use to judge each method.
+
+### Mass selection and the selection intensity
+
+`select_ind()` ranks individuals on a criterion and keeps the best. The
+criterion `on = "pheno"` is the observed phenotype, which is what a breeder
+without markers can select on. Exactly one of `n`, `prop`, or `intensity`
+sets how many are kept.
+
+[]{#selection-mass}
+
+```{r}
+#| label: selection-mass
+top <- select_ind(sim, prop = 0.1, on = "pheno", method = "mass")
+top
+
+tibble(
+  attribute = c("Individuals kept", "Selection differential",
+                "Realized intensity", "Method"),
+  value = c(n_individuals(top), attr(top, "differential"),
+            attr(top, "intensity"), attr(top, "method"))
+)
+```
+
+The result is a `Population` of the selected individuals, ready to be crossed,
+carrying the selection differential $S$ (mean criterion of the selected minus
+mean of all candidates) and the realized intensity $i = S / s_P$, where $s_P$
+is the sample standard deviation of the criterion. The table compares the
+realized intensity for several proportions with the large-population value
+$i(p) = \phi(z_p)/p$ used when `intensity` is given instead of `prop`.
+
+[]{#selection-intensity}
+
+```{r}
+#| label: selection-intensity
+proportions <- c(0.5, 0.2, 0.1, 0.05, 0.02)
+
+intensity <- tibble(
+  prop = proportions,
+  kept = sapply(proportions, function(p) n_individuals(select_ind(sim, prop = p))),
+  realized_i = sapply(proportions, function(p) attr(select_ind(sim, prop = p), "intensity")),
+  expected_i = dnorm(qnorm(1 - proportions)) / proportions
+)
+intensity
+
+by_intensity <- select_ind(sim, intensity = 1.75)
+n_individuals(by_intensity)
+```
+
+The realized intensities lie close to the large-population values. With
+`intensity = 1.75`, the function keeps the count whose large-population
+intensity is nearest to the request.
+
+### The breeder's equation
+
+For mass selection on a purely additive trait, the classical prediction is
+that the genetic gain equals the heritability times the selection
+differential, $R = h^2 S$. The simulation lets us compare that prediction with
+the genetic selection differential actually achieved: the mean genetic value
+of the selected individuals minus the mean of all candidates.
+
+[]{#selection-response}
+
+```{r}
+#| label: selection-response
+genetic_gain <- function(selected) {
+  mean(gv[attr(selected, "selected")]) - mean(gv)
+}
+
+response <- tibble(
+  prop = proportions,
+  S = sapply(proportions, function(p) attr(select_ind(sim, prop = p), "differential")),
+  predicted = 0.3 * S,
+  simulated = sapply(proportions, function(p) genetic_gain(select_ind(sim, prop = p)))
+)
+response
+```
+
+The simulated gains track the prediction, with scatter from the particular
+residuals drawn. The prediction assumes that the regression of genetic value
+on phenotype is linear with slope $h^2$; the theory section below says when
+that holds.
+
+Selection on the true genetic value (`on = "gv"`) is the idealized upper
+bound. For this additive model the breeding value (`on = "bv"`) is the same
+quantity. A `direction = "low"` selection keeps the smallest values instead.
+
+[]{#selection-criteria}
+
+```{r}
+#| label: selection-criteria
+tibble(
+  criterion = c("pheno", "gv", "bv", "pheno, direction = low"),
+  genetic_gain = c(
+    genetic_gain(select_ind(sim, prop = 0.1, on = "pheno")),
+    genetic_gain(select_ind(sim, prop = 0.1, on = "gv")),
+    genetic_gain(select_ind(sim, prop = 0.1, on = "bv")),
+    genetic_gain(select_ind(sim, prop = 0.1, on = "pheno", direction = "low"))
+  )
+)
+```
+
+Any externally computed score, such as the genomic predictions of the
+[prediction chapter](prediction.qmd), can be passed to `on` as a named numeric
+vector or as a function of the simulation object.
+
+### The random control
+
+`method = "random"` draws individuals at random. Its reported differential and
+intensity are the realized values on the criterion for the individuals drawn,
+so they scatter around zero. It is the drift control against which a selection
+method's gain is judged.
+
+[]{#selection-random}
+
+```{r}
+#| label: selection-random
+controls <- sapply(1:5, function(k) {
+  set.seed(k)
+  genetic_gain(select_ind(sim, prop = 0.1, method = "random"))
+})
+tibble(replicate = 1:5, genetic_gain = controls)
+```
+
+### Response in the next generation
+
+A selected `Population` remembers the trait it was selected on, so progeny
+can be phenotyped on the same scale. The selected individuals are intermated
+at random, as are the individuals of a random control, and the progeny are
+scored with the carried trait. `population_trait()` shows what is carried.
+
+[]{#selection-progeny}
+
+```{r}
+#| label: selection-progeny
+population_trait(top)
+
+control <- select_ind(sim, prop = 0.1, method = "random")
+
+progeny_of <- function(selected, seed) {
+  plan <- mating_design(selected, design = "random", n_crosses = 50,
+                        progeny_per_cross = 10, seed = seed)
+  mate(plan, selected, seed = seed + 1)
+}
+
+next_sel <- simulate_phenotype(progeny_of(top, 10), seed = 12)
+next_ctrl <- simulate_phenotype(progeny_of(control, 20), seed = 22)
+
+tibble(
+  population = c("All candidates", "Selected parents", "Random-control parents",
+                 "Progeny of selected", "Progeny of random control"),
+  mean_genetic_value = c(mean(gv), mean(gv[attr(top, "selected")]),
+                         mean(gv[attr(control, "selected")]),
+                         mean(genetic_values(next_sel)[, "Trait_1"]),
+                         mean(genetic_values(next_ctrl)[, "Trait_1"])),
+  mean_phenotype = c(mean(pheno$Trait_1), NA, NA,
+                     mean(phenotypes_wide(next_sel)$Trait_1),
+                     mean(phenotypes_wide(next_ctrl)$Trait_1))
+)
+```
+
+The progeny of the selected parents have a higher mean than the progeny of
+the random control, and each progeny mean is close to its parents' mean
+genetic value, as expected for an additive trait; the remaining gap reflects
+which parents the random plan happened to use and how often. Because the carried trait keeps the base population's loci, effects,
+and residual variance, these means are comparable with the candidates' means.
+The progeny phenotype means equal the genetic means because the default fixed
+residual mode centres the residuals; see the [first chapter](first-simulation.qmd).
+The [trait chapter](trait.qmd) explains the carried trait in detail.
+
+### Family selection
+
+When individuals are grouped in families, their family mean carries
+information about their breeding values. Three methods use it.
+`within_family` keeps the best individuals inside each family,
+`among_family` keeps whole families with the best means, and `combined`
+ranks on an index that weights the individual's own deviation and its family's
+deviation. The combined index needs the trait's heritability and the
+correlation of breeding values among family members, which for S1 sibs of a
+non-inbred F1 is two thirds.
+
+[]{#selection-family}
+
+```{r}
+#| label: selection-family
+within <- select_ind(sim, n = 100, method = "within_family", family = family)
+among <- select_ind(sim, n = 100, method = "among_family", family = family)
+combined <- select_ind(sim, n = 100, method = "combined", family = family,
+                       h2 = 0.3, family_relationship = 2 / 3)
+mass <- select_ind(sim, n = 100, method = "mass")
+
+tibble(
+  method = c("mass", "within_family", "among_family", "combined"),
+  kept = c(n_individuals(mass), n_individuals(within),
+           n_individuals(among), n_individuals(combined)),
+  families_represented = c(
+    length(unique(family[attr(mass, "selected")])),
+    length(unique(family[attr(within, "selected")])),
+    length(unique(family[attr(among, "selected")])),
+    length(unique(family[attr(combined, "selected")]))
+  ),
+  genetic_gain = c(genetic_gain(mass), genetic_gain(within),
+                   genetic_gain(among), genetic_gain(combined))
+)
+```
+
+Within-family selection keeps every family represented, which conserves
+diversity at the cost of gain. Among-family selection keeps whole families, so
+it returns at least `n` individuals and concentrates the selection in few
+families. The combined index uses both sources of information. Which method
+gains most depends on the heritability and the family structure; at this
+moderate heritability the methods that use the family mean are competitive
+with mass selection.
+
+`n_per_family` keeps a stated number from every family instead of allocating
+a total.
+
+[]{#selection-per-family}
+
+```{r}
+#| label: selection-per-family
+one_each <- select_ind(sim, method = "within_family", family = family,
+                       n_per_family = 1)
+n_individuals(one_each)
+head(attr(one_each, "n_per_family"))
+```
+
+### Selection on several traits
+
+Multi-trait selection needs a multi-trait simulation. Two pleiotropic traits
+with a requested genetic correlation of 0.3 are simulated on the same
+population; the [multi-trait chapter](multitrait.qmd) explains the
+architecture. The index weights use the simulation's true breeding-value
+covariance; the Smith-Hazel index then ranks phenotypes, while the quadratic
+index ranks the true breeding values.
+
+[]{#selection-multitrait}
+
+```{r}
+#| label: selection-multitrait
+sim2 <- simulate_phenotype(s1, architecture = "pleiotropy", n_traits = 2,
+                           h2 = c(0.4, 0.4), n_qtn = 50,
+                           cor = matrix(c(1, 0.3, 0.3, 1), 2), seed = 4)
+gv2 <- genetic_values(sim2)
+
+gain2 <- function(selected) {
+  colMeans(gv2[attr(selected, "selected"), , drop = FALSE]) - colMeans(gv2)
+}
+
+index <- select_ind(sim2, n = 100, method = "index", weights = c(1, 1))
+index_t1 <- select_ind(sim2, n = 100, method = "index", weights = c(1, 0))
+linear_bv <- select_ind(sim2, n = 100, method = "quadratic_index",
+                        weights = c(1, 1))
+quadratic <- select_ind(sim2, n = 100, method = "quadratic_index",
+                        weights = c(1, 1),
+                        quad_weights = matrix(c(-1, 0, 0, 0), 2))
+
+spread_t1 <- function(selected) sd(gv2[attr(selected, "selected"), "Trait_1"])
+
+bind_rows(
+  `index, equal weights` = gain2(index),
+  `index, trait 1 only` = gain2(index_t1),
+  `quadratic index, linear part only` = gain2(linear_bv),
+  `quadratic index, penalty on trait 1` = gain2(quadratic),
+  .id = "method"
+) |>
+  mutate(sd_trait1_selected = c(spread_t1(index), spread_t1(index_t1),
+                                spread_t1(linear_bv), spread_t1(quadratic)))
+```
+
+`method = "index"` is the Smith-Hazel index: economic weights, one per trait,
+are converted to index weights through the phenotypic and genetic covariance
+matrices, and individuals are ranked on the weighted phenotypes. Putting all
+weight on the first trait still moves the second because the traits are
+genetically correlated. `method = "quadratic_index"` scores the true breeding
+values directly, as the package documentation states, so its gains are an
+idealized reference and are not comparable with the phenotype-based index.
+Its quadratic term, here a penalty on the square of the first trait, pulls the
+selected set toward intermediate values of that trait: the gain on trait 1
+drops and so does the spread of the selected individuals, which is the form
+for traits with an intermediate optimum.
+
+Independent culling levels keep an individual only if it passes a threshold on
+every trait. `sequential = TRUE` culls the traits in order, each among the
+survivors of the previous ones.
+
+[]{#selection-culling}
+
+```{r}
+#| label: selection-culling
+culled <- select_ind(sim2, method = "culling", culling = c(0.4, 0.4))
+culled_seq <- select_ind(sim2, method = "culling", culling = c(0.4, 0.4),
+                         sequential = TRUE)
+
+bind_rows(
+  `simultaneous culling` = c(kept = n_individuals(culled), gain2(culled)),
+  `sequential culling` = c(kept = n_individuals(culled_seq), gain2(culled_seq)),
+  .id = "method"
+)
+```
+
+With culling the number kept follows from the proportions, so `n` is not
+given. Simultaneous culling at 0.4 on each of two traits keeps fewer than
+40 percent, because an individual must pass both thresholds. Sequential
+culling at the same proportions keeps exactly 0.4 of 0.4.
+
+### Selection with a relatedness penalty
+
+`method = "bqp"` chooses exactly `n` individuals that maximize the summed
+standardized merit minus a penalty on the relatedness among those chosen. With
+`lambda = 0` the penalty vanishes and the method reduces to truncation on the
+merit. The relatedness is measured on the method's own genomic relationship
+matrix, so the comparison below summarizes each selected set by its mean
+genomic relationship from `g_matrix()` instead, which is an independent
+measure described in the [prediction chapter](prediction.qmd).
+
+[]{#selection-bqp}
+
+```{r}
+#| label: selection-bqp
+mass20 <- select_ind(sim2, n = 20, method = "mass")
+bqp0 <- select_ind(sim2, n = 20, method = "bqp", lambda = 0)
+bqp1 <- select_ind(sim2, n = 20, method = "bqp", lambda = 1)
+bqp5 <- select_ind(sim2, n = 20, method = "bqp", lambda = 5)
+
+G_s1 <- g_matrix(s1)
+mean_relationship <- function(selected) {
+  ids <- attr(selected, "selected")
+  block <- G_s1[ids, ids]
+  mean(block[upper.tri(block)])
+}
+
+bind_rows(
+  `mass, trait 1` = gain2(mass20),
+  `bqp, lambda = 0` = gain2(bqp0),
+  `bqp, lambda = 1` = gain2(bqp1),
+  `bqp, lambda = 5` = gain2(bqp5),
+  .id = "method"
+) |>
+  mutate(
+    same_set_as_mass = c(TRUE,
+                         setequal(attr(bqp0, "selected"), attr(mass20, "selected")),
+                         setequal(attr(bqp1, "selected"), attr(mass20, "selected")),
+                         setequal(attr(bqp5, "selected"), attr(mass20, "selected"))),
+    mean_relationship = c(mean_relationship(mass20), mean_relationship(bqp0),
+                          mean_relationship(bqp1), mean_relationship(bqp5)),
+    solver = c(NA, attr(bqp0, "bqp")$solver, attr(bqp1, "bqp")$solver,
+               attr(bqp5, "bqp")$solver)
+  )
+```
+
+Without `weights`, the method uses the single criterion given by `on` and
+`trait`, here the phenotype of the first trait, so the unpenalized solution
+coincides with mass selection on that trait. Increasing the penalty lowers
+the mean relationship among the selected individuals and, with it, the gain;
+the penalty weight is a choice about that trade-off. With 1,000 candidates the
+exact enumeration is infeasible, so a greedy construction followed by local
+search is used; the reported solver says which, and it carries no optimality
+guarantee.
+
+### The method manifest
+
+`selection_methods()` lists every selection and scoring operator the package
+exports, with the function that implements it. Front ends build their
+interfaces from this table.
+
+[]{#selection-manifest}
+
+```{r}
+#| label: selection-manifest
+selection_methods() |>
+  select(id, fn)
+```
+
+## Assumptions and theory
+
+The worked example uses an additive trait, a single record per individual,
+families of one type, and candidates from one generation. There is no
+dominance, no shared family environment, and no genotype-by-environment
+interaction.
+
+### Differential, intensity, and the count kept
+
+With `prop`, the number kept is $k = \max(1, \operatorname{round}(pN))$ for
+$N$ candidates, a package definition in `.resolve_keep()`. The selection
+differential and realized intensity reported as attributes are
+
+$$
+S = \bar y_{\text{sel}} - \bar y, \qquad i = \frac{S}{s_y},
+$$ {#eq-selection-differential}
+
+with $s_y$ the sample standard deviation of the criterion over all candidates.
+With `intensity`, the count is the one whose large-population intensity
+$i(p) = \phi(z_p)/p$ is nearest to the request, where $z_p$ is the standard
+normal quantile cutting off the upper fraction $p$ and $\phi$ is the standard
+normal density. The equation map attributes these definitions to Falconer &
+Mackay 1996 (page unverified). The large-population formula overstates the
+expected realized intensity in small samples.
+
+### Response to mass selection
+
+The package documentation states the classical response $R = i\,h^2\sigma_P =
+h^2 S$ for a purely additive trait, and the more general
+$R = i\,\mathrm{Cov}(A, P)/\sigma_P$, the regression of breeding value $A$
+on the criterion $P$. The equation map attributes the response to Falconer &
+Mackay 1996 (page unverified) and lists the general index form under Smith
+1936 *Ann. Eugen.* 7:240–250 and Hazel 1943 *Genetics* 28:476–490 (page
+unverified). Two conditions are needed for the simple form. The regression of
+$A$ on $P$ must be linear, which holds under joint normality but not for an
+arbitrary joint distribution. And $\mathrm{Cov}(A, P)$ must equal the additive
+variance, which requires every non-additive component of the phenotype to be
+uncorrelated with the breeding value. With an additive model and independent
+residuals, as in this chapter, both hold up to sampling. With dominance or
+epistasis under linkage disequilibrium, or in inbred and selected populations,
+the covariance need not equal the additive variance; the package documentation
+for `select_ind()` gives counterexamples.
+
+The chapter's check compared the genetic selection differential of the
+selected parents with $h^2 S$. The progeny mean then follows from the parents'
+breeding values under random mating of the selected set, which the progeny
+table illustrated.
+
+### The combined index
+
+`method = "combined"` scores each individual on the Lush index of its own
+deviation and its family's deviation from the overall mean. With $h^2$ the
+heritability, $r$ the correlation of breeding values among family members,
+$n$ the family size, and $t = r h^2$ the phenotypic intraclass correlation
+implied by an additive model, the weights are
+
+$$
+b_1 = \frac{h^2(1 - r)}{1 - r h^2}, \qquad
+b_2 = \frac{h^2\, n\, r\,(1 - h^2)}{[1 + (n - 1) r h^2](1 - r h^2)}, \qquad
+I = b_1 (y - \bar y) + b_2 (\bar y_f - \bar y),
+$$ {#eq-combined-index}
+
+the solution $b = V^{-1}c$ of the selection-index equations. The equation map
+records the reference Lush 1947 81:241–261, 362–379 (verified). The weights are
+optimal under an additive model in which family members covary only through
+breeding values; dominance, epistasis, or a shared environment add to the
+covariance of full-sib or selfed families, so the index is then reasonable but
+not optimal. The value $r = 2/3$ for S1 sibs of a non-inbred parent is the
+package's derivation from the tabular relationship matrix; the equation map
+notes that this attribution has no primary page.
+
+### The Smith-Hazel index and culling
+
+`method = "index"` computes $b = P^{-1} G a$ and ranks on $I = b'y$, with $P$
+the sample phenotypic covariance matrix, $G$ the sample covariance matrix of
+the true breeding values, and $a$ the economic weights. The equation map cites
+Smith 1936 7:240–250 and Hazel 1943 28:476–490. When $P$ is singular a
+minimum-norm solution is used, a package extension without a genetic source.
+Hazel's $G$ is the covariance of phenotypes with breeding values; the two
+coincide only when breeding values and dominance deviations are uncorrelated,
+which holds under random mating but not in general in selfed or selected
+populations.
+
+`method = "culling"` is independent culling levels, attributed in the equation
+map to Hazel & Lush 1942 33(11):393–399 (verified). Under their idealized
+conditions of equal, uncorrelated traits, the package derivation gives
+aggregate responses proportional to $i(p)\sqrt{T}$ for the index,
+$T\, i(p^{1/T})$ for simultaneous culling, and $i(p)$ for tandem selection,
+so index selection is at least as efficient as culling, which is at least as
+efficient as tandem selection.
+
+### The relatedness-penalized set
+
+`method = "bqp"` maximizes
+$\sum_i\sum_j w_j s_{ij} x_i - \lambda \sum_i\sum_k G_{ik} x_i x_k$ over
+indicator variables $x_i \in \{0, 1\}$ with exactly $n$ ones, where $s_{ij}$
+is the standardized criterion of trait $j$, $w_j$ its weight, and $G$ the
+paper's genomic relationship matrix built from the column-standardized marker
+matrix. The package documentation attributes the method to Montesinos-Lopez et
+al. (2025) and solves it by exact enumeration for small problems and by a
+greedy start with local search otherwise, which carries no optimality
+guarantee. The quadratic index of `method = "quadratic_index"` follows
+Ceron-Rojas et al. (2026) as cited in the package documentation; the equation
+map marks its article number unverified.
+
+## Implementation and practical limits
+
+`select_ind()` is an R function. The internal helpers named in the
+[developer index](developer-index.qmd) include `.resolve_keep()` for the
+count, `.combined_score()` for the Lush index, `.index_weights()` for the
+Smith-Hazel weights, `.quadratic_index_score()`, `.select_culling()`, and the
+breeding-value construction `.breeding_value_matrix()` that the `"bv"`
+criterion and the index methods use.
+
+- The Smith-Hazel index builds its weights from the simulation's true
+  breeding-value covariance and ranks phenotypes; the quadratic index ranks
+  the true breeding values themselves. Neither uses estimates. To select on predictions, compute the index from
+  the predicted values and pass it through `on` with `method = "mass"`.
+- `"bv"` is refused for models with an epistasis layer, because an epistatic
+  term has no per-locus average effect to reconstruct.
+- `among_family` returns at least `n` individuals, and the reported intensity
+  describes the whole returned set.
+- The combined index uses one heritability and one family relationship for all
+  families, so it assumes families of one type from comparable parents.
+- The random control's differential is a realized quantity and can take either
+  sign; replicate it over seeds before reading anything into one draw.
+- Breeding scheme wrappers such as `recurrent_selection()` apply mass
+  selection in each cycle; see the [breeding schemes chapter](programs.qmd).
+
+::: {.callout-tip title="Carrying the selection forward"}
+Every result of `select_ind()` on a Population-backed simulation is itself a
+`Population` with the trait attached. Crossing it, as the progeny example did,
+is the first step of a breeding cycle; the [contributions chapter](optimization.qmd)
+shows how to choose parental contributions rather than a fixed number of
+parents.
+:::

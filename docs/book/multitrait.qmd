@@ -1,0 +1,469 @@
+# Pleiotropy, linkage, and multiple traits {#sec-multitrait}
+
+Two traits can be correlated because the same loci affect both (pleiotropy),
+because their distinct causal loci are inherited together (linkage), or
+because their non-genetic influences are shared (residual correlation). The
+package separates these mechanisms into three architectures and a residual
+correlation argument. This chapter simulates each one on the maize panel,
+compares requested with realized correlations, and explains which requests are
+attainable and why a realized correlation is a random quantity.
+
+[]{#multitrait-setup}
+
+```{r}
+#| label: multitrait-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-multitrait-example}
+
+[]{#multitrait-library}
+
+```{r}
+#| label: multitrait-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+geno <- as_numeric(
+  SNP55K_maize282_maf04,
+  to_r = TRUE, to_file = FALSE, verbose = FALSE
+)
+
+genetic_cor <- function(sim) cor(genetic_values(sim))
+```
+
+The helper `genetic_cor()` is used throughout: it returns the sample
+correlation matrix of the simulated genetic values, the realized genetic
+correlation.
+
+### Independent traits
+
+`architecture = "independent"` draws separate causal markers for each trait.
+`prop` may be a vector with one share per trait.
+
+[]{#multitrait-independent}
+
+```{r}
+#| label: multitrait-independent
+indep <- simulate_phenotype(geno, n_traits = 3, seed = 31) |>
+  additive(prop = c(0.5, 0.3, 0.7), n_qtn = 20)
+print(indep)
+
+round(genetic_cor(indep), 3)
+
+qtn_table(indep) |>
+  count(trait)
+```
+
+The realized genetic correlations are not exactly zero. Different loci on the
+same genome still produce correlated values by chance, and in a panel with
+extensive linkage disequilibrium the chance correlations are not negligible.
+`distinct_chr = TRUE` puts each trait's loci on different chromosomes, which
+removes within-chromosome linkage between traits but not chance correlation.
+
+[]{#multitrait-distinct-chr}
+
+```{r}
+#| label: multitrait-distinct-chr
+indep_chr <- simulate_phenotype(geno, n_traits = 3, seed = 31, distinct_chr = TRUE) |>
+  additive(prop = 0.5, n_qtn = 20)
+
+with(qtn_table(indep_chr), table(trait, chr))
+```
+
+Each trait's loci occupy a disjoint set of chromosomes.
+
+### Pleiotropy with a controlled genetic correlation
+
+`architecture = "pleiotropy"` draws one set of loci shared by every trait and
+assigns each locus correlated effects across traits, so that the genetic
+correlation targets `cor`. The algorithm is PleioArch (Prado et al., in
+preparation), adopted as the package's pleiotropy engine; the package prints a
+citation notice the first time `cor` is used in a session.
+
+[]{#multitrait-pleiotropy}
+
+```{r}
+#| label: multitrait-pleiotropy
+pleio <- simulate_phenotype(geno, n_traits = 2, architecture = "pleiotropy",
+                            cor = 0.6, seed = 32) |>
+  additive(prop = c(0.5, 0.3), n_qtn = 50)
+print(pleio)
+
+qtn_table(pleio) |>
+  select(trait, snp, effect, var_explained) |>
+  head(4)
+
+tibble(
+  quantity = c("Genetic correlation", "Shared causal markers"),
+  parameter = c(0.6, 50),
+  simulated = c(genetic_cor(pleio)[1, 2], length(unique(qtn_table(pleio)$snp)))
+)
+```
+
+The effects are no longer a geometric series: they are drawn from a bivariate
+normal distribution whose covariance encodes the requested correlation, and
+each marker has one effect per trait. The realized correlation differs from
+0.6, as the theory section explains.
+
+### Co-heritability
+
+`coheritability()` standardizes the genetic covariance by the phenotypic
+standard deviations. Its diagonal is the realized broad-sense heritability of
+each trait and its off-diagonal is $r_G h_1 h_2$, the quantity that predicts
+the correlated response of one trait to selection on the other in a purely
+additive model (Falconer and Mackay 1996, correlated response to selection).
+
+[]{#multitrait-coheritability}
+
+```{r}
+#| label: multitrait-coheritability
+coheritability(pleio)
+
+h <- sqrt(diag(coheritability(pleio)))
+tibble(
+  quantity = "Genetic correlation x h1 x h2",
+  from_coheritability = coheritability(pleio)[1, 2],
+  from_components = genetic_cor(pleio)[1, 2] * h[1] * h[2]
+)
+```
+
+### Partial pleiotropy
+
+`pi` is the pleiotropic share of each trait's genetic variance. With
+`pi = 0.5`, half of each trait's additive variance comes from shared loci and
+half from loci specific to that trait. The shared loci appear in both traits'
+rows of `qtn_table()`; the specific loci appear in one.
+
+[]{#multitrait-partial}
+
+```{r}
+#| label: multitrait-partial
+partial <- simulate_phenotype(geno, n_traits = 2, architecture = "pleiotropy",
+                              cor = 0.4, pi = 0.5, seed = 32) |>
+  additive(prop = 0.5, n_qtn = 50)
+
+qtn_table(partial) |>
+  count(snp, name = "traits_affected") |>
+  count(traits_affected, name = "markers")
+
+tibble(
+  quantity = "Genetic correlation",
+  parameter = 0.4,
+  simulated = genetic_cor(partial)[1, 2]
+)
+```
+
+Not every combination of `cor` and `pi` is possible. A correlation can only be
+as strong as the shared part of the variance allows; the package refuses an
+infeasible request instead of approximating it.
+
+[]{#multitrait-infeasible}
+
+```{r}
+#| label: multitrait-infeasible
+#| error: true
+simulate_phenotype(geno, n_traits = 2, architecture = "pleiotropy",
+                   cor = 0.8, pi = 0.5, seed = 32) |>
+  additive(prop = 0.5, n_qtn = 50)
+```
+
+### A major pleiotropic locus
+
+`n_pleio_major` and `prop_var_major` reserve a share of the shared variance
+for a few major loci. The first row of the table is the major locus.
+
+[]{#multitrait-major}
+
+```{r}
+#| label: multitrait-major
+major <- simulate_phenotype(geno, n_traits = 2, architecture = "pleiotropy",
+                            cor = 0.6, n_pleio_major = 1, prop_var_major = 0.5,
+                            seed = 32) |>
+  additive(prop = 0.5, n_qtn = 50)
+
+qtn_table(major) |>
+  filter(trait == "Trait_1") |>
+  select(snp, effect, var_explained) |>
+  head(3)
+```
+
+### Residual correlation
+
+`resid_cor` sets the correlation of the residuals. The phenotypic correlation
+then mixes the genetic and residual correlations, weighted by the variance
+shares. The chunk recovers the residuals by subtracting genetic values from
+phenotypes and reports all three correlations.
+
+[]{#multitrait-resid-cor}
+
+```{r}
+#| label: multitrait-resid-cor
+mixed <- simulate_phenotype(geno, n_traits = 2, architecture = "pleiotropy",
+                            cor = 0.6, resid_cor = -0.3, seed = 32) |>
+  additive(prop = 0.5, n_qtn = 50)
+
+wide <- phenotypes_wide(mixed)
+g <- genetic_values(mixed)[wide$id, ]
+e <- as.matrix(wide[, c("Trait_1", "Trait_2")]) - g
+
+tibble(
+  correlation = c("Genetic", "Residual", "Phenotypic"),
+  parameter = c(0.6, -0.3, NA),
+  simulated = c(cor(g)[1, 2], cor(e)[1, 2], cor(wide$Trait_1, wide$Trait_2))
+)
+```
+
+Here the genetic and residual correlations have opposite signs and the
+phenotypic correlation sits between them. The theory section gives the
+weighting.
+
+### Correlations that decay with distance: repeated measurements
+
+`cor_ar1()` builds a first-order autoregressive correlation matrix,
+$R_{ij} = \rho^{|i-j|}$, for traits that are repeated measurements of one
+character over time or environments. Matrices are accepted both for `cor` and
+for `resid_cor`, and the one-call form sets everything at once.
+
+[]{#multitrait-ar1}
+
+```{r}
+#| label: multitrait-ar1
+cor_ar1(4, 0.8)
+
+time_points <- simulate_phenotype(
+  geno, n_traits = 4, architecture = "pleiotropy",
+  cor = cor_ar1(4, 0.8), resid_cor = cor_ar1(4, 0.4),
+  h2 = 0.5, n_qtn = 40, seed = 33
+)
+
+round(genetic_cor(time_points), 2)
+round(coheritability(time_points), 2)
+```
+
+Adjacent time points are more strongly correlated than distant ones, as
+requested, and the realized values scatter around the targets.
+
+### Linkage without pleiotropy
+
+`architecture = "ld"` simulates two traits whose causal loci are distinct
+markers in linkage disequilibrium. For each locus of trait 1 the package
+finds a partner on the same chromosome whose squared correlation with it lies
+in the window `[r2_min, r2_max]`, and that partner becomes a causal locus of
+trait 2. `qtn_table()` reports each pair and its squared correlation.
+
+[]{#multitrait-ld}
+
+```{r}
+#| label: multitrait-ld
+linked <- simulate_phenotype(geno, n_traits = 2, architecture = "ld",
+                             r2_min = 0.4, r2_max = 0.9, seed = 34) |>
+  additive(prop = 0.5, n_qtn = 10)
+print(linked)
+
+qtn_table(linked) |>
+  filter(trait == "Trait_1") |>
+  select(QTN_t1, QTN_t2, chr, ld_r2) |>
+  head(5)
+```
+
+No marker is causal for both traits, yet the genetic values are strongly
+correlated through linkage. Whether that correlation is positive or negative
+depends on which alleles travel together. `ld_phase` reads the sign of each
+pair's dosage correlation and sets trait 2's effect so that every pair pushes
+the correlation one way.
+
+[]{#multitrait-ld-phase}
+
+```{r}
+#| label: multitrait-ld-phase
+ld_phase_cor <- function(phase) {
+  simulate_phenotype(geno, n_traits = 2, architecture = "ld",
+                     r2_min = 0.4, r2_max = 0.9, ld_phase = phase, seed = 34) |>
+    additive(prop = 0.5, n_qtn = 10) |>
+    genetic_cor() |>
+    (\(m) m[1, 2])()
+}
+
+tibble(
+  ld_phase = c("coded", "coupling", "repulsion"),
+  genetic_correlation = sapply(c("coded", "coupling", "repulsion"), ld_phase_cor)
+)
+```
+
+Under the default `"coded"` the sign follows the arbitrary marker coding;
+`"coupling"` makes it positive and `"repulsion"` negative, with the same loci
+and the same squared correlations.
+
+### How variable is a realized correlation?
+
+The same request repeated with different seeds gives a spread of realized
+correlations. The spread is wider with few shared loci.
+
+[]{#multitrait-spread}
+
+```{r}
+#| label: multitrait-spread
+realized <- function(n_qtn, seeds = 1:20) {
+  sapply(seeds, function(s) {
+    simulate_phenotype(geno, n_traits = 2, architecture = "pleiotropy",
+                       cor = 0.6, seed = s) |>
+      additive(prop = 0.5, n_qtn = n_qtn) |>
+      genetic_cor() |>
+      (\(m) m[1, 2])()
+  })
+}
+
+tibble(
+  shared_loci = c(5, 50),
+  parameter = 0.6,
+  mean = c(mean(realized(5)), mean(realized(50))),
+  sd = c(sd(realized(5)), sd(realized(50))),
+  min = c(min(realized(5)), min(realized(50))),
+  max = c(max(realized(5)), max(realized(50)))
+)
+```
+
+[]{#multitrait-plot}
+
+```{r}
+#| label: multitrait-plot
+#| fig-height: 6
+#| fig-cap: "Diagnostic plots for the two-trait pleiotropy simulation, including the realized genetic correlation."
+plot(pleio)
+```
+
+## Assumptions and theory
+
+### The pleiotropic effect draw
+
+Let $V_t$ be trait $t$'s layer share (`prop`), $\pi_t$ its pleiotropic share
+(`pi`, one by default), and $r_{ts}$ the requested correlation. The shared
+loci receive effect vectors drawn from a multivariate normal distribution
+with covariance
+
+$$
+\Sigma_{tt} = \pi_t V_t, \qquad \Sigma_{ts} = r_{ts}\sqrt{V_t V_s},
+$$ {#eq-pleio-covariance}
+
+divided by the number of shared loci, and each trait-specific locus receives
+an independent normal effect with variance $(1-\pi_t)V_t$ divided by the
+number of specific loci (PleioArch, Prado et al., in preparation; the
+reference implementation is bundled with the package as `simulateEffects.R`,
+page not applicable; implemented in `.pleio_draw()`). Each effect is then
+divided by $\sqrt{2\,\mathrm{MAF}(1-\mathrm{MAF})}$, the Hardy-Weinberg
+standard deviation of the genotype code, which converts an effect per standard
+deviation of the genotype code into an effect per allele.
+
+With these moments, the expected genetic covariance between traits is
+$r_{ts}\sqrt{V_t V_s}$ and each trait's expected genetic variance is $V_t$, so
+`cor` is the ratio of expected moments. The realized correlation is the ratio
+of sample moments and is therefore random. It converges to `cor` as the number
+of shared loci and the number of individuals grow, provided the causal loci
+are in approximate linkage equilibrium. With few shared loci it is attenuated
+toward zero on average; the package documentation reports an average of about
+0.82 times `cor` with two shared loci. Strong linkage disequilibrium among the
+causal loci can prevent convergence altogether. These statements are package
+documentation backed by numerical checks, not literature results.
+
+The layer rescaling of @sec-scaling-derivation does not change a correlation,
+because it multiplies each trait's values by a constant. It does fix each
+trait's realized variance exactly at $V_t$, so the only randomness left in the
+correlation is in the covariance.
+
+### Attainable requests
+
+The covariance matrix in @eq-pleio-covariance must be positive semi-definite.
+For two traits this reduces to
+
+$$
+r^2 \le \pi_1 \pi_2 ,
+$$ {#eq-pleio-feasible}
+
+which is the constraint printed by the error in the worked example. For more
+traits the package checks the matrix with diagonal $\pi_t$ and off-diagonal
+$r_{ts}$ by its smallest eigenvalue (algebraic generalization; the two-trait
+form follows the reference implementation). The rule has a plain reading: a
+correlation is carried only by the shared loci, so it cannot exceed what the
+shared variance can produce.
+
+When the traits' layer shares are not proportional across layers, for example
+mostly additive in one trait and mostly dominance in the other, the total
+genetic correlation falls short of `cor`; the package derives the large-sample
+target by covariance addition and warns when it differs from `cor` by more
+than one percent (package derivation, `.pleio_total_cor_check()`).
+
+### Phenotypic correlation from genetic and residual correlation
+
+With genetic values $g$ and residuals $e$ for two traits and $y = g + e$,
+
+$$
+\operatorname{Cov}(y_1, y_2) = \operatorname{Cov}(g_1, g_2)
+  + \operatorname{Cov}(e_1, e_2)
+  + \operatorname{Cov}(g_1, e_2) + \operatorname{Cov}(e_1, g_2).
+$$ {#eq-phenotypic-covariance}
+
+In expectation the cross terms vanish, and dividing by the phenotypic
+standard deviations gives the familiar
+$r_P = r_G h_1 h_2 + r_E \sqrt{(1-h_1^2)(1-h_2^2)}$. The simulated values are
+sample quantities, so the cross terms are not exactly zero and the realized
+phenotypic correlation deviates slightly from this formula. The first term is
+the off-diagonal element of `coheritability()`.
+
+In fixed residual mode, `resid_cor` mixes independently drawn residuals
+through the Cholesky factor of the requested matrix and re-standardizes each
+trait's residual to its exact variance, so the residual variances are
+unchanged and only their correlation is induced. In random mode the residuals
+are a multivariate normal draw with the requested covariance as a parameter.
+A `vqtl()` component is drawn independently per trait and dilutes the
+residual correlation.
+
+### Linkage disequilibrium between distinct loci
+
+Under `"ld"` the squared correlation between two markers' genotype codes is
+the package's measure of linkage disequilibrium, the genotypic or composite
+$r^2$ (standard Pearson correlation on dosages; page unverified). The default
+`partner = "strongest"` takes the in-window partner with the highest $r^2$,
+so the realized values skew toward `r2_max`; `partner = "random"` draws
+uniformly within the window. The resulting genetic correlation is a sum over
+pairs of $b_1 b_2\, r$, where $r$ is the signed dosage correlation and $b_1$,
+$b_2$ are the pair's effects, plus cross-pair terms between loci of different
+pairs that happen to be in LD. `ld_phase` controls the sign pair by pair but
+not the cross-pair terms, so on a chromosome with many nearby pairs the total
+can still differ in sign from the pairs' common sign. The `"ld"` design
+follows DECISION-014 of the project decision log; the linkage concept comes
+from the original publication, with the v2 algorithm being a package design.
+
+## Implementation and practical limits
+
+The effect draws stay in R and are seeded per layer. The PleioArch draw uses
+a symmetric eigenvalue square root of the covariance matrix rather than the
+reference implementation's Cholesky factor, which gives the same distribution
+but different realizations, and allows exactly singular feasible requests.
+
+- `"ld"` requires `n_traits = 2`, one additive layer, and at most a dominance
+  layer on the same linked loci. Epistasis and user-fixed loci are rejected
+  under `"ld"` with random pairs; `qtn = list(trait1, trait2)` is accepted for
+  direct pairs.
+- Under `"pleiotropy"`, user-supplied `effect` is accepted only when no
+  correlation is controlled; `qtn` fixes the shared loci but `pi < 1` cannot
+  then be used.
+- A single shared locus makes the realized correlation plus or minus one;
+  the package warns.
+- The realized correlation on a fixed sample of individuals cannot beat the
+  sampling spread of a correlation over that many individuals, however many
+  loci are shared.
+- Most of the scatter of the realized correlation around its target comes from
+  drawing a finite number of effect pairs, with a standard deviation of about
+  $(1-r^2)/\sqrt{n_{qtn}-1}$. Linkage disequilibrium in the maize panel adds to
+  it.
+
+::: {.callout-note title="Partial pleiotropy by trait-specific layers"}
+`pi` splits one layer into shared and specific loci. For loci that affect
+only some traits with layer-specific settings, or to combine several
+simulations into one trait, see `complex_phenotypes()` in the
+[complex architectures chapter](complex.qmd).
+:::

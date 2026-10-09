@@ -1,0 +1,424 @@
+# Legacy interface and migration {#sec-legacy}
+
+Scripts written for the original package call `create_phenotypes()`, the
+function described in Fernandes and Lipka (2020). That function still ships,
+unchanged in signature and in its random-number arithmetic, so old scripts keep
+producing their old numbers. It is not a wrapper around the composable grammar
+of the other chapters: the two implementations coexist and share no code on the
+simulation path. This chapter runs the legacy function on the maize data, shows
+the files it writes, places the equivalent grammar call next to each legacy
+call, and explains what "equivalent" does and does not mean.
+
+[]{#legacy-setup}
+
+```{r}
+#| label: legacy-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-legacy-example}
+
+[]{#legacy-library}
+
+```{r}
+#| label: legacy-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+library(readr)
+```
+
+### A single additive trait, the legacy way
+
+The legacy function takes the genotype object directly, writes its results to
+disk, and optionally returns them to R with `to_r = TRUE`. It needs a home
+directory and creates a run folder inside it; use an absolute path for
+`home_dir`, because the function changes the working directory while it runs
+and resolves a relative `home_dir` against itself. The call below reproduces
+the first example of the original vignette: three additive markers, a large
+effect on the first one, a geometric series on the rest, heritability 0.7, and
+two replications.
+
+[]{#legacy-single}
+
+```{r}
+#| label: legacy-single
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+dir.create("results/legacy", showWarnings = FALSE, recursive = TRUE)
+home <- normalizePath("results/legacy")
+
+v1_single <- create_phenotypes(
+  geno_obj = SNP55K_maize282_maf04,
+  add_QTN_num = 3,
+  add_effect = 0.2,
+  big_add_QTN_effect = 0.9,
+  rep = 2,
+  h2 = 0.7,
+  model = "A",
+  seed = 901,
+  home_dir = home,
+  output_dir = "single",
+  to_r = TRUE,
+  quiet = TRUE,
+  verbose = FALSE
+)
+
+head(v1_single)
+list.files(file.path(home, "single"))
+```
+
+For a single trait the returned data frame is wide: one row per individual and
+one column per replication. The run folder holds the phenotypes, the selected
+markers, the genetic values, and a log. The log records the master seed and
+the sample heritability averaged over replications:
+
+[]{#legacy-files}
+
+```{r}
+#| label: legacy-files
+read_tsv(file.path(home, "single", "Additive_QTNs.txt"),
+         show_col_types = FALSE)
+
+read_lines(file.path(home, "single", "Log_Sim.txt")) |>
+  tail(8) |>
+  cat(sep = "\n")
+```
+
+The `add_eff_t1` column shows the effect series: the large effect on the first
+marker, then the geometric series `0.2`, `0.2^2`. This is where the two
+interfaces first differ. The legacy effect series is the final per-marker
+effect; the grammar scales a whole layer to a requested share, as the
+[first chapter](first-simulation.qmd) explains.
+
+### The same design in the grammar
+
+In the grammar, heritability is a sum of layer proportions rather than an
+argument, and there is no `big_add_QTN_effect`; a large-effect marker is
+expressed through an explicit effect series. The phenotypes are returned as an
+object and written only on request.
+
+[]{#legacy-single-v2}
+
+```{r}
+#| label: legacy-single-v2
+geno <- as_numeric(
+  SNP55K_maize282_maf04,
+  to_r = TRUE, to_file = FALSE, verbose = FALSE
+)
+
+v2_single <- simulate_phenotype(geno, n_reps = 2, seed = 901) |>
+  additive(prop = 0.7, n_qtn = 3, effect = c(0.9, 0.2, 0.04))
+v2_single
+```
+
+### No bit-parity between the interfaces
+
+The two calls use the same seed. Their numbers are nevertheless different,
+because the legacy function keeps its own seed arithmetic under
+`RNGversion("3.5.1")` while the grammar derives sub-seeds for each layer and
+replication. The decision that the grammar owes the legacy function no
+bit-parity is recorded in the repository's decision log (DECISION-009).
+
+[]{#legacy-parity}
+
+```{r}
+#| label: legacy-parity
+v2_wide <- phenotypes_wide(v2_single) |>
+  filter(rep == 1) |>
+  select(id, grammar = Trait_1)
+
+v1_single |>
+  select(id = taxa, legacy = rep1) |>
+  left_join(v2_wide, by = "id") |>
+  head()
+
+v1_markers <- read_tsv(file.path(home, "single", "Additive_QTNs.txt"),
+                       show_col_types = FALSE)$snp
+tibble(legacy = v1_markers, grammar = qtn_table(v2_single)$snp)
+```
+
+Different markers are drawn and different values result. What the two
+interfaces share is the design: the realized genetic-to-phenotypic variance
+ratio of each run is close to the requested 0.7. The legacy log above and the
+grammar's print method both report the mean of the per-replication ratios,
+which is why the printed grammar value differs from the single replications in
+the table below. Both are sample diagnostics in the sense of the
+[first chapter](first-simulation.qmd#sec-first-example).
+
+[]{#legacy-ratio}
+
+```{r}
+#| label: legacy-ratio
+v1_genetic <- read_tsv(file.path(home, "single", "Genetic_values.txt"),
+                       show_col_types = FALSE)$Trait_1
+v2_genetic <- genetic_values(v2_single)[, 1]
+
+tibble(
+  interface = c("legacy, rep 1", "legacy, rep 2", "grammar, rep 1", "grammar, rep 2"),
+  parameter = 0.7,
+  simulated = c(
+    var(v1_genetic) / var(v1_single$rep1),
+    var(v1_genetic) / var(v1_single$rep2),
+    var(v2_genetic) / var(filter(phenotypes_wide(v2_single), rep == 1)$Trait_1),
+    var(v2_genetic) / var(filter(phenotypes_wide(v2_single), rep == 2)$Trait_1)
+  )
+)
+```
+
+### Pleiotropic traits with dominance
+
+The legacy multi-trait call takes one effect size per trait and one
+heritability per trait. `QTN_variance = TRUE` adds per-marker variance files.
+The returned data frame is long by replication, with one column per trait.
+
+[]{#legacy-pleiotropic}
+
+```{r}
+#| label: legacy-pleiotropic
+v1_pleio <- create_phenotypes(
+  geno_obj = SNP55K_maize282_maf04,
+  ntraits = 3,
+  architecture = "pleiotropic",
+  model = "AD",
+  add_QTN_num = 3,
+  dom_QTN_num = 4,
+  add_effect = c(0.04, 0.2, 0.1),
+  dom_effect = c(0.04, 0.2, 0.1),
+  big_add_QTN_effect = c(0.3, 0.3, 0.3),
+  h2 = c(0.2, 0.4, 0.4),
+  rep = 2,
+  seed = 10,
+  QTN_variance = TRUE,
+  home_dir = home,
+  output_dir = "pleiotropic",
+  to_r = TRUE,
+  quiet = TRUE,
+  verbose = FALSE
+)
+
+head(v1_pleio)
+list.files(file.path(home, "pleiotropic"))
+```
+
+The grammar version is close but not identical in structure. The legacy call
+draws its four dominance loci separately from the three additive loci, because
+`same_add_dom_QTN` defaults to `FALSE`; the grammar version places dominance on
+the additive loci with `same_as_add = TRUE`. Use `dominance(n_qtn = 4,
+same_as_add = FALSE)` to mirror the legacy design exactly. The per-trait heritabilities become per-trait
+proportions, and the per-marker variances are always available from
+`qtn_table()` rather than through an export switch. In this legacy call,
+which gives no `cor`, the genetic correlation among traits is a by-product of
+the effect sizes. The legacy `cor` argument imposes it by Cholesky colouring,
+which the grammar replaces with PleioArch through its own `cor` argument, as the
+[multiple-trait chapter](multitrait.qmd) shows.
+
+[]{#legacy-pleiotropic-v2}
+
+```{r}
+#| label: legacy-pleiotropic-v2
+geno_hets <- filter_geno(geno, hets = "include", verbose = FALSE)
+
+v2_pleio <- simulate_phenotype(geno_hets, architecture = "pleiotropy",
+                               n_traits = 3, n_reps = 2, seed = 10) |>
+  additive(prop = c(0.15, 0.3, 0.3), n_qtn = 3) |>
+  dominance(prop = c(0.05, 0.1, 0.1), same_as_add = TRUE)
+
+qtn_table(v2_pleio) |>
+  select(trait, layer, snp, effect, var_explained) |>
+  head()
+```
+
+The inbred maize panel has almost no heterozygotes. The grammar refuses a
+dominance layer on loci without heterozygotes, so the markers are first
+restricted with `filter_geno(hets = "include")` to those that have at least
+one heterozygous individual; with `same_as_add = TRUE` the dominance layer
+then uses the additive loci. The legacy function instead resamples its marker
+set until the whole set contains a heterozygote, a weaker check described in
+the theory section below.
+
+### Partial pleiotropy and linkage
+
+The legacy `architecture = "partially"` combines shared and trait-specific
+markers in one call, with a user-supplied correlation matrix applied to the
+genetic values. The grammar builds the same thing from two models combined by
+`complex_phenotypes()`, which the [complex architectures chapter](complex.qmd)
+demonstrates. The legacy `architecture = "LD"` corresponds to the grammar's
+`"ld"` architecture, with renamed arguments.
+
+[]{#legacy-ld}
+
+```{r}
+#| label: legacy-ld
+v1_ld <- create_phenotypes(
+  geno_obj = SNP55K_maize282_maf04,
+  ntraits = 2,
+  architecture = "LD",
+  type_of_ld = "indirect",
+  ld_min = 0.2,
+  ld_max = 0.8,
+  model = "A",
+  add_QTN_num = 3,
+  add_effect = c(0.02, 0.05),
+  h2 = c(0.2, 0.4),
+  rep = 2,
+  seed = 200,
+  home_dir = home,
+  output_dir = "ld",
+  to_r = TRUE,
+  quiet = TRUE,
+  verbose = FALSE
+)
+
+read_tsv(file.path(home, "ld", "LD_Summary_Additive.txt"),
+         show_col_types = FALSE) |>
+  select(rep, SNP_causing_LD, QTN_for_trait_1, QTN_for_trait_2,
+         LD_between_QTNs)
+```
+
+[]{#legacy-ld-v2}
+
+```{r}
+#| label: legacy-ld-v2
+v2_ld <- simulate_phenotype(geno, architecture = "ld", n_traits = 2,
+                            ld_type = "indirect", r2_min = 0.2, r2_max = 0.8,
+                            n_reps = 2, seed = 200) |>
+  additive(prop = c(0.2, 0.4), n_qtn = 3)
+
+qtn_table(v2_ld) |>
+  select(trait, snp, QTN_t1, QTN_t2, ld_r2)
+```
+
+The legacy summary reports a signed composite linkage-disequilibrium
+coefficient between the two traits' markers; the grammar reports a squared
+correlation. The scales differ, so the `ld_min` and `ld_max` bounds of one
+interface are not the `r2_min` and `r2_max` bounds of the other.
+
+### Argument mapping
+
+The table lists each legacy argument and its grammar counterpart. It is copied
+from the package specification, which is the maintained reference for this
+mapping.
+
+| Legacy `create_phenotypes()` | Grammar | Notes |
+|---|---|---|
+| `geno_obj` / `geno_file` / `geno_path` | `simulate_phenotype(geno=)` | Convert files once with `as_numeric()` |
+| `ntraits` | `n_traits` | |
+| `architecture = "pleiotropic"` | `architecture = "pleiotropy"` | |
+| `architecture = "partially"` | `complex_phenotypes()` | Combine a pleiotropic and an independent model |
+| `architecture = "LD"` | `architecture = "ld"` | |
+| `add_QTN_num`, `dom_QTN_num`, `epi_QTN_num` | `additive(n_qtn=)`, `dominance(n_qtn=)`, `epistasis(n_pairs=)` | |
+| `add_effect`, `dom_effect`, `epi_effect` | `effect=` on each layer | Geometric series by default |
+| `big_add_QTN_effect` | none | Give an explicit `effect` series |
+| `h2` | Sum of layer `prop`, or `complex_phenotypes(h2=)` | Emerges from the proportions |
+| `same_add_dom_QTN` | `dominance(same_as_add=)` | |
+| `degree_of_dom` | none | Per-component scaling absorbs it; a per-locus degree is available through `additive(orthogonal = TRUE, a=, d=)` |
+| `epi_interaction` | `epistasis(interaction=)` | |
+| `sim_method = "geometric"` / `"custom"` | `dist = "geometric"` / `effect=` | |
+| `type_of_ld`, `ld_min`, `ld_max` | `ld_type`, `r2_min`, `r2_max` | Different linkage-disequilibrium scales |
+| `cor` | `cor` | Legacy Cholesky colouring replaced by the PleioArch engine |
+| `cor_res` | `resid_cor` | Grammar re-standardizes each trait after mixing |
+| `rep`, `vary_QTN` | `n_reps`, `vary_qtn` | |
+| `constraints = list(maf_above, maf_below, hets)` | `filter_geno()` upstream | Legacy filtered only the sampled markers |
+| `seed` | `seed` | Same name, different arithmetic |
+| `output_format`, `out_geno`, `home_dir`, `output_dir`, `to_r` | `write_phenotypes()`, `write_qtn_table()` | Object always returned |
+
+## Assumptions and theory
+
+### Heritability is an argument, not a sum
+
+The legacy function builds a genetic value, measures its sample variance, and
+derives the residual variance from the requested heritability. The implemented
+expression, as recorded in the repository's equation map (entry
+V1-core-linkage-7, "page unverified" against Falconer and Mackay), is
+
+$$
+\sigma_e^2 = \frac{V_G\,(1-h^2)}{h^2}, \qquad
+V_G = \frac{1}{n-1}\sum_i (g_i-\bar g)^2 .
+$$ {#eq-legacy-residual}
+
+Here $h^2$ is the requested heritability, $V_G$ is the sample variance of the
+realized genetic values $g_i$, and $n$ is the number of individuals. The
+residuals are then drawn as normal values with that variance and added to the
+centered genetic values, so that $y_{ij} = g_i + e_{ij} + \mu$
+for replication $j$ (entry V1-core-linkage-8). Rearranging @eq-legacy-residual
+shows the intent: $V_G/(V_G+\sigma_e^2) = h^2$ exactly for the variance
+parameter. Two exceptions apply. With $h^2 = 0$ the function bypasses the
+formula and returns unit-variance noise with no genetic value, and in a
+multiple-trait run a zero for any trait does this for every trait. For several
+traits, the residuals are drawn jointly and correlated through `cor_res`. The realized sample ratio is not fixed, because the residual sample
+variance and the genetic-residual covariance fluctuate. This is the same
+random-residual behaviour that the grammar offers through
+`residual_mode = "random"`, but the two reach it by different routes: the
+legacy function scales the residual to the genetic sample variance, while the
+grammar scales the genetic component to the phenotypic budget.
+
+Both consequences follow from the definitions. First, the legacy effect sizes
+matter only through $V_G$; doubling every effect doubles the residual standard
+deviation and leaves the variance ratio unchanged. Second, the per-trait
+heritabilities of a multi-trait legacy run are applied after the optional
+colouring transformation that imposes `cor`, so the genetic correlation and
+the heritabilities are set in sequence rather than jointly.
+
+### The legacy genetic value
+
+The additive value sums effect times coded genotype over the selected markers;
+the dominance value sums effects over heterozygous markers; the epistatic
+value multiplies the coded genotypes of the interacting markers (entries
+V1-core-linkage-1 to 3, "page unverified"). The total is centered so that the
+phenotype mean equals the `mean` argument. The geometric series assigns
+$a_k = a^k$ to the $k$-th marker, with `big_add_QTN_effect` replacing the first
+term (entry V1-core-linkage-6). With `same_add_dom_QTN = TRUE`, the dominance
+effect of each shared marker is `degree_of_dom` times its additive effect
+(entry V1-core-linkage-5). The legacy samplers check heterozygosity for the
+whole marker set, not per marker: they redraw, up to ten times, while no
+selected marker has a heterozygote (entry V1-pleio-effects-10), so a set can
+pass with a single heterozygous marker and the others contribute no dominance
+variance.
+
+The grammar uses the same per-marker scores as raw components, but then
+centers and scales each layer to its proportion. The legacy
+`var_explained` quantities and the grammar's are therefore not the same
+numbers even for identical markers and effects.
+
+### Partial pleiotropy and vary_QTN
+
+Under `vary_QTN = TRUE`, each replication samples its own markers and the
+residual variance is recomputed per replication from that replication's
+genetic variance. The grammar's `vary_qtn` has the same meaning at the level of
+the design; its seeds and draws differ.
+
+### What is verified about the legacy engine
+
+The legacy engine's behaviour is pinned by reference outputs captured from
+version 1.3.0 and stored with the package. The test file `test-v130-parity.R`
+compares the current legacy results against those stored objects, so a change
+in legacy numbers is detected as a test failure. This is a regression contract,
+not a statement that the legacy theory is the reference for the grammar.
+The equation map lists a number of legacy findings, such as the uncentered
+epistatic product and the per-marker variances that ignore linkage
+covariance, which are retained because the function is frozen.
+
+## Implementation and practical limits
+
+The legacy engine lives in the `legacy_*.R` files and shares no simulation
+code with the grammar. Its random draws run under `RNGversion("3.5.1")`, and
+the function sets and restores the working directory around a run. The source
+locations in the [developer index](developer-index.qmd) point to the current
+definitions.
+
+- Pass an absolute `home_dir`. The function resolves a relative path after
+  changing into it, which nests the run folder one level deeper than intended.
+- Each run creates a new folder; an existing `output_dir` name gets a numbered
+  suffix rather than being overwritten.
+- `to_r = TRUE` returns a wide table for one trait, with columns `taxa`,
+  `rep1`, `rep2`, and so on, and a long-by-replication table for several
+  traits, whose columns encode the heritability (`Trait_k_H2_x`).
+- A single-trait run rejects `QTN_list` and the `"ADE"` and `"DE"` models with
+  an explicit error.
+- The legacy function is bugfix-only. New features, including
+  `residual_mode`, controlled genetic correlation for any number of traits,
+  orthogonal dominance coding, and the transcriptome layers, exist only in the
+  grammar.
+- To migrate a script, translate the design with the mapping table, then
+  compare variance partitions and marker counts rather than individual values.

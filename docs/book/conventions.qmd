@@ -1,0 +1,50 @@
+# Notation and conventions
+
+## Genotype orientation {#sec-coding}
+
+The standard numeric input uses `-1` and `1` for the two homozygotes and `0`
+for the heterozygote. The allele represented by `1` depends on the input and its
+orientation metadata. Do not infer a biological reference allele from the sign
+alone. The first chapter uses an already coded maize dataset and shows the
+entry point for importing your own files. The
+[genotype input chapter](input.qmd) examines format-specific conversion and
+orientation checks in detail.
+
+Markers occupy rows in the numeric input table, whereas outputs such as
+`genetic_values()` use individuals in rows. Align identifiers whenever combining
+outputs instead of assuming that two objects share their row order.
+
+## Symbols used in the first chapter
+
+| Symbol | Meaning | Scale |
+|---|---|---|
+| $x_{ij}$ | Coded genotype | `-1`, `0`, `1` |
+| $b_j$ | Raw additive effect series | Before component normalization |
+| $c_i$ | Unscaled marker score | Sum of marker contributions |
+| $\pi$ | Requested layer variance allocation | Package simulation scale |
+| $g_i$ | Realized genetic value | After component normalization |
+| $e_i$ | Realized residual | After residual normalization |
+| $y_i$ | Realized phenotype | Genetic value plus residual in this example |
+| $s_g^2$, $s_e^2$, $s_y^2$ | Sample variances | Denominator $n-1$ |
+| $s_{ge}$ | Sample covariance | Denominator $n-1$ |
+| $R_G$ | Realized genetic-to-phenotypic variance ratio | Diagnostic, not an estimated parameter |
+
+The derivation in @sec-variance-derivation defines these sample quantities
+explicitly. Later methods chapters will distinguish additive breeding values,
+total genetic values, estimated breeding values, and genotypic effects in their
+own model contexts.
+
+## Two kinds of replication
+
+`n_reps` requests simulation replications, represented by `rep` in phenotype
+tables. The separate `reps` argument concerns entry-mean records and residual
+scaling. They answer different experimental questions. The
+[trait values chapter](trait.qmd) demonstrates both rather than treating them
+as interchangeable ways to increase the number of observations.
+
+## A function is not a method
+
+`select_ind()` exposes several selection methods; `predict_ebv()` has different
+relationship and trait configurations. Conversely, a single scientific method
+can involve many internal functions. The [coverage register](functions.qmd)
+therefore tracks public functions and method options separately.

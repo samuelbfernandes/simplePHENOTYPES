@@ -1,0 +1,61 @@
+# Welcome {.unnumbered}
+
+::: {.book-intro}
+Build simulations whose assumptions, genetic mechanisms, and realized outcomes
+you can explain and check.
+:::
+
+We regard [AlphaSimR](https://gaynorr.github.io/AlphaSimR/) as the gold standard
+for breeding-program simulation. simplePHENOTYPES is not intended to compete
+with it. It is another tool for making simulation more widely used: bringing
+your own data, exploring how genetic assumptions affect outcomes, and using
+those results to understand a problem and make better decisions.
+
+This book is for researchers in plant, animal, and human genetics with basic R
+knowledge. Examples follow the tidyverse style, introduce unfamiliar functions,
+and compare design parameters with simulated results in simple tables. It connects the
+simplePHENOTYPES interface to the statistical models and computational methods
+behind it. Worked examples come first; interpretation, assumptions, and theory
+follow. Longer derivations belong in the appendices.
+
+::: {.callout-note title="Working draft"}
+Every chapter in the [chapter plan](development.qmd#sec-chapter-plan) now has a
+worked draft, and every exported function and registered method has at least one
+executed example. The pilot chapters passed independent scientific review. The
+methods chapters passed a same-model theory review, with every error it found
+corrected, and still await the independent cross-model review.
+Example execution and scientific review are separate checks; the
+[evidence register](equation-index.qmd#sec-evidence) records the status of each claim.
+:::
+
+## Start with a complete simulation
+
+[A first simulation](first-simulation.qmd) starts with importing your own genotype
+data and uses bundled observed maize genotypes for a reproducible walkthrough of
+model specification, diagnostics, and file export. It also explains
+why the requested variance allocation and the realized variance ratio can differ.
+
+The book serves plant, animal, and human genetics with observed genotype
+datasets from each context: the bundled maize panel, the HapMap Phase II subset
+distributed with SNPRelate for [binary phenotypes](binary.qmd), and the
+heterogeneous-stock mice distributed with BGLR for
+[relationship matrices and prediction](prediction.qmd). The
+[genotype input chapter](input.qmd) shows how each dataset is prepared.
+
+## Three ways to read
+
+- **Learn a workflow:** follow the worked chapters in order.
+- **Find a function:** use the [public function index](functions.qmd).
+- **Inspect a method:** follow the [implementation overview](architecture.qmd),
+  [developer index](developer-index.qmd), and [equation index](equation-index.qmd).
+
+## Version and scope
+
+The examples are rendered against the package source in the same checkout as the
+book. The source revision and package version are recorded in the
+[build record](development.qmd#sec-build-record).
+
+The book covers the modern API and keeps a dedicated chapter for the
+frozen `create_phenotypes()` interface ([legacy interface](legacy.qmd)). The original package publication is
+[Fernandes and Lipka (2020)](https://doi.org/10.1186/s12859-020-03804-y);
+the current development interface includes methods added after that publication.

@@ -1,0 +1,82 @@
+project:
+  type: book
+  output-dir: _book
+  execute-dir: project
+  pre-render:
+    - python3 ../../dev/book/build_index.py
+  resources:
+    - downloads/**
+
+book:
+  title: simplePHENOTYPES
+  subtitle: Simulation methods, quantitative genetics, and reproducible workflows
+  search: true
+  sidebar:
+    style: docked
+    collapse-level: 2
+  chapters:
+    - index.qmd
+    - part: Foundations
+      chapters:
+        - first-simulation.qmd
+        - conventions.qmd
+        - input.qmd
+        - founders.qmd
+    - part: Phenotype models
+      chapters:
+        - additive.qmd
+        - nonadditive.qmd
+        - multitrait.qmd
+        - binary.qmd
+        - complex.qmd
+    - part: Generations and breeding
+      chapters:
+        - cross.qmd
+        - trait.qmd
+        - mating.qmd
+        - prediction.qmd
+        - selection.qmd
+        - optimization.qmd
+        - markers.qmd
+        - programs.qmd
+    - part: Expression
+      chapters:
+        - expression.qmd
+        - mediation.qmd
+    - part: Implementation and reference
+      chapters:
+        - output.qmd
+        - legacy.qmd
+        - architecture.qmd
+        - functions.qmd
+        - developer-index.qmd
+        - equation-index.qmd
+  appendices:
+    - derivations.qmd
+    - development.qmd
+
+format:
+  html:
+    theme:
+      - cosmo
+      - theme.scss
+    toc: true
+    toc-depth: 3
+    code-copy: true
+    code-overflow: wrap
+    link-external-newwindow: true
+    fig-format: svg
+    df-print: kable
+
+execute:
+  freeze: false
+  cache: false
+  error: false
+  warning: true
+  message: false
+
+knitr:
+  opts_chunk:
+    comment: '#>'
+    fig.width: 7
+    fig.height: 4.4

@@ -1,0 +1,90 @@
+name: Publish site
+
+# Builds the GitHub Pages site: the existing Jekyll landing page (README) at the
+# root and the Quarto book under /book/. Requires Settings > Pages > Source =
+# "GitHub Actions".
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'docs/book/**'
+      - 'dev/book/**'
+      - 'R/**'
+      - 'src/**'
+      - 'NAMESPACE'
+      - 'DESCRIPTION'
+      - 'README.md'
+      - '_config.yml'
+      - 'docs/simplePHENOTYPES_equation_code_map.*'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: |
+            any::pkgload
+            any::knitr
+            any::rmarkdown
+            any::jsonlite
+            any::dplyr
+            any::tibble
+            any::readr
+            any::tidyr
+            any::BGLR
+            bioc::SNPRelate
+            bioc::gdsfmt
+          needs: check
+      - uses: quarto-dev/quarto-actions/setup@v2
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Render the book
+        run: |
+          quarto render docs/book
+          python3 dev/book/check_links.py
+      - uses: actions/configure-pages@v5
+      - name: Build the landing page
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./
+          destination: ./_site
+      - name: Add the book under /book/
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" _site
+          rm -rf _site/book
+          cp -R docs/book/_book _site/book
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

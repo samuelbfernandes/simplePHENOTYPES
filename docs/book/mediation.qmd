@@ -1,0 +1,353 @@
+# Expression-mediated phenotypes {#sec-mediation}
+
+Suppose part of a trait's variation acts through gene expression: a few genes
+whose expression levels shift the phenotype, in addition to markers that act
+directly. If the expression itself is partly heritable, some of that
+expression-mediated variation traces back to the genome and some does not. This
+chapter builds such a phenotype on the maize genotypes, reads the causal genes
+from the usual tables, and checks how the package splits the mediated component
+into its genetic and environmental parts.
+
+[]{#mediation-setup}
+
+```{r}
+#| label: mediation-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-mediation-example}
+
+### Load the package, the genotypes, and a transcriptome
+
+[]{#mediation-library}
+
+```{r}
+#| label: mediation-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+geno <- as_numeric(
+  SNP55K_maize282_maf04,
+  to_r = TRUE, to_file = FALSE, verbose = FALSE
+)
+tx <- simulate_transcriptome(geno, n_genes = 400, seed = 11)
+tx
+```
+
+The transcriptome is the one built in the
+[previous chapter](expression.qmd): 400 genes on 280 maize lines, each gene
+with its own expression heritability. The genetic part of every gene's
+expression is stored in the object, which is what makes the split below possible.
+
+### Build a phenotype with an expression layer
+
+Pass the transcriptome to `simulate_phenotype()`, then add a `transcriptome()`
+layer that selects causal genes and a direct `additive()` layer on markers.
+The expression layer's `prop` is a separate variance category: it is not drawn
+from the marker heritability budget, and all layers together may not exceed one.
+
+[]{#mediation-model}
+
+```{r}
+#| label: mediation-model
+sim <- simulate_phenotype(geno, seed = 2, transcriptome = tx) |>
+  transcriptome(prop = 0.3, n_genes = 20) |>
+  additive(prop = 0.2, n_qtn = 10)
+sim
+```
+
+The print output shows three budget rows: the expression component, the
+additive marker component, and the residual. The requested genetic share names
+the marker layer only. The realized broad-sense ratio is larger than that share,
+because the genetic part of the expression component also counts as genetic.
+The last lines preview the split explained next.
+
+### Read the causal genes
+
+`qtn_table()` lists the causal genes as rows of the `transcriptome` layer. The
+`snp` column holds gene identifiers, the `effect` column holds the slopes, and
+`var_explained` is each gene's marginal share of phenotypic variance.
+
+[]{#mediation-qtn}
+
+```{r}
+#| label: mediation-qtn
+qt <- qtn_table(sim)
+table(qt$layer)
+
+qt |>
+  filter(layer == "transcriptome") |>
+  select(trait, layer, snp, effect, var_explained) |>
+  head()
+```
+
+The slopes are drawn from a standard normal distribution when `slopes` is not
+given. Their absolute scale is irrelevant, because the component is scaled to
+`prop`; only their relative sizes matter. The marginal shares need not add to
+0.3, because causal genes co-express and their contributions covary.
+
+### Split the mediated component
+
+`mediation_split()` returns the realized shares of phenotypic variance carried
+by the genetically mediated part, the environmentally mediated part, and twice
+their covariance.
+
+[]{#mediation-split}
+
+```{r}
+#| label: mediation-split
+mediation_split(sim)
+```
+
+The three columns sum to the realized share of the expression component. We
+now reproduce them from public outputs. The component scores each causal gene's
+expression standardized by its own standard deviation, weights it by the slope
+divided by the largest absolute slope, sums, centers, and scales the sum to
+sample variance 0.3. The genetic part applies the same weights and the same
+denominators to the genetic expression of the same genes.
+
+[]{#mediation-reconstruct}
+
+```{r}
+#| label: mediation-reconstruct
+causal <- qt |> filter(layer == "transcriptome")
+expression <- tx$expression[causal$snp, ]
+genetic_expression <- tx$genetic_expression[causal$snp, ]
+
+gene_sd <- apply(expression, 1, sd)
+weights <- causal$effect / max(abs(causal$effect))
+
+z_total <- (expression - rowMeans(expression)) / gene_sd
+z_genetic <- (genetic_expression - rowMeans(genetic_expression)) / gene_sd
+
+raw_total <- as.numeric(weights %*% z_total)
+raw_genetic <- as.numeric(weights %*% z_genetic)
+scale <- sqrt(0.3) / sd(raw_total)
+
+mediated <- scale * (raw_total - mean(raw_total))
+mediated_genetic <- scale * (raw_genetic - mean(raw_genetic))
+mediated_env <- mediated - mediated_genetic
+
+wide <- phenotypes_wide(sim)
+individuals <- colnames(geno)[-(1:5)]
+y <- wide$Trait_1[match(individuals, wide$id)]
+
+tibble(
+  quantity = c("Expression component", "Genetic-mediated", "Environment-mediated",
+               "Covariance term"),
+  package = c(sum(mediation_split(sim)[, 2:4]), mediation_split(sim)$genetic_mediated,
+              mediation_split(sim)$env_mediated, mediation_split(sim)$covariance),
+  reconstructed = c(var(mediated), var(mediated_genetic), var(mediated_env),
+                    2 * cov(mediated_genetic, mediated_env)) / var(y)
+)
+```
+
+The reconstruction matches the package. The expression component's sample
+variance is exactly 0.3 by construction, but its share of phenotypic variance
+differs slightly from 0.3 because the phenotypic variance includes the chance
+covariances among the components, as the [first chapter](first-simulation.qmd)
+explained for a single additive layer.
+
+The genetic values returned by `genetic_values()` are the marker component plus
+the genetic-mediated part. Subtracting the reconstructed genetic-mediated part
+leaves the additive marker component, whose sample variance is the requested 0.2.
+
+[]{#mediation-genetic-values}
+
+```{r}
+#| label: mediation-genetic-values
+g <- genetic_values(sim)[, "Trait_1"]
+g <- g[match(individuals, names(g))]
+
+tibble(
+  quantity = c("Additive marker component", "Genetic value", "Genetic / phenotypic variance"),
+  parameter = c(0.2, NA, NA),
+  simulated = c(var(g - mediated_genetic), var(g), var(g) / var(y))
+)
+```
+
+### Choose genes by their heritability
+
+How much of the expression component is genetic depends on which genes are
+causal. The chunk builds two phenotypes with the same slope on ten genes each:
+the ten genes with the lowest realized expression heritability, and the ten
+with the highest.
+
+[]{#mediation-genes}
+
+```{r}
+#| label: mediation-genes
+ranked <- tx$genes |> arrange(h2_realized)
+low_genes <- head(ranked$gene_id, 10)
+high_genes <- tail(ranked$gene_id, 10)
+
+split_for <- function(genes) {
+  simulate_phenotype(geno, seed = 5, transcriptome = tx) |>
+    transcriptome(prop = 0.4, genes = genes, slopes = rep(1, 10)) |>
+    mediation_split()
+}
+
+bind_rows(
+  split_for(low_genes) |> mutate(genes = "Lowest expression h2"),
+  split_for(high_genes) |> mutate(genes = "Highest expression h2")
+) |>
+  mutate(mean_gene_h2 = c(mean(head(ranked$h2_realized, 10)),
+                          mean(tail(ranked$h2_realized, 10)))) |>
+  select(genes, mean_gene_h2, genetic_mediated, env_mediated, covariance)
+```
+
+With weakly heritable genes almost all of the expression component is
+environmental; with strongly heritable genes most of it is genetic. The
+component's sample variance is 0.4 in both cases; its share of phenotypic
+variance differs slightly only through its chance covariance with the residual.
+The two phenotypes therefore have very different broad-sense ratios despite
+identical `prop`.
+
+### Use a real expression matrix instead
+
+When the expression source is an observed matrix passed through
+`expression =`, the package has no basis for asserting which part of it is
+genetic. The whole component is then treated as an environmental predictor:
+it is excluded from the genetic values and from the realized ratio, and
+`mediation_split()` returns `NULL`. The chunk uses the simulated matrix as if it
+were observed data.
+
+[]{#mediation-real}
+
+```{r}
+#| label: mediation-real
+sim_real <- simulate_phenotype(geno, seed = 2, expression = tx$expression) |>
+  transcriptome(prop = 0.3, n_genes = 20) |>
+  additive(prop = 0.2, n_qtn = 10)
+sim_real
+is.null(mediation_split(sim_real))
+
+tibble(
+  quantity = "Genetic / phenotypic variance",
+  derived_source = var(genetic_values(sim)[, "Trait_1"]) / var(phenotypes_wide(sim)$Trait_1),
+  real_source = var(genetic_values(sim_real)[, "Trait_1"]) / var(phenotypes_wide(sim_real)$Trait_1)
+)
+```
+
+The same 20-gene component appears in both phenotypes, but only the derived
+source contributes to the genetic value. A phenotype can also be built from
+expression alone, with no genotypes. Then individuals come from the expression
+columns, there are no markers, and only `transcriptome()` layers are valid.
+
+[]{#mediation-genotype-free}
+
+```{r}
+#| label: mediation-genotype-free
+simulate_phenotype(expression = tx$expression, seed = 3) |>
+  transcriptome(prop = 0.5, n_genes = 15)
+```
+
+### Several traits
+
+`prop` can be given per trait. The genes are drawn independently for each trait
+under the default `independent` architecture, and the split is reported per trait.
+
+[]{#mediation-multitrait}
+
+```{r}
+#| label: mediation-multitrait
+sim_two <- simulate_phenotype(geno, n_traits = 2, seed = 6, transcriptome = tx) |>
+  transcriptome(prop = c(0.3, 0.1), n_genes = 10) |>
+  additive(prop = 0.3, n_qtn = 20)
+sim_two
+mediation_split(sim_two)
+```
+
+Under the `pleiotropy` and `ld` architectures the correlation design covers
+the marker layers only. The genetic-mediated part then adds a cross-trait
+genetic correlation set by the genes and slopes, so the total genetic
+correlation is no longer the targeted one; the package warns in that case. The
+[multiple-trait chapter](multitrait.qmd) discusses the targeted correlations.
+
+## Assumptions and theory
+
+The expression layer and its split are package definitions. The equation map
+records them as the package's own design, mirroring the scaling of
+`additive()`, with the mediation split described as an analogue of the
+mediated-expression estimand used in the literature on expression-mediated
+heritability (recorded without a verified page, and not relied on here).
+
+### The expression component
+
+For trait $t$ with causal gene set $S$, slopes $b_g$, and expression $E_g$,
+
+$$
+T_x = c \sum_{g \in S} w_g z_g, \qquad
+w_g = \frac{b_g}{\max_{g' \in S} \lvert b_{g'} \rvert}, \qquad
+z_g = \frac{E_g - \bar E_g}{s_{E_g}}, \qquad
+c = \frac{\sqrt{\pi_x}}{s_{\sum_g w_g z_g}}.
+$$ {#eq-mediation-layer}
+
+The bar is the sample mean over the scored individuals and $s$ the sample
+standard deviation; $\pi_x$ is the requested share `prop`. The component has
+sample variance $\pi_x$ exactly. This is implemented in `.tx_raw()` and
+`.transcriptome_matrix()`; the chunk above reproduced it.
+
+### The split
+
+Because each gene's expression is its genetic part plus its residual,
+$E_g = \mu_g + G_g + R_g$, standardizing both parts by the same denominator
+$s_{E_g}$ decomposes the standardized expression additively,
+$z_g = z_g^{\text{genetic}} + z_g^{\text{env}}$. Applying the same weights and
+the same scale $c$ gives
+
+$$
+T_{x,g} = c \sum_{g \in S} w_g \frac{G_g - \bar G_g}{s_{E_g}}, \qquad
+T_{x,e} = T_x - T_{x,g}.
+$$ {#eq-mediation-split}
+
+The reported shares are $\operatorname{Var}(T_{x,g})/V_P$,
+$\operatorname{Var}(T_{x,e})/V_P$, and $2\operatorname{Cov}(T_{x,g}, T_{x,e})/V_P$,
+with $V_P$ the sample variance of the phenotype. They sum to
+$\operatorname{Var}(T_x)/V_P$ by the sample variance identity of
+@sec-variance-derivation. The covariance term is close to zero because the
+generator draws the genetic and residual parts of expression independently, but
+it is reported rather than assumed. The split is computed in
+`.tx_raw(which = "genetic")` and `.mediation_budget()`, averaged over
+simulation replications.
+
+### The realized broad-sense ratio
+
+With $\text{Gen}$ the sum of the marker layers, the genetic value is
+$\text{Gen} + T_{x,g}$ and the realized ratio is
+
+$$
+H^2_{\text{realized}} = \frac{\operatorname{Var}(\text{Gen} + T_{x,g})}{V_P}.
+$$ {#eq-mediation-h2}
+
+For a real expression source, $T_{x,g}$ is set to zero. The ratio is a sample
+diagnostic, not a population parameter, for the reasons given in the
+[first chapter](first-simulation.qmd). Each gene's `var_explained` is
+$(c\,w_g)^2 / V_P$, a marginal share that ignores covariance among the genes'
+standardized expressions, so the shares need not sum to the component's share.
+
+## Implementation and practical limits
+
+The layer lives in `transcriptome()` (R/transcriptome_layer.R) and the scoring
+and split in the realization helpers of R/grammar_realize.R. The gene rows of
+`qtn_table()` are written by the same export code as marker rows, with
+coordinates and allele frequency left missing.
+
+- The layer scores the latent normalized expression, never the counts produced
+  by `observe_counts()`. Count data are an observation layer only.
+- `prop` for the expression layer is outside the marker `h2` budget; the sum of
+  all layer shares is checked against one.
+- With `reps`, the residual is divided by the square root of the number of
+  records, while the genetic value and the expression component are unchanged.
+- A real expression matrix contributes no genetic variance by definition, even
+  if its genes are in fact heritable. Use a derived transcriptome, possibly
+  calibrated with `mimic`, when the genetic content matters.
+- Explicit `genes` must name rows of the expression source without duplicates;
+  explicit `slopes` must have one finite value per causal gene.
+- Cross-population reuse follows `predict()` from the previous chapter: a
+  transcriptome predicted for new individuals can be passed to
+  `simulate_phenotype()` for those individuals, but the phenotype's residual and
+  layer draws are new.

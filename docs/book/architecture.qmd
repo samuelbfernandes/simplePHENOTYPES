@@ -1,0 +1,71 @@
+# Implementation overview
+
+The public R interface connects genotype input, population objects, trait
+simulation, prediction, and selection. The diagram groups these operations so
+that the feedback from selection to the next generation remains visible.
+Each box represents a subsystem, not a single function call.
+
+```{mermaid}
+%%| fig-cap: "Main workflow. Each box groups public operations; the tables below identify the implementing functions and languages."
+flowchart TB
+  input["Genotypes and founders"]
+  pop["Population / haplotypes"]
+  traits["Phenotype model"]
+  expression["Expression model"]
+  inspect["Inspect / export"]
+  select["Predict / select"]
+  cross["Mate / cross"]
+  input --> pop
+  input --> traits
+  pop --> traits
+  expression --> traits
+  traits --> inspect
+  traits --> select
+  select --> cross
+  cross --> pop
+  classDef api fill:#e6f2f1,stroke:#24787b,color:#18373d;
+  class input,pop,traits,expression,inspect,select,cross api;
+```
+
+## Where the first example runs
+
+The public calls `simulate_phenotype()` and `additive()` build and realize a
+`phenotype_sim`. Internal R functions sample causal markers, draw effects,
+construct genetic values, scale components, and draw residuals. Inspection
+functions expose the resulting values and metadata.
+
+| Operation | Representative implementation |
+|---|---|
+| Normalize and validate inputs | `.normalize_geno()`, `.check_arch_args()` |
+| Sample causal markers | `.draw_qtn()` |
+| Construct effect series | `.effect_series()` |
+| Assemble and scale genetic values | `.component_raw()`, `.genetic_matrix()` |
+| Draw and scale residuals | `.draw_residual()`, `.seeded_residual()` |
+| Assemble phenotype and diagnostics | `.realize_phenotype()`, `.variance_budget()` |
+
+The [developer index](developer-index.qmd) supplies current source locations.
+
+## Randomness and Rust
+
+On the meiosis path, R draws the random quantities and passes them to Rust's
+recombination implementation. QTN sampling and effect and residual draws also
+stay in R. This boundary is part of the package's reproducibility contract.
+
+The coalescent founder generator is an explicit exception: its Rust engine uses
+a PRNG seeded through R. This is a separate path from the isqg parity-sensitive
+meiosis implementation. Numericalization and stable hashing are deterministic
+Rust operations. The source modules are `numeric.rs`, `meiosis.rs`, `genome.rs`,
+`hash.rs`, and `coalescent.rs`.
+
+| Implementation boundary | R interface or helper | Rust kernel |
+|---|---|---|
+| Genotype numericalization | `as_numeric()` and format handlers | `numericalize_core()` |
+| Meiosis with R-supplied randomness | `.draw_meiosis()` and mating helpers | `meiosis_core()`, `mate_many_core()` |
+| Stable identifiers | `.stable_key()` and related helpers | `stable_hash_core()` |
+| Coalescent founders with seeded Rust randomness | `founders_coalescent()` | `coalescent_chromosome_core()` |
+
+## Legacy and modern interfaces
+
+`create_phenotypes()` retains its own legacy implementation. It is not a wrapper
+around the composable grammar. Its examples and theory must therefore be checked
+against the legacy source separately rather than inferred from modern examples.

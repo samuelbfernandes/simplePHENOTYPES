@@ -1,0 +1,420 @@
+# A first simulation {#sec-first-simulation}
+
+Suppose you have genotyped individuals and want to simulate a continuous trait
+controlled by 20 additive causal markers on their observed genotypes.
+You want to retain the simulated genetic values, inspect the phenotype, and save
+the result for a downstream analysis. This chapter carries out that workflow
+and checks what a requested genetic variance allocation of 0.5 actually means.
+
+[]{#first-setup}
+
+```{r}
+#| label: first-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-first-example}
+
+### Load the package
+
+Use the development version corresponding to this book. The commands below assume
+the package is installed; see the [build instructions](development.qmd#sec-build)
+if you are working from a source checkout.
+
+[]{#first-library}
+
+```{r}
+#| label: first-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+library(readr)
+```
+
+### Bring your own genotype data
+
+The starting point is your genotype dataset. `as_numeric()` reads supported
+formats, including VCF and HapMap, and prepares the numeric input used by the
+simulation. Replace the path below with your own file. This recipe is not executed
+when building the book because it refers to a reader-supplied file.
+
+```{r}
+#| eval: false
+geno <- as_numeric(
+  "path/to/your_genotypes.vcf",
+  to_r = TRUE, to_file = FALSE, verbose = FALSE
+)
+```
+
+The same workflow accepts a HapMap file by replacing the path with, for example,
+`"path/to/your_genotypes.hmp.txt"`. Format-specific dependencies and input checks
+are covered in the [genotype input chapter](input.qmd). Before simulating, check
+individual identifiers, allele coding, missingness, and marker quality; importing
+a file does not establish that it is suitable for your study.
+
+### Follow along with observed maize genotypes
+
+To make this chapter runnable without an external download, we use the bundled
+`SNP55K_maize282_maf04` dataset: 10,650 markers and 280 maize individuals from
+an inbred association panel. The dataset name refers to the original 282-line
+panel; the bundled table contains 280 individual columns. Its documentation
+attributes the marker data to Cook et al. (2012); see
+`?SNP55K_maize282_maf04` for provenance.
+
+These genotypes are already numeric. Here `as_numeric()` normalizes the input
+schema; it is not converting raw nucleotide calls. If you loaded your own file
+above, keep that `geno` object and skip this replacement block. All subsequent
+steps use the same object name.
+
+[]{#first-genotypes}
+
+```{r}
+#| label: first-genotypes
+data("SNP55K_maize282_maf04", package = "simplePHENOTYPES")
+geno <- as_numeric(
+  SNP55K_maize282_maf04,
+  to_r = TRUE, to_file = FALSE, verbose = FALSE
+)
+
+tibble(markers = nrow(geno), individuals = ncol(geno) - 5)
+
+geno |>
+  select(1:9) |>
+  head()
+```
+
+Markers occupy rows; the first five columns contain marker metadata and the
+remaining columns identify individuals. Genotypes use `-1`, `0`, `1` coding;
+see [coding conventions](conventions.qmd#sec-coding). The bundled data were
+filtered to minor allele frequency greater than 0.4 to reduce their size, so
+they do not represent the full allele-frequency spectrum of the original panel.
+
+::: {.callout-note title="Observed genotypes, simulated phenotype"}
+The simulation uses the observed marker patterns, including their associations
+across loci, to generate a new trait. It does not use measured maize phenotypes.
+The bundled `cm` column is a **synthetic genetic map**, not measured recombination
+distances. This additive phenotype example does not simulate meiosis.
+:::
+
+### Specify and inspect the trait
+
+[]{#first-model}
+
+```{r}
+#| label: first-model
+sim <- simulate_phenotype(geno, seed = 901) |>
+  additive(prop = 0.5, n_qtn = 20)
+print(sim)
+```
+
+`simulate_phenotype()` establishes the simulation and its seed. `additive()`
+samples the causal markers and constructs the genetic component. The default
+effect series is geometric, so the 20 markers do not contribute equally.
+The object already contains realized phenotypes after the layer is added.
+
+[]{#first-tables}
+
+```{r}
+#| label: first-tables
+long <- phenotypes_long(sim)
+wide <- phenotypes_wide(sim)
+truth <- genetic_values(sim)
+qt <- qtn_table(sim)
+
+head(long)
+qt |>
+  select(snp, effect, var_explained) |>
+  head()
+```
+
+The long table has one row per individual, trait, and simulation replication.
+The wide table has one trait column per trait. `genetic_values()` returns the
+simulated genetic values, and `qtn_table()` identifies the causal markers and
+their model effects. These are known simulation quantities, not estimates from
+phenotypes. The `effect` column is the layer's effect series; component scaling
+also enters the realized genetic values, as explained below.
+
+### Check the realized variance
+
+We compare what we requested with what the simulation produced. First, join
+phenotypes and genetic values by individual ID. `as_tibble(..., rownames = "id")`
+turns the genetic-value matrix into a table and keeps its individual names as an
+`id` column. `left_join()` matches individuals by that column, so row order does
+not matter.
+
+In this example the phenotype is a genetic value plus a residual. Subtracting
+the genetic value therefore recovers the residual.
+
+[]{#first-variance}
+
+```{r}
+#| label: first-variance
+genetic <- truth |>
+  as_tibble(rownames = "id") |>
+  rename(genetic_value = Trait_1)
+
+values <- long |>
+  left_join(genetic, by = "id") |>
+  mutate(residual = value - genetic_value)
+
+comparison <- tibble(
+  quantity = c(
+    "Genetic variance", "Residual variance", "Genetic-residual covariance",
+    "Phenotypic variance", "Genetic / phenotypic variance"
+  ),
+  parameter = c(0.5, 0.5, 0, 1, 0.5),
+  simulated = c(
+    var(values$genetic_value), var(values$residual),
+    cov(values$genetic_value, values$residual), var(values$value),
+    var(values$genetic_value) / var(values$value)
+  )
+)
+
+comparison
+```
+
+The `parameter` column shows the design values. The last two entries are the
+benchmarks obtained when genetic and residual components are uncorrelated;
+0.5 is not a claim about the average of the sample variance ratio across runs.
+The genetic and residual sample variances equal 0.5 under the default settings.
+Their sample covariance can be positive or negative, so the last two rows can
+differ from their benchmarks. We explain why below.
+
+[]{#first-plot}
+
+```{r}
+#| label: first-plot
+#| fig-height: 6
+#| fig-cap: "The default diagnostic plots for the maize simulation."
+plot(sim)
+```
+
+The default plot shows the variance budget, phenotype distribution, marker
+effects, and requested versus realized genetic variance ratio. The budget panel
+shows the model's allocations; it is not a measurement of every sample variance.
+The histogram shows the resulting distribution; additive effects alone do not
+guarantee a bell-shaped phenotype distribution.
+
+### Export and reproduce the result
+
+Create a results folder and save the phenotype and causal-marker tables.
+`write_phenotypes()` and `write_qtn_table()` use the simulation object directly.
+
+[]{#first-export}
+
+```{r}
+#| label: first-export
+dir.create("results", showWarnings = FALSE)
+write_phenotypes(sim, file = "results/phenotypes.tsv", sep = "\t")
+write_qtn_table(sim, file = "results/causal-markers.tsv", sep = "\t")
+
+saved <- read_tsv("results/phenotypes.tsv", show_col_types = FALSE)
+saved |> head()
+```
+
+Use the same input and seed to repeat the simulation. The table below places the
+two sets of phenotypes next to each other.
+
+[]{#first-reproduce}
+
+```{r}
+#| label: first-reproduce
+again <- simulate_phenotype(geno, seed = 901) |>
+  additive(prop = 0.5, n_qtn = 20)
+
+first_run <- phenotypes_long(sim) |>
+  rename(first_value = value)
+
+second_run <- phenotypes_long(again) |>
+  rename(second_value = value)
+
+first_run |>
+  left_join(second_run, by = c("id", "trait", "rep")) |>
+  select(id, first_value, second_value) |>
+  head()
+```
+
+The first rows illustrate reproducibility in this software environment. For a
+reproducible study, keep the input data, seed, and package version with your script.
+
+## Assumptions and theory
+
+This example uses one continuous trait, one additive layer, one simulation
+replication, one record per individual, default mean zero, and a nondegenerate
+genetic component. There is no selection, crossing, dominance, epistasis,
+expression-mediated component, or threshold transformation.
+
+### How the trait is built
+
+Each selected marker contributes its coded genotype multiplied by its effect.
+The package adds those contributions to obtain a genetic score for each
+individual. It then shifts the scores to mean zero and rescales them so their
+sample variance equals the requested allocation, here 0.5.
+
+The residual represents variation outside this genetic component. By default,
+the package draws normal random values, shifts them to mean zero, and rescales
+them to the remaining variance, also 0.5. The phenotype is simply
+
+$$
+\text{phenotype} = \text{genetic value} + \text{residual}.
+$$
+
+Rescaling controls the spread of each component. It does not control whether an
+individual with a high genetic value happens to receive a high residual too.
+The detailed normalization formulas are explained in @sec-scaling-derivation.
+
+### Why the realized ratio can differ from 0.5
+
+Imagine two runs with exactly the same genetic values. In one run, individuals
+with high genetic values happen to receive mostly positive residuals. This
+reinforces their differences and increases the phenotype's spread. In another
+run, those individuals happen to receive mostly negative residuals, reducing
+the spread. This chance agreement or disagreement is measured by **sample
+covariance**.
+
+The exact accounting rule is
+
+$$
+\operatorname{Var}(y) = \operatorname{Var}(g) + \operatorname{Var}(e)
+                         + 2\operatorname{Cov}(g,e).
+$$ {#eq-sample-variance}
+
+Here $y$ means phenotype, $g$ genetic value, and $e$ residual. `Var` measures
+spread; `Cov` measures whether two sets of values tend to rise together. These
+are sample quantities, calculated from the simulated individuals.
+
+Our two variances are 0.5 each. Their sum is one, but the covariance term can
+move phenotypic variance above or below one. Dividing genetic variance by this
+changing total therefore need not give exactly 0.5.
+
+The package labels this sample ratio `realized H²`. It is a diagnostic of one
+simulation, not an estimated population heritability. In unusual samples it can
+even exceed one; @sec-variance-derivation explains the algebra and gives an
+example. This does not imply that population heritability exceeds one.
+
+### Allow residual sample variance to fluctuate
+
+Keep the default `residual_mode = "fixed"` when you want the residual component
+to have the same sample variance in each run. Choose `"random"` when you want
+ordinary normal sampling variation, as in AlphaSimR's standard residual draw.
+In random mode, 0.5 describes the variance of the distribution supplying the
+residuals. A finite sample from that distribution need not have variance exactly
+0.5, and its mean need not be exactly zero.
+
+[]{#first-random-residuals}
+
+```{r}
+#| label: first-random-residuals
+random_sim <- simulate_phenotype(geno, seed = 901, residual_mode = "random") |>
+  additive(prop = 0.5, n_qtn = 20)
+
+random_values <- phenotypes_long(random_sim) |>
+  left_join(genetic, by = "id") |>
+  mutate(residual = value - genetic_value)
+
+tibble(
+  quantity = c("Residual mean", "Residual variance", "Genetic-residual covariance"),
+  parameter = c(0, 0.5, 0),
+  fixed = c(
+    mean(values$residual), var(values$residual),
+    cov(values$genetic_value, values$residual)
+  ),
+  random = c(
+    mean(random_values$residual), var(random_values$residual),
+    cov(random_values$genetic_value, random_values$residual)
+  )
+)
+```
+
+The same seed and genetic specification retain the same genetic values, which
+is why we can reuse the `genetic` table. Random mode changes only how residuals
+are generated. Both modes leave genetic-residual sample covariance free to vary.
+For repeated sampling studies of estimators or confidence intervals, random mode
+matches a model with independent normal errors. Fixed mode offers controlled
+component variances for comparisons between simulation settings.
+
+For multiple traits, `resid_cor` specifies their residual correlations. Random
+mode draws correlated normal residuals without fixing their sample variances.
+With `reps`, both modes divide residuals by the square root of the number of
+records to represent an entry mean. A carried population trait remembers its
+residual mode unless you explicitly choose another. For vQTLs, random mode also
+lets the heterogeneous residual component fluctuate; the average of its
+individual variance parameters equals the requested allocation.
+
+### Should the residual covariance be forced to zero?
+
+Usually there is no need to force it to zero. Independent residual generation
+allows chance covariance in a finite sample; that is part of the sampling model.
+One could instead adjust the residuals using the genetic values until their
+sample covariance is zero, then rescale them. For this simple model that would
+make the variance ratio exactly 0.5, but it would impose another constraint on
+the sample. Such adjustment is a different simulation design and is not provided
+by either residual mode here.
+
+### Comparison with AlphaSimR
+
+AlphaSimR 2.1.0 provides a useful comparison. Its ordinary `setPheno()` path
+draws normal residuals and adds them to genetic values. It neither projects those
+residuals off the genetic-value vector nor standardizes their realized sample
+variance. Its `h2` and `H2` arguments calibrate the error-variance parameter using
+founder-population variances. They therefore do not promise the requested sample
+ratio in every simulated population. See the
+[official setPheno documentation](https://gaynorr.github.io/AlphaSimR/reference/setPheno.html)
+and the `addError()` implementation in
+[phenotypes.R](https://github.com/gaynorr/AlphaSimR/blob/master/R/phenotypes.R).
+
+| Ordinary single-trait path, one record | Residual sample variance fixed? | Genetic–residual sample covariance forced to zero? |
+|---|---|---|
+| simplePHENOTYPES `residual_mode = "fixed"` (default) | Yes | No |
+| simplePHENOTYPES `residual_mode = "random"` | No | No |
+| AlphaSimR 2.1.0 `setPheno()` | No | No |
+| Hypothetical exact sample calibration | Yes | Yes |
+
+The optional repository script `dev/book/compare_alphasimr.R` reproduces the
+comparison without making AlphaSimR a dependency of this book. The matching residual-draw principle does not make the packages identical:
+AlphaSimR and simplePHENOTYPES use different trait-calibration workflows. GxE and
+other specialized model paths require separate interpretation.
+
+## Implementation and practical limits
+
+The scientific calculations above are R functions. QTN sampling and effect and
+residual draws stay in R. The [implementation diagram](architecture.qmd) shows
+where Rust participates in other workflows.
+
+- Preserve genotype orientation and individual identifiers when importing your own data.
+- A requested positive allocation needs a component with nonzero variation.
+- Interpret per-marker `var_explained` values as marginal contributions; covariance
+  among marker contributions can prevent their sum from equaling the layer share.
+- This chapter's residual calculation does not apply unchanged to threshold traits,
+  expression-mediated phenotypes, or other added components.
+
+::: {.callout-tip title="Extending the maize example"}
+This is an inbred panel. Before adding dominance, inspect heterozygosity: loci
+without heterozygotes cannot express variation in a heterozygote-indicator column.
+The high-MAF subset is a teaching dataset, not a universal marker-filtering rule.
+:::
+
+### Plant, animal, and human applications
+
+The book's worked examples use observed genotype datasets from all three
+contexts. Plant examples cover quantitative traits and breeding workflows on
+this maize panel; the [prediction chapter](prediction.qmd) uses heterogeneous-stock
+mice for relationships, prediction, and accuracy; and the
+[binary phenotype chapter](binary.qmd) uses HapMap individuals to introduce
+`liability_threshold()`, distinguishing latent liability from observed
+case/control status. The [genotype input chapter](input.qmd) documents where
+each dataset comes from and how it is prepared.
+
+The common starting point is a user's genotype data. Dataset-specific features,
+such as inbreeding, relatedness, and population structure, belong in the scientific
+interpretation of each example.
+
+## Explore the simulation
+
+Change the seed and compare the tables again. The component allocations should
+remain stable, while the sample covariance and realized ratio change. Then reduce
+the number of causal markers to one and inspect the phenotype histogram.
+Also repeat with `residual_mode = "random"` and watch the residual variance
+change. These comparisons distinguish model specification from the empirical distribution of
+one simulated population.

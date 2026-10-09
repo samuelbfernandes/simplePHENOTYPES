@@ -1,0 +1,410 @@
+# Dominance and epistasis {#sec-nonadditive}
+
+Dominance makes heterozygotes deviate from the midpoint of the two
+homozygotes; epistasis makes the effect of one locus depend on the genotype at
+another. This chapter adds both to an additive trait on real human genotypes,
+checks by hand how each component is built, and explains why the realized
+genetic variance of a trait with additive and dominance layers on the same loci
+is not the sum of the two requested shares. It ends with the orthogonal
+genotypic model, which gives a Fisher-orthogonal partition when that is what a
+study needs.
+
+[]{#nonadditive-setup}
+
+```{r}
+#| label: nonadditive-setup
+#| include: false
+source("_setup.R")
+source("_data.R")
+```
+
+## Worked example {#sec-nonadditive-example}
+
+### Why human genotypes
+
+Dominance is defined by heterozygotes. The maize panel of the earlier
+chapters is inbred: fewer than half of its markers carry any heterozygote,
+and those that do carry very few. The HapMap individuals used
+here are outbred, so every common marker has heterozygotes. The
+[genotype-input chapter](input.qmd) explains how this dataset is read; the
+shared loader below repeats those steps.
+
+[]{#nonadditive-library}
+
+```{r}
+#| label: nonadditive-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+
+human <- book_human()
+tibble(markers = nrow(human), individuals = ncol(human) - 5)
+```
+
+### Additive and dominance on the same loci
+
+`dominance()` adds a dominance component. By default it reuses the additive
+layer's markers (`same_as_add = TRUE`), so the trait has ten causal loci that
+act both additively and through dominance.
+
+[]{#nonadditive-dominance}
+
+```{r}
+#| label: nonadditive-dominance
+ad <- simulate_phenotype(human, seed = 21) |>
+  additive(prop = 0.4, n_qtn = 10) |>
+  dominance(prop = 0.2)
+print(ad)
+```
+
+The requested genetic share is 0.6 but the realized ratio printed by the
+object is well below it. The printed note explains why: the additive and
+dominance components of the same loci covary, and the covariance is negative
+here. The `ad_report` element stores the same accounting as a table.
+
+[]{#nonadditive-ad-report}
+
+```{r}
+#| label: nonadditive-ad-report
+ad$ad_report |>
+  select(trait, requested, realized, var_cA, var_cD, cov2_comp)
+```
+
+`var_cA` and `var_cD` are the realized variances of the scaled additive and
+dominance components, as shares of the phenotypic variance; `cov2_comp` is
+twice their covariance. The three add up to the realized genetic share.
+
+### Rebuild the genetic value by hand
+
+`qtn_table()` lists each layer's markers and effects. The additive component
+multiplies the genotype code by the effect; the dominance component multiplies
+a heterozygote indicator (one where the code is `0`, zero elsewhere) by the
+effect. Each component is centered and scaled to its `prop`, then the two are
+added. The code below repeats those steps for every individual and compares
+the result with `genetic_values()`.
+
+[]{#nonadditive-rebuild}
+
+```{r}
+#| label: nonadditive-rebuild
+qt <- qtn_table(ad)
+X <- as.matrix(human[, -(1:5)])
+rownames(X) <- human$snp
+
+add_rows <- filter(qt, layer == "additive")
+dom_rows <- filter(qt, layer == "dominance")
+
+score_a <- colSums(X[add_rows$snp, ] * add_rows$effect)
+score_d <- colSums((X[dom_rows$snp, ] == 0) * dom_rows$effect)
+
+scale_to <- function(score, prop) sqrt(prop) * (score - mean(score)) / sd(score)
+g_a <- scale_to(score_a, 0.4)
+g_d <- scale_to(score_d, 0.2)
+
+truth <- genetic_values(ad)[, "Trait_1"]
+tibble(
+  id = names(truth),
+  package = truth,
+  by_hand = (g_a + g_d)[names(truth)]
+) |>
+  head()
+
+tibble(
+  quantity = c("Var(additive component)", "Var(dominance component)",
+               "2 Cov(additive, dominance)", "Var(genetic value)"),
+  parameter = c(0.4, 0.2, NA, 0.6),
+  simulated = c(var(g_a), var(g_d), 2 * cov(g_a, g_d), var(g_a + g_d))
+)
+```
+
+The two columns agree to rounding. The second table shows that each component
+has exactly its requested variance and that the covariance term is what moves
+the genetic variance away from 0.6. The sign of that term is explained in the
+theory section.
+
+### Dominance on separate loci, with chosen effects
+
+`same_as_add = FALSE` draws new loci for the dominance layer, and `effect`
+sets the dominance effects. Here the five dominance loci have no additive
+effect, so the two components covary only by chance.
+
+[]{#nonadditive-dominance-separate}
+
+```{r}
+#| label: nonadditive-dominance-separate
+ad_separate <- simulate_phenotype(human, seed = 21) |>
+  additive(prop = 0.4, n_qtn = 10) |>
+  dominance(prop = 0.2, same_as_add = FALSE, n_qtn = 5,
+            effect = c(0.5, 0.4, 0.3, 0.2, 0.1))
+print(ad_separate)
+
+qtn_table(ad_separate) |>
+  filter(layer == "dominance") |>
+  select(snp, maf, effect, var_explained)
+```
+
+### Epistasis: pairs of interacting loci
+
+`epistasis()` adds interacting sets of markers. `n_pairs` is the number of
+sets, `interaction` the number of markers per set, and `interaction_type`
+says whether each position enters through its genotype code (`"a"`) or its
+heterozygote indicator (`"d"`). The default is pairwise additive-by-additive.
+
+[]{#nonadditive-epistasis}
+
+```{r}
+#| label: nonadditive-epistasis
+ep <- simulate_phenotype(human, seed = 22) |>
+  additive(prop = 0.3, n_qtn = 10) |>
+  epistasis(prop = 0.2, n_pairs = 3)
+print(ep)
+
+qtn_table(ep) |>
+  filter(layer == "epistasis") |>
+  select(set, snp, maf, effect)
+```
+
+Each set has one effect, shared by its members, and `var_explained` is not
+reported for epistatic members because a single marker has no marginal share
+in a product term. The product is formed from centered codes, as the next
+chunk verifies by rebuilding the epistatic component.
+
+[]{#nonadditive-epistasis-rebuild}
+
+```{r}
+#| label: nonadditive-epistasis-rebuild
+epi_rows <- qtn_table(ep) |> filter(layer == "epistasis")
+X_centered <- X - rowMeans(X)
+
+set_products <- lapply(split(epi_rows, epi_rows$set), function(rows) {
+  rows$effect[1] * apply(X_centered[rows$snp, , drop = FALSE], 2, prod)
+})
+score_e <- Reduce(`+`, set_products)
+
+add_rows <- qtn_table(ep) |> filter(layer == "additive")
+score_a <- colSums(X[add_rows$snp, ] * add_rows$effect)
+rebuilt <- scale_to(score_a, 0.3) + scale_to(score_e, 0.2)
+
+truth <- genetic_values(ep)[, "Trait_1"]
+all.equal(unname(truth), unname(rebuilt[names(truth)]))
+```
+
+Higher-order interactions and dominance-type positions follow the same
+construction. The next simulation stacks an additive-by-dominance layer and a
+dominance-by-dominance layer, and a three-way additive interaction.
+
+[]{#nonadditive-epistasis-types}
+
+```{r}
+#| label: nonadditive-epistasis-types
+ep_mixed <- simulate_phenotype(human, seed = 22) |>
+  additive(prop = 0.3, n_qtn = 10) |>
+  epistasis(prop = 0.1, n_pairs = 2, interaction_type = c("a", "d")) |>
+  epistasis(prop = 0.1, n_pairs = 2, interaction_type = c("d", "d"))
+print(ep_mixed)
+
+ep_three <- simulate_phenotype(human, seed = 22) |>
+  additive(prop = 0.3, n_qtn = 4) |>
+  epistasis(prop = 0.2, n_pairs = 2, interaction = 3)
+
+qtn_table(ep_three) |>
+  filter(layer == "epistasis") |>
+  select(set, snp, effect)
+```
+
+### The orthogonal genotypic model
+
+In the layers above, the additive and dominance shares are set directly and
+the components are not orthogonal. `additive(orthogonal = TRUE, a =, d =)`
+instead assigns each locus a genotypic value of $-a$, $+d$, $+a$ for zero, one,
+and two copies of the counted allele, scales the whole genotypic value to
+`prop`, and lets the additive and dominance variances emerge from $a$, $d$, and
+the allele frequencies.
+
+[]{#nonadditive-orthogonal}
+
+```{r}
+#| label: nonadditive-orthogonal
+orth <- simulate_phenotype(human, h2 = 0.6, seed = 23) |>
+  additive(orthogonal = TRUE, a = rep(0.5, 10), d = rep(0.5, 10), n_qtn = 10)
+print(orth)
+
+qtn_table(orth) |>
+  select(snp, maf, effect, d, var_explained) |>
+  head(4)
+```
+
+The budget now shows an `additive` row, a `dominance` row, and an
+`add_dom_cov` row. Vectors are passed for `a` and `d` because a single number
+for `a` is the base of a geometric series, which would give each locus a
+different degree of dominance. The degree of dominance is `d / abs(a)`, one
+here, which is complete dominance at every locus. The next table compares no dominance,
+complete dominance, and overdominance on the same loci.
+
+[]{#nonadditive-degree}
+
+```{r}
+#| label: nonadditive-degree
+degree_budget <- function(d) {
+  budget <- simulate_phenotype(human, h2 = 0.6, seed = 23) |>
+    additive(orthogonal = TRUE, a = rep(0.5, 10), d = rep(d, 10), n_qtn = 10) |>
+    getElement("var_budget")
+  tibble(
+    degree = d / 0.5,
+    additive = round(budget$prop[budget$component == "additive"], 3),
+    dominance = round(budget$prop[budget$component == "dominance"], 3),
+    add_dom_cov = round(budget$prop[budget$component == "add_dom_cov"], 3)
+  )
+}
+
+bind_rows(degree_budget(0), degree_budget(0.5), degree_budget(1))
+```
+
+With `d = 0` the model is purely additive and the dominance row is zero.
+With complete dominance a substantial part of the genotypic variance is
+dominance variance, and with overdominance the dominance row grows further.
+The three rows always add up to the requested 0.6; the additive row is not
+simply what is left over, because the covariance row also changes. The `add_dom_cov` row is the
+realized covariance between the additive and dominance parts of the genotypic
+value; it is close to zero in a large random-mating sample and nonzero in a
+structured sample such as this multi-population panel.
+
+### The one-call model
+
+`model = "AD"` splits `h2` equally between an additive and a dominance layer
+on shared loci. It is a shortcut for the first simulation of this chapter, not
+for the orthogonal model.
+
+[]{#nonadditive-model-ad}
+
+```{r}
+#| label: nonadditive-model-ad
+one_call <- simulate_phenotype(human, h2 = 0.6, n_qtn = 10, model = "AD", seed = 21)
+one_call$var_budget
+```
+
+## Assumptions and theory
+
+### Three design columns
+
+For individual $i$ and locus $j$, let $x_{ij} \in \{-1, 0, 1\}$ be the genotype
+code and $h_{ij} = \mathbb{1}[x_{ij} = 0]$ the heterozygote indicator. The
+raw components are package definitions (`.component_raw()` and
+`.epi_unit_column()`):
+
+$$
+c^{A}_i = \sum_j b_j\, x_{ij}, \qquad
+c^{D}_i = \sum_j b_j\, h_{ij}, \qquad
+c^{E}_i = \sum_{s} b_s \prod_{k \in s} \big(t_{ik} - \bar t_k\big),
+$$ {#eq-nonadditive-components}
+
+where $s$ indexes interacting sets and $t_{ik}$ is either $x_{ik}$ (position
+type `"a"`) or $h_{ik}$ (type `"d"`), centered by its sample mean before the
+product. Each component is centered and scaled to its `prop` exactly as in
+@sec-scaling-derivation, and the genetic value is the sum of the scaled
+components. The worked example rebuilt the first two and the third from these
+definitions.
+
+### Why shared loci make the components covary
+
+Take one locus with counted-allele frequency $p$ in Hardy-Weinberg
+proportions. The genotype code has mean $2p - 1$ and the heterozygote
+indicator has mean $2p(1-p)$. Their covariance is
+
+$$
+\operatorname{Cov}(x, h) = \mathbb{E}[x h] - \mathbb{E}[x]\mathbb{E}[h]
+ = 0 - (2p - 1)\, 2p(1-p),
+$$ {#eq-dominance-covariance}
+
+because $x h$ is zero for every genotype. The term is negative when the
+counted allele is the major allele ($p > 0.5$) and positive when it is the
+minor allele. This is an algebraic consequence of the two codings, also stated
+in the package documentation of `dominance()`. The default orientation of `as_numeric()` codes the major allele `1`, so in
+the HapMap data every locus contributes a negative cross term, and the sum of those terms is the negative covariance
+seen in the worked example. The effect does not shrink with sample size: it is
+a property of the codings and the frequencies, not sampling noise.
+
+Consequently, for one additive and one dominance layer on shared loci,
+
+$$
+\operatorname{Var}(g) = \pi_A + \pi_D + 2\operatorname{Cov}(g^A, g^D),
+$$ {#eq-ad-variance}
+
+which the `ad_report` table reports as `var_cA + var_cD + cov2_comp`. The
+requested shares are variances of components, not an orthogonal partition of
+the genetic variance. `ad_report` also reports a Fisher-type split of the
+block into a breeding-value part and a dominance-deviation part (`var_A`,
+`var_D`, `cov2_AD`), which is the decomposition the orthogonal model targets.
+
+Epistatic products are only partly orthogonal. Under linkage equilibrium the
+centered product of two additive codes is uncorrelated with each locus's main
+effect at any allele frequency. Linkage disequilibrium or population
+structure makes it correlated. In addition, a centered dominance factor is not
+orthogonal to the additive code at its own locus, so additive-by-dominance and
+dominance-by-dominance products also carry additive-by-additive pieces.
+The requested epistatic `prop` is therefore a simulation quantity, not an
+orthogonal variance component in the sense of Cockerham or NOIA. The package
+documents this limitation.
+
+### The orthogonal genotypic model
+
+Under `orthogonal = TRUE` the locus value is $a_j x_{ij} + d_j h_{ij}$, the
+classical $-a$, $+d$, $+a$ genotypic values (Falconer and Mackay 1996,
+genotypic values; page unverified). The additive part of the genetic value
+uses the average effect of allele substitution
+
+$$
+\alpha_j = a_j + d_j\,(1 - 2p_j),
+$$ {#eq-average-effect}
+
+(Falconer 1985, *Genet. Res.* 46:337-347; Falconer and Mackay 1996, page
+unverified; Fisher 1918), implemented in `.avg_effect()`, and the breeding
+value is $A_i = \sum_j \alpha_j (n_{ij} - 2p_j)$ with $n_{ij}$ the number of
+copies of the counted allele. The dominance deviation is the remainder
+$D = g - A$. Under random mating the two are uncorrelated in expectation;
+the package reports the realized `add_dom_cov` instead of assuming it is
+zero. Linkage disequilibrium between loci does not break this orthogonality
+in a no-epistasis model, but population structure or selection can.
+
+The expected variances under Hardy-Weinberg proportions are
+$V_A = \sum_j 2p_jq_j\alpha_j^2$ and $V_D = \sum_j (2p_jq_jd_j)^2$
+(Falconer and Mackay 1996, page unverified). The worked example reports
+realized rather than expected values, which is why the rows change with the
+sample.
+
+### Which model to use
+
+- Use the variance-partition layers when the study needs a fixed share of
+  dominance or epistatic variance in a simulated sample and treats the
+  components as simulation quantities. Read `ad_report` before interpreting
+  the realized ratio.
+- Use the orthogonal model when the study needs breeding values, a defined
+  degree of dominance, or an additive/dominance split that estimation methods
+  will be compared against. The breeding value then feeds the selection and
+  prediction chapters.
+
+## Implementation and practical limits
+
+- `dominance()` and dominance-type epistatic positions need heterozygotes.
+  On the inbred maize panel, markers without heterozygotes are skipped with a
+  warning and the remaining loci absorb the layer's share; `filter_geno(hets =
+  "include")` restricts the candidate markers beforehand, and an F2 or an
+  outbred population avoids the problem.
+- The orthogonal model cannot be combined with a separate `dominance()`
+  layer, with `vary_qtn`, or with the correlation-controlled `"pleiotropy"`
+  and `"ld"` architectures; `qtn` alone is accepted.
+- `var_explained` is reported per marker for additive and dominance layers
+  only.
+- Under `architecture = "ld"` a dominance layer must reuse the linked loci or
+  supply disjoint linked pairs, and `epistasis()` is not available.
+- The realized ratio printed by the object is a sample diagnostic. With
+  shared loci it can differ from the requested share by a structural amount
+  that depends on which allele is coded `1`; the genotype-input chapter shows
+  how to control that orientation.
+
+::: {.callout-note title="Allele orientation matters here"}
+The sign of the additive-dominance covariance follows $1 - 2p$ for the
+counted allele. Reading the same data with the minor allele coded `1` flips
+the sign at every locus and can move the realized ratio to the other side of
+the requested share. Record the orientation with your simulation.
+:::

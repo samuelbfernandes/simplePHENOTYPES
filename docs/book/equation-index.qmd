@@ -1,0 +1,25 @@
+# Equation and implementation index
+
+## Evidence for the worked chapter {#sec-evidence}
+
+Package definitions, algebraic consequences, and literature claims need different
+forms of evidence. The first chapter uses package normalization rules and directly
+derived sample identities. These are linked to source and executable checks below.
+
+{{< include _generated/evidence.qmd >}}
+
+## Existing equation map
+
+The repository's [original equation-to-code PDF](downloads/equation-code-map.pdf)
+is retained as an archival reference. Its audit was performed at `c511c6f`, with
+locations subsequently remapped to `e666a2c`. That provenance does not establish
+that every formula or source page is verified against the current implementation.
+
+The table below reproduces the **topic, function, and location index** from
+Appendix B of its Markdown source. Locations are historical; use the
+[developer index](developer-index.qmd) for the current function definitions.
+Individual claims still require reconciliation and primary-source review before
+they are used as validated theory in new chapters. In particular, an archival
+entry labeled “page unverified” remains unverified.
+
+{{< include _generated/equation-map-index.qmd >}}

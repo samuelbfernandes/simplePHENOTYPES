@@ -1,0 +1,1142 @@
+[
+  {
+    "claim": "Additive score and layer normalization (@eq-layer-scale)",
+    "kind": "Package definition",
+    "functions": [
+      ".component_raw",
+      ".genetic_matrix"
+    ],
+    "checks": [
+      "first-variance"
+    ],
+    "review": "PASS: independent review; executed against source"
+  },
+  {
+    "claim": "Residual normalization and phenotype assembly (@eq-first-residual)",
+    "kind": "Package definition for the stated one-layer example",
+    "functions": [
+      ".draw_residual",
+      ".realize_phenotype"
+    ],
+    "checks": [
+      "first-variance"
+    ],
+    "review": "PASS: independent review; executed against source"
+  },
+  {
+    "claim": "Sample variance identity and realized ratio (@eq-sample-variance; @eq-realized-ratio)",
+    "kind": "Algebraic consequence; derived in Appendix A",
+    "functions": [],
+    "checks": [
+      "first-variance",
+      "ratio-counterexample"
+    ],
+    "review": "PASS: independent review; executed against source"
+  },
+  {
+    "claim": "Same-input, same-environment reproducibility",
+    "kind": "Executable API contract",
+    "functions": [
+      ".layer_seed"
+    ],
+    "checks": [
+      "first-reproduce"
+    ],
+    "review": "PASS: independent review; executed against source"
+  },
+  {
+    "claim": "Text export and reload demonstration",
+    "kind": "Executable API contract",
+    "functions": [
+      "write_phenotypes",
+      "write_qtn_table"
+    ],
+    "checks": [
+      "first-export"
+    ],
+    "review": "PASS: executed export and reload demonstration"
+  },
+  {
+    "claim": "Exact sample calibration is a different residual-generation design",
+    "kind": "Algebraic projection argument; proposed design only",
+    "functions": [],
+    "checks": [],
+    "review": "PASS: independent review of the explanation; not an implemented option",
+    "provenance": "Projection argument in the first chapter; not a package option",
+    "check_note": "Algebraic projection argument"
+  },
+  {
+    "claim": "AlphaSimR 2.1.0 residual generation",
+    "kind": "Official software documentation and installed source; optional compare_alphasimr.R",
+    "functions": [],
+    "checks": [],
+    "review": "PASS: independent source inspection and script execution",
+    "provenance": "AlphaSimR setPheno/addError source and official documentation",
+    "check_note": "dev/book/compare_alphasimr.R (optional)"
+  },
+  {
+    "claim": "Random residual mode leaves normal draws unstandardized",
+    "kind": "Package definition and normal sampling model",
+    "functions": [
+      ".draw_residual",
+      ".correlated_residuals",
+      ".apply_vqtl"
+    ],
+    "checks": [
+      "first-random-residuals"
+    ],
+    "review": "PASS: independent source review, 29 regression expectations and Monte Carlo checks"
+  },
+  {
+    "claim": "Additive score and geometric effect series (@eq-additive-score, @eq-geometric-series)",
+    "kind": "Package definition",
+    "functions": [
+      ".component_raw",
+      ".effect_series"
+    ],
+    "checks": [
+      "additive-effects",
+      "additive-model"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Marginal var_explained and its non-additivity across markers (@eq-additive-sum-variance)",
+    "kind": "Package definition plus algebraic variance expansion",
+    "functions": [
+      ".qtn_var"
+    ],
+    "checks": [
+      "additive-var-explained",
+      "additive-mice"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Positional repulsion phase and layer sub-seeding",
+    "kind": "Package definition",
+    "functions": [
+      ".apply_phase",
+      ".layer_seed"
+    ],
+    "checks": [
+      "additive-phase",
+      "additive-reps"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Dominance (heterozygote indicator) and centered-product epistasis components (@eq-nonadditive-components)",
+    "kind": "Package definition, rebuilt by hand",
+    "functions": [
+      ".component_raw",
+      ".epi_unit_column"
+    ],
+    "checks": [
+      "nonadditive-rebuild",
+      "nonadditive-epistasis-rebuild"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Additive-dominance covariance on shared loci, -(2p-1)2pq, and Var(g)=pi_A+pi_D+2Cov (@eq-dominance-covariance, @eq-ad-variance)",
+    "kind": "Algebraic derivation; package ad_report",
+    "functions": [
+      ".genetic_matrix"
+    ],
+    "checks": [
+      "nonadditive-ad-report",
+      "nonadditive-rebuild"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Orthogonal genotypic model: average effect alpha = a + d(1-2p), breeding value, emergent A/D split (@eq-average-effect)",
+    "kind": "Literature (Falconer 1985; Falconer & Mackay 1996 page unverified; Fisher 1918) and package definition",
+    "functions": [
+      ".avg_effect",
+      ".breeding_value_matrix",
+      ".orthogonal_var_split"
+    ],
+    "checks": [
+      "nonadditive-orthogonal",
+      "nonadditive-degree"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "PleioArch shared covariance, MAF scaling, and realized correlation as a random ratio (@eq-pleio-covariance)",
+    "kind": "Package implementation of Prado et al. (in preparation); page unverified",
+    "functions": [
+      ".pleio_draw"
+    ],
+    "checks": [
+      "multitrait-pleiotropy",
+      "multitrait-spread"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Attainability cor^2 <= pi_1 pi_2 and PSD generalization (@eq-pleio-feasible)",
+    "kind": "Reference implementation constraint; PSD generalization algebraic",
+    "functions": [
+      ".check_pleio_feasible"
+    ],
+    "checks": [
+      "multitrait-infeasible"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Co-heritability = r_G h1 h2 and phenotypic correlation decomposition (@eq-phenotypic-covariance)",
+    "kind": "Literature (Falconer & Mackay 1996, correlated response; from roxygen) and algebraic derivation",
+    "functions": [
+      "coheritability",
+      ".correlated_residuals"
+    ],
+    "checks": [
+      "multitrait-coheritability",
+      "multitrait-resid-cor"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "LD architecture: distinct linked loci, composite r2 window, ld_phase sign control",
+    "kind": "Package design (DECISION-014); r2 as Pearson on dosages, page unverified",
+    "functions": [
+      ".draw_qtn_ld"
+    ],
+    "checks": [
+      "multitrait-ld",
+      "multitrait-ld-phase"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Liability-threshold category rule (@eq-threshold-rule)",
+    "kind": "Package definition; model attributed to Wright 1934 and Falconer 1965 in roxygen",
+    "functions": [
+      ".apply_threshold",
+      ".liability_table"
+    ],
+    "checks": [
+      "binary-liability",
+      "binary-threshold"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Cut points are normal quantiles on the sample-standardized liability, not sample quantiles (@eq-threshold-cut)",
+    "kind": "Package definition",
+    "functions": [
+      ".threshold_cuts"
+    ],
+    "checks": [
+      "binary-threshold",
+      "binary-replications"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "All variance quantities of a thresholded trait stay on the liability scale",
+    "kind": "Package definition",
+    "functions": [
+      ".liability_table",
+      "coheritability"
+    ],
+    "checks": [
+      "binary-model",
+      "binary-two-traits"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Case/control sampling changes genetic and liability variances (selection on the output)",
+    "kind": "Algebraic consequence; sampling done outside the package",
+    "functions": [],
+    "checks": [
+      "binary-ascertainment"
+    ],
+    "provenance": "Selection on the liability through the label; argument in the binary chapter",
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "vQTL loading and log-linear heterogeneous residual (@eq-vqtl-loading; @eq-vqtl-link); equation map V2-grammar-19/20",
+    "kind": "Package definition",
+    "functions": [
+      ".apply_vqtl"
+    ],
+    "checks": [
+      "complex-classes",
+      "complex-replications",
+      "complex-random"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "vQTL share is residual, enters realized H2 denominator only; residual budget 1 - sum(layers) - sum(vqtl); map V2-grammar-9/14",
+    "kind": "Package definition",
+    "functions": [
+      ".realize_phenotype",
+      ".realized_h2"
+    ],
+    "checks": [
+      "complex-vqtl",
+      "complex-stack"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "complex_phenotypes() genetic value is the rescaled sum of inputs' genetic values with a fresh common residual",
+    "kind": "Package definition",
+    "functions": [
+      "complex_phenotypes"
+    ],
+    "checks": [
+      "complex-combine",
+      "complex-correlation"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Genetic correlation of a combined model is the variance-weighted average of input correlations (@eq-complex-correlation)",
+    "kind": "Algebraic derivation, assumes uncorrelated inputs",
+    "functions": [],
+    "checks": [
+      "complex-correlation"
+    ],
+    "provenance": "derivation in the complex chapter",
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "F1 heterozygous at informative loci; F2 1:2:1; DH homozygous (gamete construction)",
+    "kind": "Package definition",
+    "functions": [
+      "cross",
+      "selfcross",
+      "double_haploid"
+    ],
+    "checks": [
+      "cross-f1-het",
+      "cross-f2",
+      "cross-dh"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Heterozygosity under selfing H_t = H_0/2^t (@eq-selfing)",
+    "kind": "Algebraic consequence of single-locus Mendelian transmission; equation map V2-crossing-10 (Falconer & Mackay 1996 ch. 5, page unverified)",
+    "functions": [
+      "selfcross",
+      "mate"
+    ],
+    "checks": [
+      "cross-selfing"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Poisson count-location meiosis gives Haldane r(d) = (1 - e^{-2d})/2 (@eq-haldane)",
+    "kind": "Package definition (isqg-parity draws) and property of the Poisson process; equation map V2-crossing-3/4/9 (Haldane 1919, page unverified)",
+    "functions": [
+      ".draw_meiosis"
+    ],
+    "checks": [
+      "cross-interference"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Default gamma interference r(d) formula (@eq-gamma-r), nu = 2.6, p = 0",
+    "kind": "Package definition as documented in ?cross (derived and checked in package tests, not copied from McPeek & Speed 1995 / Housworth & Stahl 2003)",
+    "functions": [
+      ".draw_meiosis_interference"
+    ],
+    "checks": [
+      "cross-linkage",
+      "cross-interference"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Seeded meiosis is reproducible; R draws, Rust pure (DECISION-012)",
+    "kind": "Executable API contract",
+    "functions": [
+      ".draw_meiosis"
+    ],
+    "checks": [
+      "cross-reproduce"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Fixed-scale additive and total genotypic value (@eq-fixed-additive, @eq-fixed-genotypic)",
+    "kind": "Package definition; equation map V2-crossing-13/14 (Falconer & Mackay 1996, page unverified)",
+    "functions": [
+      "additive_value",
+      "genotypic_value"
+    ],
+    "checks": [
+      "trait-fixed-scale",
+      "trait-same-ranking",
+      "trait-genotypic"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "var_e = V_A,ref (1 - h2)/h2 and h2_t = V_A,t/(V_A,t + var_e) (@eq-var-e, @eq-h2-drift)",
+    "kind": "Package definition plus algebraic derivation; equation map V2-crossing-15",
+    "functions": [
+      "phenotype_value"
+    ],
+    "checks": [
+      "trait-var-e"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Carried population trait keeps base loci, effects, scale and var_e (refit = FALSE)",
+    "kind": "Package definition",
+    "functions": [
+      "population_trait"
+    ],
+    "checks": [
+      "trait-carry",
+      "trait-inherit"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Entry means: residual divided by sqrt(reps), n_reps repeats realization (@eq-entry-mean)",
+    "kind": "Package definition; algebraic Var(ybar) = V_G + V_E/r",
+    "functions": [
+      ".draw_residual"
+    ],
+    "checks": [
+      "trait-replication"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "G x E phenotype y = A + s w + e, w = sigma_w Phi^{-1}(env) (@eq-gxe)",
+    "kind": "Package definition reproducing AlphaSimR 2.1.0 source per roxygen",
+    "functions": [
+      "gxe_value",
+      "phenotype_value"
+    ],
+    "checks": [
+      "trait-gxe"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Expected breed composition recursion (@eq-composition); backcross 1/2, 3/4, 7/8, 15/16",
+    "kind": "Package definition; equation map V2-crossing-16",
+    "functions": [
+      "breed_composition"
+    ],
+    "checks": [
+      "mating-composition",
+      "mating-crossbreed",
+      "mating-three-way"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Mating design pair counts (factorial, half/full diallel, nested, random)",
+    "kind": "Package definition; equation map V2-crossing-C3 (Griffing 1956 per roxygen)",
+    "functions": [
+      "mating_design"
+    ],
+    "checks": [
+      "mating-design"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Realized and expected F1 heterosis (@eq-realized-heterosis, @eq-expected-heterosis); inbred-line special case; backcross retention condition h_A = 2p_A(1-p_A)",
+    "kind": "Package definition and package derivation; equation map V2-crossing-17/18/20 (Falconer & Mackay 1996 H_F1 = sum d y^2, page unverified)",
+    "functions": [
+      "heterosis",
+      ".expected_cross_means"
+    ],
+    "checks": [
+      "mating-heterosis"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Expression model, cis/trans blend and residual blend (@eq-expression-model; @eq-expression-genetic; @eq-expression-residual)",
+    "kind": "Package definition; map V2-transcriptome-1,3,4,6,8",
+    "functions": [
+      "simulate_transcriptome"
+    ],
+    "checks": [
+      "expression-h2",
+      "expression-fixed-h2",
+      "expression-coexpression"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Cis window rule (same chromosome, within cis_window of TSS)",
+    "kind": "Package definition; map V2-transcriptome-3",
+    "functions": [
+      "simulate_transcriptome"
+    ],
+    "checks": [
+      "expression-cis"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Genetic expression reconstructable from truth tables with reference-centered dosage; budget closes",
+    "kind": "Package definition; map V2-transcriptome-2,10,11,13",
+    "functions": [
+      "simulate_transcriptome",
+      "predict.transcriptome_sim"
+    ],
+    "checks": [
+      "expression-reconstruct",
+      "expression-budget",
+      "expression-predict-reference"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Realized expression heritability includes 2Cov(G,R); allocation equals target on reference (@eq-expression-realized)",
+    "kind": "Algebraic consequence of the sample-variance identity; map V2-transcriptome-9",
+    "functions": [
+      "simulate_transcriptome"
+    ],
+    "checks": [
+      "expression-h2",
+      "expression-fixed-h2",
+      "expression-predict"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Epistatic share is a marginal blend weight; realized share differs by covariance",
+    "kind": "Package definition; map V2-transcriptome-7",
+    "functions": [
+      "simulate_transcriptome"
+    ],
+    "checks": [
+      "expression-epistasis"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "mimic matches per-gene mean and variance exactly; GREML h2 is a distribution-level calibration",
+    "kind": "Package definition; map V2-transcriptome-14,15,16,17,18,19",
+    "functions": [
+      ".tx_grm",
+      ".greml_h2",
+      ".tx_estimate_factors",
+      ".tx_estimate_kappa"
+    ],
+    "checks": [
+      "expression-mimic"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "NB count model: log mu = log L + alpha + sigma z, Var = mu + phi mu^2, Poisson at phi = 0 (@eq-expression-counts)",
+    "kind": "Package definition; edgeR parameterization (McCarthy et al. 2012; Robinson & Smyth 2008; pages unverified); map V2-transcriptome-20",
+    "functions": [
+      "observe_counts"
+    ],
+    "checks": [
+      "expression-counts",
+      "expression-library-size"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Expression layer score and scaling to prop (@eq-mediation-layer)",
+    "kind": "Package definition; map V2-transcriptome-21",
+    "functions": [
+      ".tx_raw",
+      ".transcriptome_matrix"
+    ],
+    "checks": [
+      "mediation-reconstruct"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Mediation split: same sd(E_g) denominator gives additive decomposition; three shares sum to the realized component share (@eq-mediation-split)",
+    "kind": "Package definition plus sample-variance identity; map V2-transcriptome-22",
+    "functions": [
+      ".mediation_budget",
+      "mediation_split"
+    ],
+    "checks": [
+      "mediation-split",
+      "mediation-reconstruct",
+      "mediation-genes"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Genetic value = marker layers + genetic-mediated part; real expression source contributes zero (@eq-mediation-h2)",
+    "kind": "Package definition; map V2-transcriptome-23",
+    "functions": [
+      ".genetic_value_matrix",
+      ".realized_h2"
+    ],
+    "checks": [
+      "mediation-genetic-values",
+      "mediation-real"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Per-gene var_explained is marginal (c w_g)^2 / V_P",
+    "kind": "Package definition; map V2-transcriptome-24",
+    "functions": [
+      ".tx_qtn_var"
+    ],
+    "checks": [
+      "mediation-qtn"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Allele frequency and MAF definition (@eq-maf); monomorphic/MAF/heterozygosity filters",
+    "kind": "Package definition following PLINK --maf semantics (equation map V2-io-formats-1..3)",
+    "functions": [
+      "filter_geno"
+    ],
+    "checks": [
+      "input-filter-maf"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Frequency-based orientation and tie rule (first-listed allele kept on a tie); counted-allele record",
+    "kind": "Package convention (V2-io-formats-10, 11, 12)",
+    "functions": [
+      "compute_flip",
+      "numericalize_core"
+    ],
+    "checks": [
+      "input-counted",
+      "input-reference",
+      "input-counted-column",
+      "input-coding"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Composite genotype r2 and pruning decision, lower-MAF marker dropped (@eq-composite-r2)",
+    "kind": "Package definition; PLINK 1.9 --indep-pairwise (V2-io-formats-4, 5, 6)",
+    "functions": [
+      ".ld_sweep"
+    ],
+    "checks": [
+      "input-filter-ld"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Haplotypic r2 with exact two-locus ML phase (@eq-hap-r2)",
+    "kind": "Literature: Hill & Robertson 1968 (page unverified), Gaunt et al. 2007 (page unverified); PLINK port (V2-io-formats-7, C2, C3)",
+    "functions": [
+      ".plink_hap_rsq",
+      ".plink_em_hethet"
+    ],
+    "checks": [
+      "input-filter-pairphase"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "VIF pruning; singular-window handling unverifiable vs PLINK",
+    "kind": "PLINK --indep, Purcell et al. 2007 (V2-io-formats-8)",
+    "functions": [
+      ".ld_sweep"
+    ],
+    "checks": [
+      "input-filter-ld"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Gabriel blocks reproduce PLINK --blocks; tag-per-block is a package convenience",
+    "kind": "Literature: Gabriel et al. 2002 (method page unverified); V2-io-formats-9, C5, C6",
+    "functions": [
+      ".gabriel_blocks"
+    ],
+    "checks": [
+      "input-filter-blocks"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Heterozygote phasing rule cis=1[x>=0], trans=1[x>0] (@eq-phasing-rule)",
+    "kind": "Package convention (V2-crossing-1)",
+    "functions": [
+      "as_population"
+    ],
+    "checks": [
+      "founders-human"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Dosage = cis + trans - 1 (@eq-dosage-rule)",
+    "kind": "isqg genotype_num convention (V2-crossing-2)",
+    "functions": [
+      "dosages",
+      "population_from_haplotypes"
+    ],
+    "checks": [
+      "founders-haplotypes",
+      "founders-from-haplotypes"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Synthetic map local-rate model (@eq-synthetic-map), monotone cM in bp, target length",
+    "kind": "Package definition; Gaussian form phenomenological; Bauer et al. 2013 cited by roxygen for pattern/scale only",
+    "functions": [
+      "synthetic_map"
+    ],
+    "checks": [
+      "founders-mice-map",
+      "founders-map-shape",
+      "founders-map-options"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Coalescent founders: SMC' model, theta/rho/history units, AlphaSimR runMacs presets, seeded Rust PRNG reproducibility",
+    "kind": "Package documentation and references as given in ?founders_coalescent (Marjoram & Wall 2006; Chen et al. 2009; Hudson 2002; Gaynor et al. 2021); algorithm not verified in the book",
+    "functions": [
+      "founders_coalescent",
+      "coalescent_chromosome_core"
+    ],
+    "checks": [
+      "founders-coalescent",
+      "founders-coalescent-presets"
+    ],
+    "check_note": "Seed reproducibility executed; allele-frequency summary is a sanity check only",
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "OCS objective and group coancestry (@eq-ocs-objective)",
+    "kind": "Package definition; literature: Meuwissen 1997 J Anim Sci 75:934-940 (verified; page unverified)",
+    "functions": [
+      "optimum_contribution",
+      ".frank_wolfe",
+      ".tune_lambda"
+    ],
+    "checks": [
+      "optimization-ocs-check",
+      "optimization-frontier",
+      "optimization-target"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Genomic relationship matrix (@eq-vanraden)",
+    "kind": "Literature: VanRaden 2008 J Dairy Sci 91:4414-4423 method 1 (paper verified; page unverified)",
+    "functions": [
+      "g_matrix"
+    ],
+    "checks": [
+      "optimization-g"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Largest-remainder allocation vs multinomial draws; realized coancestry not preserved exactly",
+    "kind": "Package definition",
+    "functions": [
+      "sample_parents"
+    ],
+    "checks": [
+      "optimization-parents",
+      "optimization-parents-coancestry"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Usefulness U = mu + i sigma with normal-theory intensity (@eq-usefulness)",
+    "kind": "Literature: Zhong & Jannink 2007 Genetics 177:567-576; Lehermeier et al. 2017 Genetics 207:1651-1661 (verified; pages unverified); intensity Falconer & Mackay 1996 (author-year)",
+    "functions": [
+      "cross_usefulness",
+      ".intensity_from_p",
+      ".additive_model"
+    ],
+    "checks": [
+      "optimization-usefulness",
+      "optimization-usefulness-check"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Recurrent-allele score and weighted recovery (@eq-recurrent-score; @eq-recovery)",
+    "kind": "Package definition",
+    "functions": [
+      ".mabc_founders",
+      ".mabc_recovery",
+      ".mabc_weights",
+      "recurrent_parent_recovery"
+    ],
+    "checks": [
+      "markers-mabc",
+      "markers-drag",
+      "markers-weights"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Expected recovery 1 - 2^-(t+1) in an unselected backcross cohort (@eq-expected-recovery)",
+    "kind": "Mendelian derivation; attributed to Frisch & Melchinger 2005 Genetics 170:909-917 (paper verified; location unverified)",
+    "functions": [
+      "recurrent_parent_recovery"
+    ],
+    "checks": [
+      "markers-mabc",
+      "markers-foreground"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Foreground / recombinant / background lexicographic staging",
+    "kind": "Package definition; literature: Frisch & Melchinger 2001 Crop Sci 41:1485-1494 (verified; page unverified)",
+    "functions": [
+      "mabc_select"
+    ],
+    "checks": [
+      "markers-mabc-record"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "MAS feasibility rule and staged pyramid (DECISION-029); Mendelian 1/64 and (3/4)^3 expectations",
+    "kind": "Package definition; algebraic expectation under independent assortment",
+    "functions": [
+      "marker_select"
+    ],
+    "checks": [
+      "markers-pyramid",
+      "markers-staged"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Marker index as rank_on (Lande & Thompson 1990 Genetics 124:743-756, verified; page unverified)",
+    "kind": "Literature; oracle weights are a package convention",
+    "functions": [
+      "additive_value",
+      "marker_select"
+    ],
+    "checks": [
+      "markers-index"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Expected cross mean per locus (@eq-expected-cross)",
+    "kind": "Package derivation from Falconer & Mackay 1996 genotypic values (page unverified)",
+    "functions": [
+      ".expected_cross_means"
+    ],
+    "checks": [
+      "programs-diallel",
+      "programs-diallel-sim"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "GCA/SCA decomposition: factorial (Sprague & Tatum 1942, page unverified) and diallel method 4 (Griffing 1956, page unverified) (@eq-gca-factorial; @eq-gca-diallel)",
+    "kind": "Literature; sums-to-zero properties checked",
+    "functions": [
+      ".decompose_ca",
+      "combining_ability"
+    ],
+    "checks": [
+      "programs-diallel-check",
+      "programs-topcross"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "template_effects reproduces genetic_values up to a constant",
+    "kind": "Package definition",
+    "functions": [
+      "template_effects",
+      ".layer_scaled_effects",
+      "genotypic_value"
+    ],
+    "checks": [
+      "programs-template-check"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Progeny-test accuracy sqrt(n h2 / (4 + (n-1) h2)) (@eq-progeny-accuracy)",
+    "kind": "Package derivation of a classical result (no page asserted); worked example violates its assumptions (illustrative)",
+    "functions": [
+      "progeny_test"
+    ],
+    "checks": [
+      "programs-progeny"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Scheme definitions (SSD, bulk, pedigree, recurrent selection) and trait carry-over across generations",
+    "kind": "Package definition; Bernardo 2020 cited by roxygen without page",
+    "functions": [
+      "single_seed_descent",
+      "bulk",
+      "pedigree",
+      "recurrent_selection",
+      "population_trait"
+    ],
+    "checks": [
+      "programs-schemes",
+      "programs-schemes-compare",
+      "programs-population-trait",
+      "programs-recurrent",
+      "programs-recurrent-cycles"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Long/wide table layouts and QTN table columns are package definitions",
+    "kind": "Package definition",
+    "functions": [
+      "phenotypes_long",
+      "phenotypes_wide",
+      "qtn_table"
+    ],
+    "checks": [
+      "output-long-wide",
+      "output-counts",
+      "output-truth"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "vary_qtn = TRUE gives distinct architectures per replication; rep selects them",
+    "kind": "Executable API contract",
+    "functions": [
+      "genetic_values",
+      "qtn_table"
+    ],
+    "checks": [
+      "output-vary-qtn"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Text export reads back to ~1e-14 relative; JSON reads back exactly",
+    "kind": "Package definition (writer precision, ?write_phenotypes)",
+    "functions": [
+      "write_phenotypes",
+      "write_qtn_table"
+    ],
+    "checks": [
+      "output-roundtrip",
+      "output-write-qtn"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "split_markers causal set is the union over selected replications; causal + noncausal = input markers",
+    "kind": "Package definition",
+    "functions": [
+      "write_phenotypes"
+    ],
+    "checks": [
+      "output-split",
+      "output-split-read",
+      "output-split-json"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Legacy residual variance sigma_e^2 = V_G (1 - h2) / h2 with sample V_G (@eq-legacy-residual)",
+    "kind": "Package definition; equation map V1-core-linkage-7 (F&M page unverified)",
+    "functions": [
+      "phenotypes"
+    ],
+    "checks": [
+      "legacy-ratio"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Grammar owes legacy no bit-parity: same seed, different markers and values, comparable variance ratio",
+    "kind": "Executable API contract; DECISION-009",
+    "functions": [
+      "create_phenotypes",
+      ".layer_seed"
+    ],
+    "checks": [
+      "legacy-parity",
+      "legacy-ratio"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Legacy LD summary is a signed composite LD coefficient; grammar ld_r2 is a squared correlation",
+    "kind": "Package definition; equation map V1-core-linkage-15 (UNVERIFIABLE primary source)",
+    "functions": [
+      "qtn_linkage"
+    ],
+    "checks": [
+      "legacy-ld",
+      "legacy-ld-v2"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Known-variance mixed model and GLS/BLUP solution (@eq-blup-model; @eq-blup-gls)",
+    "kind": "Package definition; Henderson 1975 (page unverified) per equation map V2-prediction-C1/4/5",
+    "functions": [
+      "predict_ebv",
+      ".blup_variances"
+    ],
+    "checks": [
+      "prediction-ebv",
+      "prediction-custom-k"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Reliability 1 - PEV/(K_ii sigma_A^2) (@eq-blup-reliability)",
+    "kind": "Package definition; equation map V2-prediction-6",
+    "functions": [
+      "predict_ebv"
+    ],
+    "checks": [
+      "prediction-ebv"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Tabular pedigree relationship matrix (@eq-a-matrix)",
+    "kind": "Package definition; Emik & Terrill 1949 and Wright 1922 (page unverified) per V2-prediction-1/2",
+    "functions": [
+      "a_matrix"
+    ],
+    "checks": [
+      "prediction-amatrix"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "VanRaden method-1 genomic relationship with ridge and base_freq (@eq-g-matrix)",
+    "kind": "Package definition; VanRaden 2008 (page unverified) per V2-prediction-C3",
+    "functions": [
+      "g_matrix"
+    ],
+    "checks": [
+      "prediction-gmatrix",
+      "prediction-gmatrix-options",
+      "prediction-amatrix"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Accuracy = cor(ebv, truth), slope of truth on prediction (@eq-accuracy)",
+    "kind": "Package definition; V2-prediction-8",
+    "functions": [
+      "prediction_accuracy"
+    ],
+    "checks": [
+      "prediction-accuracy",
+      "prediction-design",
+      "prediction-multitrait"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Multi-trait BLUP with known G0, R0 raises accuracy for an unrecorded trait",
+    "kind": "Executed demonstration; Henderson & Quaas 1976 per roxygen",
+    "functions": [
+      "predict_ebv"
+    ],
+    "checks": [
+      "prediction-multitrait"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Selection differential, realized intensity and large-N intensity (@eq-selection-differential)",
+    "kind": "Package definition; Falconer & Mackay 1996 (page unverified) per V2-selection-1..4",
+    "functions": [
+      "select_ind",
+      ".resolve_keep"
+    ],
+    "checks": [
+      "selection-mass",
+      "selection-intensity"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Breeder's equation R = h2 S for additive mass selection, checked as genetic selection differential and as progeny mean",
+    "kind": "Literature (V2-selection-5, page unverified) with executed check",
+    "functions": [
+      "select_ind"
+    ],
+    "checks": [
+      "selection-response",
+      "selection-progeny"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Lush combined index weights (@eq-combined-index)",
+    "kind": "Package definition; Lush 1947 (verified) per V2-selection-10",
+    "functions": [
+      ".combined_score"
+    ],
+    "checks": [
+      "selection-family"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Smith-Hazel index b = P^-1 G a; quadratic index scores true BVs",
+    "kind": "Package definition; Smith 1936, Hazel 1943 (V2-selection-8), Ceron-Rojas 2026 (art. no. unverified, V2-selection-9)",
+    "functions": [
+      ".index_weights",
+      ".quadratic_index_score"
+    ],
+    "checks": [
+      "selection-multitrait"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "Independent culling, simultaneous and sequential",
+    "kind": "Package definition; Hazel & Lush 1942 (verified) per V2-selection-13/C4",
+    "functions": [
+      ".select_culling"
+    ],
+    "checks": [
+      "selection-culling"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  },
+  {
+    "claim": "BQP relatedness-penalized selection reduces to truncation at lambda = 0 and lowers mean relatedness as lambda grows",
+    "kind": "Package definition; Montesinos-Lopez et al. 2025 per roxygen; heuristic solver",
+    "functions": [
+      ".bqp_solve"
+    ],
+    "checks": [
+      "selection-bqp"
+    ],
+    "review": "Same-model (Fable) review 2026-10-08: PASS after fixes; independent Codex review pending"
+  }
+]

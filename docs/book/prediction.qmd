@@ -1,0 +1,523 @@
+# Relationship matrices and prediction {#sec-prediction}
+
+Suppose you have genotyped and phenotyped animals, and a new generation of
+candidates with genotypes but no records. You want to predict the candidates'
+breeding values from their relatives' records, compare a pedigree-based with a
+genomic relationship matrix, and check how good the predictions are. Because
+this is a simulation, the true breeding values are known, so the accuracy of
+each predictor can be measured rather than assumed.
+
+[]{#prediction-setup}
+
+```{r}
+#| label: prediction-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-prediction-example}
+
+### Load the package and the mouse data
+
+[]{#prediction-library}
+
+```{r}
+#| label: prediction-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+```
+
+This chapter uses the heterogeneous-stock mouse genotypes distributed with the
+BGLR package (1,814 mice and 10,346 SNPs with physical positions; see
+`?BGLR::mice` for the provenance, which credits Valdar et al. 2006). The
+[genotype-input chapter](input.qmd) shows how the genotypes are converted; here
+the shared loader is used. Real phenotype records accompany the genotypes, and
+the first rows show that they exist, but every trait below is simulated on the
+real genotypes so that true breeding values are known.
+
+[]{#prediction-data}
+
+```{r}
+#| label: prediction-data
+source("_data.R")
+mice <- book_mice()
+records <- book_mice_records()
+
+records |>
+  select(SUBJECT.NAME, GENDER, cage, Litter, Obesity.BMI) |>
+  head()
+```
+
+To keep the pedigree simulation fast, the example keeps four chromosomes and
+200 founders. The mouse map has physical positions only, so a synthetic
+genetic map is built from them; see the [founders chapter](founders.qmd) for
+what `synthetic_map()` assumes.
+
+[]{#prediction-founders}
+
+```{r}
+#| label: prediction-founders
+mice <- mice[mice$chr %in% c("1", "2", "3", "4"), ]
+mice$cm <- synthetic_map(mice$chr, mice$pos)
+founder_ids <- colnames(mice)[-(1:5)][1:200]
+founders <- as_population(mice, individuals = founder_ids)
+founders
+```
+
+### The genomic relationship matrix
+
+`g_matrix()` builds the additive genomic relationship matrix from marker
+dosages. Its diagonal is about one plus the genomic inbreeding coefficient
+relative to the base allele frequencies, so it averages near one in an outbred
+sample in Hardy-Weinberg proportions and near two in inbred lines. Its
+off-diagonal elements measure realized relatedness; centering on the sample
+frequencies makes their average close to zero.
+
+[]{#prediction-gmatrix}
+
+```{r}
+#| label: prediction-gmatrix
+G <- g_matrix(founders)
+
+tibble(
+  quantity = c("Individuals", "Mean diagonal", "Mean off-diagonal",
+               "Smallest off-diagonal", "Largest off-diagonal"),
+  value = c(nrow(G), mean(diag(G)), mean(G[upper.tri(G)]),
+            min(G[upper.tri(G)]), max(G[upper.tri(G)]))
+)
+```
+
+The mean off-diagonal is close to zero because the matrix is centred on the
+current sample's allele frequencies. Two options change the base. `ridge`
+blends the matrix toward the identity when a positive-definite matrix is
+required. `base_freq` fixes the allele frequencies used for centring, which
+matters when the same base must be kept across generations.
+
+[]{#prediction-gmatrix-options}
+
+```{r}
+#| label: prediction-gmatrix-options
+G_ridge <- g_matrix(founders, ridge = 0.05)
+p_base <- rowMeans(dosages(founders) + 1) / 2
+G_fixed <- g_matrix(founders, base_freq = p_base)
+
+tibble(
+  matrix = c("Default", "ridge = 0.05", "base_freq = founder frequencies"),
+  mean_diagonal = c(mean(diag(G)), mean(diag(G_ridge)), mean(diag(G_fixed))),
+  smallest_eigenvalue = c(min(eigen(G, symmetric = TRUE)$values),
+                          min(eigen(G_ridge, symmetric = TRUE)$values),
+                          min(eigen(G_fixed, symmetric = TRUE)$values))
+)
+```
+
+`dosages()` returns the marker-by-individual dosage matrix in `-1`, `0`, `1`
+coding; adding one and halving gives the frequency of the counted allele. With
+the founders' own frequencies, the fixed-base matrix equals the default one.
+The ridge raises the smallest eigenvalue, which is what makes the matrix
+positive definite.
+
+### A two-generation pedigree
+
+`a_matrix()` needs a recorded pedigree. `mating_design()` writes a mating plan
+and `mate()` executes it through the meiosis simulator, recording each
+progeny's parents. The plan below mates 100 mothers with 100 fathers at
+random, then mates the first generation among itself.
+
+[]{#prediction-pedigree}
+
+```{r}
+#| label: prediction-pedigree
+plan1 <- mating_design(founders[1:100], founders[101:200],
+                       design = "random", n_crosses = 50,
+                       progeny_per_cross = 4, seed = 11)
+gen1 <- mate(plan1, founders, seed = 12, prefix = "G1")
+
+plan2 <- mating_design(gen1, design = "random", n_crosses = 50,
+                       progeny_per_cross = 4, seed = 13)
+gen2 <- mate(plan2, gen1, seed = 14, prefix = "G2")
+
+everyone <- c(founders, gen1, gen2)
+parentage(gen2) |>
+  select(id, mother, father, generation) |>
+  head()
+```
+
+`c()` pools the three generations into one population while keeping the
+pedigree. `parentage()` lists each individual's recorded parents.
+
+[]{#prediction-amatrix}
+
+```{r}
+#| label: prediction-amatrix
+A <- a_matrix(everyone)
+G_all <- g_matrix(everyone)
+
+sibs <- parentage(gen2) |>
+  group_by(mother, father) |>
+  summarise(first = id[1], second = id[2], .groups = "drop")
+
+tibble(
+  relationship = c("Full sibs, pedigree A", "Full sibs, genomic G",
+                   "Founder diagonal, A", "Founder diagonal, G"),
+  mean = c(mean(A[cbind(sibs$first, sibs$second)]),
+           mean(G_all[cbind(sibs$first, sibs$second)]),
+           mean(diag(A)[founder_ids]), mean(diag(G_all)[founder_ids])),
+  sd = c(sd(A[cbind(sibs$first, sibs$second)]),
+         sd(G_all[cbind(sibs$first, sibs$second)]),
+         sd(diag(A)[founder_ids]), sd(diag(G_all)[founder_ids]))
+)
+```
+
+The pedigree gives full sibs of unrelated parents a relationship of one half;
+the small spread in the first row arises because some first-generation mates
+share a founder parent, which raises their progeny's relationship. The genomic
+matrix measures the realized sharing of each pair, which varies much more
+because of Mendelian sampling. The founders are unrelated and non-inbred in the
+pedigree by definition, whereas the genomic diagonal spreads around its mean.
+
+### Simulate a trait with known breeding values
+
+`phenotype_value()` scores every individual on a fixed trait: chosen causal
+loci, fixed additive effects, and a residual variance derived once from the
+founders' additive variance at the requested heritability. The attribute
+`genetic_value` holds each individual's additive value, which for a purely
+additive trait is its breeding value on the trait's scale.
+
+[]{#prediction-trait}
+
+```{r}
+#| label: prediction-trait
+set.seed(21)
+qtn <- sample(mice$snp, 100)
+effects <- rnorm(100)
+
+y <- phenotype_value(everyone, qtn, effects, h2 = 0.4, ref = founders, seed = 22)
+true_bv <- additive_value(everyone, qtn, effects)
+
+gen1_ids <- parentage(gen1)$id
+gen2_ids <- parentage(gen2)$id
+
+tibble(
+  quantity = c("Residual variance parameter", "Additive variance, founders",
+               "Additive variance, generation 2"),
+  value = c(attr(y, "var_e"), var(true_bv[founder_ids]), var(true_bv[gen2_ids]))
+)
+```
+
+`additive_value()` returns the same fixed additive values without a residual,
+so it serves as the truth against which predictions are judged.
+
+### Predict the candidates
+
+The founders and first generation are the training set with records. The
+second generation are candidates: they are in the population, so they are
+predicted, but their records are withheld. The `ref` argument keeps the
+reported variance components on the founder scale.
+
+[]{#prediction-ebv}
+
+```{r}
+#| label: prediction-ebv
+training <- y[c(founder_ids, gen1_ids)]
+
+ebv_g <- predict_ebv(everyone, training, method = "gblup",
+                     h2 = 0.4, ref = y[founder_ids])
+ebv_a <- predict_ebv(everyone, training, method = "pedigree",
+                     h2 = 0.4, ref = y[founder_ids])
+
+tibble(
+  id = head(gen2_ids),
+  true_bv = true_bv[head(gen2_ids)],
+  gblup = ebv_g[head(gen2_ids)],
+  pedigree = ebv_a[head(gen2_ids)],
+  reliability_gblup = attr(ebv_g, "reliability")[head(gen2_ids)]
+)
+```
+
+The result is one predicted breeding value per individual with a reliability
+attribute. The pedigree predictor gives full sibs identical values because
+nothing in the pedigree distinguishes them. Individual predictions can be far
+from the truth even when the predictor is good, so the predictor is judged on
+all candidates at once. `prediction_accuracy()` correlates predictions with the known
+breeding values and reports the slope of truth on prediction, which is one for
+an unbiased predictor.
+
+[]{#prediction-accuracy}
+
+```{r}
+#| label: prediction-accuracy
+bind_rows(
+  gblup = prediction_accuracy(ebv_g[gen2_ids], true_bv[gen2_ids]),
+  pedigree = prediction_accuracy(ebv_a[gen2_ids], true_bv[gen2_ids]),
+  .id = "method"
+)
+```
+
+Both predictors are close to unbiased. The genomic predictor is more accurate
+for these unphenotyped candidates because it uses each candidate's realized
+marker sharing with the recorded individuals, whereas the pedigree predictor
+can only assign full sibs the same prediction.
+
+### Accuracy depends on heritability and training size
+
+The same simulation makes it easy to vary the design. The table repeats the
+genomic prediction for three heritabilities and three training sizes, drawing
+new phenotypes for each heritability so that the residual variance matches.
+Training records are drawn in one fixed random order from the founders and
+the candidates' parents, so the larger sets contain the smaller ones and every
+size mixes close and distant relatives of the candidates.
+
+[]{#prediction-design}
+
+```{r}
+#| label: prediction-design
+design <- expand.grid(h2 = c(0.2, 0.4, 0.8), n_train = c(100, 200, 400))
+set.seed(29)
+training_pool <- sample(c(founder_ids, gen1_ids))
+
+design$accuracy <- mapply(function(h2, n_train) {
+  y_h <- phenotype_value(everyone, qtn, effects, h2 = h2,
+                         ref = founders, seed = 23)
+  train <- y_h[training_pool[seq_len(n_train)]]
+  ebv <- predict_ebv(everyone, train, method = "gblup",
+                     h2 = h2, ref = y_h[founder_ids])
+  prediction_accuracy(ebv[gen2_ids], true_bv[gen2_ids])[["accuracy"]]
+}, design$h2, design$n_train)
+
+design |>
+  mutate(accuracy = round(accuracy, 3)) |>
+  tidyr::pivot_wider(names_from = n_train, values_from = accuracy,
+                     names_prefix = "n_train_")
+```
+
+Accuracy rises with heritability and with the number of records. Which
+individuals are recorded matters as well: records on the candidates' parents
+are worth more than the same number of records on distant founders, so a
+training set's relatedness to the candidates can matter as much as its size. The exact
+values depend on the random residuals and on the candidates, so a study would
+replicate this design over seeds rather than report one run.
+
+### Multi-trait prediction
+
+Records on a correlated trait add information. The second trait below shares
+the causal loci and has effects correlated with the first. Because the
+simulation knows the additive values, the genetic covariance matrix of the two
+traits in the founders can be computed directly, and the residual covariance is
+set from the heritabilities with no residual correlation.
+
+[]{#prediction-multitrait}
+
+```{r}
+#| label: prediction-multitrait
+set.seed(24)
+effects2 <- 0.7 * effects + rnorm(100, sd = 0.5)
+y2 <- phenotype_value(everyone, qtn, effects2, h2 = 0.4,
+                      ref = founders, seed = 25)
+true_bv2 <- additive_value(everyone, qtn, effects2)
+
+G0 <- cov(cbind(t1 = true_bv[founder_ids], t2 = true_bv2[founder_ids]))
+R0 <- diag(c(attr(y, "var_e"), attr(y2, "var_e")))
+dimnames(R0) <- dimnames(G0)
+G0
+
+Y <- cbind(t1 = y, t2 = y2)
+Y[gen2_ids, "t1"] <- NA
+
+ebv_mt <- predict_ebv(everyone, Y, method = "gblup", var_a = G0, var_e = R0)
+ebv_mt_a <- predict_ebv(everyone, Y, method = "pedigree", var_a = G0, var_e = R0)
+
+bind_rows(
+  `gblup, single trait` = prediction_accuracy(ebv_g[gen2_ids], true_bv[gen2_ids]),
+  `gblup, two traits` = prediction_accuracy(ebv_mt[gen2_ids, "t1"], true_bv[gen2_ids]),
+  `pedigree, single trait` = prediction_accuracy(ebv_a[gen2_ids], true_bv[gen2_ids]),
+  `pedigree, two traits` = prediction_accuracy(ebv_mt_a[gen2_ids, "t1"], true_bv[gen2_ids]),
+  .id = "model"
+)
+```
+
+The candidates have no record on the first trait but do have a record on the
+second. The multi-trait model uses that record through the genetic covariance,
+so accuracy for the first trait increases relative to the single-trait model.
+The gain depends on the genetic correlation and on the second trait's
+heritability.
+
+### Supplying your own relationship matrix
+
+A relationship matrix built elsewhere, or modified, can be passed through `K`.
+Passing the matrix that `predict_ebv()` would have built reproduces the same
+predictions, which confirms that `K` replaces the internal construction.
+
+[]{#prediction-custom-k}
+
+```{r}
+#| label: prediction-custom-k
+ebv_k <- predict_ebv(everyone, training, K = G_all, h2 = 0.4,
+                     ref = y[founder_ids])
+tibble(
+  quantity = "Largest absolute difference from the gblup predictions",
+  value = max(abs(ebv_k - ebv_g))
+)
+```
+
+## Assumptions and theory
+
+The predictions above use one trait model throughout: additive genetic values,
+one record per individual, an overall mean as the only fixed effect, and known
+variance components. There is no dominance, no repeated record, no
+contemporary-group effect, no genotype-by-environment term, and no variance
+component estimation.
+
+### The mixed model being solved
+
+Every predictor in this chapter solves the same known-variance mixed model.
+Writing $y$ for the vector of records, $\mu$ for the mean, $Z$ for the matrix
+that assigns each record to its individual, $u$ for the breeding values, and
+$e$ for the residuals,
+
+$$
+y = \mathbf 1\mu + Zu + e, \qquad
+u \sim N(0, K\sigma^2_A), \qquad
+e \sim N(0, I\sigma^2_e).
+$$ {#eq-blup-model}
+
+$K$ is the relationship matrix: $A$ for the pedigree method and $G$ for the
+genomic method. $\sigma^2_A$ is the additive variance and $\sigma^2_e$ the
+residual variance. The package's roxygen documentation attributes this model
+to Henderson (1975), and the equation map records that reference with its page
+unverified. This is the model the package implements; it is not a claim that
+the data must have arisen this way.
+
+### Variance components from a heritability
+
+With `h2`, the package sets the two variances from the phenotypic variance of
+`ref` (by default the phenotyped subset): $\sigma^2_A = h^2\sigma^2_P$ and
+$\sigma^2_e = (1 - h^2)\sigma^2_P$. The only quantity that enters the
+predictions is their ratio $\lambda = \sigma^2_e / \sigma^2_A = (1 - h^2)/h^2$,
+so the choice of `ref` changes the reported absolute variances but not the
+predicted values. This is a package definition, implemented by
+`.blup_variances()`.
+
+### The generalized least-squares form
+
+Rather than building the mixed-model equations with $K^{-1}$, the package
+solves the equivalent form over the phenotyped rows $r$,
+
+$$
+V = K_{rr} + \lambda I, \qquad
+\hat\mu = (\mathbf 1'V^{-1}\mathbf 1)^{-1}\mathbf 1'V^{-1}y, \qquad
+\hat u = K_{\cdot r}V^{-1}(y - \mathbf 1\hat\mu).
+$$ {#eq-blup-gls}
+
+$V$ is the covariance of the records on the $\sigma^2_A$ scale. The first
+expression is the generalized least-squares estimate of the mean. The second
+regresses each individual's breeding value, phenotyped or not, on the adjusted
+records through its covariances with them. No inverse of $K$ is needed, which
+is why a singular genomic matrix is accepted. The equation map records that
+this form equals the mixed-model solution numerically (package check). The
+implementing function is `predict_ebv()`.
+
+### Reliability
+
+The reliability attribute is one minus the prediction error variance scaled by
+the individual's prior variance,
+
+$$
+r^2_i = 1 - \frac{\mathrm{PEV}_i}{K_{ii}\sigma^2_A}, \qquad
+\frac{\mathrm{PEV}_i}{\sigma^2_A} = K_{ii} - K_{ir}\,P\,K_{ri},
+$$ {#eq-blup-reliability}
+
+where $P$ is the projection $V^{-1} - V^{-1}\mathbf 1(\mathbf 1'V^{-1}\mathbf 1)^{-1}\mathbf 1'V^{-1}$,
+which removes the estimated mean. This is the package definition in
+`predict_ebv()`. It is a model-based quantity: it describes expected precision
+under the assumed model and variances, not the realized accuracy measured
+below.
+
+### The pedigree relationship matrix
+
+`a_matrix()` applies the tabular method. Processing individuals parents-first,
+with $m(k)$ and $f(k)$ the recorded mother and father of individual $k$,
+
+$$
+A_{kj} = \tfrac12\left(A_{m(k),j} + A_{f(k),j}\right), \qquad
+A_{kk} = 1 + F_k, \qquad F_k = \tfrac12 A_{m(k)f(k)}.
+$$ {#eq-a-matrix}
+
+An unknown parent contributes zero. Founders are unrelated and, with the
+default `founder_f = 0`, non-inbred. The equation map attributes the method to
+Emik & Terrill 1949 *J. Hered.* 40:51–55 (page unverified) and the coefficients
+to Wright 1922 *Am. Nat.* 56:330–338 (page unverified). For inbred founders,
+such as the maize lines used elsewhere in this book, `founder_f` must be set;
+the mice here are an outbred stock, so the default was kept.
+
+### The genomic relationship matrix
+
+`g_matrix()` implements VanRaden's first method,
+
+$$
+G = \frac{ZZ'}{2\sum_j p_j(1-p_j)}, \qquad Z = M - 2p,
+$$ {#eq-g-matrix}
+
+where $M$ is the individuals-by-markers gene-content matrix with entries
+0, 1, 2, and $p_j$ is the frequency of the counted allele at marker $j$.
+Markers with $p_j$ equal to 0 or 1 are dropped. The optional ridge forms
+$G^* = (1 - \text{ridge})\,G + \text{ridge}\,I$. The equation map records the
+reference as VanRaden 2008 *J. Dairy Sci.* 91:4414–4423 (page unverified).
+The denominator is the expected variance of the gene content summed over
+markers under Hardy-Weinberg proportions at the frequencies $p$. The
+diagonal is therefore about $1 + F_i$ relative to that base; it averaged close
+to one above because the mice are an outbred stock, while inbred lines average
+close to two.
+
+### Accuracy and bias
+
+`prediction_accuracy()` reports the correlation between predicted and true
+breeding values over the individuals scored, and the slope of the regression
+of truth on prediction,
+
+$$
+\text{accuracy} = \operatorname{cor}(\hat u, u), \qquad
+\text{slope} = \frac{\operatorname{Cov}(u, \hat u)}{\operatorname{Var}(\hat u)}.
+$$ {#eq-accuracy}
+
+These are sample statistics of one simulation. The package documentation
+notes that a slope of one is the property of best linear unbiased prediction
+that the conditional mean of the truth given the prediction equals the
+prediction, and that a slope below one indicates over-dispersed predictions.
+This is a package definition; the equation map lists it as such.
+
+## Implementation and practical limits
+
+`predict_ebv()`, `a_matrix()`, `g_matrix()`, and `prediction_accuracy()` are
+R functions in the selection module. The internal helpers named in the
+[developer index](developer-index.qmd) include `.blup_variances()` for the
+variance components, `.check_relationship()` for validating a supplied `K`, and
+`.gblup_marker_effects()` for back-solving marker effects, which the
+`marker_effects` attribute exposes when the genomic matrix was built internally
+with `ridge = 0`.
+
+- The variance components are supplied, not estimated. Accuracy obtained with
+  the true simulated heritability is an upper reference for what an analysis
+  with estimated components can achieve.
+- `h2` with the default `ref` uses the phenotyped subset's variance. After
+  selection that subset has a truncated variance, so pass the base population's
+  records or `var_a` and `var_e` directly.
+- Across cycles of genomic selection, keep `base_freq` at the base population's
+  frequencies. A moving base re-expresses relatedness and inbreeding relative to
+each new generation, which hides accumulated inbreeding and drops markers
+fixed by selection; the package documentation also warns that it can inflate
+apparent accuracy.
+- The pedigree matrix treats founders as unrelated and non-inbred unless told
+  otherwise. Real founders may be related, which the genomic matrix captures
+  and the pedigree cannot.
+- Missing phenotypes are refused rather than dropped in the single-trait model;
+  the multi-trait model accepts `NA` for an unrecorded trait.
+- Repeated records, contemporary groups, single-step models, and dominance
+  relationship matrices are outside the scope of these functions.
+
+::: {.callout-tip title="Where to go next"}
+The predictions are the natural criterion for selection: pass them to
+`select_ind()` through `on` as the [selection chapter](selection.qmd) shows,
+or use them within the optimal-contribution methods of the
+[contributions chapter](optimization.qmd).
+:::

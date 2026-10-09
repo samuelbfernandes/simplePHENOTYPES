@@ -1,0 +1,455 @@
+# Binary phenotypes with human genotypes {#sec-binary}
+
+Suppose you have human genotypes and want to simulate a disease that affects
+about one person in ten, with half of the variation in disease risk explained
+by 20 causal variants. The observed phenotype is a case/control label, but the
+genetic model needs a continuous quantity to act on. This chapter simulates the
+disease under the liability-threshold model, checks the realized prevalence
+against the requested one, separates the liability scale from the observed
+scale, and shows what a case/control sample does and does not preserve.
+
+[]{#binary-setup}
+
+```{r}
+#| label: binary-setup
+#| include: false
+source("_setup.R")
+```
+
+## Worked example {#sec-binary-example}
+
+### Load the package and the human genotypes
+
+[]{#binary-library}
+
+```{r}
+#| label: binary-library
+library(simplePHENOTYPES)
+library(dplyr)
+library(tibble)
+```
+
+The genotypes are the HapMap Phase II subset distributed with the SNPRelate
+package: 279 individuals from four populations (CEU, YRI, HCB, JPT) and about
+nine thousand SNPs after linkage-disequilibrium pruning. The
+[genotype input chapter](input.qmd) explains how this file is read, why 60
+markers with missing or duplicated identifiers are dropped, and why missing
+calls are imputed to the heterozygote. Here we reuse those steps through the
+book's shared loader.
+
+[]{#binary-genotypes}
+
+```{r}
+#| label: binary-genotypes
+source("_data.R")
+human <- book_human()
+samples <- book_human_samples()
+
+tibble(markers = nrow(human), individuals = ncol(human) - 5)
+count(samples, population)
+```
+
+Markers occupy rows, as in the [first chapter](first-simulation.qmd). The
+population labels come with the file and are used below only to split the
+simulated cases by group.
+
+### Simulate the disease
+
+We request an additive genetic share of 0.5 on 20 causal markers and then
+convert the continuous phenotype into two categories with expected proportions
+0.9 and 0.1. The second category is the disease.
+
+[]{#binary-model}
+
+```{r}
+#| label: binary-model
+disease <- simulate_phenotype(human, seed = 2024) |>
+  additive(prop = 0.5, n_qtn = 20) |>
+  liability_threshold(prop = c(0.9, 0.1))
+print(disease)
+```
+
+The printout keeps the variance partition and the realized genetic ratio on the
+liability scale, and says so. `liability_threshold()` changes only the phenotype
+column: the values are now category labels `1` (unaffected) and `2` (affected).
+
+[]{#binary-tables}
+
+```{r}
+#| label: binary-tables
+status <- phenotypes_long(disease) |>
+  mutate(case = value == 2)
+
+count(status, value, case)
+```
+
+The continuous phenotype that produced these labels is retained as the
+liability. It is stored in the simulation object, with the same columns as the
+phenotype table, and is what `genetic_values()` and `coheritability()` continue
+to use.
+
+[]{#binary-liability}
+
+```{r}
+#| label: binary-liability
+liability <- disease$liability |>
+  rename(liability = value)
+
+genetic <- genetic_values(disease) |>
+  as_tibble(rownames = "id") |>
+  rename(genetic_value = Trait_1)
+
+values <- status |>
+  left_join(liability, by = c("id", "trait", "rep")) |>
+  left_join(genetic, by = "id")
+
+values |>
+  group_by(case) |>
+  summarise(
+    n = n(),
+    lowest_liability = min(liability),
+    highest_liability = max(liability),
+    mean_genetic_value = mean(genetic_value)
+  )
+```
+
+Every case has a higher liability than every control, because the label is a
+deterministic cut of the liability. The cases also have a higher mean genetic
+value, but the two groups overlap in genetic value: the residual half of the
+liability moves some individuals with low genetic risk above the threshold
+and some with high genetic risk below it.
+
+### Where the threshold is placed
+
+The package standardizes the liability within the simulated population and
+places the cut point at the normal quantile of the cumulative proportion. For
+two categories with `prop = c(0.9, 0.1)` the cut is the sample mean plus the
+sample standard deviation times the 0.9 quantile of the standard normal
+distribution. We reproduce it and compare it with the boundary between the
+observed groups.
+
+[]{#binary-threshold}
+
+```{r}
+#| label: binary-threshold
+cut_point <- mean(values$liability) + sd(values$liability) * qnorm(0.9)
+
+tibble(
+  quantity = c(
+    "Threshold (package rule)", "Highest control liability",
+    "Lowest case liability", "Requested prevalence", "Realized prevalence"
+  ),
+  value = c(
+    cut_point,
+    max(values$liability[!values$case]),
+    min(values$liability[values$case]),
+    0.1,
+    mean(values$case)
+  )
+)
+```
+
+The threshold lies between the highest control and the lowest case. The
+realized prevalence is the fraction of liabilities above that cut and is not
+forced to equal 0.1. A sample-quantile rule would have produced exactly 28
+cases in 279 individuals; the normal-quantile rule does not. We return to this
+distinction in the theory section.
+
+### Realized prevalence across replications
+
+To see how much the realized prevalence varies, we repeat the residual draw
+200 times with `n_reps`. The causal markers and effects stay the same across
+replications; only the residual, and therefore the liability and the labels,
+change.
+
+[]{#binary-replications}
+
+```{r}
+#| label: binary-replications
+replicated <- simulate_phenotype(human, seed = 2024, n_reps = 200) |>
+  additive(prop = 0.5, n_qtn = 20) |>
+  liability_threshold(prop = c(0.9, 0.1))
+
+prevalence <- phenotypes_long(replicated) |>
+  group_by(rep) |>
+  summarise(prevalence = mean(value == 2))
+
+tibble(
+  quantity = c("Mean prevalence", "Lowest", "Highest", "Standard deviation"),
+  parameter = c(0.1, NA, NA, NA),
+  simulated = c(
+    mean(prevalence$prevalence), min(prevalence$prevalence),
+    max(prevalence$prevalence), sd(prevalence$prevalence)
+  )
+)
+```
+
+The mean over replications is close to the requested value, and individual
+replications scatter around it. The spread is smaller than the binomial
+standard deviation for 279 independent Bernoulli trials with probability 0.1,
+for three reasons. The genetic values are the same in every replication, so
+each individual has its own case probability rather than a common 0.1. The
+default fixed residual mode holds the residual sample variance constant. And
+the threshold is recomputed from each replication's sample mean and standard
+deviation. Each removes part of the sampling variation. The
+replication count is a simulation design choice; it does not change the
+genetic model.
+
+### Cases by population
+
+The four HapMap populations differ in allele frequencies at the causal markers,
+so they differ in mean genetic value and therefore in realized prevalence.
+
+[]{#binary-populations}
+
+```{r}
+#| label: binary-populations
+values |>
+  left_join(samples, by = "id") |>
+  group_by(population) |>
+  summarise(
+    n = n(),
+    cases = sum(case),
+    prevalence = mean(case),
+    mean_genetic_value = mean(genetic_value)
+  )
+```
+
+This difference is an outcome of the simulation, not an input. The threshold
+is one value for the whole sample, and the genetic effects are the same for
+every individual. Groups with a higher mean genetic value at the sampled
+causal markers end up with more cases. With a different seed the causal markers
+change and so does the ranking of the groups. A simulation of this kind cannot
+tell you anything about real disease differences between populations; it tells
+you how allele-frequency differences at hypothetical causal loci translate
+into prevalence differences under one model.
+
+### Random residual mode
+
+The default fixed residual mode scales the residual to exactly its requested
+sample variance. With `residual_mode = "random"` the residual is an ordinary
+normal draw, so the liability's sample variance fluctuates. The threshold rule
+is unchanged: it standardizes whatever liability it receives.
+
+[]{#binary-random}
+
+```{r}
+#| label: binary-random
+random_disease <- simulate_phenotype(human, seed = 2024,
+                                     residual_mode = "random") |>
+  additive(prop = 0.5, n_qtn = 20) |>
+  liability_threshold(prop = c(0.9, 0.1))
+
+tibble(
+  mode = c("fixed", "random"),
+  liability_variance = c(var(disease$liability$value),
+                         var(random_disease$liability$value)),
+  cases = c(sum(disease$pheno$value == 2),
+            sum(random_disease$pheno$value == 2))
+)
+```
+
+The genetic values are identical in both modes because the seed and the
+additive layer are the same; only the residual generation differs. For
+simulation studies of case/control estimators, random mode corresponds to the
+usual model of independent normal residuals on the liability scale.
+
+### A quantitative trait and a disease together
+
+Several traits can share causal loci while only some of them are thresholded.
+Here two traits are simulated under the pleiotropy architecture with a genetic
+correlation target of 0.5, and only the second trait is made binary with a
+prevalence target of 0.2.
+
+[]{#binary-two-traits}
+
+```{r}
+#| label: binary-two-traits
+pair <- simulate_phenotype(human, seed = 7, n_traits = 2,
+                           architecture = "pleiotropy", cor = 0.5) |>
+  additive(prop = c(0.4, 0.6), n_qtn = 20) |>
+  liability_threshold(prop = c(0.8, 0.2), trait = 2)
+print(pair)
+
+phenotypes_wide(pair) |>
+  head()
+
+coheritability(pair)
+```
+
+`Trait_1` remains continuous and `Trait_2` is a category label. The
+co-heritability matrix is computed from the genetic values and the liability,
+so it stays interpretable for the binary trait. The
+[multiple-trait chapter](multitrait.qmd) discusses the pleiotropy architecture
+and its correlation target.
+
+### More than two categories
+
+`prop` may list more than two proportions. The categories are ordered, and the
+cut points are the normal quantiles of the cumulative proportions.
+
+[]{#binary-ordinal}
+
+```{r}
+#| label: binary-ordinal
+severity <- simulate_phenotype(human, seed = 2024) |>
+  additive(prop = 0.5, n_qtn = 20) |>
+  liability_threshold(prop = c(0.25, 0.5, 0.25))
+
+count(phenotypes_long(severity), value)
+```
+
+The liability is the same as in the first simulation, because the seed and the
+layer are the same. Only the number and position of the cut points differ.
+
+### Sampling cases and controls
+
+Studies rarely observe the whole population. A common design samples a fixed
+number of cases and the same number of controls. We take 25 of each from the
+simulated population and compare what the sample shows with what the
+population showed.
+
+[]{#binary-ascertainment}
+
+```{r}
+#| label: binary-ascertainment
+set.seed(1)
+sampled <- values |>
+  group_by(case) |>
+  slice_sample(n = 25) |>
+  ungroup()
+
+tibble(
+  quantity = c("Prevalence", "Genetic variance", "Liability variance"),
+  population = c(mean(values$case), var(values$genetic_value),
+                 var(values$liability)),
+  case_control_sample = c(mean(sampled$case), var(sampled$genetic_value),
+                          var(sampled$liability))
+)
+```
+
+The sample's prevalence is 0.5 by construction. Its genetic and liability
+variances are also different from the population's, because selecting on the
+label selects on the liability. Any heritability computed from this sample
+refers to the sample's own design, not to the population. The simulation
+provides the population truth, so the effect of the design can be measured
+rather than assumed.
+
+## Assumptions and theory
+
+This example uses one continuous liability built from an additive layer and a
+normal residual, a single threshold rule, and no selection, crossing, or
+ascertainment inside the simulation itself. The case/control sampling above is
+performed on the output, not by the package.
+
+### The liability-threshold model
+
+The model postulates an unobserved continuous variable, the liability $l_i$,
+which in this chapter is the ordinary simulated phenotype
+
+$$
+l_i = g_i + e_i ,
+$$
+
+with $g_i$ the genetic value scaled to sample variance $\pi$ and $e_i$ the
+residual. The observed category is determined by fixed cut points
+$t_1 < t_2 < \dots < t_{C-1}$:
+
+$$
+y_i = 1 \text{ if } l_i < t_1, \qquad
+y_i = k \text{ if } t_{k-1} \le l_i < t_k, \qquad
+y_i = C \text{ if } l_i \ge t_{C-1} .
+$$ {#eq-threshold-rule}
+
+The package documentation attributes the model to Wright (1934) and Falconer
+(1965), as cited in `?liability_threshold`. The construction of $l_i$ is the
+same package definition as in @sec-scaling-derivation; the threshold rule is
+a package definition implemented by `.apply_threshold()`.
+
+### How the cut points are chosen
+
+Given category proportions $p_1, \dots, p_C$ summing to one, the package sets
+
+$$
+t_k = \bar l + s_l \, \Phi^{-1}\!\left(\sum_{j=1}^{k} p_j\right),
+\qquad k = 1, \dots, C-1,
+$$ {#eq-threshold-cut}
+
+where $\bar l$ and $s_l$ are the sample mean and sample standard deviation of
+the liability in the simulated population, and $\Phi^{-1}$ is the standard
+normal quantile function. This is a package definition, implemented by
+`.threshold_cuts()`. It is applied separately for each thresholded trait and
+each replication.
+
+Two consequences follow directly. First, the realized category frequencies
+match the requested proportions only in expectation, and only when the
+liability is normal. A finite sample is never exactly normal, and 279 times 0.1
+is not even a whole number, so the realized prevalence fluctuates, as the
+replication table showed. Second, the rule is
+not a sample-quantile rule. A sample-quantile rule would fix the number of
+cases at the nearest integer to $n p_C$ in every replication; the package does
+not do this, so counts vary from replication to replication. When a design
+needs an exact case count, sample it from the output as in the ascertainment
+example.
+
+A model whose liability is deliberately non-normal, for example one with a
+large-effect locus, a vQTL component, or strong epistasis, can produce a
+realized prevalence that differs systematically from `prop`, not only by
+sampling. The requested proportion is then a normal-approximation target, and
+the realized count is the quantity to report.
+
+### Liability scale and observed scale
+
+All variance quantities reported by the package refer to the liability. The
+genetic share $\pi$, the realized genetic ratio, the per-marker variance
+explained, and the co-heritability are computed from $g_i$ and $l_i$ by
+`.realized_h2()` and `coheritability()` through the stored liability table,
+not from the labels. This is a package definition.
+
+The labels themselves have a different variance. For a binary trait coded 0/1
+with prevalence $K$, the sample variance of the labels is approximately
+$K(1-K)$, which for $K = 0.1$ is about 0.09, while the liability has variance
+near one. A ratio of genetic variance to label variance therefore has no
+interpretation as a heritability on either scale; the cases table above
+illustrates that the genetic values overlap between groups while the labels do
+not. Formulas that convert a heritability estimated on the observed 0/1 scale
+to the liability scale exist in the literature, but they are not implemented
+in the package and are not reproduced here; the equation map of this package
+records no verified source for them.
+
+### Why sampling cases and controls changes the variances
+
+Selecting individuals by their label is selection on the liability: every case
+has $l_i \ge t_1$ and every control has $l_i < t_1$. In a case/control sample
+with equal group sizes, the liability distribution is a mixture of the upper
+and lower tails in proportions that differ from the population's. Its variance
+and the genetic variance within it are therefore not the population values,
+and a heritability computed from such a sample does not estimate the
+population liability heritability without a correction for the sampling
+design. This is an algebraic consequence of selection on the output, not a
+package definition.
+
+## Implementation and practical limits
+
+`liability_threshold()` cuts the already realized liability; it does not
+redraw the residual. Layers added afterwards re-realize the phenotype and
+re-apply the stored thresholds. The relevant internal functions are
+`.apply_threshold()`, `.threshold_cuts()`, and `.liability_table()`; all are R
+functions, so the threshold step involves no Rust code.
+
+- The threshold is a function of the simulated sample. A population carrying a
+  stored trait keeps its base population's absolute cut points, so category
+  frequencies can drift across generations; see the
+  [trait values across generations chapter](trait.qmd).
+- A combined model from `complex_phenotypes()` cannot be thresholded.
+  `liability_threshold()` refuses the combined object, and a threshold on an
+  input is discarded together with that input's phenotype. Build binary traits
+  with layers on a single `simulate_phenotype()` object instead; see the
+  [complex architectures chapter](complex.qmd).
+- Selection on the phenotype of a thresholded trait ranks category labels, with
+  many ties. Selection on genetic values or liability-scale breeding values
+  avoids the ties; see the [selection chapter](selection.qmd).
+- The HapMap subset is small and pruned for linkage disequilibrium, which makes
+  it convenient for examples but unrepresentative of a genome-wide association
+  design. Prevalence differences between its populations in a simulation are
+  artefacts of which markers were sampled as causal.

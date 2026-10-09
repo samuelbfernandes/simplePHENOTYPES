@@ -1,0 +1,20 @@
+/*-- scss:defaults --*/
+$primary: #176b72;
+$link-color: #126571;
+$body-color: #233440;
+$headings-color: #173a4a;
+$font-family-sans-serif: system-ui, -apple-system, "Segoe UI", sans-serif;
+$font-size-base: 1.025rem;
+$line-height-base: 1.65;
+
+/*-- scss:rules --*/
+.quarto-title-block .subtitle { max-width: 42rem; color: #546a75; }
+h1, h2, h3 { letter-spacing: -0.025em; }
+main p, main li { max-width: 74ch; }
+.sidebar-title { font-weight: 700; }
+.callout { border-radius: 0.35rem; }
+table { font-size: 0.9rem; }
+td code { overflow-wrap: anywhere; white-space: normal; }
+pre { border-radius: 0.4rem; }
+.book-intro { font-size: 1.18rem; color: #425b68; }
+.diagram-note { color: #536977; font-size: 0.9rem; }

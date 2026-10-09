@@ -1,0 +1,9 @@
+/_book/
+/_generated/
+/downloads/
+/*_files/
+/.quarto/
+
+**/*.quarto_ipynb
+results/
+figure/
