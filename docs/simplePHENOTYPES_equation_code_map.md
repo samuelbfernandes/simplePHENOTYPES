@@ -2,14 +2,16 @@
 title: "simplePHENOTYPES — Equation-to-Code Audit Map"
 subtitle: "Every theory-derived equation, its primary reference, and where it is implemented (function, file, line)"
 author: "Independent dual-model audit (Claude Fable + OpenAI Codex), assembled from per-group reports"
-date: "2026-09-29 audit at `c511c6f`; line references remapped to the working tree on `e666a2c` (2026-10-04)"
+date: "2026-09-29 audit at `c511c6f`; V2 line references re-checked against `20cd2c9` (2026-10-08); V1 references as remapped to `e666a2c` (2026-10-04)"
 toc: true
 toc-depth: 2
 ---
 
 # How to read this document
 
-Each entry gives the **equation as implemented**, the **variables**, the **primary reference** (a page or equation number is quoted only when the auditor verified it; otherwise it is marked *page unverified*), the **implementing function**, and the **exact `file:line` range** at HEAD `e666a2c` (remapped by git line mapping from the audit commit `c511c6f`; see Appendix C). Line numbers were taken from the files at this commit and re-checked by an automated pass (Appendix A) that confirms each cited file exists, the range is within the file, and the named function appears in or just above the range.
+Each entry gives the **equation as implemented**, the **variables**, the **primary reference** (a page or equation number is quoted only when the auditor verified it; otherwise it is marked *page unverified*), the **implementing function**, and the **exact `file:line` range**. V1 ranges are at `e666a2c` (remapped by git line mapping from the audit commit `c511c6f`; see Appendix C). V2 ranges, and the V2 rows of Appendix B, are at `20cd2c9` (2026-10-08): every V2 *Location* was re-mapped from the commit it was actually written against (the audit commit for `:NNN` shorthands, `e666a2c` or `4959077` for file-qualified ranges) and checked against the code at `20cd2c9` (content of the mapped lines, plus an automated check that the first R range of each entry falls inside its named function). Line hints inside *Notes* fields were updated only where an entry was revised (selection, OCS/usefulness, crossing, transcriptome); other *Notes* hints may still refer to `c511c6f`. Appendix A is the original automated check at the audit commit.
+
+**Revision 2026-10-08 (equations changed in code after the audit).** The following entries were rewritten to match the current source; their page-verification status is unchanged: V2-crossing-3 (default meiosis is the two-pathway gamma interference model, $\nu = 2.6$, $p = 0$, since 2.0.0.9003, DECISION-047; Poisson is `interference = "poisson"`), with Poisson-only notes on V2-crossing-4/5/9 and V2-rust-core-1/13; V2-transcriptome-12 (realized cis fraction $v_{cis}/\mathrm{Var}(G)$); V2-transcriptome-19 ($\hat\kappa$ now subtracts the GREML-implied genetic trans share); V2-transcriptome-20 (`observe_counts` carries `@references`); V2-transcriptome-C2 (TX-F2 note); V2-grammar-25 and V2-transcriptome-25 (polynomial hash of the layer type in the sub-seed); V2-grammar-10 and V2-effects-arch-18 (`residual_mode`); V2-effects-arch-20 (`partner = "random"`); V2-selection-15 (multinomial bulk); V2-ocs-usefulness-marker-8 (`sample_parents()` allocates by default).
 
 Conventions: dosage is coded −1/0/1 unless stated; `p` is the allele frequency of the +1 allele; `q = 1 − p`. "Own design" means the equation is a package design decision (documented in `docs/DECISIONS.md`) rather than a literature formula.
 
@@ -37,7 +39,7 @@ $\tilde c = \dfrac{c - \bar c}{\mathrm{sd}(c)}\sqrt{\pi_\ell}$
 
 - *Function:* `.genetic_matrix`
 
-- *Location:* R/grammar_realize.R:138-160 (145)
+- *Location:* R/grammar_realize.R:139-161 (146)
 
 - *Notes:* Sample sd (n−1). Layers summed; no orthogonalization.
 
@@ -54,7 +56,7 @@ $c_A = \sum_j e_j x_{ij}$, $x\in\{-1,0,1\}$
 
 - *Function:* `.component_raw`
 
-- *Location:* R/grammar_realize.R:497-508 (499), centred 432
+- *Location:* R/grammar_realize.R:498-509 (500), centred 432
 
 
 **V2-grammar-3. Orthogonal genotypic value**
@@ -69,7 +71,7 @@ $g_{ij} = a_j x_{ij} + d_j\,\mathbb 1[x_{ij}=0]$ i.e. $-a/+d/+a$
 
 - *Function:* `.component_raw`
 
-- *Location:* R/grammar_realize.R:500-506 (505)
+- *Location:* R/grammar_realize.R:501-507 (506)
 
 - *Notes:* DECISION-020
 
@@ -86,7 +88,7 @@ $c_D=\sum_j e_j\,\mathbb 1[x_{ij}=0]$
 
 - *Function:* `.component_raw`
 
-- *Location:* R/grammar_realize.R:509
+- *Location:* R/grammar_realize.R:510
 
 - *Notes:* Not Fisher's D; see GRAM-F1
 
@@ -103,7 +105,7 @@ $z_{i}=\prod_{k}\big(t_{ik}-\bar t_k\big)$, $t_k$ = dosage ("a") or het indicato
 
 - *Function:* `.epi_unit_column`
 
-- *Location:* R/grammar_realize.R:578-588 (452, 454)
+- *Location:* R/grammar_realize.R:579-589 (586, 588)
 
 - *Notes:* Single source for realization and pleio normalizer
 
@@ -120,7 +122,7 @@ $c_E=\sum_p e_p z_{ip}$
 
 - *Function:* `.component_raw`
 
-- *Location:* R/grammar_realize.R:510-528 (523)
+- *Location:* R/grammar_realize.R:511-529 (524)
 
 
 **V2-grammar-7. Geometric effect series**
@@ -150,7 +152,7 @@ $e_k \leftarrow e_k(-1)^{k+1}$
 
 - *Function:* `.apply_phase`
 
-- *Location:* R/grammar_layers.R:1479-1487 (1484)
+- *Location:* R/grammar_layers.R:1482-1490 (1487)
 
 - *Notes:* positional, not LD-derived (documented)
 
@@ -167,7 +169,7 @@ $\sigma^2_e = \max(0,\,1-\sum_\ell \pi_\ell - \sum_v \pi_v)$
 
 - *Function:* `.realize_phenotype`
 
-- *Location:* R/grammar_realize.R:54-58 (58)
+- *Location:* R/grammar_realize.R:55-59 (59)
 
 
 **V2-grammar-10. Residual draw**
@@ -180,9 +182,9 @@ $e \sim N(0,\sigma_e^2)$ then $e\leftarrow \dfrac{e-\bar e}{\mathrm{sd}(e)}\sigm
 
 - *Function:* `.draw_residual`
 
-- *Location:* R/effects_series.R:84-100 (97)
+- *Location:* R/effects_series.R:85-102 (99)
 
-- *Notes:* exact sample variance; same standardized vector per (seed,trait,rep)
+- *Notes:* exact sample variance; same standardized vector per (seed,trait,rep). Default `residual_mode = "fixed"`; `residual_mode = "random"` (added after the audit) returns the raw $N(0,\sigma_e^2)$ draw (`:94`)
 
 
 **V2-grammar-11. Phenotype**
@@ -197,7 +199,7 @@ $y_{it} = G_{it} + T_{it} + e_{it} + \mu_t$
 
 - *Function:* `.realize_phenotype`
 
-- *Location:* R/grammar_realize.R:95
+- *Location:* R/grammar_realize.R:96
 
 
 **V2-grammar-12. Requested budget identity**
@@ -210,7 +212,7 @@ $\sum_{A,D,E}\pi = h^2$; $\sum_{\text{all}}\pi\le 1$
 
 - *Function:* `.resolve_prop`, `.add_layer`, `.check_h2_complete`
 
-- *Location:* R/grammar_layers.R:1082-1095, 852-862; R/grammar_realize.R:1139-1152
+- *Location:* R/grammar_layers.R:1085-1098, 1102-1115; R/grammar_realize.R:1153-1166
 
 - *Notes:* tol 1e-8
 
@@ -227,7 +229,7 @@ $\pi_c = h^2/\vert{}\text{model}\vert{}$
 
 - *Function:* `.build_one_call`
 
-- *Location:* R/grammar_simulate_phenotype.R:745-758 (747)
+- *Location:* R/grammar_simulate_phenotype.R:767-780 (769)
 
 - *Notes:* "AE": n_pairs = n_qtn
 
@@ -244,7 +246,7 @@ $\hat H^2_t = \frac{1}{R}\sum_r \dfrac{\mathrm{Var}(G_{\cdot t r})}{\mathrm{Var}
 
 - *Function:* `.realized_h2`
 
-- *Location:* R/grammar_realize.R:1064-1092 (716-720)
+- *Location:* R/grammar_realize.R:1078-1106 (716-720)
 
 - *Notes:* vqtl in denominator only
 
@@ -261,7 +263,7 @@ $\alpha_j = a_j + d_j(q_j-p_j) = a_j + d_j(1-2p_j)$
 
 - *Function:* `.avg_effect`
 
-- *Location:* R/grammar_realize.R:181-183 (182)
+- *Location:* R/grammar_realize.R:182-184 (183)
 
 - *Notes:* verified numerically
 
@@ -276,7 +278,7 @@ $A_i=\sum_j \alpha_j (x_{ij}-2p_j)$, $x\in\{0,1,2\}$
 
 - *Function:* `.breeding_value_matrix`
 
-- *Location:* R/grammar_realize.R:281-302 (227-235)
+- *Location:* R/grammar_realize.R:282-303 (227-235)
 
 - *Notes:* a, d rescaled by $\sqrt{\pi}/\mathrm{sd}$ (273); DECISION-019
 
@@ -293,7 +295,7 @@ $\mathrm{Var}(g)=\mathrm{Var}(A)+\mathrm{Var}(D)+2\mathrm{Cov}(A,D)$; rows $\tfr
 
 - *Function:* `.orthogonal_var_split`, `.variance_budget`
 
-- *Location:* R/grammar_realize.R:770-786 (646-650), 536-551
+- *Location:* R/grammar_realize.R:778-794 (646-650), 536-551
 
 - *Notes:* Cov = 0 under random mating (verified)
 
@@ -323,7 +325,7 @@ $L_i=\sum_v \sqrt{\pi_v}\,\dfrac{s_{iv}-\bar s_v}{\mathrm{sd}(s_v)}$, $s_v = X_v
 
 - *Function:* `.apply_vqtl`
 
-- *Location:* R/grammar_realize.R:603-616 (614)
+- *Location:* R/grammar_realize.R:605-618 (616)
 
 
 **V2-grammar-20. vQTL residual**
@@ -338,7 +340,7 @@ $\log \mathrm{Var}(E_v\mid g)=\text{const}+L_i$; $E_{vi}=z_i e^{L_i/2}$, then ce
 
 - *Function:* `.apply_vqtl`
 
-- *Location:* R/grammar_realize.R:625-633
+- *Location:* R/grammar_realize.R:627-641
 
 - *Notes:* verified numerically
 
@@ -353,7 +355,7 @@ $c_T=\sum_g w_g z_g$, $z_g=(E_g-\bar E_g)/\mathrm{sd}(E_g)$, $w\leftarrow w/\max
 
 - *Function:* `.tx_raw`, `.transcriptome_matrix`
 
-- *Location:* R/grammar_realize.R:453-475 (368, 371, 373), 308-338
+- *Location:* R/grammar_realize.R:454-476 (470, 473, 475), 308-338
 
 
 **V2-grammar-22. Mediation split**
@@ -366,7 +368,7 @@ $\tfrac{\mathrm{Var}(T_g)}{V_P},\tfrac{\mathrm{Var}(T_e)}{V_P},\tfrac{2\mathrm{C
 
 - *Function:* `.mediation_budget`
 
-- *Location:* R/grammar_realize.R:730-742 (604-606)
+- *Location:* R/grammar_realize.R:738-750 (604-606)
 
 - *Notes:* stale in complex (F3)
 
@@ -381,7 +383,7 @@ $G^{(c)}_t=\dfrac{\sum_m G^{(m)}_t-\overline{\cdot}}{\mathrm{sd}}\sqrt{h^2_t}$; 
 
 - *Function:* `complex_phenotypes`
 
-- *Location:* R/grammar_complex.R:115-127 (81, 85), 96-107 (99)
+- *Location:* R/grammar_complex.R:122-134 (123, 127), 96-107 (99)
 
 - *Notes:* inputs weighted by sd ($\propto$$\surd$prop)
 
@@ -394,9 +396,9 @@ $p_j=\overline{(x_j+1)/2}$, $\mathrm{MAF}=\min(p,1-p)$
 
 - *Reference:* —
 
-- *Function:* `.marker_maf_ref`
+- *Function:* `.marker_maf_ref` (via `.marker_stats_ref`)
 
-- *Location:* R/grammar_simulate_phenotype.R:1000-1030 (666, 669)
+- *Location:* R/grammar_simulate_phenotype.R:1022-1052 (1040, 1044)
 
 - *Notes:* candidate = MAF>0 (F2)
 
@@ -404,16 +406,16 @@ $p_j=\overline{(x_j+1)/2}$, $\mathrm{MAF}=\min(p,1-p)$
 **V2-grammar-25. Sub-seed**
 
 
-$s_\ell = (1009\,s + 7919\sum \mathrm{utf8}(\text{type}) + 104729\,\text{occ}) \bmod (2^{31}-1)$
+$b \leftarrow (257\,b + u_k) \bmod 2147483629$ over the UTF-8 codes $u_k$ of the layer type ($b_0 = 0$); $s_\ell = (1009\,s + 7919\,b + 104729\,\text{occ}) \bmod (2^{31}-1)$
 
 
 - *Reference:* Package scheme (SPEC §6)
 
 - *Function:* `.layer_seed`
 
-- *Location:* R/grammar_simulate_phenotype.R:1057-1072 (684, 690)
+- *Location:* R/grammar_simulate_phenotype.R:1079-1094 (1083, 1092)
 
-- *Notes:* no collisions found
+- *Notes:* no collisions found (audit, with the former $\sum \mathrm{utf8}$ type term); the type term is now an order-sensitive polynomial hash (`:1083-1086`)
 
 
 **V2-grammar-26. Per-QTN variance**
@@ -441,7 +443,7 @@ $y=g+e$, $e\sim N(0,\sigma^2_e)$, $\sigma^2_e=\mathrm{Var}(g_{ref})\dfrac{1-h^2}
 
 - *Function:* `phenotype_value`
 
-- *Location:* R/cross_population.R:903-969 (944)
+- *Location:* R/cross_population.R:1004-1104 (1061)
 
 - *Notes:* true normal, not standardized (DECISION-021)
 
@@ -584,7 +586,7 @@ $\Sigma_{ii} = \pi_i V_i,\quad \Sigma_{ij} = \rho_{ij}\sqrt{V_i V_j}$
 
 - *Function:* `.pleio_draw`, `.pleio_nonadditive_draw`
 
-- *Location:* `effects_pleioarch.R:90-91`, `:356-357`
+- *Location:* `effects_pleioarch.R:90-91`, `:504-505`
 
 - *Notes:* F1 bit-exact vs reference; generalised to n traits (DECISION-013)
 
@@ -601,7 +603,7 @@ $V^{spec}_i = (1-\pi_i) V_i$, i.i.d. per trait
 
 - *Function:* `.pleio_draw`, `.pleio_unit_effects`
 
-- *Location:* `:139-141`, `:536`
+- *Location:* `:197-199`, `:685`
 
 - *Notes:* zero-variance classes still drawn (EFF-F4)
 
@@ -618,7 +620,7 @@ $\Sigma_{maj} = \Sigma\,\phi,\ \Sigma_{min} = \Sigma(1-\phi)$; per-unit $\Sigma_
 
 - *Function:* `.pleio_draw`, `.draw_mvnorm`
 
-- *Location:* `:137-138`, `:785`
+- *Location:* `:195-196`, `:934`
 
 - *Notes:* additive layer only (`:63-68`)
 
@@ -635,7 +637,7 @@ $E = Z\,\Sigma_{per}^{1/2},\ \Sigma_{per}^{1/2} = U\,\mathrm{diag}(\sqrt{\lambda
 
 - *Function:* `.draw_mvnorm`
 
-- *Location:* `:780-790`
+- *Location:* `:929-939`
 
 - *Notes:* same law, different realizations; handles singular Σ
 
@@ -650,7 +652,7 @@ $e_k \sim N\!\big(0,\ V^{spec}_i / n_{spec}\big)$
 
 - *Function:* `.draw_univariate`
 
-- *Location:* `:795-800`
+- *Location:* `:944-949`
 
 
 **V2-effects-arch-6. Shared-unit count**
@@ -665,7 +667,7 @@ $n_{pleio} = \mathrm{round}\big(\bar\pi\, n\big)$, $n_{spec} = n - n_{pleio}$
 
 - *Function:* `.pleio_partition`
 
-- *Location:* `:220-221, 249`
+- *Location:* `:291-292, 320`
 
 - *Notes:* R half-to-even (EFF-F9)
 
@@ -680,7 +682,7 @@ $\rho^2 \le \pi_1 \pi_2$
 
 - *Function:* `.check_pleio_feasible`
 
-- *Location:* `:727-741`
+- *Location:* `:876-890`
 
 - *Notes:* tol `8\,\epsilon\max(\cdot)`
 
@@ -697,7 +699,7 @@ $M \succeq 0,\ M_{ii} = \pi_i,\ M_{ij} = \rho_{ij}$; $\Sigma = D^{1/2} M D^{1/2}
 
 - *Function:* `.check_pleio_feasible`
 
-- *Location:* `:749-766`
+- *Location:* `:898-915`
 
 - *Notes:* E6 catches min eig -0.2
 
@@ -712,9 +714,9 @@ $e^{*}_k = e_k / \sqrt{2\,\mathrm{MAF}_k(1-\mathrm{MAF}_k)}$
 
 - *Reference:* `scaleQTNEffects.R:26-37`; $\mathrm{Var}(\mathrm{Bin}(2,p)) = 2p(1-p)$ (elementary)
 
-- *Function:* `.pleio_draw`; `.marker_maf_ref`
+- *Function:* `.pleio_draw`; `.marker_maf_ref` (via `.marker_stats_ref`)
 
-- *Location:* `:143-159`; `grammar_simulate_phenotype.R:1018-1022`
+- *Location:* `:201-217`; `grammar_simulate_phenotype.R:1040-1044`
 
 - *Notes:* HWE sd of -1/0/1 dosage
 
@@ -731,7 +733,7 @@ $e^{*}_u = e_u / \widehat{\mathrm{sd}}(z_u)$, $z_u$ = het indicator or $\prod_k 
 
 - *Function:* `.pleio_unit_effects`; `.epi_unit_column`
 
-- *Location:* `:452-455, 537`; `grammar_realize.R:578-588`; dominance design `:370` vs `grammar_realize.R:509`
+- *Location:* `:601-604, 686`; `grammar_realize.R:579-589`; dominance design `:518` vs `grammar_realize.R:510`
 
 - *Notes:* constant columns -> effect 0, excluded from allocation `:454-457`
 
@@ -748,7 +750,7 @@ $\rho^{eff}_{ij} = \Sigma_{ij}\,\mathbb{1}_{sh} / \sqrt{v^{eff}_i v^{eff}_j}$, $
 
 - *Function:* `.pleio_unit_effects`
 
-- *Location:* `:510-515`
+- *Location:* `:659-664`
 
 
 **V2-effects-arch-12. Total-correlation target**
@@ -763,7 +765,7 @@ $\rho^{tot}_{ij} = \dfrac{\sum_c \rho^{(c)}_{ij}\sqrt{V_{ci}V_{cj}}}{\sqrt{\sum_
 
 - *Function:* `.pleio_total_cor_check`
 
-- *Location:* `:605-610`
+- *Location:* `:754-759`
 
 - *Notes:* warns if `abs(tot - cor) > 0.01*abs(cor)` `:616`; E12 gives 0.400 for (.4,.1)/(.1,.4) at 0.5
 
@@ -778,7 +780,7 @@ $c_t \leftarrow (c_t - \bar c_t)\,\sqrt{\mathrm{prop}_t}/\widehat{\mathrm{sd}}(c
 
 - *Function:* `.genetic_matrix`
 
-- *Location:* `grammar_realize.R:143-145`
+- *Location:* `grammar_realize.R:144-146`
 
 - *Notes:* makes realized r a random ratio (P1 wording)
 
@@ -795,7 +797,7 @@ $\mathbb{E}[r]/\rho \approx 0.66, 0.82, 0.92, 0.96, 0.98, 0.99$ at $K = 1,2,5,10
 
 - *Function:* doc claim
 
-- *Location:* `:26-28`; `grammar_simulate_phenotype.R:302-304`
+- *Location:* `:26-28`; `grammar_simulate_phenotype.R:318-320`
 
 - *Notes:* verified
 
@@ -827,7 +829,7 @@ $a_k = b^{k},\ k = 1..n$ (default $b = 0.5$)
 
 - *Function:* `.effect_series`
 
-- *Location:* `effects_series.R:55, 52`
+- *Location:* `effects_series.R:55, 64`
 
 - *Notes:* custom vector used verbatim `:32-38`
 
@@ -842,7 +844,7 @@ $a_k \leftarrow a_k(-1)^{k+1}$, same for every trait
 
 - *Function:* `.apply_phase`
 
-- *Location:* `grammar_layers.R:1479-1487`
+- *Location:* `grammar_layers.R:1482-1490`
 
 - *Notes:* applied to PleioArch effects too (EFF-F11)
 
@@ -857,9 +859,9 @@ $e \sim N(0, \sigma^2_e)$, then $e \leftarrow (e-\bar e)\sigma_e/\widehat{\mathr
 
 - *Function:* `.draw_residual`
 
-- *Location:* `effects_series.R:84-100`
+- *Location:* `effects_series.R:85-102`
 
-- *Notes:* exact-variance residual
+- *Notes:* exact-variance residual under the default `residual_mode = "fixed"`; `"random"` skips the rescaling (`:94`)
 
 
 **V2-effects-arch-19. LD measure**
@@ -874,7 +876,7 @@ $r^2 = \mathrm{cor}(g_a, g_b)^2$ on -1/0/1 dosage (composite)
 
 - *Function:* `window_partners`, `r2_pair`
 
-- *Location:* `arch_ld.R:111, 92-94`
+- *Location:* `arch_ld.R:111, 124-126`
 
 - *Notes:* inclusive window `:82`
 
@@ -882,7 +884,7 @@ $r^2 = \mathrm{cor}(g_a, g_b)^2$ on -1/0/1 dosage (composite)
 **V2-effects-arch-20. Direct pair choice**
 
 
-$t_2 = \arg\max_{j \in W(t_1)} r^2_{t_1 j}$
+$t_2 = \arg\max_{j \in W(t_1)} r^2_{t_1 j}$ (default `partner = "strongest"`); $t_2 \sim U\{W(t_1)\}$ for `partner = "random"`
 
 
 - *Variables:* $W$ = in-window unused partners
@@ -891,7 +893,7 @@ $t_2 = \arg\max_{j \in W(t_1)} r^2_{t_1 j}$
 
 - *Function:* `.draw_qtn_ld`
 
-- *Location:* `arch_ld.R:149-160` (`:114`)
+- *Location:* `arch_ld.R:149-160` (`:151-152`); `partner` `:73-74`
 
 - *Notes:* EFF-F2
 
@@ -923,7 +925,7 @@ $s = (1009\,\mathrm{seed} + 7919 \sum \mathrm{utf8}(\mathrm{type}) + 104729\,\ma
 
 - *Function:* `.layer_seed`
 
-- *Location:* `grammar_simulate_phenotype.R:1061-1071`
+- *Location:* `grammar_simulate_phenotype.R:1083-1093`
 
 - *Notes:* permutation-invariant (EFF-F1)
 
@@ -938,7 +940,7 @@ keep $\arg\max_{m \in B}\mathrm{MAF}_m$ per block $B$; MAF floor 0.05; window $\
 
 - *Function:* `.gabriel_blocks`
 
-- *Location:* `qc_ld_methods.R:24-29, 30-35`
+- *Location:* `qc_ld_methods.R:24-29, 38-43`
 
 - *Notes:* UNVERIFIABLE parity
 
@@ -975,7 +977,7 @@ $n_{sh} = \min\!\big(n, \max(0, \mathrm{round}(n\,\bar\pi))\big),\ n_{sp} = n - 
 
 - *Function:* `.pleio_partition()`
 
-- *Location:* `R/effects_pleioarch.R:288-329` (clamp `:220-221`)
+- *Location:* `R/effects_pleioarch.R:288-329` (clamp `:291-292`)
 
 - *Notes:* refines Fable's row (which omits the clamp); errors when a requested class rounds to zero (`:241-256`); R half-to-even (EFF-F9)
 
@@ -1159,18 +1161,18 @@ $x_j = \text{cis}_j + \text{trans}_j - 1$
 **V2-crossing-3. Crossover count**
 
 
-$n_x \sim \text{Poisson}(L),\ L = \text{last cM}/100$
+Default (`interference = NULL`, since 2.0.0.9003): two-pathway gamma model with $\nu = 2.6$, $p = 0$. Chiasmata on the bivalent at 2 per Morgan; a share $p$ is a Poisson process (drawn at the gamete level, $n \sim \text{Poisson}(pL)$, positions $U(0,L)$); the rest is a stationary renewal process with gaps $\sim \text{Gamma}(\nu,\ 2\nu(1-p))$, first point $U\cdot\text{Gamma}(\nu+1,\ 2\nu(1-p))$, each chiasma kept in the gamete with probability $1/2$. `interference = "poisson"` (the default before 2.0.0.9003, isqg stream): $n_x \sim \text{Poisson}(L)$. $L = \text{last cM}/100$ in both
 
 
 - *Variables:* L in Morgans
 
-- *Reference:* Karlin & Liberman 1978 PNAS 75:6332–6336 (as cited by isqg; not re-verified); isqg Genetics.cpp:84
+- *Reference:* Poisson branch: Karlin & Liberman 1978 PNAS 75:6332–6336 (as cited by isqg; not re-verified); isqg Genetics.cpp:84. Gamma model: McPeek & Speed 1995 *Genetics* 139(2):1031–1044; two-pathway extension Housworth & Stahl 2003 *Am. J. Hum. Genet.* 73(1):188–197 (as cited in `man/cross.Rd`; pages not verified here)
 
-- *Function:* `.draw_meiosis`
+- *Function:* `.draw_meiosis`, `.draw_meiosis_interference`, `.check_interference`
 
-- *Location:* `R/cross_mating.R:77-78`; cM$\rightarrow$M `:98,100`
+- *Location:* `R/cross_mating.R:53-56` (dispatch), Poisson branch `:77-78`; gamma model `:215-275`; default `.INTERFERENCE_DEFAULT` `:117` (DECISION-047); cM$\rightarrow$M `:339,341`
 
-- *Notes:* last position, not span (CROSS-F5)
+- *Notes:* last position, not span (CROSS-F5), in both models; seeded meiosis results changed with the new default (NEWS, 2.0.0.9003)
 
 
 **V2-crossing-4. Chiasma positions**
@@ -1183,9 +1185,9 @@ $u_1,\dots,u_{n_x} \overset{iid}{\sim} U(0,L)$, sorted
 
 - *Function:* `.draw_meiosis`
 
-- *Location:* `R/cross_mating.R:79`
+- *Location:* `R/cross_mating.R:79-87`
 
-- *Notes:* not drawn when $n_x=0$
+- *Notes:* not drawn when $n_x=0$; Poisson branch only (`interference = "poisson"`); default gamma model in V2-crossing-3
 
 
 **V2-crossing-5. Strand choice**
@@ -1198,9 +1200,9 @@ $f \sim \text{Bernoulli}(1/2)$, always drawn
 
 - *Function:* `.draw_meiosis`
 
-- *Location:* `R/cross_mating.R:81`
+- *Location:* `R/cross_mating.R:90`
 
-- *Notes:* unconditional
+- *Notes:* unconditional; the gamma branch also draws one flip per slot (`:272`)
 
 
 **V2-crossing-6. Ancestry mask**
@@ -1215,7 +1217,7 @@ $m_j = f \oplus \bigoplus_{k} \mathbf 1(j \ge b_k),\ b_k = \#\{p_i \le u_k\}$
 
 - *Function:* `chromosome_mask`, `breaks_at`
 
-- *Location:* `src/rust/src/meiosis.rs:49-51, 41-50`
+- *Location:* `src/rust/src/meiosis.rs:49-51, 63-72`
 
 - *Notes:* `<=` (upper_bound)
 
@@ -1258,9 +1260,9 @@ $r = \tfrac12\left(1-e^{-2d}\right)$
 
 - *Reference:* Haldane 1919 J. Genet. 8:299–309 (page unverified; standard)
 
-- *Function:* — (property of the Poisson process)
+- *Function:* — (property of the Poisson process; holds for `interference = "poisson"`, or $\nu = 1$ / $p = 1$, not for the default gamma model, whose $r(d) = [1 - P_0(d)]/2$ is given in `man/cross.Rd`)
 
-- *Location:* verified e4.R/e5.R; `tests/testthat/test-cross.R:179-202`
+- *Location:* verified e4.R/e5.R; `tests/testthat/test-cross.R:179-202` (file runs under `simplePHENOTYPES.interference = "poisson"`, `:13`)
 
 - *Notes:* holds for any map origin
 
@@ -1346,7 +1348,7 @@ $\sigma_e^2 = \text{Var}(g_{\text{ref}})\,(1-h^2)/h^2$
 
 - *Function:* `phenotype_value`
 
-- *Location:* `R/cross_population.R:944`
+- *Location:* `R/cross_population.R:1061`
 
 
 **V2-crossing-16. Breed composition**
@@ -1376,7 +1378,7 @@ $H = \bar G_{\text{cross}} - \sum_b \bar F_b\,\bar G_b$
 
 - *Function:* `heterosis`
 
-- *Location:* `R/cross_breed.R:135-139, 130`
+- *Location:* `R/cross_breed.R:135-139, 152`
 
 - *Notes:* composition-weighted
 
@@ -1449,9 +1451,9 @@ key = FNV-1a-128(canonical(design, keys$_{p_1}$, keys$_{p_2}$, RNG state before/
 
 - *Function:* `.mating_pedigree`, `.stable_key`
 
-- *Location:* `R/cross_pedigree.R:25-80, 128-130`; `hash.rs:12-23`
+- *Location:* `R/cross_pedigree.R:25-37` (`.stable_key`), `:42-59` (`.key_part`), `:205-207` (mating key); `hash.rs:12-23`
 
-- *Notes:* founder key `:51-55`
+- *Notes:* founder key `:97-138` (`.founder_pedigree`, batched since the post-audit perf change)
 
 
 **V2-crossing-23. Generation**
@@ -1464,7 +1466,7 @@ $\text{gen}_i = 1 + \max(\text{gen}_{m}, \text{gen}_{f})$
 
 - *Function:* `.mating_pedigree`
 
-- *Location:* `R/cross_pedigree.R:166-167`
+- *Location:* `R/cross_pedigree.R:208-209`
 
 
 **V2-crossing-24. A-matrix (other group, consistency only)**
@@ -1497,7 +1499,7 @@ $\alpha_j = a_j + d_j(1-2p_j),\quad A_i = \sum_j \alpha_j (x_{ij} - 2p_j)$
 
 - *Function:* roxygen of `genotypic_value` (implemented in `select_ind(on = "bv")`, other group)
 
-- *Location:* `R/cross_population.R:774-780` (verified: α text at 386-387)
+- *Location:* `R/cross_population.R:774-780` (verified: α text at 776-777)
 
 - *Notes:* Doc correctly states `additive_value(alpha)` is only ranking-equivalent (differs by an additive constant)
 
@@ -1514,7 +1516,7 @@ $\text{fam}(i) = \{k_{m(i)}, k_{f(i)}\}$ (unordered key pair); maternal/paternal
 
 - *Function:* `families`
 
-- *Location:* `R/cross_pedigree.R:265-293` (verified: `families <-` at 230, closes at 258)
+- *Location:* `R/cross_pedigree.R:307-336` (verified: `families <-` at 307, closes at 336)
 
 - *Notes:* `ifelse(m <= f, paste(m,f), paste(f,m))` merges reciprocals; labels made unique
 
@@ -1562,7 +1564,7 @@ expected BV correlations: S1 sibs $2/3$ ($A_{ij}=1$, $A_{ii}=1.5$), full sibs an
 **V2-rust-core-1. Crossover count (count-location)**
 
 
-$n_x \sim \mathrm{Poisson}(L)$
+$n_x \sim \mathrm{Poisson}(L)$ (`interference = "poisson"` only; the default gamma model is V2-crossing-3)
 
 
 - *Variables:* $L$ = last map position of the chromosome, Morgans
@@ -1588,7 +1590,7 @@ $x_i \overset{iid}{\sim} U(0, L),\; i=1..n_x$, sorted
 
 - *Function:* `.draw_meiosis`
 
-- *Location:* R `:53`; isqg `Genetics.cpp:86-97`
+- *Location:* R `:79-87`; isqg `Genetics.cpp:86-97`
 
 - *Notes:* R `runif` is on the open interval; Rust never sorts (`meiosis.rs:60-62`)
 
@@ -1605,7 +1607,7 @@ $f \sim \mathrm{Bernoulli}(1/2)$, drawn unconditionally
 
 - *Function:* `.draw_meiosis` / `chromosome_mask`
 
-- *Location:* R `:55`; Rust `meiosis.rs:68-70`; isqg `:74-75`
+- *Location:* R `:90`; Rust `meiosis.rs:68-70`; isqg `:74-75`
 
 - *Notes:* skipping it when $n_x=0$ desynchronises the stream
 
@@ -1671,7 +1673,7 @@ progeny $i$: $(\text{cis},\text{trans}) = (g^{(P_1)}_{2i},\, g^{(P_2)}_{2i+1})$
 
 - *Function:* `mate_haplotypes`
 
-- *Location:* Rust `meiosis.rs:359-369`; R `.mate` `cross_mating.R:345,111,120-132`
+- *Location:* Rust `meiosis.rs:359-369`; R `.mate` `cross_mating.R:345,453,460-467`
 
 - *Notes:* cis from parent 1 (tested by `cross_swapped`)
 
@@ -1701,7 +1703,7 @@ $(\text{cis},\text{trans}) = (g^{(P)}_{i}, g^{(P)}_{i})$
 
 - *Function:* `mate_haplotypes` (Dh)
 
-- *Location:* Rust `meiosis.rs:263-269,228-231`; R `:246-251`
+- *Location:* Rust `meiosis.rs:263-269,351-358`; R `cross_mating.R:686-691`
 
 
 **V2-rust-core-10. Genotype projection**
@@ -1714,7 +1716,7 @@ $G_j = \begin{cases}1 & c_j \wedge t_j\\ 0 & c_j \oplus t_j\\ -1 & \neg c_j \wed
 
 - *Function:* `write_genotype`, `dosages`
 
-- *Location:* Rust `genome.rs:273-284`; R `cross_population.R:355-359` (`cis + trans - 1`)
+- *Location:* Rust `genome.rs:273-284`; R `cross_population.R:623` (`cis + trans - 1`)
 
 - *Notes:* lossy (phase)
 
@@ -1746,7 +1748,7 @@ $p_j = \mathrm{cM}_j / 100$
 
 - *Function:* `.mate`
 
-- *Location:* R `cross_mating.R:337,100`
+- *Location:* R `cross_mating.R:339,341`
 
 
 **V2-rust-core-13. Haldane map function (consequence, tested only)**
@@ -1763,7 +1765,7 @@ $r(d) = \tfrac{1}{2}\left(1 - e^{-2d}\right)$
 
 - *Location:* test `tests/testthat/test-cross.R:179-202`; auditor `T2–T4`
 
-- *Notes:* follows from a rate-1 Poisson process with no interference
+- *Notes:* follows from a rate-1 Poisson process with no interference (`interference = "poisson"`; not the default gamma model)
 
 
 **V2-rust-core-14. Numericalization — orientation**
@@ -1778,7 +1780,7 @@ allele-2 major $\iff n_{2} > n_{0}$ ($\iff 2n_2+n_1 > 2n_0+n_1$)
 
 - *Function:* `compute_flip`
 
-- *Location:* R `io_detect_format.R:362-364`; reference mode `:305-310`
+- *Location:* R `io_detect_format.R:362-364`; reference mode `:354-359`
 
 - *Notes:* strict `>`: tie $\rightarrow$ allele-1 (RUST-F9)
 
@@ -1793,7 +1795,7 @@ allele-2 major $\iff n_{2} > n_{0}$ ($\iff 2n_2+n_1 > 2n_0+n_1$)
 
 - *Function:* `numericalize_core`
 
-- *Location:* Rust `numeric.rs:76-88,72-119`
+- *Location:* Rust `numeric.rs:76-88,135-180`
 
 - *Notes:* model applied after imputation (fixes a v1 gap, `numeric.rs:127-134`)
 
@@ -1810,7 +1812,7 @@ $h_0 = \text{offset}_{128};\; h_{k+1} = (h_k \oplus b_k)\cdot p \bmod 2^{128}$, 
 
 - *Function:* `fnv1a_128`, `.stable_key`
 
-- *Location:* Rust `hash.rs:12-23`; R `cross_pedigree.R:24-79`
+- *Location:* Rust `hash.rs:12-23`; R `cross_pedigree.R:22-59`
 
 - *Notes:* verified vs Python (RUST-F15)
 
@@ -1830,7 +1832,7 @@ $\texttt{as\_numeric}(x) = \texttt{format\_conversion}(x, \texttt{to = "numeric"
 
 - *Function:* `as_numeric()`
 
-- *Location:* `R/io_as_numeric.R:192-207` (verified: `if (is.character(x) && is.null(dim(x)))` at :105, `format_conversion(...)` at :113)
+- *Location:* `R/io_as_numeric.R:192-207` (verified: `if (is.character(x) && is.null(dim(x)))` at :198, `format_conversion(...)` at :206)
 
 - *Notes:* Deterministic; character matrices deliberately not treated as paths (`:101-104`); F4 lives downstream in `io_detect_format.R:286-297`
 
@@ -1847,7 +1849,7 @@ Dom: $z = c_H$ if het else $c_m$; Left: het $\to c_m$; Right: het $\to c_M$; Add
 
 - *Function:* `numericalize_core()`
 
-- *Location:* `src/rust/src/numeric.rs:149-180` (verified: `match model` at :95, `"Dom"` :96, `"Left"` :103, `"Right"` :110, default :117)
+- *Location:* `src/rust/src/numeric.rs:149-180` (verified: `match model` at :156, `"Dom"` :157, `"Left"` :164, `"Right"` :171, default :178)
 
 - *Notes:* Applied *after* imputation (`:64-71`); Codex's audit-only 64-case grid passed; unknown `model` silently = Add (F7/RC-04)
 
@@ -1887,7 +1889,7 @@ $i(p)=\dfrac{\varphi(\Phi^{-1}(1-p))}{p}$
 
 - *Function:* `.resolve_keep`
 
-- *Location:* `R/select_ind.R:585–326`
+- *Location:* `R/select_ind.R:585–587`
 
 - *Notes:* count with nearest i; infinite-N form
 
@@ -1904,7 +1906,7 @@ $S=\bar{y}_{sel}-\bar{y}$
 
 - *Function:* `select_ind`
 
-- *Location:* `R/select_ind.R:460, 287`
+- *Location:* `R/select_ind.R:460, 482`
 
 - *Notes:* natural sign restored for low
 
@@ -1919,7 +1921,7 @@ $i=S/\hat\sigma_{y}$, $\hat\sigma$ with n−1
 
 - *Function:* `select_ind`, `.select_culling`
 
-- *Location:* `R/select_ind.R:461–283, 734–735`
+- *Location:* `R/select_ind.R:461–478, 1089–1090`
 
 - *Notes:* 0 when sd = 0
 
@@ -1953,7 +1955,7 @@ $\alpha_j=a_j+d_j(q_j-p_j)=a_j+d_j(1-2p_j)$
 
 - *Function:* `.avg_effect`
 
-- *Location:* `R/grammar_realize.R:181–128`
+- *Location:* `R/grammar_realize.R:182–184`
 
 - *Notes:* DECISION-019
 
@@ -1970,9 +1972,9 @@ $A_i=\sum_j \alpha_j (x_{ij}-2p_j)$
 
 - *Function:* `.breeding_value_matrix`
 
-- *Location:* `R/grammar_realize.R:235–240` (loop 225–236)
+- *Location:* `R/grammar_realize.R:236–305` (loop 282–303)
 
-- *Notes:* refused under epistasis 187–200
+- *Notes:* refused under epistasis 250–263
 
 
 **V2-selection-8. Smith–Hazel index**
@@ -1987,7 +1989,7 @@ $b=P^{-1}Ga,\ I=b'y$
 
 - *Function:* `.index_score`, `.index_weights`
 
-- *Location:* `R/select_ind.R:769–481; 498–512`
+- *Location:* `R/select_ind.R:769–782; 799–842`
 
 - *Notes:* SVD pseudo-inverse if P singular; G $\neq$ Cov(y,A) off HWE (F4)
 
@@ -2004,7 +2006,7 @@ $\hat I=w'\hat\gamma+\hat\gamma'W\hat\gamma$, $W\leftarrow (W+W')/2$
 
 - *Function:* `.quadratic_index_score`
 
-- *Location:* `R/select_ind.R:737, 449–452`
+- *Location:* `R/select_ind.R:737, 744–747`
 
 - *Notes:* true BV, not GEBV
 
@@ -2021,9 +2023,9 @@ $b=V^{-1}c$; $b_1=\dfrac{h^2(1-r)}{1-rh^2}$, $b_2=\dfrac{h^2 n r(1-h^2)}{[1+(n-1
 
 - *Function:* `.combined_score`
 
-- *Location:* `R/select_ind.R:867, 541–543, 555–568`
+- *Location:* `R/select_ind.R:867, 872–877, 889–902`
 
-- *Notes:* family of one / t = 1 $\rightarrow$ h²·dev (556–558)
+- *Notes:* family of one / t = 1 $\rightarrow$ h²·dev (890–892)
 
 
 **V2-selection-11. Within-family allocation**
@@ -2036,7 +2038,7 @@ largest-remainder of $k\,n_f/N$ capped at $n_f$
 
 - *Function:* `.sel_within_family`
 
-- *Location:* `R/select_ind.R:939–602`
+- *Location:* `R/select_ind.R:939–949`
 
 - *Notes:* tie by label order
 
@@ -2051,7 +2053,7 @@ keep whole families by $\bar y_f$ until $\ge k$
 
 - *Function:* `.sel_among_family`
 
-- *Location:* `R/select_ind.R:968–628`
+- *Location:* `R/select_ind.R:968–978`
 
 - *Notes:* overshoots k
 
@@ -2068,7 +2070,7 @@ keep $\bigcap_t \text{top}_{\lceil c_t N\rfloor}(y_t)$; sequential: nested
 
 - *Function:* `.select_culling`
 
-- *Location:* `R/select_ind.R:1067–726`
+- *Location:* `R/select_ind.R:1067–1081`
 
 - *Notes:* DECISION-028
 
@@ -2085,7 +2087,7 @@ $\sqrt{T}\,i(p) : T\,i(p^{1/T}) : i(p)$
 
 - *Function:* roxygen; test-culling.R:71–89
 
-- *Location:* `R/select_ind.R:157–104`
+- *Location:* `R/select_ind.R:157–164`
 
 - *Notes:* 1 : 0.907 : 0.707 reproduced
 
@@ -2093,16 +2095,16 @@ $\sqrt{T}\,i(p) : T\,i(p^{1/T}) : i(p)$
 **V2-selection-15. Bulk pool**
 
 
-$n_{each}=\max(2,\lceil n/N\rceil)$, then sample n w/o replacement
+$(n_1,\dots,n_N)\sim\text{Multinomial}(n, 1/N)$ seeds per current plant; each contributing plant selfed into $n_k$ seeds
 
 
 - *Reference:* Bernardo 2020 (page unverified)
 
 - *Function:* `bulk`
 
-- *Location:* `R/select_schemes.R:165–135`
+- *Location:* `R/select_schemes.R:156–169`; `.bulk_counts` `:470–472`
 
-- *Notes:* not multinomial (F3)
+- *Notes:* multinomial since the post-audit fix of F3 (was $n_{each}=\max(2,\lceil n/N\rceil)$ then n drawn without replacement)
 
 
 **V2-selection-16. Pedigree family size**
@@ -2115,7 +2117,7 @@ $n_{each}=\max(1,\lceil \text{pop\_size}/n_{sel}\rceil)$, trim at random
 
 - *Function:* `pedigree`
 
-- *Location:* `R/select_schemes.R:304–213`
+- *Location:* `R/select_schemes.R:304–307`
 
 
 **V2-selection-17. Tandem schedule**
@@ -2128,7 +2130,7 @@ $t_g=\text{trait}[((g-1)\bmod L)+1]$
 
 - *Function:* `pedigree`, `recurrent_selection`
 
-- *Location:* `R/select_schemes.R:291, 268`
+- *Location:* `R/select_schemes.R:291, 398`
 
 
 **V2-selection-18. Intermating**
@@ -2141,7 +2143,7 @@ each cross: pair ~ `sample.int(np, 2)` (no self), with replacement across crosse
 
 - *Function:* `.intermate`
 
-- *Location:* `R/select_schemes.R:542–364`
+- *Location:* `R/select_schemes.R:542–545`
 
 
 ### Supplementary entries contributed by the Codex audit (verified by the reconciler)
@@ -2278,7 +2280,7 @@ one `set.seed(seed)` per wrapper, then every `selfcross()`/`cross()`/`sample.int
 
 - *Function:* all four wrappers, `.self_each`, `.intermate`
 
-- *Location:* `R/select_schemes.R:106, 121, 191, 261; 342; 364`
+- *Location:* `R/select_schemes.R:111, 155, 283, 384; 521; 544`
 
 - *Notes:* Valid seeds reproduce (both auditors); `.Random.seed` not restored (F13); seed not validated (O9).
 
@@ -2301,9 +2303,9 @@ $G = \dfrac{ZZ'}{2\sum_j p_j(1-p_j)},\; Z = M - 2p$
 
 - *Function:* `g_matrix`
 
-- *Location:* `R/select_ocs.R:71–87`
+- *Location:* `R/select_ocs.R:71–92`
 
-- *Notes:* monomorphic $p_j\in\{0,1\}$ dropped `:78–84`; ridge blend `:88–90`
+- *Notes:* monomorphic $p_j\in\{0,1\}$ dropped `:83–89`; ridge blend `:93–95`
 
 
 **V2-ocs-usefulness-marker-2. Genomic inbreeding**
@@ -2333,9 +2335,9 @@ $\max_{c\ge0,\;1'c=1}\; c'g - \tfrac{\lambda}{2}c'Gc$
 
 - *Function:* `optimum_contribution`, `.frank_wolfe`
 
-- *Location:* `R/select_ocs.R:105–103, 405–428`
+- *Location:* `R/select_ocs.R:105–108, 601–624`
 
-- *Notes:* `direction="low"` negates $g$ `:222`
+- *Notes:* `direction="low"` negates $g$ `:264`
 
 
 **V2-ocs-usefulness-marker-4. Group coancestry**
@@ -2348,7 +2350,7 @@ $\bar f = \tfrac12 c'Gc$
 
 - *Function:* `optimum_contribution`, `.tune_lambda`
 
-- *Location:* `R/select_ocs.R:319, 445`
+- *Location:* `R/select_ocs.R:319, 666`
 
 
 **V2-ocs-usefulness-marker-5. FW gradient / duality gap**
@@ -2361,9 +2363,9 @@ $\nabla = g - \lambda Gc;\; \text{gap} = \max_k \nabla_k - \nabla'c$
 
 - *Function:* `.frank_wolfe`
 
-- *Location:* `R/select_ocs.R:601–407`
+- *Location:* `R/select_ocs.R:601–607`
 
-- *Notes:* tol on gap `:408`
+- *Notes:* tol on gap `:604`
 
 
 **V2-ocs-usefulness-marker-6. Away-step and line search**
@@ -2376,7 +2378,7 @@ $d_{fw}=e_s-c,\; d_{aw}=c-e_a,\; \gamma^* = \min\!\big(\gamma_{max}, \tfrac{\nab
 
 - *Function:* `.frank_wolfe`
 
-- *Location:* `R/select_ocs.R:608–428`
+- *Location:* `R/select_ocs.R:609–625`
 
 - *Notes:* exact maximiser of concave quadratic along $d$
 
@@ -2391,24 +2393,24 @@ bisection on $\lambda$ for $\tfrac12 c^*(\lambda)'Gc^*(\lambda) = \bar f_{target
 
 - *Function:* `.tune_lambda`
 
-- *Location:* `R/select_ocs.R:652–469`
+- *Location:* `R/select_ocs.R:652–718`
 
-- *Notes:* doubling to bracket `:450–454`
+- *Notes:* doubling to bracket `:697–701`
 
 
 **V2-ocs-usefulness-marker-8. Parent sampling**
 
 
-$n_i \sim \text{Multinomial}(n, c)$
+default `method = "allocate"`: $n_i=\lfloor nc_i\rfloor$ plus one slot each for the $n-\sum_i\lfloor nc_i\rfloor$ largest remainders (slot order shuffled); `method = "multinomial"`: $n_i \sim \text{Multinomial}(n, c)$
 
 
 - *Reference:* package definition (documented)
 
 - *Function:* `sample_parents`
 
-- *Location:* `R/select_ocs.R:424`
+- *Location:* `R/select_ocs.R:429–441`; `.allocate_slots` `:473–494`
 
-- *Notes:* not an allocation (OCS-F2)
+- *Notes:* allocation is the default since the post-audit fix of OCS-F2 (owner decision D5, `docs/DECISIONS.md`); multinomial only on request
 
 
 **V2-ocs-usefulness-marker-9. Usefulness**
@@ -2423,9 +2425,9 @@ $U = \mu + i\,\sigma$ (or $\mu - i\sigma$ for `"low"`)
 
 - *Function:* `cross_usefulness`
 
-- *Location:* `R/select_usefulness.R:142–96`
+- *Location:* `R/select_usefulness.R:142–144`
 
-- *Notes:* family from crossing engine `:92`, `:213–227`
+- *Notes:* family from crossing engine `:140`, `:297–315`
 
 
 **V2-ocs-usefulness-marker-10. Selection intensity**
@@ -2440,7 +2442,7 @@ $i(p) = \dfrac{\varphi(\Phi^{-1}(1-p))}{p}$
 
 - *Function:* `.intensity_from_p`
 
-- *Location:* `R/select_usefulness.R:161–115`
+- *Location:* `R/select_usefulness.R:161–163`
 
 - *Notes:* infinite-population value (1.755 at p=0.1)
 
@@ -2457,9 +2459,9 @@ $g_i = \sum_j x_{ij}\,e_j,\; e_j = e^{raw}_j\sqrt{\pi_t}/\text{sd}(\text{comp})$
 
 - *Function:* `.additive_model`, `.additive_gv`
 
-- *Location:* `R/select_usefulness.R:204–161, 180`
+- *Location:* `R/select_usefulness.R:204–209, 228`
 
-- *Notes:* orthogonal layer uses $\alpha$ `:146–150`
+- *Notes:* orthogonal layer uses $\alpha$ `:194–198`
 
 
 **V2-ocs-usefulness-marker-12. Average effect**
@@ -2472,9 +2474,9 @@ $\alpha = a + d(1-2p) = a + d(q-p)$
 
 - *Function:* `.avg_effect`
 
-- *Location:* `R/grammar_realize.R:181–128`
+- *Location:* `R/grammar_realize.R:182–184`
 
-- *Notes:* used by `.additive_model:149`, `marker_select` docs
+- *Notes:* used by `.additive_model:197`, `marker_select` docs
 
 
 **V2-ocs-usefulness-marker-13. MAS feasibility**
@@ -2506,7 +2508,7 @@ $I_i = \sum_j w_j x_{ij}$
 
 - *Function:* `additive_value` (documented in `marker_select`)
 
-- *Location:* `R/cross_population.R:735–357`; doc `R/select_marker.R:20–33`
+- *Location:* `R/cross_population.R:735–747`; doc `R/select_marker.R:20–33`
 
 
 **V2-ocs-usefulness-marker-15. Recurrent-allele score**
@@ -2523,7 +2525,7 @@ $s_{mi} = \dfrac{x_{mi} r_m + 1}{2}$
 
 - *Location:* `R/select_mabc.R:311`
 
-- *Notes:* informative iff $\vert{}r_m\vert{}=1,\; d_m=-r_m$ `:305`
+- *Notes:* informative iff $\vert{}r_m\vert{}=1,\; d_m=-r_m$ `:309`
 
 
 **V2-ocs-usefulness-marker-16. Recovery**
@@ -2603,7 +2605,7 @@ $G^{*} = (1-r)\,G + r\,I$
 
 - *Function:* `g_matrix`
 
-- *Location:* `R/select_ocs.R:25-26, 44-50, 88-90`
+- *Location:* `R/select_ocs.R:25-26, 44-50, 93-95`
 
 - *Notes:* Identity regularisation for a PD matrix; not VanRaden's pedigree-$A$ blend. Fable mentioned it only in a Notes cell.
 
@@ -2677,7 +2679,7 @@ $\lambda = \sigma^2_e/\sigma^2_A$; with `h2`: $\sigma^2_A = h^2\sigma^2_P,\ \sig
 
 - *Function:* `predict_ebv`, `.blup_variances`
 
-- *Location:* `R/select_blup.R:365`, `:314-319`
+- *Location:* `R/select_blup.R:365`, `:676-681`
 
 - *Notes:* not inverted (verified)
 
@@ -2864,7 +2866,7 @@ $\sigma^2_e = \mathrm{Var}(G_{\text{ref}})\,(1-h^2)/h^2$
 
 - *Function:* `phenotype_value` via `.simulate_cross_means`
 
-- *Location:* `R/cross_population.R:944`; `R/select_combining.R:290-293`
+- *Location:* `R/cross_population.R:1061`; `R/select_combining.R:290-293`
 
 - *Notes:* —
 
@@ -2881,7 +2883,7 @@ $a_j^{\ast} = a_j\sqrt{\pi_\ell}/\mathrm{sd}(\text{raw component}_\ell)$ (same f
 
 - *Function:* `.layer_scaled_effects` $\leftarrow$ `template_effects`
 
-- *Location:* `R/grammar_realize.R:363`; `R/select_combining.R:400-406`
+- *Location:* `R/grammar_realize.R:364`; `R/select_combining.R:400-406`
 
 - *Notes:* reproduces `genetic_values()` up to a constant (executed)
 
@@ -2969,7 +2971,7 @@ $y = \mathbf{1}\mu + Zu + e,\quad u \sim N(0, K\sigma^2_A),\quad e \sim N(0, I\s
 
 - *Function:* `predict_ebv`
 
-- *Location:* `R/select_blup.R:174-181` (roxygen), `:148-163` (inputs)
+- *Location:* `R/select_blup.R:174-181` (roxygen), `:300-321` (inputs)
 
 - *Notes:* Observable phenotypes only; intercept-only fixed effects; variance components known, no REML (DECISION-030). Fable's map starts at the GLS solution and never states the model.
 
@@ -2986,7 +2988,7 @@ $C_{ij} = K_{ij}/\sqrt{K_{ii}K_{jj}}$ over rows with $K_{ii} > 0$; accept iff $\
 
 - *Function:* `.check_relationship`
 
-- *Location:* `R/select_blup.R:427-650` (scaling `:280-282`, eigen `:288`, tolerance `:292-293`)
+- *Location:* `R/select_blup.R:587-650` (scaling `:630-632`, eigen `:640`, tolerance `:644-645`)
 
 - *Notes:* PRED-01: when $C$ is non-finite the code sets `ev <- -Inf`, which makes the tolerance $\infty$ and the test vacuous (CONFIRMED). Also `(K + t(K))/2` at `:265` can overflow for entries near `.Machine$double.xmax`.
 
@@ -3003,7 +3005,7 @@ $G = \dfrac{ZZ'}{2\sum_j p_j(1-p_j)},\quad Z = M - 2p$, markers with $p_j \in \{
 
 - *Function:* `predict_ebv` $\rightarrow$ `g_matrix`
 
-- *Location:* `R/select_blup.R:337-343` (Codex wrote 168-173); `R/select_ocs.R:44-98` (Codex wrote 44-92; core at `:78, 85-87`)
+- *Location:* `R/select_blup.R:337-343` (Codex wrote 168-173); `R/select_ocs.R:44-98` (Codex wrote 44-92; core at `:83, 90-92`)
 
 - *Notes:* Fable covered this only in the O1 checklist, not in its map. Inbred founders give $G_{ii} \approx 2$ while `a_matrix()` gives 1 (PRED-F1).
 
@@ -3020,7 +3022,7 @@ $G = \dfrac{ZZ'}{2\sum_j p_j(1-p_j)},\quad Z = M - 2p$, markers with $p_j \in \{
 
 - *Function:* `progeny_test`
 
-- *Location:* `R/select_progeny.R:113-114` (seed), `:104` (mates), `:110` (meioses), `:115-116` (residual)
+- *Location:* `R/select_progeny.R:113-114` (seed), `:132` (mates), `:138` (meioses), `:144-145` (residual)
 
 - *Notes:* Fable's "Mate sampling" row covers only the first step. Ambient stream is not restored afterwards (PRED-F4).
 
@@ -3045,7 +3047,7 @@ $E_{gi} = \mu_g + G_{gi} + R_{gi}$
 
 - *Location:* `R/transcriptome_simulate.R:616-618`
 
-- *Notes:* G, R drawn independently; mimic affine at :481-488
+- *Notes:* G, R drawn independently; mimic affine at :602-614
 
 
 **V2-transcriptome-2. Reference-centered dosage**
@@ -3060,7 +3062,7 @@ $Z_{ij} = x_{ij} - \bar x_j$
 
 - *Function:* `simulate_transcriptome`
 
-- *Location:* `:206-208`; predict `:672-674`
+- *Location:* `:308-310`; predict `:845-847`
 
 - *Notes:* mean, not 2p; equals x - 2p + 1 shift
 
@@ -3077,7 +3079,7 @@ $c_g = \sum_{j \in W(g)} \beta_{gj} Z_j$, $\beta \sim N(0,1)$, $k = 1 + \mathrm{
 
 - *Function:* `simulate_transcriptome`
 
-- *Location:* `:381-391`
+- *Location:* `:501-511`
 
 - *Notes:* window in physical bp
 
@@ -3094,7 +3096,7 @@ $f_q = \sum_{k \in H(q)} \gamma_{qk} Z_k$, $\vert{}H(q)\vert{} = 1 + \mathrm{Ber
 
 - *Function:* `simulate_transcriptome`
 
-- *Location:* `:334-354`, `:392`
+- *Location:* `:451-471`, `:512`
 
 - *Notes:* factor inert if no distant marker
 
@@ -3111,7 +3113,7 @@ $\tilde v = (v - \bar v)/s_v$, $s_v$ with $n-1$
 
 - *Function:* `z1`
 
-- *Location:* `:372-376`
+- *Location:* `:492-496`
 
 - *Notes:* returns NULL if s < 1e-9
 
@@ -3128,9 +3130,9 @@ $G^0 = \sqrt{\omega}\,\tilde c + \sqrt{1-\omega}\,\tilde t$; $G = \sqrt{h^2}\, G
 
 - *Function:* `simulate_transcriptome`
 
-- *Location:* `:428-457`
+- *Location:* `:548-578`
 
-- *Notes:* joint scaling; cancellation fallback :435-438
+- *Notes:* joint scaling; cancellation fallback :555-558
 
 
 **V2-transcriptome-7. Epistatic blend**
@@ -3145,7 +3147,7 @@ $\tilde e = \widetilde{\sum_p \beta_p (Z_{j_p} Z_{k_p} - \overline{Z_j Z_k})}$; 
 
 - *Function:* `simulate_transcriptome`
 
-- *Location:* `:402-451`
+- *Location:* `:522-572`
 
 - *Notes:* prod_mean stored for predict
 
@@ -3162,7 +3164,7 @@ $R^0 = \sqrt{\kappa}\,\tilde u_{q(g)} + \sqrt{1-\kappa}\,\tilde\varepsilon_g$; $
 
 - *Function:* `simulate_transcriptome`
 
-- *Location:* `:464-474`
+- *Location:* `:585-595`
 
 - *Notes:* co-expression independent of h2
 
@@ -3179,9 +3181,9 @@ $h^2_{real} = \mathrm{Var}(G)/\mathrm{Var}(E) = h^2/(1 + 2\mathrm{Cov}(G,R))$
 
 - *Function:* `simulate_transcriptome`, `predict`
 
-- *Location:* `:493-495`; `:770-773`
+- *Location:* `:619-628`; `:943-948`
 
-- *Notes:* unbounded above (TX-F1)
+- *Notes:* unbounded above (TX-F1); the bounded allocation `h2_allocated` = Var(G)/(Var(G)+Var(R)) is reported separately (`:627`, `:949`)
 
 
 **V2-transcriptome-10. Effective coefficients**
@@ -3196,7 +3198,7 @@ $s_c = \sqrt{h^2(1-\epsilon)\omega}/(s_{G^0_{ct}} s_{G^0})$, $s_t$, $s_e = \sqrt
 
 - *Function:* `simulate_transcriptome`
 
-- *Location:* `:503-513`, `:532`, `:539`, `:550`
+- *Location:* `:636-646`, `:666`, `:673`, `:684`
 
 - *Notes:* reconstruct G exactly (verified 1e-8)
 
@@ -3213,7 +3215,7 @@ $\mathrm{Var}(G) = v_{cis} + v_{trans} + v_{epi} + 2\mathrm{Cov}(c,t) + 2\mathrm
 
 - *Function:* `simulate_transcriptome`
 
-- *Location:* `:518-525`
+- *Location:* `:651-658`
 
 - *Notes:* closes to 1e-9
 
@@ -3221,7 +3223,7 @@ $\mathrm{Var}(G) = v_{cis} + v_{trans} + v_{epi} + 2\mathrm{Cov}(c,t) + 2\mathrm
 **V2-transcriptome-12. Realized cis fraction**
 
 
-$\omega_{real} = v_{cis}/(v_{cis} + v_{trans})$
+$\omega_{real} = v_{cis}/\mathrm{Var}(G)$, $\mathrm{Var}(G)$ the realized genetic variance (all covariance terms of V2-transcriptome-11 included)
 
 
 - *Variables:* --
@@ -3230,9 +3232,9 @@ $\omega_{real} = v_{cis}/(v_{cis} + v_{trans})$
 
 - *Function:* `simulate_transcriptome`
 
-- *Location:* `:526-528`
+- *Location:* `:659-661`; predict `:950`
 
-- *Notes:* identically omega on the reference (TX-F2)
+- *Notes:* reported as `cis_fraction_realized`; no longer identically omega on the reference (TX-F2 addressed): it equals omega only when the epistatic and covariance shares are zero
 
 
 **V2-transcriptome-13. Cross-population genetic value**
@@ -3247,9 +3249,9 @@ $G^{new}_g = Z^{new}_c \beta_g + \text{trans\_scale}_g Z^{new}_H \gamma + \sum_p
 
 - *Function:* `predict.transcriptome_sim`
 
-- *Location:* `:656-675`, `:687-713`
+- *Location:* `:829-848`, `:860-886`
 
-- *Notes:* scaled by stored gene_scale :748-754
+- *Notes:* scaled by stored gene_scale :921-927
 
 
 **V2-transcriptome-14. Mimic affine**
@@ -3264,7 +3266,7 @@ $E = \mu_g + \frac{\sqrt{V_g}}{s_{G+R}}\,[(G-\bar G) + (R - \bar R)]$
 
 - *Function:* `simulate_transcriptome`
 
-- *Location:* `:481-490`
+- *Location:* `:602-616`
 
 - *Notes:* exact moments (verified 1e-10)
 
@@ -3340,18 +3342,18 @@ $Q = \#\{\lambda_i(\tfrac1T E_s'E_s) > (1+\sqrt{n/T})^2\}$, capped to [1, min(50
 **V2-transcriptome-19. kappa proxy**
 
 
-$\hat\kappa = \sum_{i \le Q}\lambda_i / \sum_i \lambda_i$
+$\hat\kappa = \mathrm{clamp}_{[0,1]}\!\Big[\big(r_w - \overline{\sqrt{h^2(1-\omega)}}^{\,2}\big)\big/\overline{\sqrt{1-h^2}}^{\,2}\Big]$, $r_w = \sum_{i\le Q} s_i/(T-Q)$, $s_i = \ell_i - 1$ from $\lambda_i = \ell_i\big(1 + y/(\ell_i - 1)\big)$, $y = T/n$; $s_i = 0$ if $\lambda_i \le (1+\sqrt y)^2$
 
 
-- *Variables:* same spectrum
+- *Variables:* $\lambda_i$ leading $Q$ eigenvalues of the gene-gene correlation matrix; $h^2$ per-gene GREML estimates; $\omega$ the assumed cis fraction (default 0.25)
 
-- *Reference:* own design (proxy)
+- *Reference:* own estimator; the spike inversion is the Baik–Ben Arous–Péché spiked-model relation, named in the roxygen without a page-level source
 
 - *Function:* `.tx_estimate_kappa`
 
-- *Location:* `R/transcriptome_mimic.R:149-172`
+- *Location:* `R/transcriptome_mimic.R:149-172` (roxygen `:120-148`); called at `R/transcriptome_simulate.R:395`
 
-- *Notes:* double counts genetic trans (TX-F3)
+- *Notes:* subtracts the GREML-implied genetic trans share (TX-F3 addressed); with $h^2 = 0$ no correction is applied
 
 
 **V2-transcriptome-20. NB observation**
@@ -3362,11 +3364,11 @@ $\log\mu_{gi} = \log L_i + \alpha_g + \sigma_g z_{gi}$; $Y_{gi} \sim \mathrm{NB}
 
 - *Variables:* z per-gene standardized latent E
 
-- *Reference:* McCarthy, Chen & Smyth 2012 NAR 40:4288-4297; Robinson & Smyth 2008 Biostatistics 9:321-332 (pages unverified); no `@references` in code
+- *Reference:* McCarthy, Chen & Smyth 2012 NAR 40:4288-4297; Robinson & Smyth 2008 Biostatistics 9:321-332 (pages unverified); cited in the `@references` of `observe_counts` (`R/transcriptome_counts.R:42`, `man/observe_counts.Rd`)
 
 - *Function:* `observe_counts`
 
-- *Location:* `R/transcriptome_counts.R:75-80`, `:80-84`
+- *Location:* `R/transcriptome_counts.R:75-80`, `:98-102`
 
 - *Notes:* moments verified within 1.3%
 
@@ -3383,7 +3385,7 @@ $T_x = c\sum_g w_g z_g$, $w = \text{slope}/\max\vert{}\text{slope}\vert{}$, $z_g
 
 - *Function:* `.tx_raw`, `.transcriptome_matrix`
 
-- *Location:* `R/grammar_realize.R:453-475`, `:312-338`
+- *Location:* `R/grammar_realize.R:454-476`, `:414-440`
 
 - *Notes:* Var(Tx) = prop exactly
 
@@ -3400,7 +3402,7 @@ $T_{x,g} = c\sum_g w_g (G_g - \bar G_g)/s_{E_g}$, $T_{x,e} = T_x - T_{x,g}$; sha
 
 - *Function:* `.tx_raw(which="genetic")`, `.mediation_budget`, `mediation_split`
 
-- *Location:* `R/grammar_realize.R:457-475`, `:588-618`; `R/io_write.R:1267-1270`
+- *Location:* `R/grammar_realize.R:458-476`, `:730-761`; `R/io_write.R:1267-1270`
 
 - *Notes:* sums to realized share (1e-8)
 
@@ -3417,7 +3419,7 @@ $H^2 = \mathrm{Var}(\text{Gen} + T_{x,g})/V_P$
 
 - *Function:* `.genetic_value_matrix`, `.realized_h2`
 
-- *Location:* `R/grammar_realize.R:393-399`, `:704-723`
+- *Location:* `R/grammar_realize.R:394-400`, `:1078-1106`
 
 - *Notes:* real source: Tx_g = 0
 
@@ -3442,7 +3444,7 @@ $\text{var\_explained}_g = (c\,w_g)^2 \cdot 1 / V_P$
 **V2-transcriptome-25. Layer sub-seed**
 
 
-$s = (1009\,\text{seed} + 7919\sum \text{utf8}(\text{type}) + 104729\,\text{occ}) \bmod (2^{31}-1)$
+$b \leftarrow (257\,b + u_k) \bmod 2147483629$ over the UTF-8 codes $u_k$ of the layer type ($b_0 = 0$); $s = (1009\,\text{seed} + 7919\,b + 104729\,\text{occ}) \bmod (2^{31}-1)$
 
 
 - *Variables:* --
@@ -3451,7 +3453,7 @@ $s = (1009\,\text{seed} + 7919\sum \text{utf8}(\text{type}) + 104729\,\text{occ}
 
 - *Function:* `.layer_seed`, `transcriptome`
 
-- *Location:* `R/grammar_simulate_phenotype.R:1057-1070`; `R/transcriptome_layer.R:257-276`
+- *Location:* `R/grammar_simulate_phenotype.R:1079-1092`; `R/transcriptome_layer.R:257-276`
 
 - *Notes:* order invariance verified
 
@@ -3471,7 +3473,7 @@ $y = \mathbf{1}\mu + u + e,\ u \sim N(0, \sigma_g^2 K),\ e \sim N(0, \sigma_e^2 
 
 - *Function:* `.greml_h2`
 
-- *Location:* `R/transcriptome_mimic.R:32-53` (roxygen), fit `:38-68`
+- *Location:* `R/transcriptome_mimic.R:32-53` (roxygen), fit `:58-97`
 
 - *Notes:* Fable's map has the profile objective and $h^2$ rows but not the model statement; no identifiability guard (O4)
 
@@ -3488,9 +3490,9 @@ $\mathrm{bias} = \overline{\hat\theta - \theta},\ \mathrm{RMSE} = \sqrt{\overlin
 
 - *Function:* benchmark 01
 
-- *Location:* `benchmarks/01_h2_calibration.R:61-62` (h2), `:79-80` (cis)
+- *Location:* `benchmarks/01_h2_calibration.R:61-62` (h2), `:93-94` (cis)
 
-- *Notes:* Cis-panel RMSE is 4e-16 by construction (TX-F2)
+- *Notes:* Cis-panel RMSE was 4e-16 by construction under the old $v_{cis}/(v_{cis}+v_{trans})$ definition (TX-F2); the benchmark now scores `cis_fraction_realized` = $v_{cis}/\mathrm{Var}(G)$ (`:83`), not re-run here
 
 
 **V2-transcriptome-C3. Marginal eQTL scan**
@@ -3505,7 +3507,7 @@ $r_j = \dfrac{(D_j-\bar D_j)^\top(y-\bar y)}{\lVert D_j-\bar D_j\rVert\,\lVert y
 
 - *Function:* `scan_one`
 
-- *Location:* `benchmarks/02_eqtl_recovery.R:61-80` ($r$ at `:66`, best rank `:71`)
+- *Location:* `benchmarks/02_eqtl_recovery.R:61-80` ($r$ at `:75`, best rank `:80`)
 
 - *Notes:* Printed chance comparator `:112-113` is $K/(D+1)$; exact is $1-\binom{D}{K}/\binom{D+m}{K}$ (O7)
 
@@ -3539,7 +3541,7 @@ claimed $m_g \approx p\,h^2_*$; exact $m_g = \mathrm{Var}\!\big(c\sum_g w_g (G_g
 
 - *Function:* benchmark 04
 
-- *Location:* `benchmarks/04_mediation_recovery.R:9-12, 70-71, 93-95`
+- *Location:* `benchmarks/04_mediation_recovery.R:9-12, 89-90, 114-116`
 
 - *Notes:* Generator run: actual 0.2771, $p\,\overline{h^2}$ 0.2560, exact 0.2771 (G)
 
@@ -3556,7 +3558,7 @@ $t = r\sqrt{(n-2)/(1-r^2)}$, $p = 2F_{t_{n-2}}(-\lvert t\rvert)$
 
 - *Function:* `cor_p`
 
-- *Location:* `benchmarks/05_twas_power.R:103-112` ($t$ at `:85`, $p$ at `:86`)
+- *Location:* `benchmarks/05_twas_power.R:103-112` ($t$ at `:110`, $p$ at `:111`)
 
 - *Notes:* Equation correct; single-realization "power" (O10)
 
@@ -3573,7 +3575,7 @@ $\alpha_{\text{gene}} = 0.05/T$
 
 - *Function:* benchmark 05
 
-- *Location:* `benchmarks/05_twas_power.R:114, 106-107`
+- *Location:* `benchmarks/05_twas_power.R:114, 146-147`
 
 - *Notes:* Threshold correct
 
@@ -3613,7 +3615,7 @@ keep iff $\text{MAF}>0$; $\text{MAF}\ge m_{\text{above}}$; $\text{MAF}\le m_{\te
 
 - *Function:* `filter_geno`
 
-- *Location:* `:221`, `:224`, `:228`
+- *Location:* `:311`, `:314`, `:318`
 
 - *Notes:* boundaries executed exact (exp3 F1)
 
@@ -3630,7 +3632,7 @@ $n_{\text{het}}=\#\{i: d_i=1\}$; include iff $n_{\text{het}}>0$, remove iff $n_{
 
 - *Function:* `filter_geno`
 
-- *Location:* `:211`, `:232`, `:234`
+- *Location:* `:301`, `:322`, `:324`
 
 - *Notes:* count, not rate; no rate threshold exists
 
@@ -3647,7 +3649,7 @@ $r^2=\dfrac{(n\sum xy-\sum x\sum y)^2}{(n\sum x^2-(\sum x)^2)(n\sum y^2-(\sum y)
 
 - *Function:* `.ld_sweep`
 
-- *Location:* `:391-400`
+- *Location:* `:556-565`
 
 - *Notes:* = squared Pearson correlation; NA case falls back to `cor(use="pairwise.complete.obs")` `:402`
 
@@ -3664,7 +3666,7 @@ prune iff $r^2>\theta(1+\varepsilon)$, $\varepsilon=2^{-44}$; drop $i$ iff $\tex
 
 - *Function:* `.ld_sweep`
 
-- *Location:* `:367`, `:498`, `:500-503`
+- *Location:* `:532`, `:663`, `:665-668`
 
 - *Notes:* tie $\rightarrow$ later marker pruned (earlier kept); executed exp3 F7
 
@@ -3681,7 +3683,7 @@ window of $w$ markers (or all markers within $w\cdot 1000$ bp of the start), sli
 
 - *Function:* `.ld_prune`, `.ld_sweep`
 
-- *Location:* `:327-341`, `:440-452` (`win_at`), `:572-617` (slide)
+- *Location:* `:492-506`, `:605-617` (`win_at`), `:737-782` (slide)
 
 - *Notes:* `step` rounded to integer $\geq$ 1; `window` fractional accepted (exp3 F7)
 
@@ -3698,7 +3700,7 @@ $r^2=\dfrac{(f_{11}-f_{1\cdot}f_{\cdot 1})^2}{f_{1\cdot}f_{2\cdot}f_{\cdot1}f_{\
 
 - *Function:* `.plink_hap_rsq`, `.plink_em_hethet`, `.plink_cubic_roots`
 
-- *Location:* `:631-644` (r² at `:643`), `:657-714`, `:737-778`
+- *Location:* `:796-809` (r² at `:808`), `:822-879`, `:902-943`
 
 - *Notes:* independent EM agrees to 7 digits (exp3 F8)
 
@@ -3715,7 +3717,7 @@ $\text{VIF}_k=[R^{-1}]_{kk}$; prune $\arg\max_k \text{VIF}_k$ while $>v$
 
 - *Function:* `.ld_sweep` (vif branch)
 
-- *Location:* `:518-571` (`solve` `:532`,`:556`; test `:560`)
+- *Location:* `:683-736` (`solve` `:697`,`:721`; test `:725`)
 
 - *Notes:* singular ($\text{rcond}<10^{-14}$) handling `:362`,`:435-438`,`:533-557` UNVERIFIABLE vs source
 
@@ -3732,7 +3734,7 @@ keep markers with $\text{MAF}\ge 0.05(1-\varepsilon)$; tag = $\arg\max$ MAF in b
 
 - *Function:* `.gabriel_blocks`
 
-- *Location:* `R/qc_ld_methods.R:25`, `:32`
+- *Location:* `R/qc_ld_methods.R:25`, `:40`
 
 - *Notes:* classification thresholds (D' CI percentiles `:814-815`, informative fraction 0.95 `:906`) in `.plink_blocks_classify` `R/qc_filter_geno.R:978-1053` and `.plink_blocks_chrom` `:901-1015`
 
@@ -3766,7 +3768,7 @@ flip iff $\text{allele}_1\ne\text{ref}$
 
 - *Function:* `compute_flip`
 
-- *Location:* `:310`
+- *Location:* `:359`
 
 - *Notes:* only hapmap/table may use it (`R/io_format_conversion.R:214-219`)
 
@@ -3783,7 +3785,7 @@ $-101$: $(0,\text{het},2)\mapsto(+1,0,-1)$ unflipped, $(−1,0,+1)$ flipped; $01
 
 - *Function:* `numericalize_core`
 
-- *Location:* `src/rust/src/numeric.rs:76-76`, `:78-84`, `:95-117`
+- *Location:* `src/rust/src/numeric.rs:76-76`, `:138-145`, `:156-178`
 
 - *Notes:* imputation `:47-52`, `:72-76` before the model transform
 
@@ -3905,7 +3907,7 @@ $f_{11}(q)=f_{1\cdot}f_{\cdot1}+q\cdot\mathrm{denom}$, $q=0..100$ (D' percentile
 
 - *Function:* `.plink_calc_lnlike_quantile()`, `.plink_blocks_classify()`
 
-- *Location:* `R/qc_filter_geno.R:952-966`, `:813-888`
+- *Location:* `R/qc_filter_geno.R:952-966`, `:978-1053`
 
 - *Notes:* Codex wrote `780-887`. Thresholds verified at `:814-815`; 0.95 mass rule at `:874`.
 
@@ -3939,7 +3941,7 @@ $k^2=\pi_t/s_{\text{raw}}^2$; $v_j=k^2\,\mathrm{Var}(c_j)/V_P$
 
 - *Function:* `.qtn_var()`, `qtn_table()`
 
-- *Location:* `R/io_write.R:1288-1312`; `:307-310`
+- *Location:* `R/io_write.R:1288-1312`; `:1400-1403`
 
 - *Notes:* Marginal shares; with LD among causal loci they need not sum to $\pi_t$ (roxygen `:188-191`). NA for vqtl/epistasis (`:196-198`).
 
@@ -4902,33 +4904,33 @@ Every `file:line` reference above was checked against the worktree at HEAD `c511
 
 | Ver | Group | Topic | Function | Location |
 |---|---|---|---|---|
-| V2 | v2-grammar | Layer scaling to prop | `.genetic_matrix` | R/grammar_realize.R:138-160 (145) |
-| V2 | v2-grammar | Additive component | `.component_raw` | R/grammar_realize.R:497-508 (499), centred 432 |
-| V2 | v2-grammar | Orthogonal genotypic value | `.component_raw` | R/grammar_realize.R:500-506 (505) |
-| V2 | v2-grammar | Dominance component | `.component_raw` | R/grammar_realize.R:509 |
-| V2 | v2-grammar | Epistasis unit column | `.epi_unit_column` | R/grammar_realize.R:578-588 (452, 454) |
-| V2 | v2-grammar | Epistasis component | `.component_raw` | R/grammar_realize.R:510-528 (523) |
+| V2 | v2-grammar | Layer scaling to prop | `.genetic_matrix` | R/grammar_realize.R:139-161 (146) |
+| V2 | v2-grammar | Additive component | `.component_raw` | R/grammar_realize.R:498-509 (500), centred 432 |
+| V2 | v2-grammar | Orthogonal genotypic value | `.component_raw` | R/grammar_realize.R:501-507 (506) |
+| V2 | v2-grammar | Dominance component | `.component_raw` | R/grammar_realize.R:510 |
+| V2 | v2-grammar | Epistasis unit column | `.epi_unit_column` | R/grammar_realize.R:579-589 (586, 588) |
+| V2 | v2-grammar | Epistasis component | `.component_raw` | R/grammar_realize.R:511-529 (524) |
 | V2 | v2-grammar | Geometric effect series | `.effect_series` | R/effects_series.R:23-72 (64) |
-| V2 | v2-grammar | Repulsion phase | `.apply_phase` | R/grammar_layers.R:1479-1487 (1484) |
-| V2 | v2-grammar | Residual budget | `.realize_phenotype` | R/grammar_realize.R:54-58 (58) |
-| V2 | v2-grammar | Residual draw | `.draw_residual` | R/effects_series.R:84-100 (97) |
-| V2 | v2-grammar | Phenotype | `.realize_phenotype` | R/grammar_realize.R:95 |
-| V2 | v2-grammar | Requested budget identity | `.resolve_prop`, `.add_layer`, `.check_h2_complete` | R/grammar_layers.R:1082-1095, 852-862; R/grammar_realize.R:1139-1152 |
-| V2 | v2-grammar | One-call split | `.build_one_call` | R/grammar_simulate_phenotype.R:745-758 (747) |
-| V2 | v2-grammar | Realized H² | `.realized_h2` | R/grammar_realize.R:1064-1092 (716-720) |
-| V2 | v2-grammar | Average effect of substitution | `.avg_effect` | R/grammar_realize.R:181-183 (182) |
-| V2 | v2-grammar | Breeding value | `.breeding_value_matrix` | R/grammar_realize.R:281-302 (227-235) |
-| V2 | v2-grammar | Orthogonal split | `.orthogonal_var_split`, `.variance_budget` | R/grammar_realize.R:770-786 (646-650), 536-551 |
+| V2 | v2-grammar | Repulsion phase | `.apply_phase` | R/grammar_layers.R:1482-1490 (1487) |
+| V2 | v2-grammar | Residual budget | `.realize_phenotype` | R/grammar_realize.R:55-59 (59) |
+| V2 | v2-grammar | Residual draw | `.draw_residual` | R/effects_series.R:85-102 (99) |
+| V2 | v2-grammar | Phenotype | `.realize_phenotype` | R/grammar_realize.R:96 |
+| V2 | v2-grammar | Requested budget identity | `.resolve_prop`, `.add_layer`, `.check_h2_complete` | R/grammar_layers.R:1085-1098, 1102-1115; R/grammar_realize.R:1153-1166 |
+| V2 | v2-grammar | One-call split | `.build_one_call` | R/grammar_simulate_phenotype.R:767-780 (769) |
+| V2 | v2-grammar | Realized H² | `.realized_h2` | R/grammar_realize.R:1078-1106 (716-720) |
+| V2 | v2-grammar | Average effect of substitution | `.avg_effect` | R/grammar_realize.R:182-184 (183) |
+| V2 | v2-grammar | Breeding value | `.breeding_value_matrix` | R/grammar_realize.R:282-303 (227-235) |
+| V2 | v2-grammar | Orthogonal split | `.orthogonal_var_split`, `.variance_budget` | R/grammar_realize.R:778-794 (646-650), 536-551 |
 | V2 | v2-grammar | HWE theory (check only) | — (audit check) | — |
-| V2 | v2-grammar | vQTL loading | `.apply_vqtl` | R/grammar_realize.R:603-616 (614) |
-| V2 | v2-grammar | vQTL residual | `.apply_vqtl` | R/grammar_realize.R:625-633 |
-| V2 | v2-grammar | Transcriptome score | `.tx_raw`, `.transcriptome_matrix` | R/grammar_realize.R:453-475 (368, 371, 373), 308-338 |
-| V2 | v2-grammar | Mediation split | `.mediation_budget` | R/grammar_realize.R:730-742 (604-606) |
-| V2 | v2-grammar | Complex combination | `complex_phenotypes` | R/grammar_complex.R:115-127 (81, 85), 96-107 (99) |
-| V2 | v2-grammar | MAF | `.marker_maf_ref` | R/grammar_simulate_phenotype.R:1000-1030 (666, 669) |
-| V2 | v2-grammar | Sub-seed | `.layer_seed` | R/grammar_simulate_phenotype.R:1057-1072 (684, 690) |
+| V2 | v2-grammar | vQTL loading | `.apply_vqtl` | R/grammar_realize.R:605-618 (616) |
+| V2 | v2-grammar | vQTL residual | `.apply_vqtl` | R/grammar_realize.R:627-641 |
+| V2 | v2-grammar | Transcriptome score | `.tx_raw`, `.transcriptome_matrix` | R/grammar_realize.R:454-476 (470, 473, 475), 308-338 |
+| V2 | v2-grammar | Mediation split | `.mediation_budget` | R/grammar_realize.R:738-750 (604-606) |
+| V2 | v2-grammar | Complex combination | `complex_phenotypes` | R/grammar_complex.R:122-134 (123, 127), 96-107 (99) |
+| V2 | v2-grammar | MAF | `.marker_maf_ref` | R/grammar_simulate_phenotype.R:1022-1052 (1040, 1044) |
+| V2 | v2-grammar | Sub-seed | `.layer_seed` | R/grammar_simulate_phenotype.R:1079-1094 (1083, 1092) |
 | V2 | v2-grammar | Per-QTN variance | `.qtn_var` | R/io_write.R:1288-1312 (217-218) |
-| V2 | v2-grammar | Fixed-scale phenotype | `phenotype_value` | R/cross_population.R:903-969 (944) |
+| V2 | v2-grammar | Fixed-scale phenotype | `phenotype_value` | R/cross_population.R:1004-1104 (1061) |
 | V2 | v2-grammar | Genetic correlation (plot) | `.plot_cor` | R/grammar_plot.R:144-162 (150) |
 | V2 | v2-grammar (codex) | PleioArch shared covariance | `.pleio_draw`, `.pleio_nonadditive_draw` | R/effects_pleioarch.R:65-93 (sigma at 78-80), 345-358 (356-357) |
 | V2 | v2-grammar (codex) | PleioArch effect allocation (non-additive) | `.pleio_unit_effects`, `.draw_mvnorm` | R/effects_pleioarch.R:583-690 (535-537), 780-800 |
@@ -4936,31 +4938,31 @@ Every `file:line` reference above was checked against the worktree at HEAD `c511
 | V2 | v2-grammar (codex) | Total pleiotropic correlation target | `.pleio_total_cor_check` | R/effects_pleioarch.R:724-788 (roxygen 543-574) |
 | V2 | v2-grammar (codex) | Additive MAF effect scaling | `.pleio_draw` | R/effects_pleioarch.R:201-217 (144-149) |
 | V2 | v2-grammar (codex) | LD window (two-trait linked distinct loci) | `.draw_qtn_ld` | R/arch_ld.R:62-225 (window 69-95, sampling 105-175) |
-| V2 | v2-effects-arch | Pleiotropic covariance | `.pleio_draw`, `.pleio_nonadditive_draw` | `effects_pleioarch.R:90-91`, `:356-357` |
-| V2 | v2-effects-arch | Trait-specific variance | `.pleio_draw`, `.pleio_unit_effects` | `:139-141`, `:536` |
-| V2 | v2-effects-arch | Major/minor split | `.pleio_draw`, `.draw_mvnorm` | `:137-138`, `:785` |
-| V2 | v2-effects-arch | MVN draw | `.draw_mvnorm` | `:780-790` |
-| V2 | v2-effects-arch | Univariate draw | `.draw_univariate` | `:795-800` |
-| V2 | v2-effects-arch | Shared-unit count | `.pleio_partition` | `:220-221, 249` |
-| V2 | v2-effects-arch | Attainability (2 traits) | `.check_pleio_feasible` | `:727-741` |
-| V2 | v2-effects-arch | Attainability (n traits) | `.check_pleio_feasible` | `:749-766` |
-| V2 | v2-effects-arch | Allele -> genotype scaling | `.pleio_draw`; `.marker_maf_ref` | `:143-159`; `grammar_simulate_phenotype.R:1018-1022` |
-| V2 | v2-effects-arch | Non-additive normaliser | `.pleio_unit_effects`; `.epi_unit_column` | `:452-455, 537`; `grammar_realize.R:578-588`; dominance design `:370` vs `grammar_realize.R:509` |
-| V2 | v2-effects-arch | Effective per-component target | `.pleio_unit_effects` | `:510-515` |
-| V2 | v2-effects-arch | Total-correlation target | `.pleio_total_cor_check` | `:605-610` |
-| V2 | v2-effects-arch | Layer rescale (context) | `.genetic_matrix` | `grammar_realize.R:143-145` |
-| V2 | v2-effects-arch | Few-unit attenuation | doc claim | `:26-28`; `grammar_simulate_phenotype.R:302-304` |
+| V2 | v2-effects-arch | Pleiotropic covariance | `.pleio_draw`, `.pleio_nonadditive_draw` | `effects_pleioarch.R:90-91`, `:504-505` |
+| V2 | v2-effects-arch | Trait-specific variance | `.pleio_draw`, `.pleio_unit_effects` | `:197-199`, `:685` |
+| V2 | v2-effects-arch | Major/minor split | `.pleio_draw`, `.draw_mvnorm` | `:195-196`, `:934` |
+| V2 | v2-effects-arch | MVN draw | `.draw_mvnorm` | `:929-939` |
+| V2 | v2-effects-arch | Univariate draw | `.draw_univariate` | `:944-949` |
+| V2 | v2-effects-arch | Shared-unit count | `.pleio_partition` | `:291-292, 320` |
+| V2 | v2-effects-arch | Attainability (2 traits) | `.check_pleio_feasible` | `:876-890` |
+| V2 | v2-effects-arch | Attainability (n traits) | `.check_pleio_feasible` | `:898-915` |
+| V2 | v2-effects-arch | Allele -> genotype scaling | `.pleio_draw`; `.marker_maf_ref` | `:201-217`; `grammar_simulate_phenotype.R:1040-1044` |
+| V2 | v2-effects-arch | Non-additive normaliser | `.pleio_unit_effects`; `.epi_unit_column` | `:601-604, 686`; `grammar_realize.R:579-589`; dominance design `:518` vs `grammar_realize.R:510` |
+| V2 | v2-effects-arch | Effective per-component target | `.pleio_unit_effects` | `:659-664` |
+| V2 | v2-effects-arch | Total-correlation target | `.pleio_total_cor_check` | `:754-759` |
+| V2 | v2-effects-arch | Layer rescale (context) | `.genetic_matrix` | `grammar_realize.R:144-146` |
+| V2 | v2-effects-arch | Few-unit attenuation | doc claim | `:26-28`; `grammar_simulate_phenotype.R:318-320` |
 | V2 | v2-effects-arch | Complete-LD ensemble mean | doc claim | `:28-30`; DECISIONS.md 023 Scope |
-| V2 | v2-effects-arch | Geometric effect series | `.effect_series` | `effects_series.R:55, 52` |
-| V2 | v2-effects-arch | Repulsion phase | `.apply_phase` | `grammar_layers.R:1479-1487` |
-| V2 | v2-effects-arch | Residual draw | `.draw_residual` | `effects_series.R:84-100` |
-| V2 | v2-effects-arch | LD measure | `window_partners`, `r2_pair` | `arch_ld.R:111, 92-94` |
-| V2 | v2-effects-arch | Direct pair choice | `.draw_qtn_ld` | `arch_ld.R:149-160` (`:114`) |
+| V2 | v2-effects-arch | Geometric effect series | `.effect_series` | `effects_series.R:55, 64` |
+| V2 | v2-effects-arch | Repulsion phase | `.apply_phase` | `grammar_layers.R:1482-1490` |
+| V2 | v2-effects-arch | Residual draw | `.draw_residual` | `effects_series.R:85-102` |
+| V2 | v2-effects-arch | LD measure | `window_partners`, `r2_pair` | `arch_ld.R:111, 124-126` |
+| V2 | v2-effects-arch | Direct pair choice | `.draw_qtn_ld` | `arch_ld.R:149-160` (`:151-152`); `partner` `:73-74` |
 | V2 | v2-effects-arch | Indirect flanks | `.draw_qtn_ld` | `arch_ld.R:161-197` |
-| V2 | v2-effects-arch | Layer sub-seed | `.layer_seed` | `grammar_simulate_phenotype.R:1061-1071` |
-| V2 | v2-effects-arch | Gabriel blocks tag | `.gabriel_blocks` | `qc_ld_methods.R:24-29, 30-35` |
+| V2 | v2-effects-arch | Layer sub-seed | `.layer_seed` | `grammar_simulate_phenotype.R:1083-1093` |
+| V2 | v2-effects-arch | Gabriel blocks tag | `.gabriel_blocks` | `qc_ld_methods.R:24-29, 38-43` |
 | V2 | v2-effects-arch (codex) | Zero-variance correlation guard | `.pleio_check_zero_var()` | `R/effects_pleioarch.R:246-275` |
-| V2 | v2-effects-arch (codex) | Shared/specific unit count (clamped) | `.pleio_partition()` | `R/effects_pleioarch.R:288-329` (clamp `:220-221`) |
+| V2 | v2-effects-arch (codex) | Shared/specific unit count (clamped) | `.pleio_partition()` | `R/effects_pleioarch.R:288-329` (clamp `:291-292`) |
 | V2 | v2-effects-arch (codex) | One shared unit | `.pleio_single_unit_consequence()` | `R/effects_pleioarch.R:412-441` |
 | V2 | v2-effects-arch (codex) | Correlation input expansion | `.pleio_cor_matrix()` | `R/effects_pleioarch.R:957-986` |
 | V2 | v2-effects-arch (codex) | Pleiotropic-share argument mapping | `.pleio_pi_vector()` | `R/effects_pleioarch.R:829-860` |
@@ -4971,68 +4973,68 @@ Every `file:line` reference above was checked against the worktree at HEAD `c511
 | V2 | v2-effects-arch (codex) | Layer occurrence index | `.type_occurrence()` | `R/arch_independent.R:139-141` |
 | V2 | v2-crossing | Heterozygote phasing | `as_population` | `R/cross_population.R:176-177` |
 | V2 | v2-crossing | Dosage from strands | `dosages` | `R/cross_population.R:623`; `genome.rs:273-278` |
-| V2 | v2-crossing | Crossover count | `.draw_meiosis` | `R/cross_mating.R:77-78`; cM$\rightarrow$M `:98,100` |
-| V2 | v2-crossing | Chiasma positions | `.draw_meiosis` | `R/cross_mating.R:79` |
-| V2 | v2-crossing | Strand choice | `.draw_meiosis` | `R/cross_mating.R:81` |
-| V2 | v2-crossing | Ancestry mask | `chromosome_mask`, `breaks_at` | `src/rust/src/meiosis.rs:49-51, 41-50` |
+| V2 | v2-crossing | Crossover count | `.draw_meiosis` | `R/cross_mating.R:53-56` (dispatch), Poisson branch `:77-78`; gamma model `:215-275`; default `.INTERFERENCE_DEFAULT` `:117` (DECISION-047); cM$\rightarrow$M `:339,341` |
+| V2 | v2-crossing | Chiasma positions | `.draw_meiosis` | `R/cross_mating.R:79-87` |
+| V2 | v2-crossing | Strand choice | `.draw_meiosis` | `R/cross_mating.R:90` |
+| V2 | v2-crossing | Ancestry mask | `chromosome_mask`, `breaks_at` | `src/rust/src/meiosis.rs:49-51, 63-72` |
 | V2 | v2-crossing | Gamete | `recombine` | `meiosis.rs:224-237` |
 | V2 | v2-crossing | Cross / self / DH | `mate_haplotypes` | `meiosis.rs:350-371`; events per progeny `R/cross_mating.R:345` |
-| V2 | v2-crossing | Recombination fraction (implied, verified) | — (property of the Poisson process) | verified e4.R/e5.R; `tests/testthat/test-cross.R:179-202` |
+| V2 | v2-crossing | Recombination fraction (implied, verified) | — (property of the Poisson process) | verified e4.R/e5.R; `tests/testthat/test-cross.R:179-202` (file runs under `simplePHENOTYPES.interference = "poisson"`, `:13`) |
 | V2 | v2-crossing | Heterozygosity under selfing | `selfcross` (doc) | `R/cross_mating.R:627-629`; verified e1.R E3 |
 | V2 | v2-crossing | Synthetic map rate | `synthetic_map` | `R/cross_map.R:157` |
 | V2 | v2-crossing | Synthetic map integration | `synthetic_map` | `R/cross_map.R:168-173`, `:133` |
 | V2 | v2-crossing | Additive value (fixed scale) | `additive_value` | `R/cross_population.R:746` |
 | V2 | v2-crossing | Genotypic value | `genotypic_value` | `R/cross_population.R:821` |
-| V2 | v2-crossing | Residual from h² | `phenotype_value` | `R/cross_population.R:944` |
+| V2 | v2-crossing | Residual from h² | `phenotype_value` | `R/cross_population.R:1061` |
 | V2 | v2-crossing | Breed composition | `breed_composition` | `R/cross_breed.R:37-43` |
-| V2 | v2-crossing | Realized heterosis | `heterosis` | `R/cross_breed.R:135-139, 130` |
+| V2 | v2-crossing | Realized heterosis | `heterosis` | `R/cross_breed.R:135-139, 152` |
 | V2 | v2-crossing | Expected F1 heterosis | `heterosis` + `.expected_cross_means` | `R/cross_breed.R:140-150`; `R/select_combining.R:244-255` |
 | V2 | v2-crossing | Per-locus cross mean | `.expected_cross_means` | `R/select_combining.R:249-254` |
 | V2 | v2-crossing | Retention fractions (doc only) | roxygen | `R/cross_breed.R:68-72`; `docs/SPEC-block3b.md` §7 |
 | V2 | v2-crossing | Rotation sire sequence | `crossbreed` | `R/cross_breed.R:302-305` |
-| V2 | v2-crossing | Pedigree key | `.mating_pedigree`, `.stable_key` | `R/cross_pedigree.R:25-80, 128-130`; `hash.rs:12-23` |
-| V2 | v2-crossing | Generation | `.mating_pedigree` | `R/cross_pedigree.R:166-167` |
+| V2 | v2-crossing | Pedigree key | `.mating_pedigree`, `.stable_key` | `R/cross_pedigree.R:25-37` (`.stable_key`), `:42-59` (`.key_part`), `:205-207` (mating key); `hash.rs:12-23` |
+| V2 | v2-crossing | Generation | `.mating_pedigree` | `R/cross_pedigree.R:208-209` |
 | V2 | v2-crossing | A-matrix (other group, consistency only) | `a_matrix` | `R/select_blup.R:69-90` |
-| V2 | v2-crossing (codex) | Average-effect vs genotypic-value distinction (doc) | roxygen of `genotypic_value` (implemented in `select_ind(on = "bv")`, other group) | `R/cross_population.R:774-780` (verified: α text at 386-387) |
-| V2 | v2-crossing (codex) | Full-sib family identity | `families` | `R/cross_pedigree.R:265-293` (verified: `families <-` at 230, closes at 258) |
+| V2 | v2-crossing (codex) | Average-effect vs genotypic-value distinction (doc) | roxygen of `genotypic_value` (implemented in `select_ind(on = "bv")`, other group) | `R/cross_population.R:774-780` (verified: α text at 776-777) |
+| V2 | v2-crossing (codex) | Full-sib family identity | `families` | `R/cross_pedigree.R:307-336` (verified: `families <-` at 307, closes at 336) |
 | V2 | v2-crossing (codex) | Mating designs (counts) | `mating_design` | `R/cross_mate.R:360-486` (verified: `mating_design <-` at 229; file is 350 lines) |
 | V2 | v2-crossing (codex) | Within-family relationship validation (test) | test helper `.icc` | `tests/testthat/test-family-relationship.R:1-58` (verified: 58 lines, `.icc` at 26, targets at 52-57) |
 | V2 | v2-rust-core | Crossover count (count-location) | `.draw_meiosis` | R `R/cross_mating.R:77-78`; isqg `Genetics.cpp:44,84`; Rust: none (input `counts`) |
-| V2 | v2-rust-core | Chiasma locations | `.draw_meiosis` | R `:53`; isqg `Genetics.cpp:86-97` |
-| V2 | v2-rust-core | Strand raffle | `.draw_meiosis` / `chromosome_mask` | R `:55`; Rust `meiosis.rs:68-70`; isqg `:74-75` |
+| V2 | v2-rust-core | Chiasma locations | `.draw_meiosis` | R `:79-87`; isqg `Genetics.cpp:86-97` |
+| V2 | v2-rust-core | Strand raffle | `.draw_meiosis` / `chromosome_mask` | R `:90`; Rust `meiosis.rs:68-70`; isqg `:74-75` |
 | V2 | v2-rust-core | Breakpoint rank | `breaks_at` | Rust `meiosis.rs:49-51`; isqg `Genetics.cpp:67` |
 | V2 | v2-rust-core | Ancestry mask | `chromosome_mask`, `Bits::toggle_from`, `flip_all` | Rust `meiosis.rs:63-72`, `genome.rs:69-87`; isqg `:58-70` (XOR loop), `:74-75` (flip) |
 | V2 | v2-rust-core | Gamete assembly | `recombine` | Rust `meiosis.rs:224-237`; isqg `Genetics.cpp:356` |
-| V2 | v2-rust-core | Cross | `mate_haplotypes` | Rust `meiosis.rs:359-369`; R `.mate` `cross_mating.R:345,111,120-132` |
+| V2 | v2-rust-core | Cross | `mate_haplotypes` | Rust `meiosis.rs:359-369`; R `.mate` `cross_mating.R:345,453,460-467` |
 | V2 | v2-rust-core | Self | `selfcross` $\rightarrow$ `.mate(parent, parent)` | R `cross_mating.R:647-652`; Rust same path |
-| V2 | v2-rust-core | Doubled haploid | `mate_haplotypes` (Dh) | Rust `meiosis.rs:263-269,228-231`; R `:246-251` |
-| V2 | v2-rust-core | Genotype projection | `write_genotype`, `dosages` | Rust `genome.rs:273-284`; R `cross_population.R:355-359` (`cis + trans - 1`) |
+| V2 | v2-rust-core | Doubled haploid | `mate_haplotypes` (Dh) | Rust `meiosis.rs:263-269,351-358`; R `cross_mating.R:686-691` |
+| V2 | v2-rust-core | Genotype projection | `write_genotype`, `dosages` | Rust `genome.rs:273-284`; R `cross_population.R:623` (`cis + trans - 1`) |
 | V2 | v2-rust-core | Founder phasing | `as_population` | R `cross_population.R:176-177` |
-| V2 | v2-rust-core | Map units | `.mate` | R `cross_mating.R:337,100` |
+| V2 | v2-rust-core | Map units | `.mate` | R `cross_mating.R:339,341` |
 | V2 | v2-rust-core | Haldane map function (consequence, tested only) | — | test `tests/testthat/test-cross.R:179-202`; auditor `T2–T4` |
-| V2 | v2-rust-core | Numericalization — orientation | `compute_flip` | R `io_detect_format.R:362-364`; reference mode `:305-310` |
-| V2 | v2-rust-core | Numericalization — codes | `numericalize_core` | Rust `numeric.rs:76-88,72-119` |
-| V2 | v2-rust-core | Pedigree key hash | `fnv1a_128`, `.stable_key` | Rust `hash.rs:12-23`; R `cross_pedigree.R:24-79` |
-| V2 | v2-rust-core (codex) | Public ingestion dispatch | `as_numeric()` | `R/io_as_numeric.R:192-207` (verified: `if (is.character(x) && is.null(dim(x)))` at :105, `format_conversion(...)` at :113) |
-| V2 | v2-rust-core (codex) | Genetic-model post-transform (split out of Fable's single "codes" row) | `numericalize_core()` | `src/rust/src/numeric.rs:149-180` (verified: `match model` at :95, `"Dom"` :96, `"Left"` :103, `"Right"` :110, default :117) |
+| V2 | v2-rust-core | Numericalization — orientation | `compute_flip` | R `io_detect_format.R:362-364`; reference mode `:354-359` |
+| V2 | v2-rust-core | Numericalization — codes | `numericalize_core` | Rust `numeric.rs:76-88,135-180` |
+| V2 | v2-rust-core | Pedigree key hash | `fnv1a_128`, `.stable_key` | Rust `hash.rs:12-23`; R `cross_pedigree.R:22-59` |
+| V2 | v2-rust-core (codex) | Public ingestion dispatch | `as_numeric()` | `R/io_as_numeric.R:192-207` (verified: `if (is.character(x) && is.null(dim(x)))` at :198, `format_conversion(...)` at :206) |
+| V2 | v2-rust-core (codex) | Genetic-model post-transform (split out of Fable's single "codes" row) | `numericalize_core()` | `src/rust/src/numeric.rs:149-180` (verified: `match model` at :156, `"Dom"` :157, `"Left"` :164, `"Right"` :171, default :178) |
 | V2 | v2-selection | Truncation count from prop | `.resolve_keep` | `R/select_ind.R:574` |
-| V2 | v2-selection | Selection intensity (large N) | `.resolve_keep` | `R/select_ind.R:585–326` |
-| V2 | v2-selection | Selection differential | `select_ind` | `R/select_ind.R:460, 287` |
-| V2 | v2-selection | Realized intensity | `select_ind`, `.select_culling` | `R/select_ind.R:461–283, 734–735` |
+| V2 | v2-selection | Selection intensity (large N) | `.resolve_keep` | `R/select_ind.R:585–587` |
+| V2 | v2-selection | Selection differential | `select_ind` | `R/select_ind.R:460, 482` |
+| V2 | v2-selection | Realized intensity | `select_ind`, `.select_culling` | `R/select_ind.R:461–478, 1089–1090` |
 | V2 | v2-selection | Response (documented, tested here) | roxygen only | `R/select_ind.R:16–21` |
-| V2 | v2-selection | Average effect | `.avg_effect` | `R/grammar_realize.R:181–128` |
-| V2 | v2-selection | Breeding value | `.breeding_value_matrix` | `R/grammar_realize.R:235–240` (loop 225–236) |
-| V2 | v2-selection | Smith–Hazel index | `.index_score`, `.index_weights` | `R/select_ind.R:769–481; 498–512` |
-| V2 | v2-selection | QGSI | `.quadratic_index_score` | `R/select_ind.R:737, 449–452` |
-| V2 | v2-selection | Lush combined index | `.combined_score` | `R/select_ind.R:867, 541–543, 555–568` |
-| V2 | v2-selection | Within-family allocation | `.sel_within_family` | `R/select_ind.R:939–602` |
-| V2 | v2-selection | Among-family | `.sel_among_family` | `R/select_ind.R:968–628` |
-| V2 | v2-selection | Independent culling | `.select_culling` | `R/select_ind.R:1067–726` |
-| V2 | v2-selection | Index : culling : tandem | roxygen; test-culling.R:71–89 | `R/select_ind.R:157–104` |
-| V2 | v2-selection | Bulk pool | `bulk` | `R/select_schemes.R:165–135` |
-| V2 | v2-selection | Pedigree family size | `pedigree` | `R/select_schemes.R:304–213` |
-| V2 | v2-selection | Tandem schedule | `pedigree`, `recurrent_selection` | `R/select_schemes.R:291, 268` |
-| V2 | v2-selection | Intermating | `.intermate` | `R/select_schemes.R:542–364` |
+| V2 | v2-selection | Average effect | `.avg_effect` | `R/grammar_realize.R:182–184` |
+| V2 | v2-selection | Breeding value | `.breeding_value_matrix` | `R/grammar_realize.R:236–305` (loop 282–303) |
+| V2 | v2-selection | Smith–Hazel index | `.index_score`, `.index_weights` | `R/select_ind.R:769–782; 799–842` |
+| V2 | v2-selection | QGSI | `.quadratic_index_score` | `R/select_ind.R:737, 744–747` |
+| V2 | v2-selection | Lush combined index | `.combined_score` | `R/select_ind.R:867, 872–877, 889–902` |
+| V2 | v2-selection | Within-family allocation | `.sel_within_family` | `R/select_ind.R:939–949` |
+| V2 | v2-selection | Among-family | `.sel_among_family` | `R/select_ind.R:968–978` |
+| V2 | v2-selection | Independent culling | `.select_culling` | `R/select_ind.R:1067–1081` |
+| V2 | v2-selection | Index : culling : tandem | roxygen; test-culling.R:71–89 | `R/select_ind.R:157–164` |
+| V2 | v2-selection | Bulk pool | `bulk` | `R/select_schemes.R:156–169`; `.bulk_counts` `:470–472` |
+| V2 | v2-selection | Pedigree family size | `pedigree` | `R/select_schemes.R:304–307` |
+| V2 | v2-selection | Tandem schedule | `pedigree`, `recurrent_selection` | `R/select_schemes.R:291, 398` |
+| V2 | v2-selection | Intermating | `.intermate` | `R/select_schemes.R:542–545` |
 | V2 | v2-selection (codex) | General index response (context, not implemented) | roxygen only | `R/select_ind.R:16-21` |
 | V2 | v2-selection (codex) | Singular Smith–Hazel extension | `.index_weights` | `R/select_ind.R:799-830` |
 | V2 | v2-selection (codex) | Selfed / DH family BV correlation | `select_ind()` docs (`family_relationship`) | `R/select_ind.R:94-98` |
@@ -5040,31 +5042,31 @@ Every `file:line` reference above was checked against the worktree at HEAD `c511
 | V2 | v2-selection (codex) | Population pooling | `c.Population` | `R/select_schemes.R:25-68` |
 | V2 | v2-selection (codex) | Single seed descent | `single_seed_descent` | `R/select_schemes.R:102-118` |
 | V2 | v2-selection (codex) | Recurrent-selection cycle | `recurrent_selection`, `.intermate` | `R/select_schemes.R:387-410; 354-370` |
-| V2 | v2-selection (codex) | Scheme RNG threading | all four wrappers, `.self_each`, `.intermate` | `R/select_schemes.R:106, 121, 191, 261; 342; 364` |
-| V2 | v2-ocs-usefulness-marker | Genomic relationship | `g_matrix` | `R/select_ocs.R:71–87` |
+| V2 | v2-selection (codex) | Scheme RNG threading | all four wrappers, `.self_each`, `.intermate` | `R/select_schemes.R:111, 155, 283, 384; 521; 544` |
+| V2 | v2-ocs-usefulness-marker | Genomic relationship | `g_matrix` | `R/select_ocs.R:71–92` |
 | V2 | v2-ocs-usefulness-marker | Genomic inbreeding | `g_matrix` (doc) | `R/select_ocs.R:16, 42–43` |
-| V2 | v2-ocs-usefulness-marker | OCS objective | `optimum_contribution`, `.frank_wolfe` | `R/select_ocs.R:105–103, 405–428` |
-| V2 | v2-ocs-usefulness-marker | Group coancestry | `optimum_contribution`, `.tune_lambda` | `R/select_ocs.R:319, 445` |
-| V2 | v2-ocs-usefulness-marker | FW gradient / duality gap | `.frank_wolfe` | `R/select_ocs.R:601–407` |
-| V2 | v2-ocs-usefulness-marker | Away-step and line search | `.frank_wolfe` | `R/select_ocs.R:608–428` |
-| V2 | v2-ocs-usefulness-marker | Penalty tuning | `.tune_lambda` | `R/select_ocs.R:652–469` |
-| V2 | v2-ocs-usefulness-marker | Parent sampling | `sample_parents` | `R/select_ocs.R:424` |
-| V2 | v2-ocs-usefulness-marker | Usefulness | `cross_usefulness` | `R/select_usefulness.R:142–96` |
-| V2 | v2-ocs-usefulness-marker | Selection intensity | `.intensity_from_p` | `R/select_usefulness.R:161–115` |
-| V2 | v2-ocs-usefulness-marker | Fixed additive score | `.additive_model`, `.additive_gv` | `R/select_usefulness.R:204–161, 180` |
-| V2 | v2-ocs-usefulness-marker | Average effect | `.avg_effect` | `R/grammar_realize.R:181–128` |
+| V2 | v2-ocs-usefulness-marker | OCS objective | `optimum_contribution`, `.frank_wolfe` | `R/select_ocs.R:105–108, 601–624` |
+| V2 | v2-ocs-usefulness-marker | Group coancestry | `optimum_contribution`, `.tune_lambda` | `R/select_ocs.R:319, 666` |
+| V2 | v2-ocs-usefulness-marker | FW gradient / duality gap | `.frank_wolfe` | `R/select_ocs.R:601–607` |
+| V2 | v2-ocs-usefulness-marker | Away-step and line search | `.frank_wolfe` | `R/select_ocs.R:609–625` |
+| V2 | v2-ocs-usefulness-marker | Penalty tuning | `.tune_lambda` | `R/select_ocs.R:652–718` |
+| V2 | v2-ocs-usefulness-marker | Parent sampling | `sample_parents` | `R/select_ocs.R:429–441`; `.allocate_slots` `:473–494` |
+| V2 | v2-ocs-usefulness-marker | Usefulness | `cross_usefulness` | `R/select_usefulness.R:142–144` |
+| V2 | v2-ocs-usefulness-marker | Selection intensity | `.intensity_from_p` | `R/select_usefulness.R:161–163` |
+| V2 | v2-ocs-usefulness-marker | Fixed additive score | `.additive_model`, `.additive_gv` | `R/select_usefulness.R:204–209, 228` |
+| V2 | v2-ocs-usefulness-marker | Average effect | `.avg_effect` | `R/grammar_realize.R:182–184` |
 | V2 | v2-ocs-usefulness-marker | MAS feasibility | `marker_select` | `R/select_marker.R:116–119` |
-| V2 | v2-ocs-usefulness-marker | MARS/oracle index | `additive_value` (documented in `marker_select`) | `R/cross_population.R:735–357`; doc `R/select_marker.R:20–33` |
+| V2 | v2-ocs-usefulness-marker | MARS/oracle index | `additive_value` (documented in `marker_select`) | `R/cross_population.R:735–747`; doc `R/select_marker.R:20–33` |
 | V2 | v2-ocs-usefulness-marker | Recurrent-allele score | `.mabc_founders` | `R/select_mabc.R:311` |
 | V2 | v2-ocs-usefulness-marker | Recovery | `.mabc_recovery` | `R/select_mabc.R:464` |
 | V2 | v2-ocs-usefulness-marker | Expected recovery | doc only | `R/select_mabc.R:25–31, 227–229` |
 | V2 | v2-ocs-usefulness-marker | Interval weights | `.mabc_weights` | `R/select_mabc.R:520–529` |
 | V2 | v2-ocs-usefulness-marker | Foreground / recombinant / background staging | `mabc_select` | `R/select_mabc.R:170–177, 194` |
-| V2 | v2-ocs-usefulness-marker (codex) | Ridge blend of G | `g_matrix` | `R/select_ocs.R:25-26, 44-50, 88-90` |
+| V2 | v2-ocs-usefulness-marker (codex) | Ridge blend of G | `g_matrix` | `R/select_ocs.R:25-26, 44-50, 93-95` |
 | V2 | v2-ocs-usefulness-marker (codex) | MABC foreground feasibility | `mabc_select` | `R/select_mabc.R:168-174` |
 | V2 | v2-prediction | Tabular relationship (off-diagonal) | `a_matrix` | `R/select_blup.R:73-79` |
 | V2 | v2-prediction | Inbreeding / diagonal | `a_matrix` | `R/select_blup.R:80-88` |
-| V2 | v2-prediction | Variance ratio | `predict_ebv`, `.blup_variances` | `R/select_blup.R:365`, `:314-319` |
+| V2 | v2-prediction | Variance ratio | `predict_ebv`, `.blup_variances` | `R/select_blup.R:365`, `:676-681` |
 | V2 | v2-prediction | GLS mean | `predict_ebv` | `R/select_blup.R:376-386` |
 | V2 | v2-prediction | BLUP of u | `predict_ebv` | `R/select_blup.R:387-388` |
 | V2 | v2-prediction | PEV / reliability | `predict_ebv` | `R/select_blup.R:395-398` |
@@ -5075,69 +5077,69 @@ Every `file:line` reference above was checked against the worktree at HEAD `c511
 | V2 | v2-prediction | Topcross / factorial GCA, SCA | `.decompose_ca` | `R/select_combining.R:321-324` |
 | V2 | v2-prediction | Diallel GCA (method 4) | `.decompose_ca` | `R/select_combining.R:312-316` |
 | V2 | v2-prediction | Diallel SCA (method 4) | `.decompose_ca` | `R/select_combining.R:317-318` |
-| V2 | v2-prediction | Broad-sense residual for simulated crosses | `phenotype_value` via `.simulate_cross_means` | `R/cross_population.R:944`; `R/select_combining.R:290-293` |
-| V2 | v2-prediction | Realized-scale template effects | `.layer_scaled_effects` $\leftarrow$ `template_effects` | `R/grammar_realize.R:363`; `R/select_combining.R:400-406` |
+| V2 | v2-prediction | Broad-sense residual for simulated crosses | `phenotype_value` via `.simulate_cross_means` | `R/cross_population.R:1061`; `R/select_combining.R:290-293` |
+| V2 | v2-prediction | Realized-scale template effects | `.layer_scaled_effects` $\leftarrow$ `template_effects` | `R/grammar_realize.R:364`; `R/select_combining.R:400-406` |
 | V2 | v2-prediction | Progeny-test expected mean | `progeny_test` (doc) | `R/select_progeny.R:17-35` |
 | V2 | v2-prediction | Progeny-test accuracy | `progeny_test` (doc) | `R/select_progeny.R:37-53` |
 | V2 | v2-prediction | Mate sampling | `progeny_test` | `R/select_progeny.R:121-135` |
 | V2 | v2-prediction | Family mean | `progeny_test` | `R/select_progeny.R:149-150` |
-| V2 | v2-prediction (codex) | Known-variance mixed model (the model BLUP solves) | `predict_ebv` | `R/select_blup.R:174-181` (roxygen), `:148-163` (inputs) |
-| V2 | v2-prediction (codex) | Supplied-covariance validation (correlation-scale PSD test) | `.check_relationship` | `R/select_blup.R:427-650` (scaling `:280-282`, eigen `:288`, tolerance `:292-293`) |
-| V2 | v2-prediction (codex) | VanRaden method-1 genomic relationship (consumed by GBLUP) | `predict_ebv` $\rightarrow$ `g_matrix` | `R/select_blup.R:337-343` (Codex wrote 168-173); `R/select_ocs.R:44-98` (Codex wrote 44-92; core at `:78, 85-87`) |
-| V2 | v2-prediction (codex) | Progeny-test RNG draw order (reproducibility contract) | `progeny_test` | `R/select_progeny.R:113-114` (seed), `:104` (mates), `:110` (meioses), `:115-116` (residual) |
+| V2 | v2-prediction (codex) | Known-variance mixed model (the model BLUP solves) | `predict_ebv` | `R/select_blup.R:174-181` (roxygen), `:300-321` (inputs) |
+| V2 | v2-prediction (codex) | Supplied-covariance validation (correlation-scale PSD test) | `.check_relationship` | `R/select_blup.R:587-650` (scaling `:630-632`, eigen `:640`, tolerance `:644-645`) |
+| V2 | v2-prediction (codex) | VanRaden method-1 genomic relationship (consumed by GBLUP) | `predict_ebv` $\rightarrow$ `g_matrix` | `R/select_blup.R:337-343` (Codex wrote 168-173); `R/select_ocs.R:44-98` (Codex wrote 44-92; core at `:83, 90-92`) |
+| V2 | v2-prediction (codex) | Progeny-test RNG draw order (reproducibility contract) | `progeny_test` | `R/select_progeny.R:113-114` (seed), `:132` (mates), `:138` (meioses), `:144-145` (residual) |
 | V2 | v2-transcriptome | Expression model | `simulate_transcriptome` | `R/transcriptome_simulate.R:616-618` |
-| V2 | v2-transcriptome | Reference-centered dosage | `simulate_transcriptome` | `:206-208`; predict `:672-674` |
-| V2 | v2-transcriptome | cis score | `simulate_transcriptome` | `:381-391` |
-| V2 | v2-transcriptome | trans factor | `simulate_transcriptome` | `:334-354`, `:392` |
-| V2 | v2-transcriptome | Standardization | `z1` | `:372-376` |
-| V2 | v2-transcriptome | Additive genetic score | `simulate_transcriptome` | `:428-457` |
-| V2 | v2-transcriptome | Epistatic blend | `simulate_transcriptome` | `:402-451` |
-| V2 | v2-transcriptome | Residual | `simulate_transcriptome` | `:464-474` |
-| V2 | v2-transcriptome | Realized heritability | `simulate_transcriptome`, `predict` | `:493-495`; `:770-773` |
-| V2 | v2-transcriptome | Effective coefficients | `simulate_transcriptome` | `:503-513`, `:532`, `:539`, `:550` |
-| V2 | v2-transcriptome | Genetic budget | `simulate_transcriptome` | `:518-525` |
-| V2 | v2-transcriptome | Realized cis fraction | `simulate_transcriptome` | `:526-528` |
-| V2 | v2-transcriptome | Cross-population genetic value | `predict.transcriptome_sim` | `:656-675`, `:687-713` |
-| V2 | v2-transcriptome | Mimic affine | `simulate_transcriptome` | `:481-490` |
+| V2 | v2-transcriptome | Reference-centered dosage | `simulate_transcriptome` | `:308-310`; predict `:845-847` |
+| V2 | v2-transcriptome | cis score | `simulate_transcriptome` | `:501-511` |
+| V2 | v2-transcriptome | trans factor | `simulate_transcriptome` | `:451-471`, `:512` |
+| V2 | v2-transcriptome | Standardization | `z1` | `:492-496` |
+| V2 | v2-transcriptome | Additive genetic score | `simulate_transcriptome` | `:548-578` |
+| V2 | v2-transcriptome | Epistatic blend | `simulate_transcriptome` | `:522-572` |
+| V2 | v2-transcriptome | Residual | `simulate_transcriptome` | `:585-595` |
+| V2 | v2-transcriptome | Realized heritability | `simulate_transcriptome`, `predict` | `:619-628`; `:943-948` |
+| V2 | v2-transcriptome | Effective coefficients | `simulate_transcriptome` | `:636-646`, `:666`, `:673`, `:684` |
+| V2 | v2-transcriptome | Genetic budget | `simulate_transcriptome` | `:651-658` |
+| V2 | v2-transcriptome | Realized cis fraction | `simulate_transcriptome` | `:659-661`; predict `:950` |
+| V2 | v2-transcriptome | Cross-population genetic value | `predict.transcriptome_sim` | `:829-848`, `:860-886` |
+| V2 | v2-transcriptome | Mimic affine | `simulate_transcriptome` | `:602-616` |
 | V2 | v2-transcriptome | GRM | `.tx_grm` | `R/transcriptome_mimic.R:24-30` |
 | V2 | v2-transcriptome | REML objective | `.greml_h2` | `R/transcriptome_mimic.R:76-84` |
 | V2 | v2-transcriptome | GREML heritability | `.greml_h2` | `R/transcriptome_mimic.R:94-97` |
 | V2 | v2-transcriptome | Factor count | `.tx_estimate_factors` | `R/transcriptome_mimic.R:111-119` |
-| V2 | v2-transcriptome | kappa proxy | `.tx_estimate_kappa` | `R/transcriptome_mimic.R:149-172` |
-| V2 | v2-transcriptome | NB observation | `observe_counts` | `R/transcriptome_counts.R:75-80`, `:80-84` |
-| V2 | v2-transcriptome | Layer score | `.tx_raw`, `.transcriptome_matrix` | `R/grammar_realize.R:453-475`, `:312-338` |
-| V2 | v2-transcriptome | Mediation split | `.tx_raw(which="genetic")`, `.mediation_budget`, `mediation_split` | `R/grammar_realize.R:457-475`, `:588-618`; `R/io_write.R:1267-1270` |
-| V2 | v2-transcriptome | Realized H2 | `.genetic_value_matrix`, `.realized_h2` | `R/grammar_realize.R:393-399`, `:704-723` |
+| V2 | v2-transcriptome | kappa proxy | `.tx_estimate_kappa` | `R/transcriptome_mimic.R:149-172` (roxygen `:120-148`); called at `R/transcriptome_simulate.R:395` |
+| V2 | v2-transcriptome | NB observation | `observe_counts` | `R/transcriptome_counts.R:75-80`, `:98-102` |
+| V2 | v2-transcriptome | Layer score | `.tx_raw`, `.transcriptome_matrix` | `R/grammar_realize.R:454-476`, `:414-440` |
+| V2 | v2-transcriptome | Mediation split | `.tx_raw(which="genetic")`, `.mediation_budget`, `mediation_split` | `R/grammar_realize.R:458-476`, `:730-761`; `R/io_write.R:1267-1270` |
+| V2 | v2-transcriptome | Realized H2 | `.genetic_value_matrix`, `.realized_h2` | `R/grammar_realize.R:394-400`, `:1078-1106` |
 | V2 | v2-transcriptome | Per-gene share | `.tx_qtn_var` | `R/io_write.R:1328-1345` |
-| V2 | v2-transcriptome | Layer sub-seed | `.layer_seed`, `transcriptome` | `R/grammar_simulate_phenotype.R:1057-1070`; `R/transcriptome_layer.R:257-276` |
-| V2 | v2-transcriptome (codex) | Single-component LMM (model statement) | `.greml_h2` | `R/transcriptome_mimic.R:32-53` (roxygen), fit `:38-68` |
-| V2 | v2-transcriptome (codex) | Calibration metrics | benchmark 01 | `benchmarks/01_h2_calibration.R:61-62` (h2), `:79-80` (cis) |
-| V2 | v2-transcriptome (codex) | Marginal eQTL scan | `scan_one` | `benchmarks/02_eqtl_recovery.R:61-80` ($r$ at `:66`, best rank `:71`) |
+| V2 | v2-transcriptome | Layer sub-seed | `.layer_seed`, `transcriptome` | `R/grammar_simulate_phenotype.R:1079-1092`; `R/transcriptome_layer.R:257-276` |
+| V2 | v2-transcriptome (codex) | Single-component LMM (model statement) | `.greml_h2` | `R/transcriptome_mimic.R:32-53` (roxygen), fit `:58-97` |
+| V2 | v2-transcriptome (codex) | Calibration metrics | benchmark 01 | `benchmarks/01_h2_calibration.R:61-62` (h2), `:93-94` (cis) |
+| V2 | v2-transcriptome (codex) | Marginal eQTL scan | `scan_one` | `benchmarks/02_eqtl_recovery.R:61-80` ($r$ at `:75`, best rank `:80`) |
 | V2 | v2-transcriptome (codex) | Co-expression rank test | benchmark 03 | `benchmarks/03_coexpression_fp_control.R:55-70` |
-| V2 | v2-transcriptome (codex) | Benchmark-04 mediation target | benchmark 04 | `benchmarks/04_mediation_recovery.R:9-12, 70-71, 93-95` |
-| V2 | v2-transcriptome (codex) | TWAS Pearson test | `cor_p` | `benchmarks/05_twas_power.R:103-112` ($t$ at `:85`, $p$ at `:86`) |
-| V2 | v2-transcriptome (codex) | Bonferroni threshold | benchmark 05 | `benchmarks/05_twas_power.R:114, 106-107` |
+| V2 | v2-transcriptome (codex) | Benchmark-04 mediation target | benchmark 04 | `benchmarks/04_mediation_recovery.R:9-12, 89-90, 114-116` |
+| V2 | v2-transcriptome (codex) | TWAS Pearson test | `cor_p` | `benchmarks/05_twas_power.R:103-112` ($t$ at `:110`, $p$ at `:111`) |
+| V2 | v2-transcriptome (codex) | Bonferroni threshold | benchmark 05 | `benchmarks/05_twas_power.R:114, 146-147` |
 | V2 | v2-io-formats | Allele frequency / MAF | `filter_geno` | `R/qc_filter_geno.R:290-297` |
-| V2 | v2-io-formats | Monomorphic / MAF filters | `filter_geno` | `:221`, `:224`, `:228` |
-| V2 | v2-io-formats | Heterozygosity | `filter_geno` | `:211`, `:232`, `:234` |
-| V2 | v2-io-formats | Composite (genotypic) $r^2$ | `.ld_sweep` | `:391-400` |
-| V2 | v2-io-formats | Pruning decision | `.ld_sweep` | `:367`, `:498`, `:500-503` |
-| V2 | v2-io-formats | Window / step | `.ld_prune`, `.ld_sweep` | `:327-341`, `:440-452` (`win_at`), `:572-617` (slide) |
-| V2 | v2-io-formats | Haplotypic $r^2$ | `.plink_hap_rsq`, `.plink_em_hethet`, `.plink_cubic_roots` | `:631-644` (r² at `:643`), `:657-714`, `:737-778` |
-| V2 | v2-io-formats | VIF | `.ld_sweep` (vif branch) | `:518-571` (`solve` `:532`,`:556`; test `:560`) |
-| V2 | v2-io-formats | Gabriel block MAF floor / tag | `.gabriel_blocks` | `R/qc_ld_methods.R:25`, `:32` |
+| V2 | v2-io-formats | Monomorphic / MAF filters | `filter_geno` | `:311`, `:314`, `:318` |
+| V2 | v2-io-formats | Heterozygosity | `filter_geno` | `:301`, `:322`, `:324` |
+| V2 | v2-io-formats | Composite (genotypic) $r^2$ | `.ld_sweep` | `:556-565` |
+| V2 | v2-io-formats | Pruning decision | `.ld_sweep` | `:532`, `:663`, `:665-668` |
+| V2 | v2-io-formats | Window / step | `.ld_prune`, `.ld_sweep` | `:492-506`, `:605-617` (`win_at`), `:737-782` (slide) |
+| V2 | v2-io-formats | Haplotypic $r^2$ | `.plink_hap_rsq`, `.plink_em_hethet`, `.plink_cubic_roots` | `:796-809` (r² at `:808`), `:822-879`, `:902-943` |
+| V2 | v2-io-formats | VIF | `.ld_sweep` (vif branch) | `:683-736` (`solve` `:697`,`:721`; test `:725`) |
+| V2 | v2-io-formats | Gabriel block MAF floor / tag | `.gabriel_blocks` | `R/qc_ld_methods.R:25`, `:40` |
 | V2 | v2-io-formats | Major-allele flip (frequency) | `compute_flip` | `R/io_detect_format.R:362-364` |
-| V2 | v2-io-formats | Reference flip | `compute_flip` | `:310` |
-| V2 | v2-io-formats | Numeric coding | `numericalize_core` | `src/rust/src/numeric.rs:76-76`, `:78-84`, `:95-117` |
+| V2 | v2-io-formats | Reference flip | `compute_flip` | `:359` |
+| V2 | v2-io-formats | Numeric coding | `numericalize_core` | `src/rust/src/numeric.rs:76-76`, `:138-145`, `:156-178` |
 | V2 | v2-io-formats | HWE | — | — |
 | V2 | v2-io-formats | Missing-rate filter | — | — |
 | V2 | v2-io-formats (codex) | Raw genotype parsing and coding dispatch | `parse_hapmap_chars_to_raw()`, `.apply_coding()` | `R/io_detect_format.R:223-326`; `R/io_read_formats.R:18-194` |
 | V2 | v2-io-formats (codex) | Exact two-locus ML cubic | `.plink_em_hethet()` | `R/qc_filter_geno.R:822-879` |
 | V2 | v2-io-formats (codex) | Two-locus haplotype log-likelihood | `.plink_calc_lnlike()` | `R/qc_filter_geno.R:884-894` |
 | V2 | v2-io-formats (codex) | Cubic real roots | `.plink_cubic_roots()` | `R/qc_filter_geno.R:902-943` |
-| V2 | v2-io-formats (codex) | D' likelihood surface and class codes | `.plink_calc_lnlike_quantile()`, `.plink_blocks_classify()` | `R/qc_filter_geno.R:952-966`, `:813-888` |
+| V2 | v2-io-formats (codex) | D' likelihood surface and class codes | `.plink_calc_lnlike_quantile()`, `.plink_blocks_classify()` | `R/qc_filter_geno.R:952-966`, `:978-1053` |
 | V2 | v2-io-formats (codex) | Gabriel/Haploview block acceptance | `.plink_blocks_chrom()`, `.gabriel_blocks()` | `R/qc_filter_geno.R:1066-1180`; `R/qc_ld_methods.R:23-46` |
-| V2 | v2-io-formats (codex) | Per-QTN marginal realized variance share | `.qtn_var()`, `qtn_table()` | `R/io_write.R:1288-1312`; `:307-310` |
+| V2 | v2-io-formats (codex) | Per-QTN marginal realized variance share | `.qtn_var()`, `qtn_table()` | `R/io_write.R:1288-1312`; `:1400-1403` |
 | V2 | v2-io-formats (codex) | Per-gene transcriptome marginal share | `.tx_qtn_var()` | `R/io_write.R:1328-1345` |
 | V2 | v2-io-formats (codex) | PLINK fixture allele serialization | fixture generator | `data-raw/plink_parity_fixtures.R:26-34` |
 | V1 | v1-core-linkage | Additive genetic value | `genetic_effect` | `legacy_genetic_effect.R:109-112` |
